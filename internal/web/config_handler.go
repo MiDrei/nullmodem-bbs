@@ -85,6 +85,10 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s updated the BBS configuration", claims.Subject)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"config": toDTO(c),
 		"note":   "Restart the bbs daemon for changes to take effect.",

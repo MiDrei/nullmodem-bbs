@@ -73,6 +73,9 @@ func (s *Server) handleCreateMessageArea(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "could not create message area")
 		return
 	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s created message area %q (%s) via web", claims.Subject, area.Name, area.Tag)
+	}
 	writeJSON(w, http.StatusCreated, toMessageAreaDTO(*area))
 }
 
@@ -97,6 +100,9 @@ func (s *Server) handleUpdateMessageArea(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "could not update message area")
 		return
 	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s updated message area %q (%s)", claims.Subject, area.Name, area.Tag)
+	}
 	writeJSON(w, http.StatusOK, toMessageAreaDTO(*area))
 }
 
@@ -109,6 +115,9 @@ func (s *Server) handleDeleteMessageArea(w http.ResponseWriter, r *http.Request)
 	if err := s.Messages.DeleteArea(id); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not delete message area")
 		return
+	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s deleted message area %d", claims.Subject, id)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

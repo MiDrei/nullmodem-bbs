@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
@@ -66,6 +67,7 @@ func testServer(t *testing.T) *Server {
 		Users:    user.NewStore(sqlDB),
 		Messages: message.NewStore(sqlDB),
 		Files:    file.NewStore(sqlDB, filepath.Join(t.TempDir(), "files")),
+		Logger:   applog.NewLogger(applog.NewStore(sqlDB), "bbs"),
 	}
 }
 
@@ -269,5 +271,50 @@ func TestRunMenuUnknownMenuNameErrors(t *testing.T) {
 	err := s.runMenu(term, testUser(0), 1, "does-not-exist")
 	if err == nil {
 		t.Fatal("expected error for unknown menu name")
+	}
+}
+
+// TestHandleLogsConnectLoginAndDisconnect exercises a full connection
+// through Handle (rather than calling runMenu directly, like the
+// other tests here) specifically to verify activity logging, which
+// Handle -- not runMenu -- is responsible for.
+func TestHandleLogsConnectLoginAndDisconnect(t *testing.T) {
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+
+	nodes := session.NewStore(sqlDB)
+	if err := nodes.ClearAll(); err != nil {
+		t.Fatalf("Nodes.ClearAll: %v", err)
+	}
+	logStore := applog.NewStore(sqlDB)
+
+	s := &Server{
+		Nodes:  nodes,
+		Menus:  testMenus(),
+		Users:  user.NewStore(sqlDB),
+		Logger: applog.NewLogger(logStore, "bbs"),
+	}
+
+	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\nQ\r\n")
+	s.Handle(conn)
+
+	entries, err := logStore.Recent(50)
+	if err != nil {
+		t.Fatalf("Recent: %v", err)
+	}
+	var messages []string
+	for _, e := range entries {
+		messages = append(messages, e.Message)
+	}
+	joined := strings.Join(messages, "\n")
+
+	for _, want := range []string{"connected from", "alice logged in", "new account registered: alice", "disconnected"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("log entries missing %q; got:\n%s", want, joined)
+		}
 	}
 }

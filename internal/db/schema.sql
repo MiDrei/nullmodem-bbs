@@ -81,3 +81,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     username     TEXT NOT NULL,
     connected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Activity/system log shared by both daemons (bbs and web are
+-- separate processes), so the web admin log viewer can show BBS
+-- daemon events too. See internal/applog.
+CREATE TABLE IF NOT EXISTS logs (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    logged_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source    TEXT NOT NULL,
+    level     TEXT NOT NULL,
+    message   TEXT NOT NULL
+);

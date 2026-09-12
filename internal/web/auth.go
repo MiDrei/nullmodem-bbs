@@ -39,6 +39,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	u, err := s.Users.Authenticate(req.Username, req.Password)
 	if err != nil {
 		if errors.Is(err, user.ErrInvalidCredentials) {
+			s.logWarn("failed admin login attempt for %q", req.Username)
 			writeError(w, http.StatusUnauthorized, "invalid username or password")
 			return
 		}
@@ -46,9 +47,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if u.SecurityLevel < user.SLSysop {
+		s.logWarn("admin login rejected for %s: not sysop-level", u.Username)
 		writeError(w, http.StatusForbidden, "sysop access required")
 		return
 	}
+	s.logInfo("%s logged into the admin UI", u.Username)
 
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{

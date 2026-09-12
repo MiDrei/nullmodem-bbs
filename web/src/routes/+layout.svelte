@@ -90,6 +90,22 @@
 					</svg>
 					Settings
 				</a>
+				<a href="/logs" class="flex items-center gap-1.5 hover:text-slate-100">
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						stroke-linejoin="round"
+						class="h-4 w-4"
+					>
+						<path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+						<path d="M14 3v5h5" />
+						<path d="M8 13h8" />
+						<path d="M8 17h8" />
+					</svg>
+					Logs
+				</a>
 			</nav>
 		{:else}
 			<div></div>

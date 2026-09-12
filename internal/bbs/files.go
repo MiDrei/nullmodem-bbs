@@ -132,7 +132,7 @@ func (s *Server) showFileDetails(term *Terminal, f *file.File) error {
 
 // sysopCreateFileArea is the "builtin:createfilearea" command: it
 // prompts for a new area's tag, name, description, and SL gates.
-func (s *Server) sysopCreateFileArea(term *Terminal, _ *user.User) error {
+func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 	if err := term.Print(ansi.Reset + "\nArea tag (short, no spaces): " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
@@ -188,6 +188,7 @@ func (s *Server) sysopCreateFileArea(term *Terminal, _ *user.User) error {
 		}
 		return err
 	}
+	s.logInfo("%s created file area %q (%s)", sysop.Username, area.Name, area.Tag)
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Area %q created.", area.Name))
 }
 
@@ -252,5 +253,6 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 		}
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + fmt.Sprintf("Import failed: %v", err))
 	}
+	s.logInfo("%s imported %s (%s) into file area %d", u.Username, f.Filename, humanize.Bytes(uint64(f.SizeBytes)), f.AreaID)
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Imported %s (%s).", f.Filename, humanize.Bytes(uint64(f.SizeBytes))))
 }

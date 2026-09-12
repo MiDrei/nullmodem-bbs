@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
@@ -42,11 +43,15 @@ func newTestServer(t *testing.T) (*Server, *user.Store, string) {
 		t.Fatalf("config.Save: %v", err)
 	}
 
+	logs := applog.NewStore(sqlDB)
+
 	srv := &Server{
 		Users:         users,
 		Messages:      message.NewStore(sqlDB),
 		Files:         file.NewStore(sqlDB, filepath.Join(dir, "files")),
 		Nodes:         nodes,
+		Logs:          logs,
+		Logger:        applog.NewLogger(logs, "web"),
 		BBSConfigPath: configPath,
 		JWTSecret:     []byte("test-secret"),
 	}

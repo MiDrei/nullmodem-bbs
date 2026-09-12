@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/session"
@@ -20,9 +21,25 @@ type Server struct {
 	Messages      *message.Store
 	Files         *file.Store
 	Nodes         *session.Store
+	Logs          *applog.Store
+	Logger        *applog.Logger
 	BBSConfigPath string
 	JWTSecret     []byte
 	StaticDir     string
+}
+
+// logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
+// optional (e.g. in tests that don't care about activity logging).
+func (s *Server) logInfo(format string, args ...any) {
+	if s.Logger != nil {
+		s.Logger.Info(format, args...)
+	}
+}
+
+func (s *Server) logWarn(format string, args ...any) {
+	if s.Logger != nil {
+		s.Logger.Warn(format, args...)
+	}
 }
 
 // Routes builds the HTTP handler for the admin API and static UI.
@@ -48,6 +65,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/file-areas/{id}/files", s.requireAuth(http.HandlerFunc(s.handleListAreaFiles)))
 	mux.Handle("POST /api/file-areas/{id}/files", s.requireAuth(http.HandlerFunc(s.handleUploadAreaFile)))
 	mux.Handle("DELETE /api/files/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteFile)))
+
+	mux.Handle("GET /api/logs", s.requireAuth(http.HandlerFunc(s.handleListLogs)))
 
 	if s.StaticDir != "" {
 		if _, err := os.Stat(s.StaticDir); err == nil {

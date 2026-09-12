@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
@@ -37,6 +38,9 @@ func main() {
 	}
 	defer sqlDB.Close()
 
+	logs := applog.NewStore(sqlDB)
+	logger := applog.NewLogger(logs, "web")
+
 	secret, err := web.LoadOrCreateJWTSecret(cfg.JWTSecretPath)
 	if err != nil {
 		log.Fatalf("jwt secret: %v", err)
@@ -58,11 +62,13 @@ func main() {
 		// No ClearAll: the web daemon must never wipe the BBS daemon's
 		// live session state just by starting or restarting.
 		Nodes:         session.NewStore(sqlDB),
+		Logs:          logs,
+		Logger:        logger,
 		BBSConfigPath: cfg.BBSConfigPath,
 		JWTSecret:     secret,
 		StaticDir:     cfg.StaticDir,
 	}
 
-	log.Printf("web admin API listening on %s", cfg.Addr)
-	log.Fatal(http.ListenAndServe(cfg.Addr, srv.Routes()))
+	logger.Info("web admin API listening on %s", cfg.Addr)
+	logger.Fatal("%v", http.ListenAndServe(cfg.Addr, srv.Routes()))
 }

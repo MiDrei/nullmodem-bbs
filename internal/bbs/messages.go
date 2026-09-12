@@ -192,7 +192,7 @@ func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) e
 
 // sysopCreateArea is the "builtin:createarea" command: it prompts for
 // a new area's tag, name, description, and SL gates.
-func (s *Server) sysopCreateArea(term *Terminal, _ *user.User) error {
+func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 	if err := term.Print(ansi.Reset + "\nArea tag (short, no spaces): " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
@@ -248,6 +248,7 @@ func (s *Server) sysopCreateArea(term *Terminal, _ *user.User) error {
 		}
 		return err
 	}
+	s.logInfo("%s created message area %q (%s)", sysop.Username, area.Name, area.Tag)
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Area %q created.", area.Name))
 }
 

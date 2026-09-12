@@ -73,6 +73,14 @@ export interface BBSFile {
 	download_count: number;
 }
 
+export interface LogEntry {
+	id: number;
+	logged_at: string;
+	source: string;
+	level: 'info' | 'warn' | 'error';
+	message: string;
+}
+
 export class ApiError extends Error {
 	status: number;
 	constructor(status: number, message: string) {
@@ -234,4 +242,11 @@ export function uploadAreaFile(
 
 export function deleteFile(token: string, id: number): Promise<void> {
 	return request<void>(`/api/files/${id}`, { method: 'DELETE' }, token);
+}
+
+export function listLogs(token: string, afterId?: number, limit = 200): Promise<LogEntry[]> {
+	const params = new URLSearchParams();
+	if (afterId !== undefined) params.set('after_id', String(afterId));
+	else params.set('limit', String(limit));
+	return request<LogEntry[]>(`/api/logs?${params}`, { method: 'GET' }, token);
 }

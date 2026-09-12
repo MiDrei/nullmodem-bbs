@@ -87,5 +87,10 @@ func (s *Server) handleSetUserSecurityLevel(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "could not load updated user")
 		return
 	}
+
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s set %s's security level to %d (via web)", claims.Subject, updated.Username, updated.SecurityLevel)
+	}
+
 	writeJSON(w, http.StatusOK, toUserDTO(*updated))
 }

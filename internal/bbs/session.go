@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
@@ -35,6 +36,7 @@ type Server struct {
 	Menus         menu.Set
 	Messages      *message.Store
 	Files         *file.Store
+	Logger        *applog.Logger
 	SysopName     string
 	BBSName       string
 	NewUserSL     int
@@ -52,6 +54,7 @@ type Options struct {
 	Messages      *message.Store
 	Files         *file.Store
 	Nodes         *session.Store
+	Logger        *applog.Logger
 	NewUserSL     int
 	WelcomeScreen string
 }
@@ -64,10 +67,25 @@ func NewServer(opts Options) *Server {
 		Menus:         opts.Menus,
 		Messages:      opts.Messages,
 		Files:         opts.Files,
+		Logger:        opts.Logger,
 		BBSName:       opts.BBSName,
 		SysopName:     opts.SysopName,
 		NewUserSL:     opts.NewUserSL,
 		WelcomeScreen: opts.WelcomeScreen,
+	}
+}
+
+// logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
+// optional (e.g. in tests that don't care about activity logging).
+func (s *Server) logInfo(format string, args ...any) {
+	if s.Logger != nil {
+		s.Logger.Info(format, args...)
+	}
+}
+
+func (s *Server) logWarn(format string, args ...any) {
+	if s.Logger != nil {
+		s.Logger.Warn(format, args...)
 	}
 }
 
@@ -80,7 +98,11 @@ func (s *Server) Handle(conn Conn) {
 	if err != nil {
 		return
 	}
-	defer s.Nodes.Leave(node)
+	s.logInfo("node %d connected from %s (%s)", node, conn.RemoteAddr(), conn.TermType())
+	defer func() {
+		s.logInfo("node %d disconnected", node)
+		s.Nodes.Leave(node)
+	}()
 
 	term := NewTerminal(conn)
 	defer func() { recover() }()
@@ -94,6 +116,7 @@ func (s *Server) Handle(conn Conn) {
 		return
 	}
 	s.Nodes.SetUsername(node, u.Username)
+	s.logInfo("node %d: %s logged in", node, u.Username)
 
 	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
 		term.Println("\n" + ansi.FG(ansi.Red, true) + "Menu error: " + err.Error())
@@ -158,6 +181,7 @@ func (s *Server) login(term *Terminal) (*user.User, error) {
 				return u, nil
 			}
 			// Too many failed attempts; disconnect the session.
+			s.logWarn("too many failed login attempts for %s", handle)
 			return nil, fmt.Errorf("bbs: too many failed login attempts for %s", handle)
 		}
 
@@ -250,6 +274,7 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 		if err != nil {
 			return nil, false, err
 		}
+		s.logInfo("new account registered: %s (SL %d)", u.Username, u.SecurityLevel)
 		if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Account created. Welcome, " + handle + "!"); err != nil {
 			return nil, false, err
 		}
@@ -407,7 +432,7 @@ func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
 // sysopSetSecurityLevel is the "builtin:setsl" command: it prompts for
 // a target username and a new SL (0-255) and applies it via
 // user.Store.SetSecurityLevel.
-func (s *Server) sysopSetSecurityLevel(term *Terminal, _ *user.User) error {
+func (s *Server) sysopSetSecurityLevel(term *Terminal, sysop *user.User) error {
 	if err := term.Print(ansi.Reset + "\nUsername to modify: " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
@@ -445,6 +470,7 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, _ *user.User) error {
 		}
 		return err
 	}
+	s.logInfo("%s set %s's security level to %d", sysop.Username, tu.Username, level)
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("%s is now SL %d.", tu.Username, level))
 }
 

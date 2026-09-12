@@ -95,6 +95,9 @@ func (s *Server) handleCreateFileArea(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not create file area")
 		return
 	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s created file area %q (%s) via web", claims.Subject, area.Name, area.Tag)
+	}
 	writeJSON(w, http.StatusCreated, toFileAreaDTO(*area))
 }
 
@@ -119,6 +122,9 @@ func (s *Server) handleUpdateFileArea(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not update file area")
 		return
 	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s updated file area %q (%s)", claims.Subject, area.Name, area.Tag)
+	}
 	writeJSON(w, http.StatusOK, toFileAreaDTO(*area))
 }
 
@@ -131,6 +137,9 @@ func (s *Server) handleDeleteFileArea(w http.ResponseWriter, r *http.Request) {
 	if err := s.Files.DeleteArea(id); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not delete file area")
 		return
+	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s deleted file area %d", claims.Subject, id)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -202,6 +211,7 @@ func (s *Server) handleUploadAreaFile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not store uploaded file")
 		return
 	}
+	s.logInfo("%s uploaded %s (%s) into file area %d via web", uploader.Username, f.Filename, humanize.Bytes(uint64(f.SizeBytes)), f.AreaID)
 	writeJSON(w, http.StatusCreated, toFileDTO(*f))
 }
 
@@ -218,6 +228,9 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 		}
 		writeError(w, http.StatusInternalServerError, "could not delete file")
 		return
+	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s deleted file %d", claims.Subject, id)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

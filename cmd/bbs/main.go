@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/bbs"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
@@ -40,23 +41,27 @@ func main() {
 		log.Fatalf("opening database: %v", err)
 	}
 	defer sqlDB.Close()
+
+	logs := applog.NewStore(sqlDB)
+	logger := applog.NewLogger(logs, "bbs")
+
 	users := user.NewStore(sqlDB)
 	messages := message.NewStore(sqlDB)
 	files := file.NewStore(sqlDB, cfg.BBS.FilesDir)
 
 	nodes := session.NewStore(sqlDB)
 	if err := nodes.ClearAll(); err != nil {
-		log.Fatalf("initializing session tracking: %v", err)
+		logger.Fatal("initializing session tracking: %v", err)
 	}
 
 	menus, err := menu.LoadDir(cfg.BBS.MenusDir)
 	if err != nil {
-		log.Fatalf("loading menus: %v", err)
+		logger.Fatal("loading menus: %v", err)
 	}
 
 	welcomeScreen, err := ansi.LoadScreen(filepath.Join(cfg.BBS.ScreensDir, "welcome.ans"))
 	if err != nil {
-		log.Fatalf("loading welcome screen: %v", err)
+		logger.Fatal("loading welcome screen: %v", err)
 	}
 
 	srv := bbs.NewServer(bbs.Options{
@@ -69,6 +74,7 @@ func main() {
 		Nodes:         nodes,
 		NewUserSL:     cfg.BBS.NewUserSL,
 		WelcomeScreen: welcomeScreen,
+		Logger:        logger,
 	})
 
 	errCh := make(chan error, 2)
@@ -79,7 +85,7 @@ func main() {
 			Handler: func(s *telnet.Session) { srv.Handle(s) },
 		}
 		go func() {
-			log.Printf("telnet server listening on %s", cfg.Telnet.Addr)
+			logger.Info("telnet server listening on %s", cfg.Telnet.Addr)
 			errCh <- telnetSrv.ListenAndServe()
 		}()
 	}
@@ -87,7 +93,7 @@ func main() {
 	if cfg.SSH.Enabled {
 		signer, err := hostkey.LoadOrCreate(cfg.SSH.HostKeyPath)
 		if err != nil {
-			log.Fatalf("ssh host key: %v", err)
+			logger.Fatal("ssh host key: %v", err)
 		}
 		sshSrv := &ssh.Server{
 			Addr:    cfg.SSH.Addr,
@@ -95,14 +101,14 @@ func main() {
 			Handler: func(s *ssh.Session) { srv.Handle(s) },
 		}
 		go func() {
-			log.Printf("ssh server listening on %s", cfg.SSH.Addr)
+			logger.Info("ssh server listening on %s", cfg.SSH.Addr)
 			errCh <- sshSrv.ListenAndServe()
 		}()
 	}
 
 	if !cfg.Telnet.Enabled && !cfg.SSH.Enabled {
-		log.Fatal("both telnet and ssh are disabled in config; nothing to serve")
+		logger.Fatal("both telnet and ssh are disabled in config; nothing to serve")
 	}
 
-	log.Fatal(<-errCh)
+	logger.Fatal("%v", <-errCh)
 }
