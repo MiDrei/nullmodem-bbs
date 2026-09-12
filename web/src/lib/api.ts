@@ -32,6 +32,15 @@ export interface Dashboard {
 	nodes: Node[];
 }
 
+export interface BBSUser {
+	id: number;
+	username: string;
+	security_level: number;
+	created_at: string;
+	last_login_at: string | null;
+	total_calls: number;
+}
+
 export class ApiError extends Error {
 	status: number;
 	constructor(status: number, message: string) {
@@ -79,4 +88,20 @@ export function putConfig(
 
 export function getDashboard(token: string): Promise<Dashboard> {
 	return request<Dashboard>('/api/dashboard', { method: 'GET' }, token);
+}
+
+export function listUsers(token: string): Promise<BBSUser[]> {
+	return request<BBSUser[]>('/api/users', { method: 'GET' }, token);
+}
+
+export function setUserSecurityLevel(
+	token: string,
+	id: number,
+	securityLevel: number
+): Promise<BBSUser> {
+	return request<BBSUser>(
+		`/api/users/${id}`,
+		{ method: 'PUT', body: JSON.stringify({ security_level: securityLevel }) },
+		token
+	);
 }

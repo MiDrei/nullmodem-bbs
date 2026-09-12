@@ -33,6 +33,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/config", s.requireAuth(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.requireAuth(http.HandlerFunc(s.handlePutConfig)))
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
+	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
+	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))
 
 	if s.StaticDir != "" {
 		if _, err := os.Stat(s.StaticDir); err == nil {

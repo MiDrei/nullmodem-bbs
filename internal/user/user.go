@@ -34,6 +34,12 @@ var ErrInvalidCredentials = errors.New("user: invalid username or password")
 // account exists.
 var ErrNotFound = errors.New("user: not found")
 
+// ErrLastSysop is returned by SetSecurityLevel when lowering an
+// account below SLSysop would leave no account at sysop level at all,
+// locking everyone out of every sysop-only feature (web admin login,
+// telnet sysop menu) with no built-in way back in.
+var ErrLastSysop = errors.New("user: cannot demote the last sysop-level account")
+
 // User is one BBS account.
 type User struct {
 	ID            int64
@@ -209,9 +215,29 @@ func (s *Store) Count() (int, error) {
 }
 
 // SetSecurityLevel updates a user's SL (0-255). It does not validate
-// the range itself; callers (e.g. the future web admin API) are
-// expected to clamp/validate user input before calling this.
+// the range itself; callers (e.g. the web admin API) are expected to
+// clamp/validate user input before calling this. It does refuse (with
+// ErrLastSysop) to take the last sysop-level account below SLSysop --
+// see ErrLastSysop.
 func (s *Store) SetSecurityLevel(id int64, level int) error {
+	if level < SLSysop {
+		current, err := s.ByID(id)
+		if err != nil {
+			return fmt.Errorf("user: set security level for id %d: %w", id, err)
+		}
+		if current.SecurityLevel >= SLSysop {
+			var otherSysops int
+			if err := s.db.QueryRow(
+				`SELECT COUNT(1) FROM users WHERE security_level >= ? AND id != ?`, SLSysop, id,
+			).Scan(&otherSysops); err != nil {
+				return fmt.Errorf("user: check remaining sysops: %w", err)
+			}
+			if otherSysops == 0 {
+				return ErrLastSysop
+			}
+		}
+	}
+
 	if _, err := s.db.Exec(`UPDATE users SET security_level = ? WHERE id = ?`, level, id); err != nil {
 		return fmt.Errorf("user: set security level for id %d: %w", id, err)
 	}

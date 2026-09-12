@@ -26,6 +26,7 @@
 			{#if auth.username}
 				<nav class="flex items-center gap-4 text-sm text-slate-400">
 					<a href="/dashboard" class="hover:text-slate-100">Dashboard</a>
+					<a href="/users" class="hover:text-slate-100">Users</a>
 					<a href="/settings" class="hover:text-slate-100">Settings</a>
 				</nav>
 			{/if}
@@ -42,7 +43,7 @@
 			</div>
 		{/if}
 	</header>
-	<main class="mx-auto max-w-3xl px-6 py-8">
+	<main class="mx-auto max-w-4xl px-6 py-8">
 		{@render children()}
 	</main>
 </div>

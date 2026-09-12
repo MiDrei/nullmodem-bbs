@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -196,6 +197,86 @@ func TestDashboardReportsCountsAndActiveNodes(t *testing.T) {
 	}
 	if len(got.Nodes) != 1 || got.Nodes[0].RemoteIP != "127.0.0.1:1234" {
 		t.Fatalf("Nodes = %+v, want one active node", got.Nodes)
+	}
+}
+
+func TestListAndUpdateUsers(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	sysop, err := users.Register("root", "supersecret", user.SLSysop)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	h := srv.Routes()
+
+	rec := doJSON(t, h, http.MethodPost, "/api/auth/login", map[string]string{
+		"username": "root", "password": "supersecret",
+	}, "")
+	var loginResp struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+
+	rec = doJSON(t, h, http.MethodGet, "/api/users", nil, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated GET /api/users status = %d, want 401", rec.Code)
+	}
+
+	rec = doJSON(t, h, http.MethodGet, "/api/users", nil, loginResp.Token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/users status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var list []userDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode users: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("GET /api/users returned %d users, want 2", len(list))
+	}
+
+	path := fmt.Sprintf("/api/users/%d", alice.ID)
+	rec = doJSON(t, h, http.MethodPut, path, map[string]int{"security_level": 100}, loginResp.Token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT %s status = %d, body=%s", path, rec.Code, rec.Body.String())
+	}
+	var updated userDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode updated user: %v", err)
+	}
+	if updated.SecurityLevel != 100 {
+		t.Fatalf("updated.SecurityLevel = %d, want 100", updated.SecurityLevel)
+	}
+
+	got, err := users.ByID(alice.ID)
+	if err != nil {
+		t.Fatalf("ByID: %v", err)
+	}
+	if got.SecurityLevel != 100 {
+		t.Fatalf("alice's SecurityLevel in store = %d, want 100", got.SecurityLevel)
+	}
+
+	// Out of range.
+	rec = doJSON(t, h, http.MethodPut, path, map[string]int{"security_level": 300}, loginResp.Token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("PUT with out-of-range SL status = %d, want 400", rec.Code)
+	}
+
+	// Unknown user.
+	rec = doJSON(t, h, http.MethodPut, "/api/users/999999", map[string]int{"security_level": 50}, loginResp.Token)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("PUT unknown user status = %d, want 404", rec.Code)
+	}
+
+	// Demoting the last sysop must be refused.
+	sysopPath := fmt.Sprintf("/api/users/%d", sysop.ID)
+	rec = doJSON(t, h, http.MethodPut, sysopPath, map[string]int{"security_level": 50}, loginResp.Token)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("PUT demoting last sysop status = %d, want 409, body=%s", rec.Code, rec.Body.String())
 	}
 }
 

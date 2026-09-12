@@ -440,6 +440,9 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, _ *user.User) error {
 	}
 
 	if err := s.Users.SetSecurityLevel(tu.ID, level); err != nil {
+		if errors.Is(err, user.ErrLastSysop) {
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Cannot demote the last sysop-level account.")
+		}
 		return err
 	}
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("%s is now SL %d.", tu.Username, level))

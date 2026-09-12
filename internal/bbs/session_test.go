@@ -212,6 +212,33 @@ func TestSysopMenuSetSecurityLevelRejectsOutOfRange(t *testing.T) {
 	}
 }
 
+func TestSysopMenuSetSecurityLevelRefusesLastSysopDemotion(t *testing.T) {
+	s := testServer(t)
+	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
+	if err != nil {
+		t.Fatalf("Register sysop: %v", err)
+	}
+
+	conn := newFakeConn("S\r\nS\r\nroot\r\n100\r\nQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, sysop, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "Cannot demote the last sysop-level account") {
+		t.Fatalf("expected last-sysop rejection message, got: %q", conn.out.String())
+	}
+
+	unchanged, err := s.Users.ByID(sysop.ID)
+	if err != nil {
+		t.Fatalf("ByID: %v", err)
+	}
+	if unchanged.SecurityLevel != user.SLSysop {
+		t.Fatalf("root's SecurityLevel changed to %d, want unchanged %d", unchanged.SecurityLevel, user.SLSysop)
+	}
+}
+
 func TestSysopMenuUnreachableBelowThreshold(t *testing.T) {
 	s := testServer(t)
 	if _, err := s.Users.Register("root", "password123", user.SLSysop); err != nil {

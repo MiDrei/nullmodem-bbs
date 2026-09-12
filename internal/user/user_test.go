@@ -158,6 +158,13 @@ func TestCount(t *testing.T) {
 func TestSetSecurityLevel(t *testing.T) {
 	s := newTestStore(t)
 
+	// Register a bootstrap sysop first so "levelup" (registered
+	// second) isn't auto-promoted by the first-user-becomes-sysop
+	// rule, which would otherwise make it the last sysop and trip the
+	// ErrLastSysop guard below.
+	if _, err := s.Register("bootstrap-sysop", "pw", SLNewUser); err != nil {
+		t.Fatalf("Register bootstrap sysop: %v", err)
+	}
 	u, err := s.Register("levelup", "pw", SLNewUser)
 	if err != nil {
 		t.Fatalf("Register: %v", err)
@@ -166,6 +173,59 @@ func TestSetSecurityLevel(t *testing.T) {
 		t.Fatalf("SetSecurityLevel: %v", err)
 	}
 	got, err := s.ByID(u.ID)
+	if err != nil {
+		t.Fatalf("ByID: %v", err)
+	}
+	if got.SecurityLevel != 100 {
+		t.Fatalf("SecurityLevel = %d, want 100", got.SecurityLevel)
+	}
+}
+
+func TestSetSecurityLevelRefusesToDemoteLastSysop(t *testing.T) {
+	s := newTestStore(t)
+
+	// First registered account is always sysop (SLSysop), regardless
+	// of the requested level -- see Register's doc comment.
+	sysop, err := s.Register("root", "pw", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if sysop.SecurityLevel != SLSysop {
+		t.Fatalf("first registered account SecurityLevel = %d, want %d", sysop.SecurityLevel, SLSysop)
+	}
+
+	if err := s.SetSecurityLevel(sysop.ID, 100); !errors.Is(err, ErrLastSysop) {
+		t.Fatalf("SetSecurityLevel(last sysop, 100) = %v, want ErrLastSysop", err)
+	}
+	unchanged, err := s.ByID(sysop.ID)
+	if err != nil {
+		t.Fatalf("ByID: %v", err)
+	}
+	if unchanged.SecurityLevel != SLSysop {
+		t.Fatalf("SecurityLevel after refused demotion = %d, want unchanged %d", unchanged.SecurityLevel, SLSysop)
+	}
+}
+
+func TestSetSecurityLevelAllowsDemotingSysopWhenAnotherRemains(t *testing.T) {
+	s := newTestStore(t)
+
+	first, err := s.Register("root", "pw", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register root: %v", err)
+	}
+	second, err := s.Register("cosysop", "pw", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register cosysop: %v", err)
+	}
+	if err := s.SetSecurityLevel(second.ID, SLSysop); err != nil {
+		t.Fatalf("promote cosysop: %v", err)
+	}
+
+	// Now two sysops exist, so demoting one is fine.
+	if err := s.SetSecurityLevel(first.ID, 100); err != nil {
+		t.Fatalf("SetSecurityLevel(root, 100) = %v, want nil (another sysop remains)", err)
+	}
+	got, err := s.ByID(first.ID)
 	if err != nil {
 		t.Fatalf("ByID: %v", err)
 	}
