@@ -7,9 +7,30 @@
 
 	let { children } = $props();
 
+	let systemMenuOpen = $state(false);
+
 	function logout() {
 		auth.clear();
 		goto('/login');
+	}
+
+	function closeSystemMenu() {
+		systemMenuOpen = false;
+	}
+
+	// clickOutside closes the System dropdown on any click that lands
+	// outside it -- the layout persists across route changes, so
+	// without this the menu would stay open after navigating.
+	function clickOutside(node: HTMLElement, callback: () => void) {
+		function handleClick(event: MouseEvent) {
+			if (!node.contains(event.target as Node)) callback();
+		}
+		document.addEventListener('click', handleClick, true);
+		return {
+			destroy() {
+				document.removeEventListener('click', handleClick, true);
+			}
+		};
 	}
 </script>
 
@@ -38,15 +59,6 @@
 						<rect x="13" y="13" width="8" height="8" rx="1" />
 					</svg>
 					Dashboard
-				</a>
-				<a href="/users" class="flex items-center gap-1.5 hover:text-slate-100">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-4 w-4">
-						<circle cx="8" cy="8" r="3.2" />
-						<path d="M2.5 19c0-3 2.5-5.4 5.5-5.4s5.5 2.4 5.5 5.4" />
-						<circle cx="17" cy="8.5" r="2.6" />
-						<path d="M14.8 13.8c2.6.3 4.7 2.5 4.7 5.2" />
-					</svg>
-					Users
 				</a>
 				<a href="/message-areas" class="flex items-center gap-1.5 hover:text-slate-100">
 					<svg
@@ -102,52 +114,109 @@
 					</svg>
 					Screens
 				</a>
-				<a href="/sl-matrix" class="flex items-center gap-1.5 hover:text-slate-100">
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						stroke-linejoin="round"
-						class="h-4 w-4"
+				<div class="relative" use:clickOutside={closeSystemMenu}>
+					<button
+						type="button"
+						class="flex items-center gap-1.5 hover:text-slate-100"
+						onclick={() => (systemMenuOpen = !systemMenuOpen)}
 					>
-						<path d="M12 3l7 3v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6l7-3z" />
-						<path d="M9 12l2 2 4-4" />
-					</svg>
-					SL Matrix
-				</a>
-				<a href="/settings" class="flex items-center gap-1.5 hover:text-slate-100">
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						stroke-linejoin="round"
-						class="h-4 w-4"
-					>
-						<circle cx="12" cy="12" r="3" />
-						<path
-							d="M19.4 13a7.9 7.9 0 0 0 0-2l2-1.5-2-3.4-2.4 1a7.9 7.9 0 0 0-1.7-1L15 3h-4l-.3 2.6a7.9 7.9 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.9 7.9 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7.9 7.9 0 0 0 1.7 1L11 21h4l.3-2.6a7.9 7.9 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5z"
-						/>
-					</svg>
-					Settings
-				</a>
-				<a href="/logs" class="flex items-center gap-1.5 hover:text-slate-100">
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						stroke-linejoin="round"
-						class="h-4 w-4"
-					>
-						<path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
-						<path d="M14 3v5h5" />
-						<path d="M8 13h8" />
-						<path d="M8 17h8" />
-					</svg>
-					Logs
-				</a>
+						<svg
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							stroke-linejoin="round"
+							class="h-4 w-4"
+						>
+							<circle cx="12" cy="12" r="3" />
+							<path
+								d="M19.4 13a7.9 7.9 0 0 0 0-2l2-1.5-2-3.4-2.4 1a7.9 7.9 0 0 0-1.7-1L15 3h-4l-.3 2.6a7.9 7.9 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.9 7.9 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7.9 7.9 0 0 0 1.7 1L11 21h4l.3-2.6a7.9 7.9 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5z"
+							/>
+						</svg>
+						System
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3 w-3">
+							<path d="M6 9l6 6 6-6" />
+						</svg>
+					</button>
+					{#if systemMenuOpen}
+						<div
+							class="absolute top-full left-1/2 z-10 mt-2 w-44 -translate-x-1/2 rounded border border-slate-800 bg-slate-900 py-1 shadow-lg md:left-0 md:translate-x-0"
+						>
+							<a
+								href="/users"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-4 w-4">
+									<circle cx="8" cy="8" r="3.2" />
+									<path d="M2.5 19c0-3 2.5-5.4 5.5-5.4s5.5 2.4 5.5 5.4" />
+									<circle cx="17" cy="8.5" r="2.6" />
+									<path d="M14.8 13.8c2.6.3 4.7 2.5 4.7 5.2" />
+								</svg>
+								Users
+							</a>
+							<a
+								href="/sl-matrix"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<path d="M12 3l7 3v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6l7-3z" />
+									<path d="M9 12l2 2 4-4" />
+								</svg>
+								SL Matrix
+							</a>
+							<a
+								href="/logs"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+									<path d="M14 3v5h5" />
+									<path d="M8 13h8" />
+									<path d="M8 17h8" />
+								</svg>
+								Logs
+							</a>
+							<div class="my-1 border-t border-slate-800"></div>
+							<a
+								href="/settings"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<circle cx="12" cy="12" r="3" />
+									<path
+										d="M19.4 13a7.9 7.9 0 0 0 0-2l2-1.5-2-3.4-2.4 1a7.9 7.9 0 0 0-1.7-1L15 3h-4l-.3 2.6a7.9 7.9 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.9 7.9 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7.9 7.9 0 0 0 1.7 1L11 21h4l.3-2.6a7.9 7.9 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5z"
+									/>
+								</svg>
+								Settings
+							</a>
+						</div>
+					{/if}
+				</div>
 			</nav>
 		{:else}
 			<div></div>
