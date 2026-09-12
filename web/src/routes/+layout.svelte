@@ -3,6 +3,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
+	import Toaster from '$lib/Toaster.svelte';
 
 	let { children } = $props();
 
@@ -47,3 +48,4 @@
 		{@render children()}
 	</main>
 </div>
+<Toaster />

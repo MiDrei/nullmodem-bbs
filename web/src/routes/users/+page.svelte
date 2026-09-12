@@ -2,14 +2,13 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
+	import { toast } from '$lib/toast.svelte';
 	import { listUsers, setUserSecurityLevel, ApiError, type BBSUser } from '$lib/api';
 
 	interface Row {
 		user: BBSUser;
 		level: number;
 		saving: boolean;
-		error: string | null;
-		saved: boolean;
 	}
 
 	let rows = $state<Row[]>([]);
@@ -17,7 +16,7 @@
 	let loaded = $state(false);
 
 	function toRows(users: BBSUser[]): Row[] {
-		return users.map((user) => ({ user, level: user.security_level, saving: false, error: null, saved: false }));
+		return users.map((user) => ({ user, level: user.security_level, saving: false }));
 	}
 
 	async function load() {
@@ -48,20 +47,18 @@
 	async function save(row: Row) {
 		if (!auth.token) return;
 		row.saving = true;
-		row.error = null;
-		row.saved = false;
 		try {
 			const updated = await setUserSecurityLevel(auth.token, row.user.id, row.level);
 			row.user = updated;
 			row.level = updated.security_level;
-			row.saved = true;
+			toast.push(`Saved ${updated.username}'s security level.`, 'success');
 		} catch (err) {
 			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
 				auth.clear();
 				await goto('/login');
 				return;
 			}
-			row.error = err instanceof ApiError ? err.message : 'Could not save.';
+			toast.push(err instanceof ApiError ? err.message : 'Could not save.', 'error');
 		} finally {
 			row.saving = false;
 		}
@@ -103,10 +100,6 @@
 								max="255"
 								class="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
 								bind:value={row.level}
-								oninput={() => {
-									row.saved = false;
-									row.error = null;
-								}}
 							/>
 						</td>
 						<td class="p-3 text-slate-400">{row.user.total_calls}</td>
@@ -120,11 +113,6 @@
 							>
 								{row.saving ? 'Saving…' : 'Save'}
 							</button>
-							{#if row.error}
-								<p class="mt-1 text-xs text-red-400">{row.error}</p>
-							{:else if row.saved}
-								<p class="mt-1 text-xs text-green-400">Saved.</p>
-							{/if}
 						</td>
 					</tr>
 				{/each}
