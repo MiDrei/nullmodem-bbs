@@ -87,7 +87,8 @@ func (s *Server) Handle(conn Conn) {
 }
 
 func (s *Server) welcome(term *Terminal, node int) error {
-	return term.Print(ansi.Render(s.WelcomeScreen, s.baseVars(node)))
+	rendered := ansi.Render(s.WelcomeScreen, s.baseVars(node))
+	return term.Print(ansi.Layout(rendered, term.Width()))
 }
 
 // baseVars are the placeholders available before login, when there is
@@ -274,7 +275,8 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 	}
 
 	for {
-		if err := term.Print(renderMenu(m, u.SecurityLevel, s.userVars(u, node))); err != nil {
+		rendered := renderMenu(m, u.SecurityLevel, s.userVars(u, node))
+		if err := term.Print(ansi.Layout(rendered, term.Width())); err != nil {
 			return err
 		}
 

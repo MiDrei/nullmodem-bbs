@@ -22,6 +22,21 @@ type Terminal struct {
 // NewTerminal wraps conn for line-based interaction.
 func NewTerminal(conn Conn) *Terminal { return &Terminal{conn: conn} }
 
+// defaultWidth is used when a client never reports a window size
+// (e.g. NAWS wasn't negotiated), matching classic 80-column BBS art.
+const defaultWidth = 80
+
+// Width returns the client's negotiated terminal width, for laying
+// out screens and menus (see ansi.Layout), falling back to
+// defaultWidth if the client hasn't reported one.
+func (t *Terminal) Width() int {
+	w, _ := t.conn.WindowSize()
+	if w <= 0 {
+		return defaultWidth
+	}
+	return w
+}
+
 // Print writes s to the client, translating bare LF to CRLF.
 func (t *Terminal) Print(s string) error {
 	_, err := t.conn.Write([]byte(ansi.ToCRLF(s)))
