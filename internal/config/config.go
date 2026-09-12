@@ -60,3 +60,17 @@ func Load(path string) (*Config, error) {
 	}
 	return c, nil
 }
+
+// Save marshals c as YAML and writes it to path, overwriting any
+// existing file. Used by the web admin API to persist edits made
+// through the config UI.
+func Save(path string, c *Config) error {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return fmt.Errorf("config: marshal: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("config: write %s: %w", path, err)
+	}
+	return nil
+}

@@ -1,0 +1,5 @@
+addr: ":8090"
+database_path: "data/nullmodem.sqlite"
+bbs_config_path: "configs/bbs.yaml"
+jwt_secret_path: "data/jwt_secret"
+static_dir: "web/build"

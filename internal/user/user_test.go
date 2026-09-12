@@ -75,6 +75,26 @@ func TestExists(t *testing.T) {
 	}
 }
 
+func TestFirstUserBecomesSysop(t *testing.T) {
+	s := newTestStore(t)
+
+	first, err := s.Register("first", "pw", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register first: %v", err)
+	}
+	if first.SecurityLevel != SLSysop {
+		t.Fatalf("first user SecurityLevel = %d, want %d (sysop)", first.SecurityLevel, SLSysop)
+	}
+
+	second, err := s.Register("second", "pw", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register second: %v", err)
+	}
+	if second.SecurityLevel != SLNewUser {
+		t.Fatalf("second user SecurityLevel = %d, want %d (requested level)", second.SecurityLevel, SLNewUser)
+	}
+}
+
 func TestSetSecurityLevel(t *testing.T) {
 	s := newTestStore(t)
 

@@ -207,6 +207,11 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 		if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Account created. Welcome, " + handle + "!"); err != nil {
 			return nil, false, err
 		}
+		if u.SecurityLevel >= user.SLSysop {
+			if err := term.Println(ansi.FG(ansi.Yellow, true) + "You are the first user and have been granted sysop access (SL 255)."); err != nil {
+				return nil, false, err
+			}
+		}
 		return u, true, nil
 	}
 }

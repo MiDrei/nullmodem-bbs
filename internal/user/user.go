@@ -52,13 +52,33 @@ func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 // password, hashed with bcrypt, at the given initial security level.
 // The username lookup is case-insensitive (enforced by the schema's
 // COLLATE NOCASE unique index).
+//
+// The very first account ever registered becomes sysop (SLSysop)
+// regardless of securityLevel, following BBS convention, so a fresh
+// install always has a way into the web admin UI. The count check and
+// insert run in one transaction so two concurrent first registrations
+// can't both claim it.
 func (s *Store) Register(username, password string, securityLevel int) (*User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("user: hash password: %w", err)
 	}
 
-	res, err := s.db.Exec(
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, fmt.Errorf("user: begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var count int
+	if err := tx.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&count); err != nil {
+		return nil, fmt.Errorf("user: count users: %w", err)
+	}
+	if count == 0 {
+		securityLevel = SLSysop
+	}
+
+	res, err := tx.Exec(
 		`INSERT INTO users (username, password_hash, security_level) VALUES (?, ?, ?)`,
 		username, string(hash), securityLevel,
 	)
@@ -71,6 +91,9 @@ func (s *Store) Register(username, password string, securityLevel int) (*User, e
 	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf("user: last insert id: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("user: commit: %w", err)
 	}
 	return s.ByID(id)
 }
