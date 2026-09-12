@@ -11,12 +11,14 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/swissmaik/nullmodem/internal/version"
 )
 
 // Version is the BBS software version shown on the welcome screen and
 // the [V]ersion menu command.
-const Version = "NullModem BBS v0.1.0-dev"
+const Version = version.Version
 
 // maxLoginAttempts is how many wrong passwords a session may try
 // before being disconnected.
@@ -28,7 +30,7 @@ const minPasswordLength = 6
 // Server drives BBS sessions handed to it by any transport (telnet,
 // SSH, ...) that implements Conn.
 type Server struct {
-	Nodes         *NodeManager
+	Nodes         *session.Store
 	Users         *user.Store
 	Menus         menu.Set
 	Messages      *message.Store
@@ -49,6 +51,7 @@ type Options struct {
 	Menus         menu.Set
 	Messages      *message.Store
 	Files         *file.Store
+	Nodes         *session.Store
 	NewUserSL     int
 	WelcomeScreen string
 }
@@ -56,7 +59,7 @@ type Options struct {
 // NewServer returns a Server ready to accept sessions.
 func NewServer(opts Options) *Server {
 	return &Server{
-		Nodes:         NewNodeManager(),
+		Nodes:         opts.Nodes,
 		Users:         opts.Users,
 		Menus:         opts.Menus,
 		Messages:      opts.Messages,
@@ -70,10 +73,13 @@ func NewServer(opts Options) *Server {
 
 // Handle drives one client connection through login and the main menu
 // until the client disconnects or quits. It registers/deregisters the
-// session with the node manager and never lets a panic in menu logic
-// take down the listener goroutine.
+// session with the shared session store and never lets a panic in
+// menu logic take down the listener goroutine.
 func (s *Server) Handle(conn Conn) {
-	node := s.Nodes.Join(conn.RemoteAddr().String(), conn.TermType())
+	node, err := s.Nodes.Join(conn.RemoteAddr().String(), conn.TermType())
+	if err != nil {
+		return
+	}
 	defer s.Nodes.Leave(node)
 
 	term := NewTerminal(conn)
@@ -440,11 +446,15 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, _ *user.User) error {
 }
 
 func (s *Server) showWho(term *Terminal, _ *user.User) error {
+	nodes, err := s.Nodes.List()
+	if err != nil {
+		return err
+	}
 	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Node  Handle               Terminal    Connected" + ansi.Reset); err != nil {
 		return err
 	}
-	for _, n := range s.Nodes.Snapshot() {
-		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, n.Connected.Format("15:04:05"))); err != nil {
+	for _, n := range nodes {
+		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, n.ConnectedAt.Format("15:04:05"))); err != nil {
 			return err
 		}
 	}

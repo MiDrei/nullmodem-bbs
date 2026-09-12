@@ -15,6 +15,23 @@ export interface LoginResponse {
 	expires_at: string;
 }
 
+export interface Node {
+	node: number;
+	remote_ip: string;
+	term_type: string;
+	username: string;
+	connected_at: string;
+}
+
+export interface Dashboard {
+	bbs_name: string;
+	version: string;
+	user_count: number;
+	message_area_count: number;
+	file_area_count: number;
+	nodes: Node[];
+}
+
 export class ApiError extends Error {
 	status: number;
 	constructor(status: number, message: string) {
@@ -58,4 +75,8 @@ export function putConfig(
 	config: BBSConfig
 ): Promise<{ config: BBSConfig; note: string }> {
 	return request('/api/config', { method: 'PUT', body: JSON.stringify(config) }, token);
+}
+
+export function getDashboard(token: string): Promise<Dashboard> {
+	return request<Dashboard>('/api/dashboard', { method: 'GET' }, token);
 }

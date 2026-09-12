@@ -16,6 +16,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/hostkey"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/ssh"
 	"git.maik.ch/swissmaik/nullmodem/internal/telnet"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -43,6 +44,11 @@ func main() {
 	messages := message.NewStore(sqlDB)
 	files := file.NewStore(sqlDB, cfg.BBS.FilesDir)
 
+	nodes := session.NewStore(sqlDB)
+	if err := nodes.ClearAll(); err != nil {
+		log.Fatalf("initializing session tracking: %v", err)
+	}
+
 	menus, err := menu.LoadDir(cfg.BBS.MenusDir)
 	if err != nil {
 		log.Fatalf("loading menus: %v", err)
@@ -60,6 +66,7 @@ func main() {
 		Menus:         menus,
 		Messages:      messages,
 		Files:         files,
+		Nodes:         nodes,
 		NewUserSL:     cfg.BBS.NewUserSL,
 		WelcomeScreen: welcomeScreen,
 	})

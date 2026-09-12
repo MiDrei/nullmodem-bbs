@@ -138,6 +138,23 @@ func TestListAll(t *testing.T) {
 	}
 }
 
+func TestCount(t *testing.T) {
+	s := newTestStore(t)
+
+	if n, err := s.Count(); err != nil || n != 0 {
+		t.Fatalf("Count() = %d, %v; want 0, nil", n, err)
+	}
+	if _, err := s.Register("first", "pw", SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := s.Register("second", "pw", SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if n, err := s.Count(); err != nil || n != 2 {
+		t.Fatalf("Count() = %d, %v; want 2, nil", n, err)
+	}
+}
+
 func TestSetSecurityLevel(t *testing.T) {
 	s := newTestStore(t)
 

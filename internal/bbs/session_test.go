@@ -11,6 +11,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
@@ -43,14 +44,10 @@ func testMenus() menu.Set {
 	}
 }
 
-func testServer() *Server {
-	return &Server{
-		Nodes: NewNodeManager(),
-		Menus: testMenus(),
-	}
-}
-
-func testServerWithUsers(t *testing.T) *Server {
+// testServer builds a Server backed by a fresh temp-file SQLite
+// database (needed even for menu-only tests, since Nodes is now a
+// DB-backed session.Store rather than an in-memory registry).
+func testServer(t *testing.T) *Server {
 	t.Helper()
 	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
 	if err != nil {
@@ -58,11 +55,18 @@ func testServerWithUsers(t *testing.T) *Server {
 	}
 	t.Cleanup(func() { sqlDB.Close() })
 
-	s := testServer()
-	s.Users = user.NewStore(sqlDB)
-	s.Messages = message.NewStore(sqlDB)
-	s.Files = file.NewStore(sqlDB, filepath.Join(t.TempDir(), "files"))
-	return s
+	nodes := session.NewStore(sqlDB)
+	if err := nodes.ClearAll(); err != nil {
+		t.Fatalf("Nodes.ClearAll: %v", err)
+	}
+
+	return &Server{
+		Nodes:    nodes,
+		Menus:    testMenus(),
+		Users:    user.NewStore(sqlDB),
+		Messages: message.NewStore(sqlDB),
+		Files:    file.NewStore(sqlDB, filepath.Join(t.TempDir(), "files")),
+	}
 }
 
 func testUser(sl int) *user.User {
@@ -72,7 +76,7 @@ func testUser(sl int) *user.User {
 func TestRunMenuVersionAndQuit(t *testing.T) {
 	conn := newFakeConn("V\r\nQ\r\n")
 	term := NewTerminal(conn)
-	s := testServer()
+	s := testServer(t)
 
 	err := s.runMenu(term, testUser(0), 1, "main")
 	if !errors.Is(err, errLogoff) {
@@ -89,7 +93,7 @@ func TestRunMenuVersionAndQuit(t *testing.T) {
 func TestRunMenuGatesItemsBySecurityLevel(t *testing.T) {
 	conn := newFakeConn("S\r\nQ\r\n")
 	term := NewTerminal(conn)
-	s := testServer()
+	s := testServer(t)
 
 	// SL 0 can't see or select the sysop-only "S" item, so it's an
 	// unknown command and the session continues to the Q quit.
@@ -111,7 +115,7 @@ func TestRunMenuLogoffFromNestedGotoEndsSession(t *testing.T) {
 	// session rather than just popping back to "main".
 	conn := newFakeConn("S\r\nQ\r\n")
 	term := NewTerminal(conn)
-	s := testServer()
+	s := testServer(t)
 
 	err := s.runMenu(term, testUser(255), 1, "main")
 	if !errors.Is(err, errLogoff) {
@@ -123,7 +127,7 @@ func TestRunMenuLogoffFromNestedGotoEndsSession(t *testing.T) {
 }
 
 func TestSysopMenuListUsers(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
 	if err != nil {
 		t.Fatalf("Register sysop: %v", err)
@@ -146,7 +150,7 @@ func TestSysopMenuListUsers(t *testing.T) {
 }
 
 func TestSysopMenuSetSecurityLevel(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
 	if err != nil {
 		t.Fatalf("Register sysop: %v", err)
@@ -178,7 +182,7 @@ func TestSysopMenuSetSecurityLevel(t *testing.T) {
 }
 
 func TestSysopMenuSetSecurityLevelRejectsOutOfRange(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
 	if err != nil {
 		t.Fatalf("Register sysop: %v", err)
@@ -209,7 +213,7 @@ func TestSysopMenuSetSecurityLevelRejectsOutOfRange(t *testing.T) {
 }
 
 func TestSysopMenuUnreachableBelowThreshold(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	if _, err := s.Users.Register("root", "password123", user.SLSysop); err != nil {
 		t.Fatalf("Register sysop: %v", err)
 	}
@@ -233,7 +237,7 @@ func TestSysopMenuUnreachableBelowThreshold(t *testing.T) {
 func TestRunMenuUnknownMenuNameErrors(t *testing.T) {
 	conn := newFakeConn("")
 	term := NewTerminal(conn)
-	s := testServer()
+	s := testServer(t)
 
 	err := s.runMenu(term, testUser(0), 1, "does-not-exist")
 	if err == nil {

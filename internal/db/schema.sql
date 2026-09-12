@@ -66,3 +66,18 @@ CREATE TABLE IF NOT EXISTS files (
 );
 
 CREATE INDEX IF NOT EXISTS idx_files_area_uploaded ON files(area_id, uploaded_at);
+
+-- Currently active BBS sessions ("nodes"). Node numbers are assigned
+-- by the BBS daemon's application code (not AUTOINCREMENT), so no
+-- CREATE TABLE-level default applies here. This table is the shared
+-- source of truth for both the BBS daemon's own [W]ho's online
+-- command and the separate web admin daemon's node-monitoring
+-- dashboard, since they're different processes with no other shared
+-- state. The BBS daemon clears it on startup (see internal/session).
+CREATE TABLE IF NOT EXISTS sessions (
+    node         INTEGER PRIMARY KEY,
+    remote_ip    TEXT NOT NULL,
+    term_type    TEXT NOT NULL,
+    username     TEXT NOT NULL,
+    connected_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

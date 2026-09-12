@@ -8,12 +8,18 @@ import (
 	"os"
 	"path/filepath"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/file"
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
 // Server holds the dependencies shared by all admin API handlers.
 type Server struct {
 	Users         *user.Store
+	Messages      *message.Store
+	Files         *file.Store
+	Nodes         *session.Store
 	BBSConfigPath string
 	JWTSecret     []byte
 	StaticDir     string
@@ -26,6 +32,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.Handle("GET /api/config", s.requireAuth(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.requireAuth(http.HandlerFunc(s.handlePutConfig)))
+	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 
 	if s.StaticDir != "" {
 		if _, err := os.Stat(s.StaticDir); err == nil {

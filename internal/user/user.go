@@ -198,6 +198,16 @@ func (s *Store) ListAll() ([]User, error) {
 	return users, nil
 }
 
+// Count returns the total number of registered accounts, for the web
+// admin dashboard.
+func (s *Store) Count() (int, error) {
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(1) FROM users`).Scan(&n); err != nil {
+		return 0, fmt.Errorf("user: count: %w", err)
+	}
+	return n, nil
+}
+
 // SetSecurityLevel updates a user's SL (0-255). It does not validate
 // the range itself; callers (e.g. the future web admin API) are
 // expected to clamp/validate user input before calling this.

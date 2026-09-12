@@ -126,6 +126,16 @@ func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 
 // ListAreas returns every area downloadable at securityLevel, ordered
 // for menu display.
+// CountAreas returns the total number of file areas, for the web
+// admin dashboard.
+func (s *Store) CountAreas() (int, error) {
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(1) FROM file_areas`).Scan(&n); err != nil {
+		return 0, fmt.Errorf("file: count areas: %w", err)
+	}
+	return n, nil
+}
+
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
 	return s.queryAreas(`SELECT id, tag, name, description, min_sl_download, min_sl_upload, sort_order, created_at
 		 FROM file_areas WHERE min_sl_download <= ? ORDER BY sort_order, name`, securityLevel)

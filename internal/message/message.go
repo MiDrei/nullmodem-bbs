@@ -106,6 +106,16 @@ func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 
 // ListAreas returns every area readable at securityLevel, ordered for
 // menu display.
+// CountAreas returns the total number of message areas, for the web
+// admin dashboard.
+func (s *Store) CountAreas() (int, error) {
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(1) FROM message_areas`).Scan(&n); err != nil {
+		return 0, fmt.Errorf("message: count areas: %w", err)
+	}
+	return n, nil
+}
+
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
 	rows, err := s.db.Query(
 		`SELECT id, tag, name, description, min_sl_read, min_sl_write, sort_order, created_at

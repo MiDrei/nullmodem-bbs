@@ -20,7 +20,7 @@ func writeTempUploadFile(t *testing.T, content string) string {
 }
 
 func TestFileAreasListSeededArea(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register: %v", err)
@@ -39,7 +39,7 @@ func TestFileAreasListSeededArea(t *testing.T) {
 }
 
 func TestSysopImportAndBrowseFile(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
 	if err != nil {
 		t.Fatalf("Register sysop: %v", err)
@@ -70,7 +70,7 @@ func TestSysopImportAndBrowseFile(t *testing.T) {
 }
 
 func TestSysopImportRejectsMissingSource(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
 	if err != nil {
 		t.Fatalf("Register sysop: %v", err)
@@ -90,7 +90,7 @@ func TestSysopImportRejectsMissingSource(t *testing.T) {
 }
 
 func TestSysopCreateFileArea(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
 	if err != nil {
 		t.Fatalf("Register sysop: %v", err)

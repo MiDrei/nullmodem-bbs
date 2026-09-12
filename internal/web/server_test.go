@@ -11,6 +11,9 @@ import (
 
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
+	"git.maik.ch/swissmaik/nullmodem/internal/file"
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
@@ -25,13 +28,24 @@ func newTestServer(t *testing.T) (*Server, *user.Store, string) {
 	t.Cleanup(func() { sqlDB.Close() })
 	users := user.NewStore(sqlDB)
 
+	// No ClearAll here: the web daemon must never wipe the BBS
+	// daemon's live session state just by starting (see ClearAll's
+	// doc comment) -- these tests mirror that by only ever using
+	// NewStore directly, the same as production cmd/web does.
+	nodes := session.NewStore(sqlDB)
+
 	configPath := filepath.Join(dir, "bbs.yaml")
-	if err := config.Save(configPath, config.Default()); err != nil {
+	initial := config.Default()
+	initial.BBS.Name = "Test BBS"
+	if err := config.Save(configPath, initial); err != nil {
 		t.Fatalf("config.Save: %v", err)
 	}
 
 	srv := &Server{
 		Users:         users,
+		Messages:      message.NewStore(sqlDB),
+		Files:         file.NewStore(sqlDB, filepath.Join(dir, "files")),
+		Nodes:         nodes,
 		BBSConfigPath: configPath,
 		JWTSecret:     []byte("test-secret"),
 	}
@@ -114,8 +128,8 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode config: %v", err)
 	}
-	if got.Name != "NullModem BBS" {
-		t.Fatalf("Name = %q, want default", got.Name)
+	if got.Name != "Test BBS" {
+		t.Fatalf("Name = %q, want seeded fixture value", got.Name)
 	}
 
 	// Update and verify it persisted to disk.
@@ -132,6 +146,56 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	}
 	if saved.BBS.Name != "My Awesome BBS" || saved.BBS.NewUserSL != 20 {
 		t.Fatalf("saved config = %+v, want updated name/SL", saved.BBS)
+	}
+}
+
+func TestDashboardReportsCountsAndActiveNodes(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := srv.Nodes.Join("127.0.0.1:1234", "ansi"); err != nil {
+		t.Fatalf("Nodes.Join: %v", err)
+	}
+	h := srv.Routes()
+
+	rec := doJSON(t, h, http.MethodPost, "/api/auth/login", map[string]string{
+		"username": "root", "password": "supersecret",
+	}, "")
+	var loginResp struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+
+	rec = doJSON(t, h, http.MethodGet, "/api/dashboard", nil, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated GET /api/dashboard status = %d, want 401", rec.Code)
+	}
+
+	rec = doJSON(t, h, http.MethodGet, "/api/dashboard", nil, loginResp.Token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/dashboard status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var got dashboardDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode dashboard: %v", err)
+	}
+	if got.UserCount != 2 {
+		t.Fatalf("UserCount = %d, want 2", got.UserCount)
+	}
+	if got.MessageAreaCount != 1 || got.FileAreaCount != 1 {
+		t.Fatalf("area counts = %+v, want 1 seeded message area and 1 seeded file area", got)
+	}
+	if got.BBSName != "Test BBS" {
+		t.Fatalf("BBSName = %q, want %q", got.BBSName, "Test BBS")
+	}
+	if len(got.Nodes) != 1 || got.Nodes[0].RemoteIP != "127.0.0.1:1234" {
+		t.Fatalf("Nodes = %+v, want one active node", got.Nodes)
 	}
 }
 

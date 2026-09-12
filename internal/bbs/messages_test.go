@@ -9,7 +9,7 @@ import (
 )
 
 func TestMessageAreasListAndReadSeededArea(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register: %v", err)
@@ -29,7 +29,7 @@ func TestMessageAreasListAndReadSeededArea(t *testing.T) {
 }
 
 func TestPostAndReadMessage(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register: %v", err)
@@ -62,7 +62,7 @@ func TestPostAndReadMessage(t *testing.T) {
 }
 
 func TestPostRejectedBelowWriteThreshold(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	// A write-gated area (min_sl_write 100): a regular new user (SL
 	// 10) can read it but must be rejected when trying to post.
 	if _, err := s.Messages.CreateArea("locked", "Locked Area", "", 0, 100); err != nil {
@@ -96,7 +96,7 @@ func TestPostRejectedBelowWriteThreshold(t *testing.T) {
 }
 
 func TestSysopCreateMessageArea(t *testing.T) {
-	s := testServerWithUsers(t)
+	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
 	if err != nil {
 		t.Fatalf("Register sysop: %v", err)

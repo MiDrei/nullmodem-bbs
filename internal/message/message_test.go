@@ -62,6 +62,21 @@ func TestCreateAreaRejectsDuplicateTag(t *testing.T) {
 	}
 }
 
+func TestCountAreas(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	// The schema seeds one "general" area, so CountAreas starts at 1.
+	if n, err := s.CountAreas(); err != nil || n != 1 {
+		t.Fatalf("CountAreas() = %d, %v; want 1, nil", n, err)
+	}
+	if _, err := s.CreateArea("dev", "Dev", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if n, err := s.CountAreas(); err != nil || n != 2 {
+		t.Fatalf("CountAreas() = %d, %v; want 2, nil", n, err)
+	}
+}
+
 func TestAreaCanReadWrite(t *testing.T) {
 	a := Area{MinSLRead: 10, MinSLWrite: 50}
 	if a.CanRead(5) {
