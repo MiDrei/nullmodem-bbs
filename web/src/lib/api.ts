@@ -73,6 +73,19 @@ export interface BBSFile {
 	download_count: number;
 }
 
+export interface MenuItem {
+	key: string;
+	label: string;
+	action: string;
+	min_sl: number;
+}
+
+export interface MenuDef {
+	name: string;
+	title: string;
+	items: MenuItem[];
+}
+
 export interface LogEntry {
 	id: number;
 	logged_at: string;
@@ -242,6 +255,23 @@ export function uploadAreaFile(
 
 export function deleteFile(token: string, id: number): Promise<void> {
 	return request<void>(`/api/files/${id}`, { method: 'DELETE' }, token);
+}
+
+export function listMenus(token: string): Promise<MenuDef[]> {
+	return request<MenuDef[]>('/api/menus', { method: 'GET' }, token);
+}
+
+export function setMenuItemSL(
+	token: string,
+	menuName: string,
+	itemKey: string,
+	minSL: number
+): Promise<{ menu: MenuDef; note: string }> {
+	return request(
+		`/api/menus/${encodeURIComponent(menuName)}/items/${encodeURIComponent(itemKey)}`,
+		{ method: 'PUT', body: JSON.stringify({ min_sl: minSL }) },
+		token
+	);
 }
 
 export function listLogs(token: string, afterId?: number, limit = 200): Promise<LogEntry[]> {

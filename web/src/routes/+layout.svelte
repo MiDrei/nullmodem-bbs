@@ -74,6 +74,20 @@
 					</svg>
 					File Areas
 				</a>
+				<a href="/sl-matrix" class="flex items-center gap-1.5 hover:text-slate-100">
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						stroke-linejoin="round"
+						class="h-4 w-4"
+					>
+						<path d="M12 3l7 3v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9V6l7-3z" />
+						<path d="M9 12l2 2 4-4" />
+					</svg>
+					SL Matrix
+				</a>
 				<a href="/settings" class="flex items-center gap-1.5 hover:text-slate-100">
 					<svg
 						viewBox="0 0 24 24"

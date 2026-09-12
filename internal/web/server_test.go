@@ -36,9 +36,21 @@ func newTestServer(t *testing.T) (*Server, *user.Store, string) {
 	// NewStore directly, the same as production cmd/web does.
 	nodes := session.NewStore(sqlDB)
 
+	menusDir := filepath.Join(dir, "menus")
+	if err := os.MkdirAll(menusDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll menus: %v", err)
+	}
+	mainMenu := "name: main\ntitle: Main Menu\nitems:\n" +
+		"  - key: W\n    label: \"Who's online\"\n    action: \"builtin:who\"\n    min_sl: 0\n" +
+		"  - key: S\n    label: \"Sysop menu\"\n    action: \"goto:sysop\"\n    min_sl: 200\n"
+	if err := os.WriteFile(filepath.Join(menusDir, "main.yaml"), []byte(mainMenu), 0o644); err != nil {
+		t.Fatalf("write main.yaml: %v", err)
+	}
+
 	configPath := filepath.Join(dir, "bbs.yaml")
 	initial := config.Default()
 	initial.BBS.Name = "Test BBS"
+	initial.BBS.MenusDir = menusDir
 	if err := config.Save(configPath, initial); err != nil {
 		t.Fatalf("config.Save: %v", err)
 	}

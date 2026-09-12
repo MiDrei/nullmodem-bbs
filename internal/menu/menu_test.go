@@ -102,3 +102,43 @@ func TestLoadDirRejectsMissingActionOrKey(t *testing.T) {
 		t.Fatal("expected error for item missing action")
 	}
 }
+
+func TestSaveRoundTripsThroughLoadDir(t *testing.T) {
+	dir := t.TempDir()
+	m := &Menu{
+		Name:  "main",
+		Title: "Main Menu",
+		Items: []Item{
+			{Key: "W", Label: "Who's online", Action: "builtin:who", MinSL: 0},
+			{Key: "S", Label: "Sysop menu", Action: "goto:sysop", MinSL: 200},
+		},
+	}
+
+	if err := Save(dir, m); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "main.yaml")); err != nil {
+		t.Fatalf("expected main.yaml to exist: %v", err)
+	}
+
+	set, err := LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir after Save: %v", err)
+	}
+	got, ok := set.Get("main")
+	if !ok {
+		t.Fatal("expected menu 'main' after round trip")
+	}
+	if got.Title != "Main Menu" || len(got.Items) != 2 || got.Items[1].MinSL != 200 {
+		t.Fatalf("round-tripped menu = %+v, want a match for the original", got)
+	}
+}
+
+func TestSaveRejectsInvalidMenu(t *testing.T) {
+	dir := t.TempDir()
+	m := &Menu{Name: "main", Items: []Item{{Key: "Q", Label: "Quit"}}}
+
+	if err := Save(dir, m); err == nil {
+		t.Fatal("expected error for item missing action")
+	}
+}

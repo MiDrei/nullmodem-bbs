@@ -85,18 +85,45 @@ func LoadDir(dir string) (Set, error) {
 		if err := yaml.Unmarshal(data, &m); err != nil {
 			return nil, fmt.Errorf("menu: parse %s: %w", path, err)
 		}
-		if m.Name == "" {
-			return nil, fmt.Errorf("menu: %s: missing name", path)
+		if err := validate(&m); err != nil {
+			return nil, fmt.Errorf("menu: %s: %w", path, err)
 		}
 		if _, dup := set[m.Name]; dup {
 			return nil, fmt.Errorf("menu: %s: duplicate menu name %q", path, m.Name)
 		}
-		for _, item := range m.Items {
-			if item.Key == "" || item.Action == "" {
-				return nil, fmt.Errorf("menu: %s: item with empty key or action", path)
-			}
-		}
 		set[m.Name] = &m
 	}
 	return set, nil
+}
+
+func validate(m *Menu) error {
+	if m.Name == "" {
+		return fmt.Errorf("missing name")
+	}
+	for _, item := range m.Items {
+		if item.Key == "" || item.Action == "" {
+			return fmt.Errorf("item with empty key or action")
+		}
+	}
+	return nil
+}
+
+// Save writes m back to dir as "<name>.yaml", the same convention
+// LoadDir expects when reading it back. It's used by the web admin
+// API to persist SL threshold edits; the running bbs daemon only
+// reads menus at startup, so a change here requires a restart of the
+// bbs daemon to take effect (same as bbs.yaml config edits).
+func Save(dir string, m *Menu) error {
+	if err := validate(m); err != nil {
+		return fmt.Errorf("menu: %w", err)
+	}
+	data, err := yaml.Marshal(m)
+	if err != nil {
+		return fmt.Errorf("menu: marshal %s: %w", m.Name, err)
+	}
+	path := filepath.Join(dir, m.Name+".yaml")
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("menu: write %s: %w", path, err)
+	}
+	return nil
 }
