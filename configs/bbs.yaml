@@ -1,6 +1,10 @@
 bbs:
   name: "NullModem BBS"
   sysop: "sysop"
+  new_user_sl: 10
+
+database:
+  path: "data/nullmodem.sqlite"
 
 telnet:
   enabled: true

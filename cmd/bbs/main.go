@@ -9,9 +9,11 @@ import (
 
 	"git.maik.ch/swissmaik/nullmodem/internal/bbs"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
+	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/hostkey"
 	"git.maik.ch/swissmaik/nullmodem/internal/ssh"
 	"git.maik.ch/swissmaik/nullmodem/internal/telnet"
+	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
 func main() {
@@ -27,7 +29,14 @@ func main() {
 		cfg = config.Default()
 	}
 
-	srv := bbs.NewServer(cfg.BBS.Name, cfg.BBS.Sysop)
+	sqlDB, err := db.Open(cfg.Database.Path)
+	if err != nil {
+		log.Fatalf("opening database: %v", err)
+	}
+	defer sqlDB.Close()
+	users := user.NewStore(sqlDB)
+
+	srv := bbs.NewServer(cfg.BBS.Name, cfg.BBS.Sysop, users, cfg.BBS.NewUserSL)
 
 	errCh := make(chan error, 2)
 

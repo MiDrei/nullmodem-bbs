@@ -11,9 +11,14 @@ import (
 // Config holds settings for cmd/bbs.
 type Config struct {
 	BBS struct {
-		Name  string `yaml:"name"`
-		Sysop string `yaml:"sysop"`
+		Name      string `yaml:"name"`
+		Sysop     string `yaml:"sysop"`
+		NewUserSL int    `yaml:"new_user_sl"`
 	} `yaml:"bbs"`
+
+	Database struct {
+		Path string `yaml:"path"`
+	} `yaml:"database"`
 
 	Telnet struct {
 		Enabled bool   `yaml:"enabled"`
@@ -33,6 +38,8 @@ func Default() *Config {
 	c := &Config{}
 	c.BBS.Name = "NullModem BBS"
 	c.BBS.Sysop = "sysop"
+	c.BBS.NewUserSL = 10
+	c.Database.Path = "data/nullmodem.sqlite"
 	c.Telnet.Enabled = true
 	c.Telnet.Addr = ":2323"
 	c.SSH.Enabled = true

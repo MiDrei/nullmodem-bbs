@@ -1,0 +1,95 @@
+package user
+
+import (
+	"errors"
+	"path/filepath"
+	"testing"
+
+	"git.maik.ch/swissmaik/nullmodem/internal/db"
+)
+
+func newTestStore(t *testing.T) *Store {
+	t.Helper()
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+	return NewStore(sqlDB)
+}
+
+func TestRegisterAndAuthenticate(t *testing.T) {
+	s := newTestStore(t)
+
+	u, err := s.Register("Sysop", "correct-horse", SLSysop)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if u.SecurityLevel != SLSysop {
+		t.Fatalf("SecurityLevel = %d, want %d", u.SecurityLevel, SLSysop)
+	}
+
+	// Username lookup must be case-insensitive.
+	got, err := s.Authenticate("sysop", "correct-horse")
+	if err != nil {
+		t.Fatalf("Authenticate: %v", err)
+	}
+	if got.ID != u.ID {
+		t.Fatalf("Authenticate returned different user: got id %d, want %d", got.ID, u.ID)
+	}
+	if got.TotalCalls != 1 {
+		t.Fatalf("TotalCalls = %d, want 1", got.TotalCalls)
+	}
+
+	if _, err := s.Authenticate("sysop", "wrong-password"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Authenticate with wrong password: got %v, want ErrInvalidCredentials", err)
+	}
+
+	if _, err := s.Authenticate("nobody", "whatever"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Authenticate unknown user: got %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestRegisterDuplicateUsernameRejected(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, err := s.Register("dupe", "pw1", SLNewUser); err != nil {
+		t.Fatalf("first Register: %v", err)
+	}
+	if _, err := s.Register("DUPE", "pw2", SLNewUser); !errors.Is(err, ErrUsernameTaken) {
+		t.Fatalf("second Register: got %v, want ErrUsernameTaken", err)
+	}
+}
+
+func TestExists(t *testing.T) {
+	s := newTestStore(t)
+
+	if ok, err := s.Exists("ghost"); err != nil || ok {
+		t.Fatalf("Exists before register = %v, %v; want false, nil", ok, err)
+	}
+	if _, err := s.Register("ghost", "pw", SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if ok, err := s.Exists("Ghost"); err != nil || !ok {
+		t.Fatalf("Exists after register (case-insensitive) = %v, %v; want true, nil", ok, err)
+	}
+}
+
+func TestSetSecurityLevel(t *testing.T) {
+	s := newTestStore(t)
+
+	u, err := s.Register("levelup", "pw", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if err := s.SetSecurityLevel(u.ID, 100); err != nil {
+		t.Fatalf("SetSecurityLevel: %v", err)
+	}
+	got, err := s.ByID(u.ID)
+	if err != nil {
+		t.Fatalf("ByID: %v", err)
+	}
+	if got.SecurityLevel != 100 {
+		t.Fatalf("SecurityLevel = %d, want 100", got.SecurityLevel)
+	}
+}
