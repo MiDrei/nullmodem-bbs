@@ -95,6 +95,49 @@ func TestFirstUserBecomesSysop(t *testing.T) {
 	}
 }
 
+func TestByUsername(t *testing.T) {
+	s := newTestStore(t)
+
+	created, err := s.Register("finder", "pw", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	got, err := s.ByUsername("FINDER")
+	if err != nil {
+		t.Fatalf("ByUsername: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Fatalf("ByUsername returned id %d, want %d", got.ID, created.ID)
+	}
+
+	if _, err := s.ByUsername("nobody"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ByUsername(unknown) = %v, want ErrNotFound", err)
+	}
+}
+
+func TestListAll(t *testing.T) {
+	s := newTestStore(t)
+
+	if _, err := s.Register("first", "pw", SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := s.Register("second", "pw", SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	users, err := s.ListAll()
+	if err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	if len(users) != 2 {
+		t.Fatalf("ListAll returned %d users, want 2", len(users))
+	}
+	if users[0].Username != "first" || users[1].Username != "second" {
+		t.Fatalf("ListAll not ordered by registration: %+v", users)
+	}
+}
+
 func TestSetSecurityLevel(t *testing.T) {
 	s := newTestStore(t)
 

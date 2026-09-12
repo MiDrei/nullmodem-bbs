@@ -3,6 +3,7 @@ package bbs
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
@@ -230,9 +231,11 @@ var errLogoff = errors.New("bbs: logoff")
 // it runs. Adding a new builtin command means adding an entry here
 // and referencing "builtin:<name>" from a menu YAML file.
 var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
-	"who":     (*Server).showWho,
-	"stats":   (*Server).showStats,
-	"version": (*Server).showVersion,
+	"who":       (*Server).showWho,
+	"stats":     (*Server).showStats,
+	"version":   (*Server).showVersion,
+	"listusers": (*Server).sysopListUsers,
+	"setsl":     (*Server).sysopSetSecurityLevel,
 }
 
 // runMenu displays the named menu and dispatches choices until the
@@ -329,6 +332,74 @@ func (s *Server) showStats(term *Terminal, u *user.User) error {
 		return err
 	}
 	return term.Println(fmt.Sprintf("Member since:   %s", u.CreatedAt.Format("2006-01-02")))
+}
+
+// sysopListUsers is the "builtin:listusers" command, reachable only
+// through a menu item gated at sysop level (see configs/menus/sysop.yaml).
+func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
+	users, err := s.Users.ListAll()
+	if err != nil {
+		return err
+	}
+	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Username             SL   Calls  Last login" + ansi.Reset); err != nil {
+		return err
+	}
+	for _, listed := range users {
+		lastLogin := "never"
+		if listed.LastLoginAt.Valid {
+			lastLogin = listed.LastLoginAt.Time.Format("2006-01-02 15:04")
+		}
+		line := fmt.Sprintf("%-21s%-5d%-7d%s", listed.Username, listed.SecurityLevel, listed.TotalCalls, lastLogin)
+		if err := term.Println(line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sysopSetSecurityLevel is the "builtin:setsl" command: it prompts for
+// a target username and a new SL (0-255) and applies it via
+// user.Store.SetSecurityLevel.
+func (s *Server) sysopSetSecurityLevel(term *Terminal, _ *user.User) error {
+	if err := term.Print(ansi.Reset + "\nUsername to modify: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		return err
+	}
+	target, err := term.ReadLine(false)
+	if err != nil {
+		return err
+	}
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return term.Println(ansi.Reset + "Cancelled.")
+	}
+
+	tu, err := s.Users.ByUsername(target)
+	if err != nil {
+		if errors.Is(err, user.ErrNotFound) {
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "No such user.")
+		}
+		return err
+	}
+
+	if err := term.Println(ansi.Reset + fmt.Sprintf("Current security level for %s: %d", tu.Username, tu.SecurityLevel)); err != nil {
+		return err
+	}
+	if err := term.Print("New security level (0-255): " + ansi.FG(ansi.Yellow, true)); err != nil {
+		return err
+	}
+	input, err := term.ReadLine(false)
+	if err != nil {
+		return err
+	}
+	level, convErr := strconv.Atoi(strings.TrimSpace(input))
+	if convErr != nil || level < 0 || level > 255 {
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
+	}
+
+	if err := s.Users.SetSecurityLevel(tu.ID, level); err != nil {
+		return err
+	}
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("%s is now SL %d.", tu.Username, level))
 }
 
 func (s *Server) showWho(term *Terminal, _ *user.User) error {

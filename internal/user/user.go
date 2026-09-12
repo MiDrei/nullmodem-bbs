@@ -30,6 +30,10 @@ var ErrUsernameTaken = errors.New("user: username already taken")
 // is unknown or the password does not match.
 var ErrInvalidCredentials = errors.New("user: invalid username or password")
 
+// ErrNotFound is returned by ByID and ByUsername when no matching
+// account exists.
+var ErrNotFound = errors.New("user: not found")
+
 // User is one BBS account.
 type User struct {
 	ID            int64
@@ -143,15 +147,55 @@ func (s *Store) Authenticate(username, password string) (*User, error) {
 
 // ByID loads a single user by primary key.
 func (s *Store) ByID(id int64) (*User, error) {
-	var u User
-	row := s.db.QueryRow(
+	return s.scanOne(s.db.QueryRow(
 		`SELECT id, username, security_level, created_at, last_login_at, total_calls
 		 FROM users WHERE id = ?`, id,
-	)
+	))
+}
+
+// ByUsername loads a single user by handle (matched case-insensitively).
+func (s *Store) ByUsername(username string) (*User, error) {
+	return s.scanOne(s.db.QueryRow(
+		`SELECT id, username, security_level, created_at, last_login_at, total_calls
+		 FROM users WHERE username = ?`, username,
+	))
+}
+
+func (s *Store) scanOne(row *sql.Row) (*User, error) {
+	var u User
 	if err := row.Scan(&u.ID, &u.Username, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
-		return nil, fmt.Errorf("user: load id %d: %w", id, err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("user: load: %w", err)
 	}
 	return &u, nil
+}
+
+// ListAll returns every account, ordered by id (i.e. registration
+// order), for the sysop user-list menu and admin API.
+func (s *Store) ListAll() ([]User, error) {
+	rows, err := s.db.Query(
+		`SELECT id, username, security_level, created_at, last_login_at, total_calls
+		 FROM users ORDER BY id`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("user: list all: %w", err)
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Username, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
+			return nil, fmt.Errorf("user: scan: %w", err)
+		}
+		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("user: list all: %w", err)
+	}
+	return users, nil
 }
 
 // SetSecurityLevel updates a user's SL (0-255). It does not validate

@@ -1,0 +1,19 @@
+name: sysop
+title: Sysop Menu
+items:
+  - key: L
+    label: "List users"
+    action: "builtin:listusers"
+    min_sl: 200
+  - key: S
+    label: "Set user security level"
+    action: "builtin:setsl"
+    min_sl: 200
+  - key: M
+    label: "Back to main menu"
+    action: "goto:main"
+    min_sl: 0
+  - key: Q
+    label: "Quit"
+    action: "logoff"
+    min_sl: 0

@@ -13,6 +13,10 @@ items:
     label: "Version"
     action: "builtin:version"
     min_sl: 0
+  - key: S
+    label: "Sysop menu"
+    action: "goto:sysop"
+    min_sl: 200
   - key: Q
     label: "Quit"
     action: "logoff"
