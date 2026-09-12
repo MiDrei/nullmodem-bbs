@@ -86,6 +86,15 @@ export interface MenuDef {
 	items: MenuItem[];
 }
 
+export interface ScreenSummary {
+	name: string;
+}
+
+export interface ScreenPreview {
+	name: string;
+	html: string;
+}
+
 export interface LogEntry {
 	id: number;
 	logged_at: string;
@@ -255,6 +264,14 @@ export function uploadAreaFile(
 
 export function deleteFile(token: string, id: number): Promise<void> {
 	return request<void>(`/api/files/${id}`, { method: 'DELETE' }, token);
+}
+
+export function listScreens(token: string): Promise<ScreenSummary[]> {
+	return request<ScreenSummary[]>('/api/screens', { method: 'GET' }, token);
+}
+
+export function previewScreen(token: string, name: string): Promise<ScreenPreview> {
+	return request<ScreenPreview>(`/api/screens/${encodeURIComponent(name)}`, { method: 'GET' }, token);
 }
 
 export function listMenus(token: string): Promise<MenuDef[]> {

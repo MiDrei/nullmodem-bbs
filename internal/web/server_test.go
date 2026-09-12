@@ -47,10 +47,20 @@ func newTestServer(t *testing.T) (*Server, *user.Store, string) {
 		t.Fatalf("write main.yaml: %v", err)
 	}
 
+	screensDir := filepath.Join(dir, "screens")
+	if err := os.MkdirAll(screensDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll screens: %v", err)
+	}
+	welcomeScreen := "\x1b[1;36m{BBSNAME}\x1b[0m\r\nSysop: {SYSOP}\r\n"
+	if err := os.WriteFile(filepath.Join(screensDir, "welcome.ans"), []byte(welcomeScreen), 0o644); err != nil {
+		t.Fatalf("write welcome.ans: %v", err)
+	}
+
 	configPath := filepath.Join(dir, "bbs.yaml")
 	initial := config.Default()
 	initial.BBS.Name = "Test BBS"
 	initial.BBS.MenusDir = menusDir
+	initial.BBS.ScreensDir = screensDir
 	if err := config.Save(configPath, initial); err != nil {
 		t.Fatalf("config.Save: %v", err)
 	}
