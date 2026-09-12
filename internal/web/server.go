@@ -67,7 +67,12 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/files/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteFile)))
 
 	mux.Handle("GET /api/screens", s.requireAuth(http.HandlerFunc(s.handleListScreens)))
+	mux.Handle("POST /api/screens", s.requireAuth(http.HandlerFunc(s.handleCreateScreen)))
+	mux.Handle("POST /api/screens/import", s.requireAuth(http.HandlerFunc(s.handleImportScreen)))
 	mux.Handle("GET /api/screens/{name}", s.requireAuth(http.HandlerFunc(s.handlePreviewScreen)))
+	mux.Handle("DELETE /api/screens/{name}", s.requireAuth(http.HandlerFunc(s.handleDeleteScreen)))
+	mux.Handle("GET /api/screens/{name}/grid", s.requireAuth(http.HandlerFunc(s.handleGetScreenGrid)))
+	mux.Handle("PUT /api/screens/{name}/grid", s.requireAuth(http.HandlerFunc(s.handleSaveScreenGrid)))
 
 	mux.Handle("GET /api/menus", s.requireAuth(http.HandlerFunc(s.handleListMenus)))
 	mux.Handle("PUT /api/menus/{name}/items/{key}", s.requireAuth(http.HandlerFunc(s.handleSetMenuItemSL)))

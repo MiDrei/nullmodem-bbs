@@ -74,6 +74,20 @@
 					</svg>
 					File Areas
 				</a>
+				<a href="/designer" class="flex items-center gap-1.5 hover:text-slate-100">
+					<svg
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						stroke-linejoin="round"
+						class="h-4 w-4"
+					>
+						<path d="M4 16l4.5-9 4.5 9M6 12h5" />
+						<path d="M14 5l6 6-6 6M20 11h-8" />
+					</svg>
+					Designer
+				</a>
 				<a href="/screens" class="flex items-center gap-1.5 hover:text-slate-100">
 					<svg
 						viewBox="0 0 24 24"

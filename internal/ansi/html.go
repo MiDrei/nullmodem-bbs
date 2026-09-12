@@ -44,6 +44,18 @@ func (s htmlState) effectiveFG() int {
 	return s.baseFG
 }
 
+// colors returns the actual on-screen foreground/background pair for
+// s, with reverse video (SGR 7) already resolved -- the "what you'd
+// actually see" colors, shared by ToHTML and ParseGrid so a cell's
+// stored fg/bg never has to special-case reverse video again.
+func (s htmlState) colors() (fg, bg int) {
+	fg, bg = s.effectiveFG(), s.bg
+	if s.reverse {
+		fg, bg = bg, fg
+	}
+	return fg, bg
+}
+
 // ToHTML converts a raw CP437/ANSI screen (as produced by LoadScreen,
 // typically after Render/Layout) into an HTML fragment for the web
 // admin's screen preview: colored <span> runs matching the classic
@@ -62,10 +74,7 @@ func ToHTML(raw string) string {
 	spanOpen := false
 
 	openSpan := func() {
-		fg, bg := state.effectiveFG(), state.bg
-		if state.reverse {
-			fg, bg = bg, fg
-		}
+		fg, bg := state.colors()
 		styles := []string{
 			"color:" + dosPalette[fg],
 			"background-color:" + dosPalette[bg],

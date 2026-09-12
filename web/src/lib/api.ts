@@ -95,6 +95,18 @@ export interface ScreenPreview {
 	html: string;
 }
 
+export interface GridCell {
+	char: number;
+	fg: number;
+	bg: number;
+}
+
+export interface Grid {
+	width: number;
+	height: number;
+	cells: GridCell[];
+}
+
 export interface LogEntry {
 	id: number;
 	logged_at: string;
@@ -272,6 +284,42 @@ export function listScreens(token: string): Promise<ScreenSummary[]> {
 
 export function previewScreen(token: string, name: string): Promise<ScreenPreview> {
 	return request<ScreenPreview>(`/api/screens/${encodeURIComponent(name)}`, { method: 'GET' }, token);
+}
+
+export function createScreen(
+	token: string,
+	name: string,
+	width?: number,
+	height?: number
+): Promise<ScreenSummary> {
+	return request<ScreenSummary>(
+		'/api/screens',
+		{ method: 'POST', body: JSON.stringify({ name, width, height }) },
+		token
+	);
+}
+
+export function deleteScreen(token: string, name: string): Promise<void> {
+	return request<void>(`/api/screens/${encodeURIComponent(name)}`, { method: 'DELETE' }, token);
+}
+
+export function importScreen(token: string, file: File, name?: string): Promise<ScreenSummary> {
+	const form = new FormData();
+	form.set('file', file);
+	if (name) form.set('name', name);
+	return requestForm<ScreenSummary>('/api/screens/import', form, token);
+}
+
+export function getScreenGrid(token: string, name: string): Promise<Grid> {
+	return request<Grid>(`/api/screens/${encodeURIComponent(name)}/grid`, { method: 'GET' }, token);
+}
+
+export function saveScreenGrid(token: string, name: string, grid: Grid): Promise<void> {
+	return request<void>(
+		`/api/screens/${encodeURIComponent(name)}/grid`,
+		{ method: 'PUT', body: JSON.stringify(grid) },
+		token
+	);
 }
 
 export function listMenus(token: string): Promise<MenuDef[]> {
