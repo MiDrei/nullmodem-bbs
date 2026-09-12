@@ -22,17 +22,37 @@ type Terminal struct {
 // NewTerminal wraps conn for line-based interaction.
 func NewTerminal(conn Conn) *Terminal { return &Terminal{conn: conn} }
 
-// defaultWidth is used when a client never reports a window size
-// (e.g. NAWS wasn't negotiated), matching classic 80-column BBS art.
-const defaultWidth = 80
+// maxWidth caps the NAWS width Width() will trust: classic 80-column
+// BBS art, which every terminal genuinely handles. Going higher isn't
+// safe to act on -- in real testing, SyncTERM reported a NAWS width
+// larger than what it actually rendered without wrapping after its
+// window was resized. Genuinely narrower clients (e.g. old 40-column
+// terminals) are still respected, since only the upper bound is
+// capped.
+const maxWidth = 80
 
-// Width returns the client's negotiated terminal width, for laying
-// out screens and menus (see ansi.Layout), falling back to
-// defaultWidth if the client hasn't reported one.
+// wrapMargin is subtracted from the (capped) width so content never
+// touches the very last column. Also found in real testing: even at
+// exactly 80 columns -- a width every terminal is supposed to
+// handle -- SyncTERM still wrapped a full-width line. Writing to a
+// terminal's final column and continuing is a well-known auto-wrap
+// edge case (the cursor's pending-wrap state fires on the next write
+// rather than exactly at the margin), so the last column is left
+// deliberately unused rather than chasing exact per-terminal behavior.
+const wrapMargin = 1
+
+// Width returns the safe column count to lay screens and menus out to
+// (see ansi.Layout): the client's negotiated NAWS width, capped at
+// maxWidth and falling back to it if the client hasn't reported one,
+// minus wrapMargin.
 func (t *Terminal) Width() int {
 	w, _ := t.conn.WindowSize()
-	if w <= 0 {
-		return defaultWidth
+	if w <= 0 || w > maxWidth {
+		w = maxWidth
+	}
+	w -= wrapMargin
+	if w < 1 {
+		w = 1
 	}
 	return w
 }

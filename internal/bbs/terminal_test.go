@@ -9,12 +9,14 @@ import (
 // fakeConn is a minimal in-memory Conn for exercising Terminal without
 // a real telnet/SSH transport.
 type fakeConn struct {
-	in  *bytes.Reader
-	out bytes.Buffer
+	in     *bytes.Reader
+	out    bytes.Buffer
+	width  int
+	height int
 }
 
 func newFakeConn(input string) *fakeConn {
-	return &fakeConn{in: bytes.NewReader([]byte(input))}
+	return &fakeConn{in: bytes.NewReader([]byte(input)), width: 80, height: 24}
 }
 
 func (c *fakeConn) Read(p []byte) (int, error)  { return c.in.Read(p) }
@@ -22,7 +24,7 @@ func (c *fakeConn) Write(p []byte) (int, error) { return c.out.Write(p) }
 func (c *fakeConn) Close() error                { return nil }
 func (c *fakeConn) RemoteAddr() net.Addr        { return &net.TCPAddr{} }
 func (c *fakeConn) TermType() string            { return "test" }
-func (c *fakeConn) WindowSize() (int, int)      { return 80, 24 }
+func (c *fakeConn) WindowSize() (int, int)      { return c.width, c.height }
 
 // TestReadLineCRLFDoesNotLeakIntoNextLine is a regression test: a
 // trailing LF after CR must be consumed as part of the same line
@@ -59,6 +61,57 @@ func TestReadLineBareLF(t *testing.T) {
 	}
 	if got != "unix-style" {
 		t.Fatalf("ReadLine = %q, want %q", got, "unix-style")
+	}
+}
+
+func TestWidthCapsAtMaxWidthMinusMargin(t *testing.T) {
+	// Real-world finding: SyncTERM reported a NAWS width larger than
+	// what it actually rendered without wrapping after its window was
+	// resized. Trusting that value wrapped a full-width screen's
+	// trailing border character onto the next line. Width must cap at
+	// maxWidth rather than pass an oversized value through.
+	conn := newFakeConn("")
+	conn.width = 204
+	term := NewTerminal(conn)
+
+	want := maxWidth - wrapMargin
+	if got := term.Width(); got != want {
+		t.Fatalf("Width() = %d, want capped at %d", got, want)
+	}
+}
+
+func TestWidthRespectsNarrowerClient(t *testing.T) {
+	conn := newFakeConn("")
+	conn.width = 40
+	term := NewTerminal(conn)
+
+	want := 40 - wrapMargin
+	if got := term.Width(); got != want {
+		t.Fatalf("Width() = %d, want %d (genuinely narrow clients must still be respected)", got, want)
+	}
+}
+
+func TestWidthFallsBackWhenUnreported(t *testing.T) {
+	conn := newFakeConn("")
+	conn.width = 0
+	term := NewTerminal(conn)
+
+	want := maxWidth - wrapMargin
+	if got := term.Width(); got != want {
+		t.Fatalf("Width() = %d, want fallback %d", got, want)
+	}
+}
+
+func TestWidthLeavesLastColumnUnusedEvenAtExactMax(t *testing.T) {
+	// Also found in real testing: even a client correctly reporting
+	// exactly maxWidth (80) still wrapped a full-width line. Width
+	// must never return the full negotiated/capped value unmargined.
+	conn := newFakeConn("")
+	conn.width = maxWidth
+	term := NewTerminal(conn)
+
+	if got := term.Width(); got != maxWidth-wrapMargin {
+		t.Fatalf("Width() = %d, want %d (margin must apply even at exactly maxWidth)", got, maxWidth-wrapMargin)
 	}
 }
 
