@@ -24,9 +24,8 @@ type Node struct {
 
 // Store persists active sessions in the shared SQLite database.
 type Store struct {
-	db   *sql.DB
-	mu   sync.Mutex
-	next int
+	db *sql.DB
+	mu sync.Mutex
 }
 
 // NewStore wraps an already-opened database handle (see internal/db).
@@ -35,7 +34,7 @@ type Store struct {
 // and the separate web admin daemon) sharing the same database, and
 // only one of them may ever legitimately clear it.
 func NewStore(db *sql.DB) *Store {
-	return &Store{db: db, next: 1}
+	return &Store{db: db}
 }
 
 // ClearAll removes every currently tracked session. Call this once,
@@ -52,15 +51,43 @@ func (s *Store) ClearAll() error {
 	return nil
 }
 
-// Join registers a new session and returns its allocated node number.
-// Node numbers are assigned sequentially starting at 1 for each
-// daemon run, tracked in memory since only one BBS daemon process
-// ever writes to this table at a time.
+// Join registers a new session and returns its allocated node number:
+// the lowest number not already in use, matching classic multi-node
+// BBS software where a node represents a reusable line/slot, not an
+// ever-incrementing connection counter. The mutex serializes the
+// find-lowest-free-number-then-insert sequence across concurrent
+// Join calls from the same process (the only process that ever calls
+// Join); it's not needed for SQLite itself, which is opened with a
+// single connection (see internal/db) and so already serializes the
+// individual statements.
 func (s *Store) Join(remoteIP, termType string) (int, error) {
 	s.mu.Lock()
-	node := s.next
-	s.next++
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+
+	rows, err := s.db.Query(`SELECT node FROM sessions`)
+	if err != nil {
+		return 0, fmt.Errorf("session: join: %w", err)
+	}
+	used := make(map[int]bool)
+	for rows.Next() {
+		var n int
+		if err := rows.Scan(&n); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("session: join: %w", err)
+		}
+		used[n] = true
+	}
+	if err := rows.Close(); err != nil {
+		return 0, fmt.Errorf("session: join: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("session: join: %w", err)
+	}
+
+	node := 1
+	for used[node] {
+		node++
+	}
 
 	if _, err := s.db.Exec(
 		`INSERT INTO sessions (node, remote_ip, term_type, username) VALUES (?, ?, ?, ?)`,

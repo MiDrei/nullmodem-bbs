@@ -15,7 +15,7 @@
 		try {
 			const res = await login(username, password);
 			auth.set({ token: res.token, username: res.username });
-			await goto('/settings');
+			await goto('/dashboard');
 		} catch (err) {
 			error = err instanceof ApiError ? err.message : 'Login failed.';
 		} finally {

@@ -137,6 +137,59 @@ func TestJoinAssignsIncreasingNodeNumbers(t *testing.T) {
 	}
 }
 
+// TestJoinReusesFreedNodeNumbers is a regression test: repeatedly
+// connecting and disconnecting one at a time must keep reusing node 1
+// (a real BBS's node represents a reusable line/slot), not count up
+// forever.
+func TestJoinReusesFreedNodeNumbers(t *testing.T) {
+	s := newTestStore(t)
+
+	for i := 0; i < 5; i++ {
+		node, err := s.Join("127.0.0.1:1234", "ansi")
+		if err != nil {
+			t.Fatalf("Join #%d: %v", i, err)
+		}
+		if node != 1 {
+			t.Fatalf("Join #%d = node %d, want 1 (reused, not incremented)", i, node)
+		}
+		if err := s.Leave(node); err != nil {
+			t.Fatalf("Leave #%d: %v", i, err)
+		}
+	}
+}
+
+// TestJoinFillsGapInUsedNodeNumbers covers the case where the lowest
+// active node leaves while a higher one is still connected: the next
+// Join must backfill the freed low number rather than continuing
+// upward from the highest number ever used.
+func TestJoinFillsGapInUsedNodeNumbers(t *testing.T) {
+	s := newTestStore(t)
+
+	a, err := s.Join("1.1.1.1:1", "ansi")
+	if err != nil {
+		t.Fatalf("Join a: %v", err)
+	}
+	b, err := s.Join("2.2.2.2:2", "ansi")
+	if err != nil {
+		t.Fatalf("Join b: %v", err)
+	}
+	if a != 1 || b != 2 {
+		t.Fatalf("got a=%d b=%d, want 1 and 2", a, b)
+	}
+
+	if err := s.Leave(a); err != nil {
+		t.Fatalf("Leave a: %v", err)
+	}
+
+	c, err := s.Join("3.3.3.3:3", "ansi")
+	if err != nil {
+		t.Fatalf("Join c: %v", err)
+	}
+	if c != 1 {
+		t.Fatalf("Join c = %d, want 1 (backfilling the gap a left)", c)
+	}
+}
+
 func TestConcurrentJoinLeave(t *testing.T) {
 	s := newTestStore(t)
 	var wg sync.WaitGroup
