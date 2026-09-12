@@ -1,6 +1,10 @@
 name: main
 title: "{BBSNAME} - Main Menu"
 items:
+  - key: M
+    label: "Message areas"
+    action: "builtin:areas"
+    min_sl: 0
   - key: W
     label: "Who's online"
     action: "builtin:who"

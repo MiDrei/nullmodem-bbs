@@ -9,6 +9,7 @@ import (
 
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
@@ -18,6 +19,7 @@ func testMenus() menu.Set {
 			Name:  "main",
 			Title: "Main Menu",
 			Items: []menu.Item{
+				{Key: "M", Label: "Message areas", Action: "builtin:areas", MinSL: 0},
 				{Key: "V", Label: "Version", Action: "builtin:version", MinSL: 0},
 				{Key: "S", Label: "Sysop menu", Action: "goto:sysop", MinSL: 200},
 				{Key: "Q", Label: "Quit", Action: "logoff", MinSL: 0},
@@ -29,6 +31,7 @@ func testMenus() menu.Set {
 			Items: []menu.Item{
 				{Key: "L", Label: "List users", Action: "builtin:listusers", MinSL: 200},
 				{Key: "S", Label: "Set user security level", Action: "builtin:setsl", MinSL: 200},
+				{Key: "C", Label: "Create message area", Action: "builtin:createarea", MinSL: 200},
 				{Key: "M", Label: "Back to main menu", Action: "goto:main", MinSL: 0},
 				{Key: "Q", Label: "Quit", Action: "logoff", MinSL: 0},
 			},
@@ -53,6 +56,7 @@ func testServerWithUsers(t *testing.T) *Server {
 
 	s := testServer()
 	s.Users = user.NewStore(sqlDB)
+	s.Messages = message.NewStore(sqlDB)
 	return s
 }
 

@@ -14,6 +14,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/hostkey"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/ssh"
 	"git.maik.ch/swissmaik/nullmodem/internal/telnet"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -38,6 +39,7 @@ func main() {
 	}
 	defer sqlDB.Close()
 	users := user.NewStore(sqlDB)
+	messages := message.NewStore(sqlDB)
 
 	menus, err := menu.LoadDir(cfg.BBS.MenusDir)
 	if err != nil {
@@ -54,6 +56,7 @@ func main() {
 		SysopName:     cfg.BBS.Sysop,
 		Users:         users,
 		Menus:         menus,
+		Messages:      messages,
 		NewUserSL:     cfg.BBS.NewUserSL,
 		WelcomeScreen: welcomeScreen,
 	})

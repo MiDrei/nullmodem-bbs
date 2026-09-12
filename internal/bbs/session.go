@@ -9,6 +9,7 @@ import (
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
@@ -29,6 +30,7 @@ type Server struct {
 	Nodes         *NodeManager
 	Users         *user.Store
 	Menus         menu.Set
+	Messages      *message.Store
 	SysopName     string
 	BBSName       string
 	NewUserSL     int
@@ -43,6 +45,7 @@ type Options struct {
 	SysopName     string
 	Users         *user.Store
 	Menus         menu.Set
+	Messages      *message.Store
 	NewUserSL     int
 	WelcomeScreen string
 }
@@ -53,6 +56,7 @@ func NewServer(opts Options) *Server {
 		Nodes:         NewNodeManager(),
 		Users:         opts.Users,
 		Menus:         opts.Menus,
+		Messages:      opts.Messages,
 		BBSName:       opts.BBSName,
 		SysopName:     opts.SysopName,
 		NewUserSL:     opts.NewUserSL,
@@ -257,11 +261,13 @@ var errLogoff = errors.New("bbs: logoff")
 // it runs. Adding a new builtin command means adding an entry here
 // and referencing "builtin:<name>" from a menu YAML file.
 var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
-	"who":       (*Server).showWho,
-	"stats":     (*Server).showStats,
-	"version":   (*Server).showVersion,
-	"listusers": (*Server).sysopListUsers,
-	"setsl":     (*Server).sysopSetSecurityLevel,
+	"who":        (*Server).showWho,
+	"stats":      (*Server).showStats,
+	"version":    (*Server).showVersion,
+	"listusers":  (*Server).sysopListUsers,
+	"setsl":      (*Server).sysopSetSecurityLevel,
+	"areas":      (*Server).showAreas,
+	"createarea": (*Server).sysopCreateArea,
 }
 
 // runMenu displays the named menu and dispatches choices until the
@@ -412,15 +418,11 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, _ *user.User) error {
 	if err := term.Println(ansi.Reset + fmt.Sprintf("Current security level for %s: %d", tu.Username, tu.SecurityLevel)); err != nil {
 		return err
 	}
-	if err := term.Print("New security level (0-255): " + ansi.FG(ansi.Yellow, true)); err != nil {
-		return err
-	}
-	input, err := term.ReadLine(false)
+	level, err := s.promptSecurityLevel(term, "New security level (0-255): ")
 	if err != nil {
 		return err
 	}
-	level, convErr := strconv.Atoi(strings.TrimSpace(input))
-	if convErr != nil || level < 0 || level > 255 {
+	if level < 0 {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
 	}
 

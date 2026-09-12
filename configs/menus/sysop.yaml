@@ -9,6 +9,10 @@ items:
     label: "Set user security level"
     action: "builtin:setsl"
     min_sl: 200
+  - key: C
+    label: "Create message area"
+    action: "builtin:createarea"
+    min_sl: 200
   - key: M
     label: "Back to main menu"
     action: "goto:main"
