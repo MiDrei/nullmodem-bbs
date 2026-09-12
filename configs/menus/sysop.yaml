@@ -13,6 +13,14 @@ items:
     label: "Create message area"
     action: "builtin:createarea"
     min_sl: 200
+  - key: F
+    label: "Create file area"
+    action: "builtin:createfilearea"
+    min_sl: 200
+  - key: I
+    label: "Import file"
+    action: "builtin:importfile"
+    min_sl: 200
   - key: M
     label: "Back to main menu"
     action: "goto:main"

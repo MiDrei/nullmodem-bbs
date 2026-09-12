@@ -16,6 +16,7 @@ type Config struct {
 		NewUserSL  int    `yaml:"new_user_sl"`
 		MenusDir   string `yaml:"menus_dir"`
 		ScreensDir string `yaml:"screens_dir"`
+		FilesDir   string `yaml:"files_dir"`
 	} `yaml:"bbs"`
 
 	Database struct {
@@ -43,6 +44,7 @@ func Default() *Config {
 	c.BBS.NewUserSL = 10
 	c.BBS.MenusDir = "configs/menus"
 	c.BBS.ScreensDir = "configs/screens"
+	c.BBS.FilesDir = "data/files"
 	c.Database.Path = "data/nullmodem.sqlite"
 	c.Telnet.Enabled = true
 	c.Telnet.Addr = ":2323"

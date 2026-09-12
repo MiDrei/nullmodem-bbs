@@ -5,6 +5,10 @@ items:
     label: "Message areas"
     action: "builtin:areas"
     min_sl: 0
+  - key: F
+    label: "File areas"
+    action: "builtin:files"
+    min_sl: 0
   - key: W
     label: "Who's online"
     action: "builtin:who"

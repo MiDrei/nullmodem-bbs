@@ -4,6 +4,7 @@ bbs:
     new_user_sl: 10
     menus_dir: configs/menus
     screens_dir: configs/screens
+    files_dir: data/files
 database:
     path: data/nullmodem.sqlite
 telnet:

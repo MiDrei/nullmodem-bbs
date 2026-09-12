@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -31,6 +32,7 @@ type Server struct {
 	Users         *user.Store
 	Menus         menu.Set
 	Messages      *message.Store
+	Files         *file.Store
 	SysopName     string
 	BBSName       string
 	NewUserSL     int
@@ -46,6 +48,7 @@ type Options struct {
 	Users         *user.Store
 	Menus         menu.Set
 	Messages      *message.Store
+	Files         *file.Store
 	NewUserSL     int
 	WelcomeScreen string
 }
@@ -57,6 +60,7 @@ func NewServer(opts Options) *Server {
 		Users:         opts.Users,
 		Menus:         opts.Menus,
 		Messages:      opts.Messages,
+		Files:         opts.Files,
 		BBSName:       opts.BBSName,
 		SysopName:     opts.SysopName,
 		NewUserSL:     opts.NewUserSL,
@@ -261,13 +265,16 @@ var errLogoff = errors.New("bbs: logoff")
 // it runs. Adding a new builtin command means adding an entry here
 // and referencing "builtin:<name>" from a menu YAML file.
 var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
-	"who":        (*Server).showWho,
-	"stats":      (*Server).showStats,
-	"version":    (*Server).showVersion,
-	"listusers":  (*Server).sysopListUsers,
-	"setsl":      (*Server).sysopSetSecurityLevel,
-	"areas":      (*Server).showAreas,
-	"createarea": (*Server).sysopCreateArea,
+	"who":            (*Server).showWho,
+	"stats":          (*Server).showStats,
+	"version":        (*Server).showVersion,
+	"listusers":      (*Server).sysopListUsers,
+	"setsl":          (*Server).sysopSetSecurityLevel,
+	"areas":          (*Server).showAreas,
+	"createarea":     (*Server).sysopCreateArea,
+	"files":          (*Server).showFileAreas,
+	"createfilearea": (*Server).sysopCreateFileArea,
+	"importfile":     (*Server).sysopImportFile,
 }
 
 // runMenu displays the named menu and dispatches choices until the

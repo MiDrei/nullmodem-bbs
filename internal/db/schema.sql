@@ -37,3 +37,32 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_area_posted ON messages(area_id, posted_at);
+
+CREATE TABLE IF NOT EXISTS file_areas (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag              TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    name             TEXT NOT NULL,
+    description      TEXT NOT NULL DEFAULT '',
+    min_sl_download  INTEGER NOT NULL DEFAULT 0,
+    min_sl_upload    INTEGER NOT NULL DEFAULT 0,
+    sort_order       INTEGER NOT NULL DEFAULT 0,
+    created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT OR IGNORE INTO file_areas (tag, name, description, min_sl_download, min_sl_upload, sort_order)
+VALUES ('general', 'General Files', 'General file library for all callers', 0, 0, 0);
+
+CREATE TABLE IF NOT EXISTS files (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    area_id          INTEGER NOT NULL REFERENCES file_areas(id) ON DELETE CASCADE,
+    filename         TEXT NOT NULL,
+    description      TEXT NOT NULL DEFAULT '',
+    size_bytes       INTEGER NOT NULL,
+    storage_path     TEXT NOT NULL,
+    uploaded_by      INTEGER NOT NULL REFERENCES users(id),
+    uploaded_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    download_count   INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (area_id, filename)
+);
+
+CREATE INDEX IF NOT EXISTS idx_files_area_uploaded ON files(area_id, uploaded_at);
