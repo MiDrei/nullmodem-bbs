@@ -3,6 +3,7 @@ bbs:
     sysop: Mike Dreier
     new_user_sl: 10
     menus_dir: configs/menus
+    screens_dir: configs/screens
 database:
     path: data/nullmodem.sqlite
 telnet:

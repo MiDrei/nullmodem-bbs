@@ -1,5 +1,5 @@
 name: sysop
-title: Sysop Menu
+title: "Sysop Menu - Node {NODE}"
 items:
   - key: L
     label: "List users"

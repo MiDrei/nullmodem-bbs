@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
@@ -25,23 +26,37 @@ const minPasswordLength = 6
 // Server drives BBS sessions handed to it by any transport (telnet,
 // SSH, ...) that implements Conn.
 type Server struct {
-	Nodes     *NodeManager
-	Users     *user.Store
-	Menus     menu.Set
-	SysopName string
-	BBSName   string
-	NewUserSL int
+	Nodes         *NodeManager
+	Users         *user.Store
+	Menus         menu.Set
+	SysopName     string
+	BBSName       string
+	NewUserSL     int
+	WelcomeScreen string
+}
+
+// Options bundles the dependencies and configuration NewServer needs.
+// It exists mainly so adding a new setting (like WelcomeScreen) doesn't
+// require touching every call site's positional argument list.
+type Options struct {
+	BBSName       string
+	SysopName     string
+	Users         *user.Store
+	Menus         menu.Set
+	NewUserSL     int
+	WelcomeScreen string
 }
 
 // NewServer returns a Server ready to accept sessions.
-func NewServer(bbsName, sysopName string, users *user.Store, menus menu.Set, newUserSL int) *Server {
+func NewServer(opts Options) *Server {
 	return &Server{
-		Nodes:     NewNodeManager(),
-		Users:     users,
-		Menus:     menus,
-		BBSName:   bbsName,
-		SysopName: sysopName,
-		NewUserSL: newUserSL,
+		Nodes:         NewNodeManager(),
+		Users:         opts.Users,
+		Menus:         opts.Menus,
+		BBSName:       opts.BBSName,
+		SysopName:     opts.SysopName,
+		NewUserSL:     opts.NewUserSL,
+		WelcomeScreen: opts.WelcomeScreen,
 	}
 }
 
@@ -56,7 +71,7 @@ func (s *Server) Handle(conn Conn) {
 	term := NewTerminal(conn)
 	defer func() { recover() }()
 
-	if err := s.welcome(term); err != nil {
+	if err := s.welcome(term, node); err != nil {
 		return
 	}
 
@@ -66,27 +81,37 @@ func (s *Server) Handle(conn Conn) {
 	}
 	s.Nodes.SetUsername(node, u.Username)
 
-	if err := s.runMenu(term, u, "main"); err != nil && !errors.Is(err, errLogoff) {
+	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
 		term.Println("\n" + ansi.FG(ansi.Red, true) + "Menu error: " + err.Error())
 	}
 }
 
-func (s *Server) welcome(term *Terminal) error {
-	banner := ansi.ClearScreen() +
-		ansi.FG(ansi.Cyan, true) + strings.Repeat("=", 60) + "\n" +
-		ansi.FG(ansi.White, true) + centered(s.BBSName, 60) + "\n" +
-		ansi.FG(ansi.Cyan, false) + centered(Version, 60) + "\n" +
-		ansi.FG(ansi.Cyan, true) + strings.Repeat("=", 60) + "\n" +
-		ansi.Reset
-	return term.Print(banner)
+func (s *Server) welcome(term *Terminal, node int) error {
+	return term.Print(ansi.Render(s.WelcomeScreen, s.baseVars(node)))
 }
 
-func centered(s string, width int) string {
-	if len(s) >= width {
-		return s
+// baseVars are the placeholders available before login, when there is
+// no authenticated user yet to describe.
+func (s *Server) baseVars(node int) ansi.Vars {
+	now := time.Now()
+	return ansi.Vars{
+		"BBSNAME": s.BBSName,
+		"SYSOP":   s.SysopName,
+		"VERSION": Version,
+		"NODE":    strconv.Itoa(node),
+		"DATE":    now.Format("2006-01-02"),
+		"TIME":    now.Format("15:04:05"),
 	}
-	pad := (width - len(s)) / 2
-	return strings.Repeat(" ", pad) + s
+}
+
+// userVars extends baseVars with placeholders describing the
+// authenticated caller, for use once login has completed.
+func (s *Server) userVars(u *user.User, node int) ansi.Vars {
+	vars := s.baseVars(node)
+	vars["USERNAME"] = u.Username
+	vars["SL"] = strconv.Itoa(u.SecurityLevel)
+	vars["TOTALCALLS"] = strconv.Itoa(u.TotalCalls)
+	return vars
 }
 
 // login prompts for a username, then either authenticates an existing
@@ -242,14 +267,14 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 // caller logs off, an unrecoverable I/O error occurs, or a "goto"
 // leads into a menu that itself returns (at which point this menu
 // resumes, so nested menus behave like a stack of screens).
-func (s *Server) runMenu(term *Terminal, u *user.User, name string) error {
+func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) error {
 	m, ok := s.Menus.Get(name)
 	if !ok {
 		return fmt.Errorf("menu %q not found", name)
 	}
 
 	for {
-		if err := term.Print(renderMenu(m, u.SecurityLevel, u.Username)); err != nil {
+		if err := term.Print(renderMenu(m, u.SecurityLevel, s.userVars(u, node))); err != nil {
 			return err
 		}
 
@@ -279,7 +304,7 @@ func (s *Server) runMenu(term *Terminal, u *user.User, name string) error {
 
 		case strings.HasPrefix(item.Action, "goto:"):
 			target := strings.TrimPrefix(item.Action, "goto:")
-			if err := s.runMenu(term, u, target); err != nil {
+			if err := s.runMenu(term, u, node, target); err != nil {
 				return err
 			}
 
@@ -304,13 +329,14 @@ func (s *Server) runMenu(term *Terminal, u *user.User, name string) error {
 	}
 }
 
-func renderMenu(m *menu.Menu, securityLevel int, username string) string {
+func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Green, true) + m.Title + ansi.Reset + "\n")
+	b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Green, true) + ansi.Render(m.Title, vars) + ansi.Reset + "\n")
 	for _, item := range m.VisibleItems(securityLevel) {
-		fmt.Fprintf(&b, "  [%s%s%s] %s\n", ansi.FG(ansi.Yellow, true), item.Key, ansi.FG(ansi.Green, true), item.Label)
+		label := ansi.Render(item.Label, vars)
+		fmt.Fprintf(&b, "  [%s%s%s] %s\n", ansi.FG(ansi.Yellow, true), item.Key, ansi.FG(ansi.Green, true), label)
 	}
-	b.WriteString("\n" + ansi.FG(ansi.White, true) + username + "> " + ansi.Reset)
+	b.WriteString("\n" + ansi.FG(ansi.White, true) + vars["USERNAME"] + "> " + ansi.Reset)
 	return b.String()
 }
 

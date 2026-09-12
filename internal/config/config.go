@@ -11,10 +11,11 @@ import (
 // Config holds settings for cmd/bbs.
 type Config struct {
 	BBS struct {
-		Name      string `yaml:"name"`
-		Sysop     string `yaml:"sysop"`
-		NewUserSL int    `yaml:"new_user_sl"`
-		MenusDir  string `yaml:"menus_dir"`
+		Name       string `yaml:"name"`
+		Sysop      string `yaml:"sysop"`
+		NewUserSL  int    `yaml:"new_user_sl"`
+		MenusDir   string `yaml:"menus_dir"`
+		ScreensDir string `yaml:"screens_dir"`
 	} `yaml:"bbs"`
 
 	Database struct {
@@ -41,6 +42,7 @@ func Default() *Config {
 	c.BBS.Sysop = "sysop"
 	c.BBS.NewUserSL = 10
 	c.BBS.MenusDir = "configs/menus"
+	c.BBS.ScreensDir = "configs/screens"
 	c.Database.Path = "data/nullmodem.sqlite"
 	c.Telnet.Enabled = true
 	c.Telnet.Addr = ":2323"

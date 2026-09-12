@@ -6,7 +6,9 @@ import (
 	"flag"
 	"log"
 	"os"
+	"path/filepath"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/bbs"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
@@ -42,7 +44,19 @@ func main() {
 		log.Fatalf("loading menus: %v", err)
 	}
 
-	srv := bbs.NewServer(cfg.BBS.Name, cfg.BBS.Sysop, users, menus, cfg.BBS.NewUserSL)
+	welcomeScreen, err := ansi.LoadScreen(filepath.Join(cfg.BBS.ScreensDir, "welcome.ans"))
+	if err != nil {
+		log.Fatalf("loading welcome screen: %v", err)
+	}
+
+	srv := bbs.NewServer(bbs.Options{
+		BBSName:       cfg.BBS.Name,
+		SysopName:     cfg.BBS.Sysop,
+		Users:         users,
+		Menus:         menus,
+		NewUserSL:     cfg.BBS.NewUserSL,
+		WelcomeScreen: welcomeScreen,
+	})
 
 	errCh := make(chan error, 2)
 

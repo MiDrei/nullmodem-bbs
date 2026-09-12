@@ -65,7 +65,7 @@ func TestRunMenuVersionAndQuit(t *testing.T) {
 	term := NewTerminal(conn)
 	s := testServer()
 
-	err := s.runMenu(term, testUser(0), "main")
+	err := s.runMenu(term, testUser(0), 1, "main")
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
@@ -84,7 +84,7 @@ func TestRunMenuGatesItemsBySecurityLevel(t *testing.T) {
 
 	// SL 0 can't see or select the sysop-only "S" item, so it's an
 	// unknown command and the session continues to the Q quit.
-	err := s.runMenu(term, testUser(0), "main")
+	err := s.runMenu(term, testUser(0), 1, "main")
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
@@ -104,7 +104,7 @@ func TestRunMenuLogoffFromNestedGotoEndsSession(t *testing.T) {
 	term := NewTerminal(conn)
 	s := testServer()
 
-	err := s.runMenu(term, testUser(255), "main")
+	err := s.runMenu(term, testUser(255), 1, "main")
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff (logoff must unwind nested goto)", err)
 	}
@@ -126,7 +126,7 @@ func TestSysopMenuListUsers(t *testing.T) {
 	conn := newFakeConn("S\r\nL\r\nQ\r\n")
 	term := NewTerminal(conn)
 
-	err = s.runMenu(term, sysop, "main")
+	err = s.runMenu(term, sysop, 1, "main")
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
@@ -150,7 +150,7 @@ func TestSysopMenuSetSecurityLevel(t *testing.T) {
 	conn := newFakeConn("S\r\nS\r\nalice\r\n50\r\nQ\r\n")
 	term := NewTerminal(conn)
 
-	err = s.runMenu(term, sysop, "main")
+	err = s.runMenu(term, sysop, 1, "main")
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
@@ -182,7 +182,7 @@ func TestSysopMenuSetSecurityLevelRejectsOutOfRange(t *testing.T) {
 	conn := newFakeConn("S\r\nS\r\nalice\r\n999\r\nQ\r\n")
 	term := NewTerminal(conn)
 
-	err = s.runMenu(term, sysop, "main")
+	err = s.runMenu(term, sysop, 1, "main")
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
@@ -212,7 +212,7 @@ func TestSysopMenuUnreachableBelowThreshold(t *testing.T) {
 	conn := newFakeConn("S\r\nQ\r\n")
 	term := NewTerminal(conn)
 
-	err = s.runMenu(term, regular, "main")
+	err = s.runMenu(term, regular, 1, "main")
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
@@ -226,7 +226,7 @@ func TestRunMenuUnknownMenuNameErrors(t *testing.T) {
 	term := NewTerminal(conn)
 	s := testServer()
 
-	err := s.runMenu(term, testUser(0), "does-not-exist")
+	err := s.runMenu(term, testUser(0), 1, "does-not-exist")
 	if err == nil {
 		t.Fatal("expected error for unknown menu name")
 	}
