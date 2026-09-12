@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
@@ -25,16 +26,18 @@ const minPasswordLength = 6
 type Server struct {
 	Nodes     *NodeManager
 	Users     *user.Store
+	Menus     menu.Set
 	SysopName string
 	BBSName   string
 	NewUserSL int
 }
 
 // NewServer returns a Server ready to accept sessions.
-func NewServer(bbsName, sysopName string, users *user.Store, newUserSL int) *Server {
+func NewServer(bbsName, sysopName string, users *user.Store, menus menu.Set, newUserSL int) *Server {
 	return &Server{
 		Nodes:     NewNodeManager(),
 		Users:     users,
+		Menus:     menus,
 		BBSName:   bbsName,
 		SysopName: sysopName,
 		NewUserSL: newUserSL,
@@ -62,7 +65,9 @@ func (s *Server) Handle(conn Conn) {
 	}
 	s.Nodes.SetUsername(node, u.Username)
 
-	s.mainMenu(term, node, u)
+	if err := s.runMenu(term, u, "main"); err != nil && !errors.Is(err, errLogoff) {
+		term.Println("\n" + ansi.FG(ansi.Red, true) + "Menu error: " + err.Error())
+	}
 }
 
 func (s *Server) welcome(term *Terminal) error {
@@ -216,60 +221,124 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 	}
 }
 
-func (s *Server) mainMenu(term *Terminal, node int, u *user.User) {
+// errLogoff signals that a "logoff" item was chosen, at any menu
+// nesting depth, and must unwind all the way out of runMenu's
+// recursion rather than just popping back to the calling menu.
+var errLogoff = errors.New("bbs: logoff")
+
+// builtins maps a menu item's "builtin:<name>" action to the handler
+// it runs. Adding a new builtin command means adding an entry here
+// and referencing "builtin:<name>" from a menu YAML file.
+var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
+	"who":     (*Server).showWho,
+	"stats":   (*Server).showStats,
+	"version": (*Server).showVersion,
+}
+
+// runMenu displays the named menu and dispatches choices until the
+// caller logs off, an unrecoverable I/O error occurs, or a "goto"
+// leads into a menu that itself returns (at which point this menu
+// resumes, so nested menus behave like a stack of screens).
+func (s *Server) runMenu(term *Terminal, u *user.User, name string) error {
+	m, ok := s.Menus.Get(name)
+	if !ok {
+		return fmt.Errorf("menu %q not found", name)
+	}
+
 	for {
-		menu := fmt.Sprintf(
-			ansi.Reset+"\n"+
-				ansi.FG(ansi.Green, true)+"Main Menu"+ansi.Reset+"\n"+
-				"  [%sW%s]ho's online\n"+
-				"  [%sY%s]our stats\n"+
-				"  [%sV%s]ersion\n"+
-				"  [%sQ%s]uit\n"+
-				"\n"+ansi.FG(ansi.White, true)+"%s> "+ansi.Reset,
-			ansi.FG(ansi.Yellow, true), ansi.FG(ansi.Green, true),
-			ansi.FG(ansi.Yellow, true), ansi.FG(ansi.Green, true),
-			ansi.FG(ansi.Yellow, true), ansi.FG(ansi.Green, true),
-			ansi.FG(ansi.Yellow, true), ansi.FG(ansi.Green, true),
-			u.Username,
-		)
-		if err := term.Print(menu); err != nil {
-			return
+		if err := term.Print(renderMenu(m, u.SecurityLevel, u.Username)); err != nil {
+			return err
 		}
 
 		choice, err := term.ReadLine(false)
 		if err != nil {
-			return
+			return err
+		}
+		choice = strings.TrimSpace(choice)
+		if choice == "" {
+			continue
 		}
 
-		switch strings.ToUpper(strings.TrimSpace(choice)) {
-		case "W":
-			s.showWho(term)
-		case "Y":
-			s.showStats(term, u)
-		case "V":
-			term.Println("\n" + Version)
-		case "Q":
-			term.Println("\nGoodbye, " + u.Username + "!")
-			return
-		case "":
-			// ignore blank input
+		item, ok := m.Find(choice, u.SecurityLevel)
+		if !ok {
+			if err := term.Println("\nUnknown command."); err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch {
+		case item.Action == "logoff":
+			if err := term.Println("\nGoodbye, " + u.Username + "!"); err != nil {
+				return err
+			}
+			return errLogoff
+
+		case strings.HasPrefix(item.Action, "goto:"):
+			target := strings.TrimPrefix(item.Action, "goto:")
+			if err := s.runMenu(term, u, target); err != nil {
+				return err
+			}
+
+		case strings.HasPrefix(item.Action, "builtin:"):
+			name := strings.TrimPrefix(item.Action, "builtin:")
+			fn, ok := builtins[name]
+			if !ok {
+				if err := term.Println("\nUnimplemented command: " + name); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := fn(s, term, u); err != nil {
+				return err
+			}
+
 		default:
-			term.Println("\nUnknown command.")
+			if err := term.Println("\nUnrecognized menu action: " + item.Action); err != nil {
+				return err
+			}
 		}
 	}
 }
 
-func (s *Server) showStats(term *Terminal, u *user.User) {
-	term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Your account" + ansi.Reset)
-	term.Println(fmt.Sprintf("Handle:         %s", u.Username))
-	term.Println(fmt.Sprintf("Security level: %d", u.SecurityLevel))
-	term.Println(fmt.Sprintf("Total calls:    %d", u.TotalCalls))
-	term.Println(fmt.Sprintf("Member since:   %s", u.CreatedAt.Format("2006-01-02")))
+func renderMenu(m *menu.Menu, securityLevel int, username string) string {
+	var b strings.Builder
+	b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Green, true) + m.Title + ansi.Reset + "\n")
+	for _, item := range m.VisibleItems(securityLevel) {
+		fmt.Fprintf(&b, "  [%s%s%s] %s\n", ansi.FG(ansi.Yellow, true), item.Key, ansi.FG(ansi.Green, true), item.Label)
+	}
+	b.WriteString("\n" + ansi.FG(ansi.White, true) + username + "> " + ansi.Reset)
+	return b.String()
 }
 
-func (s *Server) showWho(term *Terminal) {
-	term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Node  Handle               Terminal    Connected" + ansi.Reset)
-	for _, n := range s.Nodes.Snapshot() {
-		term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, n.Connected.Format("15:04:05")))
+func (s *Server) showVersion(term *Terminal, u *user.User) error {
+	return term.Println("\n" + Version)
+}
+
+func (s *Server) showStats(term *Terminal, u *user.User) error {
+	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Your account" + ansi.Reset); err != nil {
+		return err
 	}
+	if err := term.Println(fmt.Sprintf("Handle:         %s", u.Username)); err != nil {
+		return err
+	}
+	if err := term.Println(fmt.Sprintf("Security level: %d", u.SecurityLevel)); err != nil {
+		return err
+	}
+	if err := term.Println(fmt.Sprintf("Total calls:    %d", u.TotalCalls)); err != nil {
+		return err
+	}
+	return term.Println(fmt.Sprintf("Member since:   %s", u.CreatedAt.Format("2006-01-02")))
+}
+
+func (s *Server) showWho(term *Terminal, _ *user.User) error {
+	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Node  Handle               Terminal    Connected" + ansi.Reset); err != nil {
+		return err
+	}
+	for _, n := range s.Nodes.Snapshot() {
+		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, n.Connected.Format("15:04:05"))); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -1,16 +1,14 @@
 bbs:
-  name: "NullModem BBS"
-  sysop: "sysop"
-  new_user_sl: 10
-
+    name: Maiks Place BBS
+    sysop: Mike Dreier
+    new_user_sl: 10
+    menus_dir: configs/menus
 database:
-  path: "data/nullmodem.sqlite"
-
+    path: data/nullmodem.sqlite
 telnet:
-  enabled: true
-  addr: ":2323"
-
+    enabled: true
+    addr: :2323
 ssh:
-  enabled: true
-  addr: ":2222"
-  host_key_path: "data/ssh_host_key"
+    enabled: true
+    addr: :2222
+    host_key_path: data/ssh_host_key
