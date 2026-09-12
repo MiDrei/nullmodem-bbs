@@ -104,8 +104,6 @@ func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	return &a, nil
 }
 
-// ListAreas returns every area readable at securityLevel, ordered for
-// menu display.
 // CountAreas returns the total number of message areas, for the web
 // admin dashboard.
 func (s *Store) CountAreas() (int, error) {
@@ -116,11 +114,22 @@ func (s *Store) CountAreas() (int, error) {
 	return n, nil
 }
 
+// ListAreas returns every area readable at securityLevel, ordered for
+// menu display.
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
-	rows, err := s.db.Query(
-		`SELECT id, tag, name, description, min_sl_read, min_sl_write, sort_order, created_at
-		 FROM message_areas WHERE min_sl_read <= ? ORDER BY sort_order, name`, securityLevel,
-	)
+	return s.queryAreas(`SELECT id, tag, name, description, min_sl_read, min_sl_write, sort_order, created_at
+		 FROM message_areas WHERE min_sl_read <= ? ORDER BY sort_order, name`, securityLevel)
+}
+
+// AllAreas returns every area regardless of SL gating, for the web
+// admin area management UI.
+func (s *Store) AllAreas() ([]Area, error) {
+	return s.queryAreas(`SELECT id, tag, name, description, min_sl_read, min_sl_write, sort_order, created_at
+		 FROM message_areas ORDER BY sort_order, name`)
+}
+
+func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("message: list areas: %w", err)
 	}
@@ -138,6 +147,27 @@ func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
 		return nil, fmt.Errorf("message: list areas: %w", err)
 	}
 	return areas, nil
+}
+
+// UpdateArea changes an existing area's editable fields (not its tag,
+// which is treated as a stable identifier once created).
+func (s *Store) UpdateArea(id int64, name, description string, minSLRead, minSLWrite, sortOrder int) (*Area, error) {
+	if _, err := s.db.Exec(
+		`UPDATE message_areas SET name = ?, description = ?, min_sl_read = ?, min_sl_write = ?, sort_order = ? WHERE id = ?`,
+		name, description, minSLRead, minSLWrite, sortOrder, id,
+	); err != nil {
+		return nil, fmt.Errorf("message: update area %d: %w", id, err)
+	}
+	return s.AreaByID(id)
+}
+
+// DeleteArea removes an area and, via ON DELETE CASCADE, every
+// message posted in it.
+func (s *Store) DeleteArea(id int64) error {
+	if _, err := s.db.Exec(`DELETE FROM message_areas WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("message: delete area %d: %w", id, err)
+	}
+	return nil
 }
 
 // PostMessage adds a new message to an area, posted by fromUserID.

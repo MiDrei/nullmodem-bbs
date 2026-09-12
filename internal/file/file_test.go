@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
@@ -206,5 +207,152 @@ func TestImportFileRejectsDirectory(t *testing.T) {
 	_, err = s.ImportFile(area.ID, u.ID, t.TempDir(), "")
 	if err == nil {
 		t.Fatal("expected error when source is a directory")
+	}
+}
+
+func TestAllAreasIgnoresSecurityLevel(t *testing.T) {
+	s, _ := newTestStore(t)
+	if _, err := s.CreateArea("sysop-only", "Sysop Only", "", 200, 200); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	all, err := s.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	// The seeded "general" area plus the one just created.
+	if len(all) != 2 {
+		t.Fatalf("AllAreas() = %+v, want 2 areas", all)
+	}
+}
+
+func TestUpdateArea(t *testing.T) {
+	s, _ := newTestStore(t)
+	area, err := s.CreateArea("dev", "Dev", "old desc", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	updated, err := s.UpdateArea(area.ID, "Dev Files", "new desc", 10, 20, 5)
+	if err != nil {
+		t.Fatalf("UpdateArea: %v", err)
+	}
+	if updated.Name != "Dev Files" || updated.Description != "new desc" || updated.MinSLDownload != 10 ||
+		updated.MinSLUpload != 20 || updated.SortOrder != 5 {
+		t.Fatalf("UpdateArea result = %+v, want updated fields", updated)
+	}
+	if updated.Tag != "dev" {
+		t.Fatalf("UpdateArea changed tag to %q, want unchanged %q", updated.Tag, "dev")
+	}
+}
+
+func TestDeleteAreaRemovesFilesFromDisk(t *testing.T) {
+	s, users := newTestStore(t)
+	area, err := s.CreateArea("temp", "Temp", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	u, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	src := writeTempFile(t, "content")
+	f, err := s.ImportFile(area.ID, u.ID, src, "")
+	if err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+
+	if err := s.DeleteArea(area.ID); err != nil {
+		t.Fatalf("DeleteArea: %v", err)
+	}
+	if _, err := s.AreaByID(area.ID); !errors.Is(err, ErrAreaNotFound) {
+		t.Fatalf("AreaByID after delete = %v, want ErrAreaNotFound", err)
+	}
+	if _, err := os.Stat(f.StoragePath); !os.IsNotExist(err) {
+		t.Fatalf("file %s still exists on disk after area delete", f.StoragePath)
+	}
+}
+
+func TestDeleteFileRemovesFromDiskAndDB(t *testing.T) {
+	s, users := newTestStore(t)
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	u, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	src := writeTempFile(t, "content")
+	f, err := s.ImportFile(area.ID, u.ID, src, "")
+	if err != nil {
+		t.Fatalf("ImportFile: %v", err)
+	}
+
+	if err := s.DeleteFile(f.ID); err != nil {
+		t.Fatalf("DeleteFile: %v", err)
+	}
+	if _, err := s.FileByID(f.ID); !errors.Is(err, ErrFileNotFound) {
+		t.Fatalf("FileByID after delete = %v, want ErrFileNotFound", err)
+	}
+	if _, err := os.Stat(f.StoragePath); !os.IsNotExist(err) {
+		t.Fatalf("file %s still exists on disk after delete", f.StoragePath)
+	}
+}
+
+func TestDeleteFileUnknownID(t *testing.T) {
+	s, _ := newTestStore(t)
+	if err := s.DeleteFile(999999); !errors.Is(err, ErrFileNotFound) {
+		t.Fatalf("DeleteFile(unknown) = %v, want ErrFileNotFound", err)
+	}
+}
+
+func TestUploadFileFromReader(t *testing.T) {
+	s, users := newTestStore(t)
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	u, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	f, err := s.UploadFile(area.ID, u.ID, "notes.txt", "uploaded via web", strings.NewReader("hello upload"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+	if f.Filename != "notes.txt" || f.SizeBytes != int64(len("hello upload")) {
+		t.Fatalf("UploadFile result = %+v, want filename notes.txt and correct size", f)
+	}
+	data, err := os.ReadFile(f.StoragePath)
+	if err != nil {
+		t.Fatalf("reading uploaded file: %v", err)
+	}
+	if string(data) != "hello upload" {
+		t.Fatalf("stored content = %q, want %q", data, "hello upload")
+	}
+}
+
+func TestUploadFileStripsPathFromFilename(t *testing.T) {
+	s, users := newTestStore(t)
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	u, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	f, err := s.UploadFile(area.ID, u.ID, "../../etc/passwd", "", strings.NewReader("x"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+	if f.Filename != "passwd" {
+		t.Fatalf("Filename = %q, want path stripped to %q", f.Filename, "passwd")
+	}
+	if !strings.HasPrefix(f.StoragePath, s.filesDir) {
+		t.Fatalf("StoragePath = %q, want it under the managed files dir %q", f.StoragePath, s.filesDir)
 	}
 }

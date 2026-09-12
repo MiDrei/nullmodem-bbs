@@ -36,6 +36,19 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))
 
+	mux.Handle("GET /api/message-areas", s.requireAuth(http.HandlerFunc(s.handleListMessageAreas)))
+	mux.Handle("POST /api/message-areas", s.requireAuth(http.HandlerFunc(s.handleCreateMessageArea)))
+	mux.Handle("PUT /api/message-areas/{id}", s.requireAuth(http.HandlerFunc(s.handleUpdateMessageArea)))
+	mux.Handle("DELETE /api/message-areas/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteMessageArea)))
+
+	mux.Handle("GET /api/file-areas", s.requireAuth(http.HandlerFunc(s.handleListFileAreas)))
+	mux.Handle("POST /api/file-areas", s.requireAuth(http.HandlerFunc(s.handleCreateFileArea)))
+	mux.Handle("PUT /api/file-areas/{id}", s.requireAuth(http.HandlerFunc(s.handleUpdateFileArea)))
+	mux.Handle("DELETE /api/file-areas/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteFileArea)))
+	mux.Handle("GET /api/file-areas/{id}/files", s.requireAuth(http.HandlerFunc(s.handleListAreaFiles)))
+	mux.Handle("POST /api/file-areas/{id}/files", s.requireAuth(http.HandlerFunc(s.handleUploadAreaFile)))
+	mux.Handle("DELETE /api/files/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteFile)))
+
 	if s.StaticDir != "" {
 		if _, err := os.Stat(s.StaticDir); err == nil {
 			mux.Handle("/", spaFileServer(s.StaticDir))
@@ -71,7 +84,7 @@ func withCORS(next http.Handler) http.Handler {
 		if origin := r.Header.Get("Origin"); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		}
 		if r.Method == http.MethodOptions {

@@ -1,0 +1,419 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { auth } from '$lib/auth.svelte';
+	import { toast } from '$lib/toast.svelte';
+	import {
+		listFileAreas,
+		createFileArea,
+		updateFileArea,
+		deleteFileArea,
+		listAreaFiles,
+		uploadAreaFile,
+		deleteFile,
+		ApiError,
+		type FileArea,
+		type FileAreaInput,
+		type BBSFile
+	} from '$lib/api';
+
+	function emptyDraft(): FileAreaInput {
+		return { tag: '', name: '', description: '', min_sl_download: 0, min_sl_upload: 0, sort_order: 0 };
+	}
+
+	let areas = $state<FileArea[]>([]);
+	let loadError = $state<string | null>(null);
+	let loaded = $state(false);
+
+	let editingId = $state<number | null>(null);
+	let draft = $state<FileAreaInput>(emptyDraft());
+	let saving = $state(false);
+
+	let creating = $state(false);
+	let newDraft = $state<FileAreaInput>(emptyDraft());
+
+	let expandedAreaId = $state<number | null>(null);
+	let filesByArea = $state<Record<number, BBSFile[]>>({});
+	let filesLoading = $state(false);
+	let uploadDescription = $state('');
+	let uploading = $state(false);
+	let fileInput = $state<HTMLInputElement | null>(null);
+
+	async function handleAuthError(err: unknown): Promise<boolean> {
+		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+			auth.clear();
+			await goto('/login');
+			return true;
+		}
+		return false;
+	}
+
+	async function load() {
+		if (!auth.token) return;
+		try {
+			areas = await listFileAreas(auth.token);
+			loadError = null;
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			loadError = err instanceof ApiError ? err.message : 'Could not load file areas.';
+		} finally {
+			loaded = true;
+		}
+	}
+
+	onMount(async () => {
+		if (!auth.token) {
+			await goto('/login');
+			return;
+		}
+		await load();
+	});
+
+	function startEdit(area: FileArea) {
+		editingId = area.id;
+		draft = {
+			tag: area.tag,
+			name: area.name,
+			description: area.description,
+			min_sl_download: area.min_sl_download,
+			min_sl_upload: area.min_sl_upload,
+			sort_order: area.sort_order
+		};
+	}
+
+	async function saveEdit(id: number) {
+		if (!auth.token) return;
+		saving = true;
+		try {
+			const updated = await updateFileArea(auth.token, id, draft);
+			areas = areas.map((a) => (a.id === id ? updated : a));
+			editingId = null;
+			toast.push(`Saved "${updated.name}".`, 'success');
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not save.', 'error');
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function createNew() {
+		if (!auth.token) return;
+		saving = true;
+		try {
+			const created = await createFileArea(auth.token, newDraft);
+			areas = [...areas, created];
+			creating = false;
+			newDraft = emptyDraft();
+			toast.push(`Created "${created.name}".`, 'success');
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not create area.', 'error');
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function remove(area: FileArea) {
+		if (!auth.token) return;
+		if (!confirm(`Delete area "${area.name}"? This also deletes all its files from disk.`)) return;
+		try {
+			await deleteFileArea(auth.token, area.id);
+			areas = areas.filter((a) => a.id !== area.id);
+			toast.push(`Deleted "${area.name}".`, 'success');
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not delete area.', 'error');
+		}
+	}
+
+	async function toggleFiles(area: FileArea) {
+		if (expandedAreaId === area.id) {
+			expandedAreaId = null;
+			return;
+		}
+		expandedAreaId = area.id;
+		if (!filesByArea[area.id]) {
+			await loadFiles(area.id);
+		}
+	}
+
+	async function loadFiles(areaId: number) {
+		if (!auth.token) return;
+		filesLoading = true;
+		try {
+			filesByArea = { ...filesByArea, [areaId]: await listAreaFiles(auth.token, areaId) };
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not load files.', 'error');
+		} finally {
+			filesLoading = false;
+		}
+	}
+
+	async function upload(areaId: number) {
+		if (!auth.token || !fileInput?.files?.length) return;
+		uploading = true;
+		try {
+			const uploaded = await uploadAreaFile(auth.token, areaId, fileInput.files[0], uploadDescription);
+			filesByArea = { ...filesByArea, [areaId]: [...(filesByArea[areaId] ?? []), uploaded] };
+			uploadDescription = '';
+			if (fileInput) fileInput.value = '';
+			toast.push(`Uploaded ${uploaded.filename}.`, 'success');
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Upload failed.', 'error');
+		} finally {
+			uploading = false;
+		}
+	}
+
+	async function removeFile(areaId: number, file: BBSFile) {
+		if (!auth.token) return;
+		if (!confirm(`Delete file "${file.filename}"?`)) return;
+		try {
+			await deleteFile(auth.token, file.id);
+			filesByArea = { ...filesByArea, [areaId]: filesByArea[areaId].filter((f) => f.id !== file.id) };
+			toast.push(`Deleted ${file.filename}.`, 'success');
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not delete file.', 'error');
+		}
+	}
+</script>
+
+<div class="mb-6 flex items-center justify-between">
+	<h1 class="text-xl font-semibold text-slate-100">File Areas</h1>
+	<button
+		class="rounded bg-cyan-600 px-3 py-1.5 text-sm text-white hover:bg-cyan-500"
+		onclick={() => (creating = !creating)}
+	>
+		{creating ? 'Cancel' : '+ New Area'}
+	</button>
+</div>
+
+{#if creating}
+	<div class="mb-6 rounded border border-slate-800 p-4">
+		<h2 class="mb-4 text-sm font-semibold tracking-wide text-cyan-400 uppercase">New Area</h2>
+		<div class="grid grid-cols-2 gap-4">
+			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">Tag</span>
+				<input
+					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+					bind:value={newDraft.tag}
+					placeholder="general"
+				/>
+			</label>
+			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">Name</span>
+				<input
+					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					bind:value={newDraft.name}
+				/>
+			</label>
+			<label class="col-span-2 flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">Description</span>
+				<input
+					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					bind:value={newDraft.description}
+				/>
+			</label>
+			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">Min SL to download</span>
+				<input
+					type="number"
+					min="0"
+					max="255"
+					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					bind:value={newDraft.min_sl_download}
+				/>
+			</label>
+			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">Min SL to upload</span>
+				<input
+					type="number"
+					min="0"
+					max="255"
+					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					bind:value={newDraft.min_sl_upload}
+				/>
+			</label>
+		</div>
+		<button
+			class="mt-4 rounded bg-cyan-600 px-3 py-1.5 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+			disabled={saving}
+			onclick={createNew}
+		>
+			{saving ? 'Creating…' : 'Create'}
+		</button>
+	</div>
+{/if}
+
+{#if loadError}
+	<p class="text-sm text-red-400">{loadError}</p>
+{:else if !loaded}
+	<p class="text-sm text-slate-400">Loading…</p>
+{:else}
+	<div class="flex flex-col gap-4">
+		{#each areas as area (area.id)}
+			<div class="rounded border border-slate-800 p-4">
+				{#if editingId === area.id}
+					<div class="grid grid-cols-2 gap-4">
+						<label class="flex flex-col gap-1 text-sm">
+							<span class="text-slate-400">Name</span>
+							<input
+								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								bind:value={draft.name}
+							/>
+						</label>
+						<label class="flex flex-col gap-1 text-sm">
+							<span class="text-slate-400">Sort order</span>
+							<input
+								type="number"
+								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								bind:value={draft.sort_order}
+							/>
+						</label>
+						<label class="col-span-2 flex flex-col gap-1 text-sm">
+							<span class="text-slate-400">Description</span>
+							<input
+								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								bind:value={draft.description}
+							/>
+						</label>
+						<label class="flex flex-col gap-1 text-sm">
+							<span class="text-slate-400">Min SL to download</span>
+							<input
+								type="number"
+								min="0"
+								max="255"
+								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								bind:value={draft.min_sl_download}
+							/>
+						</label>
+						<label class="flex flex-col gap-1 text-sm">
+							<span class="text-slate-400">Min SL to upload</span>
+							<input
+								type="number"
+								min="0"
+								max="255"
+								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								bind:value={draft.min_sl_upload}
+							/>
+						</label>
+					</div>
+					<div class="mt-4 flex gap-2">
+						<button
+							class="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+							disabled={saving}
+							onclick={() => saveEdit(area.id)}
+						>
+							{saving ? 'Saving…' : 'Save'}
+						</button>
+						<button
+							class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+							onclick={() => (editingId = null)}
+						>
+							Cancel
+						</button>
+					</div>
+				{:else}
+					<div class="flex items-start justify-between">
+						<div>
+							<div class="font-mono text-xs text-slate-500">{area.tag}</div>
+							<div class="text-slate-100">{area.name}</div>
+							<div class="text-sm text-slate-400">{area.description}</div>
+							<div class="mt-1 text-xs text-slate-500">
+								Download: SL {area.min_sl_download} &middot; Upload: SL {area.min_sl_upload}
+							</div>
+						</div>
+						<div class="flex gap-2">
+							<button
+								class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+								onclick={() => toggleFiles(area)}
+							>
+								{expandedAreaId === area.id ? 'Hide files' : 'Manage files'}
+							</button>
+							<button
+								class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+								onclick={() => startEdit(area)}
+							>
+								Edit
+							</button>
+							<button
+								class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950"
+								onclick={() => remove(area)}
+							>
+								Delete
+							</button>
+						</div>
+					</div>
+
+					{#if expandedAreaId === area.id}
+						<div class="mt-4 border-t border-slate-800 pt-4">
+							<div class="mb-3 flex flex-wrap items-center gap-2">
+								<input
+									type="file"
+									bind:this={fileInput}
+									class="text-xs text-slate-400 file:mr-2 file:rounded file:border-0 file:bg-slate-800 file:px-2 file:py-1 file:text-slate-200"
+								/>
+								<input
+									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+									placeholder="Description"
+									bind:value={uploadDescription}
+								/>
+								<button
+									class="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+									disabled={uploading}
+									onclick={() => upload(area.id)}
+								>
+									{uploading ? 'Uploading…' : 'Upload'}
+								</button>
+							</div>
+
+							{#if filesLoading && !filesByArea[area.id]}
+								<p class="text-sm text-slate-500">Loading files…</p>
+							{:else if (filesByArea[area.id] ?? []).length === 0}
+								<p class="text-sm text-slate-500">No files yet.</p>
+							{:else}
+								<div class="overflow-x-auto">
+									<table class="w-full text-left text-sm">
+										<thead class="text-xs tracking-wide text-slate-500 uppercase">
+											<tr class="border-b border-slate-800">
+												<th class="py-1 pr-3">Filename</th>
+												<th class="py-1 pr-3">Size</th>
+												<th class="py-1 pr-3">Description</th>
+												<th class="py-1 pr-3">Uploaded By</th>
+												<th class="py-1 pr-3">Downloads</th>
+												<th class="py-1"></th>
+											</tr>
+										</thead>
+										<tbody>
+											{#each filesByArea[area.id] as f (f.id)}
+												<tr class="border-b border-slate-900">
+													<td class="py-1 pr-3 text-slate-100">{f.filename}</td>
+													<td class="py-1 pr-3 text-slate-400">{f.size_human}</td>
+													<td class="py-1 pr-3 text-slate-400">{f.description}</td>
+													<td class="py-1 pr-3 text-slate-400">{f.uploaded_by}</td>
+													<td class="py-1 pr-3 text-slate-400">{f.download_count}</td>
+													<td class="py-1">
+														<button
+															class="rounded border border-red-800 px-2 py-0.5 text-xs text-red-400 hover:bg-red-950"
+															onclick={() => removeFile(area.id, f)}
+														>
+															Delete
+														</button>
+													</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
+							{/if}
+						</div>
+					{/if}
+				{/if}
+			</div>
+		{/each}
+	</div>
+{/if}

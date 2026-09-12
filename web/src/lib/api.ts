@@ -41,6 +41,38 @@ export interface BBSUser {
 	total_calls: number;
 }
 
+export interface MessageArea {
+	id: number;
+	tag: string;
+	name: string;
+	description: string;
+	min_sl_read: number;
+	min_sl_write: number;
+	sort_order: number;
+}
+
+export interface FileArea {
+	id: number;
+	tag: string;
+	name: string;
+	description: string;
+	min_sl_download: number;
+	min_sl_upload: number;
+	sort_order: number;
+}
+
+export interface BBSFile {
+	id: number;
+	area_id: number;
+	filename: string;
+	description: string;
+	size_bytes: number;
+	size_human: string;
+	uploaded_by: string;
+	uploaded_at: string;
+	download_count: number;
+}
+
 export class ApiError extends Error {
 	status: number;
 	constructor(status: number, message: string) {
@@ -49,12 +81,7 @@ export class ApiError extends Error {
 	}
 }
 
-async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
-	const headers = new Headers(options.headers);
-	headers.set('Content-Type', 'application/json');
-	if (token) headers.set('Authorization', `Bearer ${token}`);
-
-	const res = await fetch(path, { ...options, headers });
+async function handleResponse<T>(res: Response): Promise<T> {
 	if (!res.ok) {
 		let message = res.statusText;
 		try {
@@ -65,7 +92,31 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
 		}
 		throw new ApiError(res.status, message);
 	}
+	if (res.status === 204) {
+		return undefined as T;
+	}
 	return (await res.json()) as T;
+}
+
+async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+	const headers = new Headers(options.headers);
+	if (options.body !== undefined) headers.set('Content-Type', 'application/json');
+	if (token) headers.set('Authorization', `Bearer ${token}`);
+
+	const res = await fetch(path, { ...options, headers });
+	return handleResponse<T>(res);
+}
+
+// requestForm is used for multipart/form-data uploads: the browser
+// must set the Content-Type itself (it includes a generated boundary
+// string), so it's deliberately left unset here.
+async function requestForm<T>(path: string, formData: FormData, token: string): Promise<T> {
+	const res = await fetch(path, {
+		method: 'POST',
+		headers: { Authorization: `Bearer ${token}` },
+		body: formData
+	});
+	return handleResponse<T>(res);
 }
 
 export function login(username: string, password: string): Promise<LoginResponse> {
@@ -104,4 +155,83 @@ export function setUserSecurityLevel(
 		{ method: 'PUT', body: JSON.stringify({ security_level: securityLevel }) },
 		token
 	);
+}
+
+export type MessageAreaInput = Omit<MessageArea, 'id'>;
+
+export function listMessageAreas(token: string): Promise<MessageArea[]> {
+	return request<MessageArea[]>('/api/message-areas', { method: 'GET' }, token);
+}
+
+export function createMessageArea(
+	token: string,
+	area: MessageAreaInput
+): Promise<MessageArea> {
+	return request<MessageArea>(
+		'/api/message-areas',
+		{ method: 'POST', body: JSON.stringify(area) },
+		token
+	);
+}
+
+export function updateMessageArea(
+	token: string,
+	id: number,
+	area: MessageAreaInput
+): Promise<MessageArea> {
+	return request<MessageArea>(
+		`/api/message-areas/${id}`,
+		{ method: 'PUT', body: JSON.stringify(area) },
+		token
+	);
+}
+
+export function deleteMessageArea(token: string, id: number): Promise<void> {
+	return request<void>(`/api/message-areas/${id}`, { method: 'DELETE' }, token);
+}
+
+export type FileAreaInput = Omit<FileArea, 'id'>;
+
+export function listFileAreas(token: string): Promise<FileArea[]> {
+	return request<FileArea[]>('/api/file-areas', { method: 'GET' }, token);
+}
+
+export function createFileArea(token: string, area: FileAreaInput): Promise<FileArea> {
+	return request<FileArea>('/api/file-areas', { method: 'POST', body: JSON.stringify(area) }, token);
+}
+
+export function updateFileArea(
+	token: string,
+	id: number,
+	area: FileAreaInput
+): Promise<FileArea> {
+	return request<FileArea>(
+		`/api/file-areas/${id}`,
+		{ method: 'PUT', body: JSON.stringify(area) },
+		token
+	);
+}
+
+export function deleteFileArea(token: string, id: number): Promise<void> {
+	return request<void>(`/api/file-areas/${id}`, { method: 'DELETE' }, token);
+}
+
+export function listAreaFiles(token: string, areaId: number): Promise<BBSFile[]> {
+	return request<BBSFile[]>(`/api/file-areas/${areaId}/files`, { method: 'GET' }, token);
+}
+
+export function uploadAreaFile(
+	token: string,
+	areaId: number,
+	file: File,
+	description: string
+): Promise<BBSFile> {
+	const form = new FormData();
+	form.set('file', file);
+	form.set('description', description);
+	return requestForm<BBSFile>(`/api/file-areas/${areaId}/files`, form, token);
+}
+
+export function deleteFile(token: string, id: number): Promise<void> {
+	return request<void>(`/api/files/${id}`, { method: 'DELETE' }, token);
 }

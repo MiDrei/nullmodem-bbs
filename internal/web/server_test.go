@@ -71,6 +71,23 @@ func doJSON(t *testing.T, h http.Handler, method, path string, body any, token s
 	return rec
 }
 
+func loginAsSysop(t *testing.T, h http.Handler, username, password string) string {
+	t.Helper()
+	rec := doJSON(t, h, http.MethodPost, "/api/auth/login", map[string]string{
+		"username": username, "password": password,
+	}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+	return resp.Token
+}
+
 func TestLoginRejectsNonSysop(t *testing.T) {
 	srv, users, _ := newTestServer(t)
 	// Register a bootstrap sysop first so "regular" (registered second)

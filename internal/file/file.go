@@ -30,6 +30,9 @@ var ErrAreaNotFound = errors.New("file: area not found")
 // already has a file with that name.
 var ErrDuplicateFilename = errors.New("file: a file with that name already exists in this area")
 
+// ErrFileNotFound is returned when a file ID doesn't exist.
+var ErrFileNotFound = errors.New("file: file not found")
+
 // Area is one named file library.
 type Area struct {
 	ID            int64
@@ -124,8 +127,6 @@ func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	return &a, nil
 }
 
-// ListAreas returns every area downloadable at securityLevel, ordered
-// for menu display.
 // CountAreas returns the total number of file areas, for the web
 // admin dashboard.
 func (s *Store) CountAreas() (int, error) {
@@ -136,6 +137,8 @@ func (s *Store) CountAreas() (int, error) {
 	return n, nil
 }
 
+// ListAreas returns every area downloadable at securityLevel, ordered
+// for menu display.
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
 	return s.queryAreas(`SELECT id, tag, name, description, min_sl_download, min_sl_upload, sort_order, created_at
 		 FROM file_areas WHERE min_sl_download <= ? ORDER BY sort_order, name`, securityLevel)
@@ -170,9 +173,40 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	return areas, nil
 }
 
+// UpdateArea changes an existing area's editable fields (not its tag,
+// which is treated as a stable identifier once created).
+func (s *Store) UpdateArea(id int64, name, description string, minSLDownload, minSLUpload, sortOrder int) (*Area, error) {
+	if _, err := s.db.Exec(
+		`UPDATE file_areas SET name = ?, description = ?, min_sl_download = ?, min_sl_upload = ?, sort_order = ? WHERE id = ?`,
+		name, description, minSLDownload, minSLUpload, sortOrder, id,
+	); err != nil {
+		return nil, fmt.Errorf("file: update area %d: %w", id, err)
+	}
+	return s.AreaByID(id)
+}
+
+// DeleteArea removes an area, its file metadata (via ON DELETE
+// CASCADE), and the on-disk files themselves. Disk removal is
+// best-effort: a file already missing on disk doesn't abort the
+// operation.
+func (s *Store) DeleteArea(id int64) error {
+	files, err := s.ListFiles(id)
+	if err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`DELETE FROM file_areas WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("file: delete area %d: %w", id, err)
+	}
+	for _, f := range files {
+		os.Remove(f.StoragePath)
+	}
+	return nil
+}
+
 // ImportFile copies the file at sourcePath (which must already exist
 // on the server, e.g. placed there by the sysop via SCP) into this
-// area's managed storage directory and records its metadata.
+// area's managed storage directory and records its metadata. See also
+// UploadFile, for a file streamed directly from an HTTP request.
 func (s *Store) ImportFile(areaID, uploadedBy int64, sourcePath, description string) (*File, error) {
 	area, err := s.AreaByID(areaID)
 	if err != nil {
@@ -187,7 +221,34 @@ func (s *Store) ImportFile(areaID, uploadedBy int64, sourcePath, description str
 		return nil, fmt.Errorf("file: %s is a directory, not a file", sourcePath)
 	}
 
-	filename := filepath.Base(sourcePath)
+	in, err := os.Open(sourcePath)
+	if err != nil {
+		return nil, fmt.Errorf("file: open %s: %w", sourcePath, err)
+	}
+	defer in.Close()
+
+	return s.storeFile(area, filepath.Base(sourcePath), uploadedBy, description, in)
+}
+
+// UploadFile stores a file uploaded directly through the web admin
+// UI (an HTTP multipart request body), sidestepping the need for the
+// sysop to place it on the server first (see ImportFile) -- unlike a
+// telnet/SSH session, a browser can just send the bytes.
+func (s *Store) UploadFile(areaID, uploadedBy int64, filename, description string, src io.Reader) (*File, error) {
+	area, err := s.AreaByID(areaID)
+	if err != nil {
+		return nil, err
+	}
+	// filepath.Base guards against a client sending a path (e.g.
+	// "../../etc/passwd") as the filename; only the base name is ever
+	// trusted for the on-disk path.
+	return s.storeFile(area, filepath.Base(filename), uploadedBy, description, src)
+}
+
+// storeFile writes src's contents into area's managed storage
+// directory under filename and records the resulting metadata. It is
+// the shared tail end of ImportFile and UploadFile.
+func (s *Store) storeFile(area *Area, filename string, uploadedBy int64, description string, src io.Reader) (*File, error) {
 	destDir := filepath.Join(s.filesDir, area.Tag)
 	destPath := filepath.Join(destDir, filename)
 
@@ -200,14 +261,25 @@ func (s *Store) ImportFile(areaID, uploadedBy int64, sourcePath, description str
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return nil, fmt.Errorf("file: mkdir %s: %w", destDir, err)
 	}
-	size, err := copyFile(sourcePath, destPath)
+
+	out, err := os.Create(destPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("file: create %s: %w", destPath, err)
+	}
+	size, copyErr := io.Copy(out, src)
+	closeErr := out.Close()
+	if copyErr != nil {
+		os.Remove(destPath)
+		return nil, fmt.Errorf("file: write %s: %w", destPath, copyErr)
+	}
+	if closeErr != nil {
+		os.Remove(destPath)
+		return nil, fmt.Errorf("file: close %s: %w", destPath, closeErr)
 	}
 
 	res, err := s.db.Exec(
 		`INSERT INTO files (area_id, filename, description, size_bytes, storage_path, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)`,
-		areaID, filename, description, size, destPath, uploadedBy,
+		area.ID, filename, description, size, destPath, uploadedBy,
 	)
 	if err != nil {
 		os.Remove(destPath)
@@ -223,25 +295,19 @@ func (s *Store) ImportFile(areaID, uploadedBy int64, sourcePath, description str
 	return s.FileByID(id)
 }
 
-// copyFile copies src to dst and returns the number of bytes copied.
-func copyFile(src, dst string) (int64, error) {
-	in, err := os.Open(src)
+// DeleteFile removes one file's metadata and its on-disk copy. Disk
+// removal is best-effort: a file already missing on disk doesn't
+// abort the operation.
+func (s *Store) DeleteFile(id int64) error {
+	f, err := s.FileByID(id)
 	if err != nil {
-		return 0, fmt.Errorf("file: open %s: %w", src, err)
+		return err
 	}
-	defer in.Close()
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return 0, fmt.Errorf("file: create %s: %w", dst, err)
+	if _, err := s.db.Exec(`DELETE FROM files WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("file: delete file %d: %w", id, err)
 	}
-	defer out.Close()
-
-	n, err := io.Copy(out, in)
-	if err != nil {
-		return 0, fmt.Errorf("file: copy %s to %s: %w", src, dst, err)
-	}
-	return n, nil
+	os.Remove(f.StoragePath)
+	return nil
 }
 
 // FileByID loads a single file's metadata, with its uploader's
@@ -255,6 +321,9 @@ func (s *Store) FileByID(id int64) (*File, error) {
 	var f File
 	if err := row.Scan(&f.ID, &f.AreaID, &f.Filename, &f.Description, &f.SizeBytes, &f.StoragePath,
 		&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrFileNotFound
+		}
 		return nil, fmt.Errorf("file: load %d: %w", id, err)
 	}
 	return &f, nil

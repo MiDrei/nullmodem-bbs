@@ -124,6 +124,71 @@ func TestListAreasFiltersBySecurityLevel(t *testing.T) {
 	}
 }
 
+func TestAllAreasIgnoresSecurityLevel(t *testing.T) {
+	s, _ := newTestStore(t)
+	if _, err := s.CreateArea("sysop-only", "Sysop Only", "", 200, 200); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	all, err := s.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	// The seeded "general" area plus the one just created.
+	if len(all) != 2 {
+		t.Fatalf("AllAreas() = %+v, want 2 areas", all)
+	}
+}
+
+func TestUpdateArea(t *testing.T) {
+	s, _ := newTestStore(t)
+	area, err := s.CreateArea("dev", "Dev", "old desc", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	updated, err := s.UpdateArea(area.ID, "Dev Talk", "new desc", 10, 20, 5)
+	if err != nil {
+		t.Fatalf("UpdateArea: %v", err)
+	}
+	if updated.Name != "Dev Talk" || updated.Description != "new desc" || updated.MinSLRead != 10 ||
+		updated.MinSLWrite != 20 || updated.SortOrder != 5 {
+		t.Fatalf("UpdateArea result = %+v, want updated fields", updated)
+	}
+	if updated.Tag != "dev" {
+		t.Fatalf("UpdateArea changed tag to %q, want unchanged %q", updated.Tag, "dev")
+	}
+}
+
+func TestDeleteArea(t *testing.T) {
+	s, users := newTestStore(t)
+	area, err := s.CreateArea("temp", "Temp", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	u, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := s.PostMessage(area.ID, u.ID, "All", "Hi", "body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	if err := s.DeleteArea(area.ID); err != nil {
+		t.Fatalf("DeleteArea: %v", err)
+	}
+	if _, err := s.AreaByID(area.ID); !errors.Is(err, ErrAreaNotFound) {
+		t.Fatalf("AreaByID after delete = %v, want ErrAreaNotFound", err)
+	}
+	msgs, err := s.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("ListMessages after area delete = %+v, want empty (cascade)", msgs)
+	}
+}
+
 func TestPostAndListMessages(t *testing.T) {
 	s, users := newTestStore(t)
 	area, err := s.CreateArea("chat", "Chat", "", 0, 0)

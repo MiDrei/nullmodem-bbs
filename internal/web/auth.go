@@ -105,3 +105,11 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
+
+// claimsFromContext retrieves the JWT claims requireAuth attaches to
+// the request context, for handlers (e.g. file upload) that need to
+// know which sysop account is making the request.
+func claimsFromContext(ctx context.Context) (claims, bool) {
+	c, ok := ctx.Value(claimsCtxKey).(claims)
+	return c, ok
+}
