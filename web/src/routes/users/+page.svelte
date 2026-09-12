@@ -68,6 +68,12 @@
 		if (!iso) return 'never';
 		return new Date(iso).toLocaleString();
 	}
+
+	// Mirrors the backend's user.SLSysop constant (internal/user/user.go).
+	const SL_SYSOP = 255;
+	function isSysop(level: number): boolean {
+		return level >= SL_SYSOP;
+	}
 </script>
 
 <h1 class="mb-6 text-xl font-semibold text-slate-100">Users</h1>
@@ -92,13 +98,32 @@
 			<tbody>
 				{#each rows as row (row.user.id)}
 					<tr class="border-b border-slate-900 align-top">
-						<td class="p-3 text-slate-100">{row.user.username}</td>
+						<td class="p-3 text-slate-100">
+							<div class="flex items-center gap-1.5">
+								{#if isSysop(row.user.security_level)}
+									<svg
+										viewBox="0 0 20 20"
+										fill="currentColor"
+										class="h-4 w-4 shrink-0 text-amber-400"
+										aria-hidden="true"
+									>
+										<title>Sysop</title>
+										<path
+											d="M10 1.6l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 12.2l-4.2 2.4.8-4.7-3.4-3.3 4.7-.7L10 1.6z"
+										/>
+									</svg>
+								{/if}
+								{row.user.username}
+							</div>
+						</td>
 						<td class="p-3">
 							<input
 								type="number"
 								min="0"
 								max="255"
-								class="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="w-20 rounded border px-2 py-1 focus:outline-none {isSysop(row.level)
+									? 'border-amber-700 bg-slate-900 text-amber-400 focus:border-amber-500'
+									: 'border-slate-700 bg-slate-900 text-slate-100 focus:border-cyan-500'}"
 								bind:value={row.level}
 							/>
 						</td>
