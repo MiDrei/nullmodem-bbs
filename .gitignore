@@ -1,0 +1,11 @@
+# Build artifacts
+/bin/
+*.exe
+
+# Runtime state (SSH host keys, databases, generated at first run)
+/data/
+*_host_key
+*.db
+
+# Editor/OS
+.DS_Store

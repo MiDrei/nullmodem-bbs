@@ -1,0 +1,12 @@
+bbs:
+  name: "NullModem BBS"
+  sysop: "sysop"
+
+telnet:
+  enabled: true
+  addr: ":2323"
+
+ssh:
+  enabled: true
+  addr: ":2222"
+  host_key_path: "data/ssh_host_key"
