@@ -66,6 +66,16 @@ func (s *Server) printEditorListing(term *Terminal, lines []string) error {
 	return term.Print(b.String())
 }
 
+// replySubject prefixes subject with "Re: " for a reply, unless it's
+// already a reply (case-insensitively), avoiding "Re: Re: Re: ..."
+// pile-ups across a long reply chain.
+func replySubject(subject string) string {
+	if len(subject) >= 4 && strings.EqualFold(subject[:4], "re: ") {
+		return subject
+	}
+	return "Re: " + subject
+}
+
 // runLineEditor is the classic BBS line editor's input loop, shared
 // by every message-composing flow (echomail's postMessage, netmail's
 // composeNetmail): it builds up a body line by line, with /S to save,

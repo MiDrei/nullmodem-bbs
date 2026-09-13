@@ -96,7 +96,7 @@ outer:
 			case key.Type == KeyDown:
 				selected = (selected + 1) % len(msgs)
 			case key.Type == KeyEnter:
-				if err := s.readNetmail(term, msgs, selected); err != nil {
+				if err := s.readNetmail(term, u, msgs, selected); err != nil {
 					return err
 				}
 				continue outer
@@ -216,7 +216,7 @@ var fallbackNetmailReadMeta = "\x1b[1;35mFrom:    \x1b[1;37m{FROM:-40}\x1b[1;35m
 // returning to the list each time -- mirroring messages.go's
 // readMessage, including clamping at the first/last message instead
 // of wrapping around.
-func (s *Server) readNetmail(term *Terminal, msgs []netmail.Message, idx int) error {
+func (s *Server) readNetmail(term *Terminal, u *user.User, msgs []netmail.Message, idx int) error {
 	for {
 		if err := s.Netmail.MarkRead(msgs[idx].ID); err != nil {
 			return err
@@ -237,12 +237,46 @@ func (s *Server) readNetmail(term *Terminal, msgs []netmail.Message, idx int) er
 			if idx < len(msgs)-1 {
 				idx++
 			}
+		case key.Type == KeyChar && (key.Rune == 'r' || key.Rune == 'R'):
+			if err := s.replyToNetmail(term, u, &msgs[idx]); err != nil {
+				return err
+			}
 		case key.Type == KeyEscape:
 			return nil
 		case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
 			return nil
 		}
 	}
+}
+
+// replyToNetmail sends a reply to original's sender: Subject defaults
+// to "Re: <original subject>" (see replySubject) and the recipient to
+// the original sender (always local, since only local users can send
+// netmail without a BinkP mailer yet), then hands off to the shared
+// runLineEditor for the body.
+func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.Message) error {
+	subject := replySubject(original.Subject)
+	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Reply to Netmail" + ansi.Reset); err != nil {
+		return err
+	}
+	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "To: " + ansi.Reset + original.FromName); err != nil {
+		return err
+	}
+	if err := term.Println(ansi.FG(ansi.Cyan, true) + "Subject: " + ansi.Reset + subject); err != nil {
+		return err
+	}
+
+	lines, saved, err := s.runLineEditor(term)
+	if err != nil {
+		return err
+	}
+	if !saved {
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Reply aborted.")
+	}
+	if _, err := s.Netmail.Send(u.ID, s.FTNAddress, original.FromUserID, original.FromName, "", subject, strings.Join(lines, "\n")); err != nil {
+		return err
+	}
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Reply sent.")
 }
 
 // printNetmailReaderHeader shows netread.ans (with MSGNUM/MSGCOUNT
@@ -291,7 +325,7 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx i
 	for _, line := range ansi.WrapText(m.Body, term.Width()) {
 		b.WriteString(ansi.Reset + line + ansi.CRLF)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list" + ansi.Reset)
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list" + ansi.Reset)
 	return term.Print(b.String())
 }
 

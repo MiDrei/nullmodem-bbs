@@ -211,8 +211,15 @@
 		insertMacroBytes(asciiBytes(`{${name}}`));
 	}
 
+	// fillCount is the optional explicit repeat count for the next
+	// {FILL:x} insertion ("" means the classic auto-distribute-to-
+	// remaining-width behavior, matching a bare {FILL:x}).
+	let fillCount = $state('');
+
 	function insertFill(fillByte: number) {
-		insertMacroBytes([...asciiBytes('{FILL:'), fillByte, ...asciiBytes('}')]);
+		const count = fillCount.trim();
+		const suffix = count && /^\d+$/.test(count) ? asciiBytes(`:${count}`) : [];
+		insertMacroBytes([...asciiBytes('{FILL:'), fillByte, ...suffix, ...asciiBytes('}')]);
 	}
 
 	const PLACEHOLDERS = [
@@ -945,6 +952,17 @@
 							Insert
 						</button>
 					</div>
+					<label class="mt-2 flex items-center gap-2 text-xs text-slate-400">
+						Count
+						<input
+							type="number"
+							min="1"
+							class="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={fillCount}
+							placeholder="auto"
+							title="Repeat exactly this many times instead of auto-filling remaining width"
+						/>
+					</label>
 					<div class="mt-2 flex flex-wrap gap-1">
 						<button
 							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"

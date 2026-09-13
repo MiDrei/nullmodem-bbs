@@ -15,6 +15,13 @@ CREATE TABLE IF NOT EXISTS message_areas (
     tag           TEXT NOT NULL COLLATE NOCASE UNIQUE,
     name          TEXT NOT NULL,
     description   TEXT NOT NULL DEFAULT '',
+    -- Groups related echo areas by FTN network (e.g. "fsxNet",
+    -- "FidoNet") once a BinkP mailer exists to feed them -- empty
+    -- means a local-only area with no network affiliation. A database
+    -- created before this column existed gets it via ensureColumn
+    -- (see db.go), since CREATE TABLE IF NOT EXISTS doesn't retrofit
+    -- a column onto an already-created table.
+    network       TEXT NOT NULL DEFAULT '',
     min_sl_read   INTEGER NOT NULL DEFAULT 0,
     min_sl_write  INTEGER NOT NULL DEFAULT 0,
     sort_order    INTEGER NOT NULL DEFAULT 0,

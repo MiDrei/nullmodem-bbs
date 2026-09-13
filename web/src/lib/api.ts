@@ -46,6 +46,8 @@ export interface MessageArea {
 	tag: string;
 	name: string;
 	description: string;
+	/** FTN network this echo area belongs to (e.g. "fsxNet", "FidoNet"), or "" for a local-only area. */
+	network: string;
 	min_sl_read: number;
 	min_sl_write: number;
 	sort_order: number;

@@ -64,6 +64,58 @@ func TestLayoutMultipleLines(t *testing.T) {
 	}
 }
 
+func TestLayoutFillWithExplicitCountIgnoresWidth(t *testing.T) {
+	// {FILL:x:N} repeats x exactly N times regardless of the target
+	// width -- here 10 dashes even though width (40) would otherwise
+	// call for far more.
+	got := Layout("a{FILL:-:10}b", 40)
+	want := "a" + repeatDash(10) + "b"
+	if got != want {
+		t.Fatalf("Layout() = %q, want %q", got, want)
+	}
+}
+
+func repeatDash(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = '-'
+	}
+	return string(b)
+}
+
+func TestLayoutFillWithCountAndAutoFillOnSameLine(t *testing.T) {
+	// The counted token takes exactly 5 dots regardless of width; the
+	// bare token absorbs whatever's left of the 20-wide target after
+	// "ab" (2) and the 5 dots are subtracted (20-2-5 = 13 dashes).
+	got := Layout("a{FILL:.:5}b{FILL:-}", 20)
+	want := "a....." + "b" + repeatDash(13)
+	if got != want {
+		t.Fatalf("Layout() = %q, want %q", got, want)
+	}
+}
+
+func TestLayoutFillCountLargerThanWidthStillHonored(t *testing.T) {
+	// An explicit count is authoritative even when it alone exceeds
+	// the target width -- it's not clamped down to fit.
+	got := Layout("{FILL:x:5}", 3)
+	want := "xxxxx"
+	if got != want {
+		t.Fatalf("Layout() = %q, want %q", got, want)
+	}
+}
+
+func TestLayoutFillMalformedCountFallsBackToLiteral(t *testing.T) {
+	// No digits between the second colon and the closing brace, and a
+	// count with no closing brace at all: both are malformed and must
+	// be left untouched rather than crash or silently eat part of the
+	// line.
+	got := Layout("a{FILL:x:}b{FILL:-:12c", 20)
+	want := "a{FILL:x:}b{FILL:-:12c"
+	if got != want {
+		t.Fatalf("Layout() = %q, want unchanged %q", got, want)
+	}
+}
+
 func TestLayoutNoFillTokensReturnsUnchanged(t *testing.T) {
 	got := Layout("plain line, no tokens", 80)
 	if got != "plain line, no tokens" {

@@ -38,7 +38,7 @@ func TestMessageAreaCRUD(t *testing.T) {
 
 	// Create.
 	rec = doJSON(t, h, http.MethodPost, "/api/message-areas", messageAreaDTO{
-		Tag: "dev", Name: "Dev Talk", Description: "for devs", MinSLRead: 10, MinSLWrite: 50,
+		Tag: "dev", Name: "Dev Talk", Description: "for devs", Network: "fsxNet", MinSLRead: 10, MinSLWrite: 50,
 	}, token)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("POST status = %d, body=%s", rec.Code, rec.Body.String())
@@ -47,8 +47,8 @@ func TestMessageAreaCRUD(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode created: %v", err)
 	}
-	if created.Tag != "dev" || created.MinSLWrite != 50 {
-		t.Fatalf("created = %+v, want tag=dev min_sl_write=50", created)
+	if created.Tag != "dev" || created.MinSLWrite != 50 || created.Network != "fsxNet" {
+		t.Fatalf("created = %+v, want tag=dev min_sl_write=50 network=fsxNet", created)
 	}
 
 	// Duplicate tag rejected.
@@ -70,7 +70,7 @@ func TestMessageAreaCRUD(t *testing.T) {
 	// Update.
 	path := fmt.Sprintf("/api/message-areas/%d", created.ID)
 	rec = doJSON(t, h, http.MethodPut, path, messageAreaDTO{
-		Name: "Dev Talk Renamed", Description: "updated", MinSLRead: 20, MinSLWrite: 60, SortOrder: 3,
+		Name: "Dev Talk Renamed", Description: "updated", Network: "FidoNet", MinSLRead: 20, MinSLWrite: 60, SortOrder: 3,
 	}, token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT status = %d, body=%s", rec.Code, rec.Body.String())
@@ -79,8 +79,8 @@ func TestMessageAreaCRUD(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
 		t.Fatalf("decode updated: %v", err)
 	}
-	if updated.Name != "Dev Talk Renamed" || updated.MinSLRead != 20 || updated.Tag != "dev" {
-		t.Fatalf("updated = %+v, want renamed fields with tag unchanged", updated)
+	if updated.Name != "Dev Talk Renamed" || updated.MinSLRead != 20 || updated.Tag != "dev" || updated.Network != "FidoNet" {
+		t.Fatalf("updated = %+v, want renamed fields with tag unchanged and network=FidoNet", updated)
 	}
 
 	// Delete.

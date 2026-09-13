@@ -2,6 +2,7 @@ package ansi
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -16,27 +17,28 @@ func VisibleWidth(s string) int {
 	return len(ansiEscapePattern.ReplaceAllString(s, ""))
 }
 
-// fillToken is one {FILL:x} occurrence found in a line: its byte
-// range (for slicing the line around it) and its fill character.
+// fillToken is one {FILL:x} or {FILL:x:N} occurrence found in a line:
+// its byte range (for slicing the line around it), its fill
+// character, and count -- the explicit repeat count from a {FILL:x:N}
+// token, or -1 for a bare {FILL:x} that should auto-distribute a
+// share of the line's remaining width instead (see layoutLine).
 type fillToken struct {
 	start, end int
 	char       byte
+	count      int
 }
 
-const (
-	fillPrefix = "{FILL:"
-	fillSuffix = "}"
-)
+const fillPrefix = "{FILL:"
 
-// findFillTokens scans line for {FILL:x} occurrences by hand rather
-// than with regexp: x can be any single byte, including a raw CP437
-// line-drawing byte like 0xCD, and Go's regexp package decodes string
-// input as UTF-8 runes even for a byte-range class like [\x00-\xff]
-// -- an invalid-UTF-8 byte such as 0xCD decodes to utf8.RuneError
-// first and never matches. Since a screen's raw file bytes are
-// intentionally not valid UTF-8 (see LoadScreen), regexp cannot do
-// this capture reliably, so plain byte-index scanning is used
-// instead.
+// findFillTokens scans line for {FILL:x} and {FILL:x:N} occurrences
+// by hand rather than with regexp: x can be any single byte,
+// including a raw CP437 line-drawing byte like 0xCD, and Go's regexp
+// package decodes string input as UTF-8 runes even for a byte-range
+// class like [\x00-\xff] -- an invalid-UTF-8 byte such as 0xCD decodes
+// to utf8.RuneError first and never matches. Since a screen's raw
+// file bytes are intentionally not valid UTF-8 (see LoadScreen),
+// regexp cannot do this capture reliably, so plain byte-index
+// scanning is used instead.
 func findFillTokens(line string) []fillToken {
 	var tokens []fillToken
 	i := 0
@@ -47,14 +49,48 @@ func findFillTokens(line string) []fillToken {
 		}
 		start := i + idx
 		charPos := start + len(fillPrefix)
-		if charPos >= len(line) || charPos+1 >= len(line) || line[charPos+1:charPos+2] != fillSuffix {
-			// Malformed (missing char or closing brace); skip past
-			// this prefix and keep scanning the rest of the line.
+		if charPos >= len(line) {
 			i = start + len(fillPrefix)
 			continue
 		}
-		tokens = append(tokens, fillToken{start: start, end: charPos + 2, char: line[charPos]})
-		i = charPos + 2
+		char := line[charPos]
+		afterChar := charPos + 1
+		if afterChar >= len(line) {
+			i = start + len(fillPrefix)
+			continue
+		}
+
+		switch line[afterChar] {
+		case '}':
+			tokens = append(tokens, fillToken{start: start, end: afterChar + 1, char: char, count: -1})
+			i = afterChar + 1
+
+		case ':':
+			digitsStart := afterChar + 1
+			j := digitsStart
+			for j < len(line) && line[j] >= '0' && line[j] <= '9' {
+				j++
+			}
+			if j == digitsStart || j >= len(line) || line[j] != '}' {
+				// Malformed (no digits, or no closing brace); skip
+				// past this prefix and keep scanning the rest of the
+				// line.
+				i = start + len(fillPrefix)
+				continue
+			}
+			count, err := strconv.Atoi(line[digitsStart:j])
+			if err != nil {
+				i = start + len(fillPrefix)
+				continue
+			}
+			tokens = append(tokens, fillToken{start: start, end: j + 1, char: char, count: count})
+			i = j + 1
+
+		default:
+			// Malformed (missing closing brace); skip past this
+			// prefix and keep scanning the rest of the line.
+			i = start + len(fillPrefix)
+		}
 	}
 }
 
@@ -64,14 +100,20 @@ func findFillTokens(line string) []fillToken {
 // character, so the two passes don't interfere). It must run after
 // Render because it measures each line's final, resolved width.
 //
-// A line's remaining width (target minus the visible width of
-// everything that isn't a fill token) is split evenly across however
-// many {FILL:x} tokens appear on that line, with any leftover column
-// going to the last one. One token pads a line out to width -- e.g.
-// "AreaName{FILL:.}42 msgs" for a dot-leader listing regardless of
-// AreaName's length. Two identical tokens around some text center it
-// -- e.g. "{FILL: }{BBSNAME}{FILL: }" keeps a box's content centered
-// no matter how long the BBS's name is.
+// A bare {FILL:x} auto-distributes a share of the line's remaining
+// width (target minus the visible width of everything that isn't a
+// fill token, minus any {FILL:x:N} tokens' fixed counts) evenly across
+// however many auto tokens appear on that line, with any leftover
+// column going to the last one. One token pads a line out to width --
+// e.g. "AreaName{FILL:.}42 msgs" for a dot-leader listing regardless
+// of AreaName's length. Two identical tokens around some text center
+// it -- e.g. "{FILL: }{BBSNAME}{FILL: }" keeps a box's content
+// centered no matter how long the BBS's name is.
+//
+// {FILL:x:N} instead repeats x exactly N times, ignoring the line's
+// target width entirely -- for a fixed-length rule or leader
+// independent of terminal width, or to reserve part of a line's width
+// before the remaining {FILL:x} tokens split what's left.
 func Layout(s string, width int) string {
 	lines := strings.Split(s, "\r\n")
 	for i, line := range lines {
@@ -88,26 +130,41 @@ func layoutLine(line string, width int) string {
 
 	var nonFill strings.Builder
 	last := 0
+	fixedTotal := 0
+	autoCount := 0
 	for _, tok := range tokens {
 		nonFill.WriteString(line[last:tok.start])
 		last = tok.end
+		if tok.count >= 0 {
+			fixedTotal += tok.count
+		} else {
+			autoCount++
+		}
 	}
 	nonFill.WriteString(line[last:])
 
-	remaining := width - VisibleWidth(nonFill.String())
+	remaining := width - VisibleWidth(nonFill.String()) - fixedTotal
 	if remaining < 0 {
 		remaining = 0
 	}
-	share := remaining / len(tokens)
-	extra := remaining % len(tokens)
+	var share, extra int
+	if autoCount > 0 {
+		share = remaining / autoCount
+		extra = remaining % autoCount
+	}
 
 	var b strings.Builder
 	last = 0
-	for i, tok := range tokens {
+	autoSeen := 0
+	for _, tok := range tokens {
 		b.WriteString(line[last:tok.start])
-		n := share
-		if i == len(tokens)-1 {
-			n += extra
+		n := tok.count
+		if n < 0 {
+			autoSeen++
+			n = share
+			if autoSeen == autoCount {
+				n += extra
+			}
 		}
 		b.WriteString(strings.Repeat(string([]byte{tok.char}), n))
 		last = tok.end

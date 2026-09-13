@@ -71,11 +71,16 @@ const (
 	msgAreaColumnsScreen     = "msgareas-columns.ans"
 	msgAreaRowScreen         = "msgareas-row.ans"
 	msgAreaRowSelectedScreen = "msgareas-row-selected.ans"
+	// msgAreaNetworkScreen is the divider shown before the first area
+	// of each network group (see drawAreaLightbar) -- not shown at
+	// all for local/ungrouped areas (empty Network).
+	msgAreaNetworkScreen = "msgareas-network.ans"
 )
 
 const (
 	fallbackAreaRow         = "{AREANAME:-58} {TOTAL:6} {NEW:6} {YOURS:6}"
 	fallbackAreaRowSelected = "\x1b[47m\x1b[30m{AREANAME:-58} {TOTAL:6} {NEW:6} {YOURS:6}\x1b[0m"
+	fallbackAreaNetwork     = "\x1b[1;35m-- {NETWORK} {FILL:-}\x1b[0m"
 )
 
 var fallbackAreaColumns = "Area                                                           Total    New  Yours\r\n" + strings.Repeat("-", 79)
@@ -104,13 +109,28 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 
 	rowTemplate := s.loadOptionalScreen(msgAreaRowScreen, fallbackAreaRow)
 	rowSelectedTemplate := s.loadOptionalScreen(msgAreaRowSelectedScreen, fallbackAreaRowSelected)
+	networkTemplate := s.loadOptionalScreen(msgAreaNetworkScreen, fallbackAreaNetwork)
 
 	var b strings.Builder
 	b.WriteString(ansi.Reset + "\r\n")
 	b.WriteString(s.loadOptionalScreen(msgAreaColumnsScreen, fallbackAreaColumns))
 	b.WriteString(ansi.CRLF)
 
+	// stats is sorted network, sort_order, name (see ListAreaStats), so
+	// every area sharing a network is already contiguous -- a divider
+	// belongs right before the first row of each new, non-empty
+	// network group. Local/ungrouped areas (Network == "") never get
+	// one.
+	lastNetwork := ""
 	for i, st := range stats {
+		if st.Area.Network != lastNetwork {
+			if st.Area.Network != "" {
+				b.WriteString(ansi.Layout(ansi.Render(networkTemplate, ansi.Vars{"NETWORK": st.Area.Network}), term.Width()))
+				b.WriteString(ansi.CRLF)
+			}
+			lastNetwork = st.Area.Network
+		}
+
 		tmpl := rowTemplate
 		if i == selected {
 			tmpl = rowSelectedTemplate
@@ -347,6 +367,10 @@ func (s *Server) readMessage(term *Terminal, u *user.User, area *message.Area, m
 			if idx < len(msgs)-1 {
 				idx++
 			}
+		case key.Type == KeyChar && (key.Rune == 'r' || key.Rune == 'R'):
+			if err := s.replyToMessage(term, u, area, &msgs[idx]); err != nil {
+				return err
+			}
 		case key.Type == KeyEscape:
 			return nil
 		case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
@@ -398,8 +422,49 @@ func (s *Server) drawMessageReader(term *Terminal, u *user.User, area *message.A
 	for _, line := range ansi.WrapText(m.Body, term.Width()) {
 		b.WriteString(ansi.Reset + line + ansi.CRLF)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list" + ansi.Reset)
+	hint := "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list"
+	if area.CanWrite(u.SecurityLevel) {
+		hint = "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list"
+	}
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + hint + ansi.Reset)
 	return term.Print(b.String())
+}
+
+// replyToMessage posts a reply to original in the same area: Subject
+// defaults to "Re: <original subject>" (see replySubject) and To to
+// the original author's name, then hands off to the shared
+// runLineEditor for the body -- the same /S /A /L /D editor postMessage
+// uses, just with To/Subject prefilled instead of prompted.
+func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area, original *message.Message) error {
+	if !area.CanWrite(u.SecurityLevel) {
+		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Red, true) + "You don't have permission to post here."); err != nil {
+			return err
+		}
+		return s.pauseForKey(term)
+	}
+
+	subject := replySubject(original.Subject)
+	if err := s.printPostMessageHeader(term, area); err != nil {
+		return err
+	}
+	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "To: " + ansi.Reset + original.FromName); err != nil {
+		return err
+	}
+	if err := term.Println(ansi.FG(ansi.Cyan, true) + "Subject: " + ansi.Reset + subject); err != nil {
+		return err
+	}
+
+	lines, saved, err := s.runLineEditor(term)
+	if err != nil {
+		return err
+	}
+	if !saved {
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Reply aborted.")
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, original.FromName, subject, strings.Join(lines, "\n")); err != nil {
+		return err
+	}
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Reply posted.")
 }
 
 // attemptPostMessage is the lightbar's P handler: it rejects the
@@ -505,6 +570,15 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 
+	if err := term.Print(ansi.Reset + "Network (optional, e.g. fsxNet, FidoNet; blank for local-only): " + ansi.FG(ansi.Yellow, true)); err != nil {
+		return err
+	}
+	network, err := term.ReadLine(false)
+	if err != nil {
+		return err
+	}
+	network = strings.TrimSpace(network)
+
 	minRead, err := s.promptSecurityLevel(term, "Minimum SL to read (0-255): ")
 	if err != nil {
 		return err
@@ -521,7 +595,7 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
 	}
 
-	area, err := s.Messages.CreateArea(tag, name, description, minRead, minWrite)
+	area, err := s.Messages.CreateArea(tag, name, description, network, minRead, minWrite)
 	if err != nil {
 		if errors.Is(err, message.ErrTagTaken) {
 			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That tag is already in use.")

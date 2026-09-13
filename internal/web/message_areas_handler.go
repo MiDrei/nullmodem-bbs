@@ -23,6 +23,7 @@ type messageAreaDTO struct {
 	Tag         string `json:"tag"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Network     string `json:"network"`
 	MinSLRead   int    `json:"min_sl_read"`
 	MinSLWrite  int    `json:"min_sl_write"`
 	SortOrder   int    `json:"sort_order"`
@@ -34,6 +35,7 @@ func toMessageAreaDTO(a message.Area) messageAreaDTO {
 		Tag:         a.Tag,
 		Name:        a.Name,
 		Description: a.Description,
+		Network:     a.Network,
 		MinSLRead:   a.MinSLRead,
 		MinSLWrite:  a.MinSLWrite,
 		SortOrder:   a.SortOrder,
@@ -64,7 +66,7 @@ func (s *Server) handleCreateMessageArea(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	area, err := s.Messages.CreateArea(dto.Tag, dto.Name, dto.Description, dto.MinSLRead, dto.MinSLWrite)
+	area, err := s.Messages.CreateArea(dto.Tag, dto.Name, dto.Description, dto.Network, dto.MinSLRead, dto.MinSLWrite)
 	if err != nil {
 		if errors.Is(err, message.ErrTagTaken) {
 			writeError(w, http.StatusConflict, "that tag is already in use")
@@ -95,7 +97,7 @@ func (s *Server) handleUpdateMessageArea(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	area, err := s.Messages.UpdateArea(id, dto.Name, dto.Description, dto.MinSLRead, dto.MinSLWrite, dto.SortOrder)
+	area, err := s.Messages.UpdateArea(id, dto.Name, dto.Description, dto.Network, dto.MinSLRead, dto.MinSLWrite, dto.SortOrder)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update message area")
 		return

@@ -24,10 +24,14 @@ type Area struct {
 	Tag         string
 	Name        string
 	Description string
-	MinSLRead   int
-	MinSLWrite  int
-	SortOrder   int
-	CreatedAt   time.Time
+	// Network groups related echo areas by FTN network (e.g.
+	// "fsxNet", "FidoNet") once a BinkP mailer exists to feed them;
+	// empty means a local-only area with no network affiliation.
+	Network    string
+	MinSLRead  int
+	MinSLWrite int
+	SortOrder  int
+	CreatedAt  time.Time
 }
 
 // CanRead reports whether an account at securityLevel may read this
@@ -58,11 +62,12 @@ type Store struct {
 // NewStore wraps an already-opened database handle (see internal/db).
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 
-// CreateArea adds a new message area.
-func (s *Store) CreateArea(tag, name, description string, minSLRead, minSLWrite int) (*Area, error) {
+// CreateArea adds a new message area. network is the FTN network it
+// belongs to (e.g. "fsxNet"), or "" for a local-only area.
+func (s *Store) CreateArea(tag, name, description, network string, minSLRead, minSLWrite int) (*Area, error) {
 	res, err := s.db.Exec(
-		`INSERT INTO message_areas (tag, name, description, min_sl_read, min_sl_write) VALUES (?, ?, ?, ?, ?)`,
-		tag, name, description, minSLRead, minSLWrite,
+		`INSERT INTO message_areas (tag, name, description, network, min_sl_read, min_sl_write) VALUES (?, ?, ?, ?, ?, ?)`,
+		tag, name, description, network, minSLRead, minSLWrite,
 	)
 	if err != nil {
 		if isUniqueConstraintErr(err) {
@@ -80,7 +85,7 @@ func (s *Store) CreateArea(tag, name, description string, minSLRead, minSLWrite 
 // AreaByID loads a single area by primary key.
 func (s *Store) AreaByID(id int64) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, min_sl_read, min_sl_write, sort_order, created_at
+		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at
 		 FROM message_areas WHERE id = ?`, id,
 	))
 }
@@ -88,14 +93,14 @@ func (s *Store) AreaByID(id int64) (*Area, error) {
 // AreaByTag loads a single area by its short tag (case-insensitive).
 func (s *Store) AreaByTag(tag string) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, min_sl_read, min_sl_write, sort_order, created_at
+		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at
 		 FROM message_areas WHERE tag = ?`, tag,
 	))
 }
 
 func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	var a Area
-	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt); err != nil {
+	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAreaNotFound
 		}
@@ -114,18 +119,20 @@ func (s *Store) CountAreas() (int, error) {
 	return n, nil
 }
 
-// ListAreas returns every area readable at securityLevel, ordered for
-// menu display.
+// ListAreas returns every area readable at securityLevel, grouped by
+// network (local/ungrouped areas -- empty Network -- sort first) then
+// ordered for menu display within each group.
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, min_sl_read, min_sl_write, sort_order, created_at
-		 FROM message_areas WHERE min_sl_read <= ? ORDER BY sort_order, name`, securityLevel)
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at
+		 FROM message_areas WHERE min_sl_read <= ? ORDER BY network, sort_order, name`, securityLevel)
 }
 
 // AllAreas returns every area regardless of SL gating, for the web
-// admin area management UI.
+// admin area management UI, in the same network-grouped order as
+// ListAreas.
 func (s *Store) AllAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, min_sl_read, min_sl_write, sort_order, created_at
-		 FROM message_areas ORDER BY sort_order, name`)
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at
+		 FROM message_areas ORDER BY network, sort_order, name`)
 }
 
 func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
@@ -138,7 +145,7 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	var areas []Area
 	for rows.Next() {
 		var a Area
-		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt); err != nil {
 			return nil, fmt.Errorf("message: scan area: %w", err)
 		}
 		areas = append(areas, a)
@@ -164,7 +171,7 @@ type AreaWithStats struct {
 // Yours counts (see AreaWithStats) in a single query.
 func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats, error) {
 	rows, err := s.db.Query(
-		`SELECT a.id, a.tag, a.name, a.description, a.min_sl_read, a.min_sl_write, a.sort_order, a.created_at,
+		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_read, a.min_sl_write, a.sort_order, a.created_at,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id AND m.from_user_id = ?) AS yours,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id
@@ -172,7 +179,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 		                           WHERE r.user_id = ? AND r.message_id = m.id)) AS new
 		 FROM message_areas a
 		 WHERE a.min_sl_read <= ?
-		 ORDER BY a.sort_order, a.name`,
+		 ORDER BY a.network, a.sort_order, a.name`,
 		userID, userID, securityLevel,
 	)
 	if err != nil {
@@ -183,7 +190,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	var stats []AreaWithStats
 	for rows.Next() {
 		var st AreaWithStats
-		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description,
+		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description, &st.Area.Network,
 			&st.Area.MinSLRead, &st.Area.MinSLWrite, &st.Area.SortOrder, &st.Area.CreatedAt,
 			&st.Total, &st.Yours, &st.New); err != nil {
 			return nil, fmt.Errorf("message: scan area stats: %w", err)
@@ -242,10 +249,10 @@ func (s *Store) MarkMessageRead(userID, messageID int64) error {
 
 // UpdateArea changes an existing area's editable fields (not its tag,
 // which is treated as a stable identifier once created).
-func (s *Store) UpdateArea(id int64, name, description string, minSLRead, minSLWrite, sortOrder int) (*Area, error) {
+func (s *Store) UpdateArea(id int64, name, description, network string, minSLRead, minSLWrite, sortOrder int) (*Area, error) {
 	if _, err := s.db.Exec(
-		`UPDATE message_areas SET name = ?, description = ?, min_sl_read = ?, min_sl_write = ?, sort_order = ? WHERE id = ?`,
-		name, description, minSLRead, minSLWrite, sortOrder, id,
+		`UPDATE message_areas SET name = ?, description = ?, network = ?, min_sl_read = ?, min_sl_write = ?, sort_order = ? WHERE id = ?`,
+		name, description, network, minSLRead, minSLWrite, sortOrder, id,
 	); err != nil {
 		return nil, fmt.Errorf("message: update area %d: %w", id, err)
 	}

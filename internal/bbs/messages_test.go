@@ -91,7 +91,7 @@ func TestMessageAreasLightbarShowsCounts(t *testing.T) {
 
 func TestMessageAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
 	s := testServer(t)
-	if _, err := s.Messages.CreateArea("second", "Second Area", "", 0, 0); err != nil {
+	if _, err := s.Messages.CreateArea("second", "Second Area", "", "", 0, 0); err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -233,6 +233,51 @@ func TestMessageAreasLightbarUsesCustomRowTemplatesWhenPresent(t *testing.T) {
 	}
 }
 
+func TestMessageAreasLightbarGroupsByNetwork(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := s.Messages.CreateArea("fido", "Fido Chat", "", "FidoNet", 0, 0); err != nil {
+		t.Fatalf("CreateArea fido: %v", err)
+	}
+	if _, err := s.Messages.CreateArea("fsx", "Fsx Chat", "", "fsxNet", 0, 0); err != nil {
+		t.Fatalf("CreateArea fsx: %v", err)
+	}
+
+	conn := newFakeConn("M\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+
+	// Areas sort network ("" first, byte order thereafter), sort_order,
+	// name: the seeded local "General Discussion" (no network), then
+	// "FidoNet"'s divider and area, then "fsxNet"'s divider and area.
+	generalIdx := strings.Index(out, "General Discussion")
+	fidoDividerIdx := strings.Index(out, "FidoNet")
+	fidoAreaIdx := strings.Index(out, "Fido Chat")
+	fsxDividerIdx := strings.Index(out, "fsxNet")
+	fsxAreaIdx := strings.Index(out, "Fsx Chat")
+	if generalIdx < 0 || fidoDividerIdx < 0 || fidoAreaIdx < 0 || fsxDividerIdx < 0 || fsxAreaIdx < 0 {
+		t.Fatalf("expected local area, both network dividers, and both network areas present, got: %q", out)
+	}
+	if !(generalIdx < fidoDividerIdx && fidoDividerIdx < fidoAreaIdx && fidoAreaIdx < fsxDividerIdx && fsxDividerIdx < fsxAreaIdx) {
+		t.Fatalf("expected order General Discussion < FidoNet divider < Fido Chat < fsxNet divider < Fsx Chat, got: %q", out)
+	}
+	// The local area has no network, so no divider immediately
+	// precedes it -- only one divider each for FidoNet/fsxNet.
+	if strings.Count(out, "FidoNet") != 1 {
+		t.Fatalf(`expected exactly one "FidoNet" divider, got %d: %q`, strings.Count(out, "FidoNet"), out)
+	}
+	if strings.Count(out, "fsxNet") != 1 {
+		t.Fatalf(`expected exactly one "fsxNet" divider, got %d: %q`, strings.Count(out, "fsxNet"), out)
+	}
+}
+
 func TestMessageListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -308,7 +353,7 @@ func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
 	if !strings.Contains(out, "\x1b[47m\x1b[30mNEW Second Subject") {
 		t.Fatalf("expected Second Subject's row highlighted, got: %q", out)
 	}
-	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list")
 	if len(readerRenders) < 2 {
 		t.Fatalf("expected the reader to open, got: %q", out)
 	}
@@ -472,6 +517,115 @@ func TestPostMessageEditorAbortCommand(t *testing.T) {
 	}
 }
 
+func TestReplyToMessagePrefillsToAndSubjectAndPosts(t *testing.T) {
+	s := testServer(t)
+	alice, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	bob, err := s.Users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, alice.ID, "All", "Original", "hello"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// M -> areas lightbar, Enter -> General Discussion, Enter again on
+	// the message list's only row -> read the original, R -> reply,
+	// one body line, /S to save, then unwind: Q (reader), Q (list,
+	// now has 2 messages), Q (area lightbar), Q to log off.
+	input := "M\r\n\r\n\r\nRThanks for that\r\n/S\r\nQQQQ\r\n"
+	conn := newFakeConn(input)
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, bob, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "Re: Original") {
+		t.Fatalf("expected the prefilled \"Re: \" subject, got: %q", out)
+	}
+	if !strings.Contains(out, "Reply posted.") {
+		t.Fatalf("expected a post confirmation, got: %q", out)
+	}
+
+	msgs, err := s.Messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages after the reply, got %d", len(msgs))
+	}
+	reply := msgs[1]
+	if reply.Subject != "Re: Original" {
+		t.Fatalf("reply.Subject = %q, want %q", reply.Subject, "Re: Original")
+	}
+	if reply.ToName != "alice" {
+		t.Fatalf("reply.ToName = %q, want %q (the original author)", reply.ToName, "alice")
+	}
+	if reply.FromUserID != bob.ID {
+		t.Fatalf("reply.FromUserID = %d, want bob's id %d", reply.FromUserID, bob.ID)
+	}
+	if reply.Body != "Thanks for that" {
+		t.Fatalf("reply.Body = %q, want %q", reply.Body, "Thanks for that")
+	}
+}
+
+func TestReplyToMessageRejectedBelowWriteThreshold(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.Messages.CreateArea("locked", "Locked Area", "", "", 0, 100); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	// A throwaway first account absorbs the first-user-becomes-sysop
+	// promotion, leaving bob at the requested SLNewUser level.
+	bootstrap, err := s.Users.Register("bootstrap-sysop", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bootstrap: %v", err)
+	}
+	bob, err := s.Users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("locked")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, bootstrap.ID, "All", "Original", "hello"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// Areas are listed alphabetically: "General Discussion" (seeded)
+	// sorts before "Locked Area", so one Down arrow highlights it in
+	// the lightbar before Enter opens it, then Enter again opens the
+	// only message. R attempts a reply bob's SL (10) doesn't allow;
+	// the rejection is a paused message (see pauseForKey), so a bare
+	// Enter dismisses it before unwinding with Q's.
+	input := "M\r\n\x1b[B\r\n\r\nR\r\nQQQQ\r\n"
+	conn := newFakeConn(input)
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, bob, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "don't have permission to post") {
+		t.Fatalf("expected a permission rejection, got: %q", conn.out.String())
+	}
+	msgs, err := s.Messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected no reply to have been posted, got %d messages", len(msgs))
+	}
+}
+
 func TestPostMessageEditorRejectsEmptySave(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -529,7 +683,7 @@ func TestReadMessageNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, next, prev), got %d: %q", len(renders)-1, out)
 	}
@@ -574,7 +728,7 @@ func TestReadMessageNextPrevClampAtEnds(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, after Prev, after Next), got %d: %q", len(renders)-1, out)
 	}
@@ -596,7 +750,7 @@ func TestPostRejectedBelowWriteThreshold(t *testing.T) {
 	s := testServer(t)
 	// A write-gated area (min_sl_write 100): a regular new user (SL
 	// 10) can read it but must be rejected when trying to post.
-	if _, err := s.Messages.CreateArea("locked", "Locked Area", "", 0, 100); err != nil {
+	if _, err := s.Messages.CreateArea("locked", "Locked Area", "", "", 0, 100); err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
 
@@ -638,8 +792,9 @@ func TestSysopCreateMessageArea(t *testing.T) {
 		t.Fatalf("Register sysop: %v", err)
 	}
 
-	// S -> sysop menu, C -> create area, then fields, M -> back, Q -> quit.
-	input := "S\r\nC\r\ndev\r\nDev Talk\r\nFor devs\r\n0\r\n0\r\nM\r\nQ\r\n"
+	// S -> sysop menu, C -> create area, then fields (including the
+	// new Network prompt), M -> back, Q -> quit.
+	input := "S\r\nC\r\ndev\r\nDev Talk\r\nFor devs\r\nfsxNet\r\n0\r\n0\r\nM\r\nQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
@@ -657,5 +812,8 @@ func TestSysopCreateMessageArea(t *testing.T) {
 	}
 	if area.Name != "Dev Talk" {
 		t.Fatalf("area.Name = %q, want %q", area.Name, "Dev Talk")
+	}
+	if area.Network != "fsxNet" {
+		t.Fatalf("area.Network = %q, want %q", area.Network, "fsxNet")
 	}
 }

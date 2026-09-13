@@ -53,5 +53,48 @@ func Open(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("db: apply schema: %w", err)
 	}
 
+	if err := ensureColumn(sqlDB, "message_areas", "network", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+
 	return sqlDB, nil
+}
+
+// ensureColumn adds column to table if it isn't already there. SQLite
+// has no "ALTER TABLE ... ADD COLUMN IF NOT EXISTS", and schema.sql's
+// CREATE TABLE IF NOT EXISTS statements only take effect for a brand
+// new database -- one created before a column existed keeps its
+// original shape forever unless something like this retrofits it.
+func ensureColumn(db *sql.DB, table, column, definition string) error {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return fmt.Errorf("db: inspect %s: %w", table, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			colType    string
+			notNull    int
+			dfltValue  sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &primaryKey); err != nil {
+			return fmt.Errorf("db: inspect %s: %w", table, err)
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("db: inspect %s: %w", table, err)
+	}
+
+	if _, err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition)); err != nil {
+		return fmt.Errorf("db: add column %s.%s: %w", table, column, err)
+	}
+	return nil
 }

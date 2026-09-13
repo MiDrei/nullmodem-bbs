@@ -132,3 +132,54 @@ func TestNetmailInboxShowsNewFlagUntilRead(t *testing.T) {
 		t.Fatalf("expected the NEW flag gone after actually reading the message, got: %q", renders[2])
 	}
 }
+
+func TestReplyToNetmailSendsToOriginalSender(t *testing.T) {
+	s := testServer(t)
+	alice, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	bob, err := s.Users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+	if _, err := s.Netmail.Send(alice.ID, "", bob.ID, "bob", "", "Original", "hi bob"); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	// N -> inbox (1 message), Enter -> read it, R -> reply, one body
+	// line, /S to save, then Q (reader), Q (inbox), Q to log off.
+	input := "N\r\n\r\nRThanks\r\n/S\r\nQQQ\r\n"
+	conn := newFakeConn(input)
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, bob, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "Re: Original") {
+		t.Fatalf("expected the prefilled \"Re: \" subject, got: %q", out)
+	}
+	if !strings.Contains(out, "Reply sent.") {
+		t.Fatalf("expected a send confirmation, got: %q", out)
+	}
+
+	aliceInbox, err := s.Netmail.Inbox(alice.ID)
+	if err != nil {
+		t.Fatalf("Inbox: %v", err)
+	}
+	if len(aliceInbox) != 1 {
+		t.Fatalf("expected the reply in alice's inbox, got %d messages", len(aliceInbox))
+	}
+	reply := aliceInbox[0]
+	if reply.Subject != "Re: Original" {
+		t.Fatalf("reply.Subject = %q, want %q", reply.Subject, "Re: Original")
+	}
+	if reply.FromUserID != bob.ID {
+		t.Fatalf("reply.FromUserID = %d, want bob's id %d", reply.FromUserID, bob.ID)
+	}
+	if reply.Body != "Thanks" {
+		t.Fatalf("reply.Body = %q, want %q", reply.Body, "Thanks")
+	}
+}
