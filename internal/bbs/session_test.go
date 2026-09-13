@@ -77,7 +77,9 @@ func testUser(sl int) *user.User {
 }
 
 func TestRunMenuVersionAndQuit(t *testing.T) {
-	conn := newFakeConn("V\r\nQ\r\n")
+	// The extra blank line answers showVersion's "Press Enter to
+	// continue..." pause (see pauseForKey).
+	conn := newFakeConn("V\r\n\r\nQ\r\n")
 	term := NewTerminal(conn)
 	s := testServer(t)
 
@@ -219,7 +221,9 @@ func TestSysopMenuListUsers(t *testing.T) {
 		t.Fatalf("Register alice: %v", err)
 	}
 
-	conn := newFakeConn("S\r\nL\r\nQ\r\n")
+	// The extra blank line after L answers sysopListUsers' "Press
+	// Enter to continue..." pause (see pauseForKey).
+	conn := newFakeConn("S\r\nL\r\n\r\nQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, sysop, 1, "main")

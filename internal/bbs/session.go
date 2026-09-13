@@ -425,11 +425,11 @@ func (s *Server) printLogoffScreen(term *Terminal, u *user.User, node int) error
 }
 
 // printAreaHeader shows a hand-designed banner screen (with
-// placeholders filled in) above a message/file area listing when
-// screenFile exists in ScreensDir, falling back to a plain colored
-// title line otherwise. Unlike a menu or logoff screen, this doesn't
-// clear the terminal first: it's a banner printed inline above a
-// runtime-length list, not a full-screen replacement.
+// placeholders filled in, and expected to clear the screen itself
+// the way every other hand-designed screen does) above a message/
+// file area listing when screenFile exists in ScreensDir, falling
+// back to a plain colored title line -- printed inline, with no
+// screen clear -- otherwise.
 //
 // The builtin command signature (see the builtins map) doesn't carry
 // a node number, so only the node-independent placeholders are
@@ -448,7 +448,7 @@ func (s *Server) printAreaHeader(term *Terminal, u *user.User, screenFile, fallb
 		"SL":       strconv.Itoa(u.SecurityLevel),
 	}
 	rendered := ansi.Render(raw, vars)
-	return term.Println("\n" + ansi.Layout(rendered, term.Width()))
+	return term.Println(ansi.Layout(rendered, term.Width()))
 }
 
 func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
@@ -462,8 +462,25 @@ func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
 	return b.String()
 }
 
+// pauseForKey prompts for and waits on an acknowledgment before
+// returning. It exists because the menu loop redisplays the current
+// menu (screen-clearing, if the menu has a hand-designed Screen)
+// right after a builtin returns -- without a pause, purely
+// informational output like a stats or who's-online listing would be
+// wiped by that redraw before a caller could ever read it.
+func (s *Server) pauseForKey(term *Terminal) error {
+	if err := term.Print("\n" + ansi.FG(ansi.White, true) + "Press Enter to continue..." + ansi.Reset); err != nil {
+		return err
+	}
+	_, err := term.ReadLine(false)
+	return err
+}
+
 func (s *Server) showVersion(term *Terminal, u *user.User) error {
-	return term.Println("\n" + Version)
+	if err := term.Println("\n" + Version); err != nil {
+		return err
+	}
+	return s.pauseForKey(term)
 }
 
 func (s *Server) showStats(term *Terminal, u *user.User) error {
@@ -479,7 +496,10 @@ func (s *Server) showStats(term *Terminal, u *user.User) error {
 	if err := term.Println(fmt.Sprintf("Total calls:    %d", u.TotalCalls)); err != nil {
 		return err
 	}
-	return term.Println(fmt.Sprintf("Member since:   %s", u.CreatedAt.Format("2006-01-02")))
+	if err := term.Println(fmt.Sprintf("Member since:   %s", u.CreatedAt.Format("2006-01-02"))); err != nil {
+		return err
+	}
+	return s.pauseForKey(term)
 }
 
 // sysopListUsers is the "builtin:listusers" command, reachable only
@@ -502,7 +522,7 @@ func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
 			return err
 		}
 	}
-	return nil
+	return s.pauseForKey(term)
 }
 
 // sysopSetSecurityLevel is the "builtin:setsl" command: it prompts for
@@ -563,5 +583,5 @@ func (s *Server) showWho(term *Terminal, _ *user.User) error {
 			return err
 		}
 	}
-	return nil
+	return s.pauseForKey(term)
 }

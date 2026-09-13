@@ -1,15 +1,14 @@
-[2J[H[1;36mÉ{FILL:Í}»
-[1;36mº[36m{FILL: }[1;37mSysop Menu[36m{FILL: }[1;36mº
-[1;36mº[36m{FILL: }[36mNode {NODE}[36m{FILL: }[1;36mº
-[1;36mÌ{FILL:Í}¹
-[1;36mº[36m{FILL: }[1;36mº
-[1;36mº[1;33m  [L][1;32m List Users[1;33m              [S][1;32m Set User Security Level[36m{FILL: }[1;36mº
-[1;36mº[1;33m  [C][1;32m Create Message Area[1;33m     [F][1;32m Create File Area[36m{FILL: }[1;36mº
-[1;36mº[1;33m  [I][1;32m Import File[36m{FILL: }[1;36mº
-[1;36mº[36m{FILL: }[1;36mº
-[1;36mº[1;33m  [M][1;32m Back to Main Menu[1;33m        [Q][1;32m Quit[36m{FILL: }[1;36mº
-[1;36mº[36m{FILL: }[1;36mº
-[1;36mÈ{FILL:Í}¼
-[1;36mº[36m{FILL: }[1;36mº
+[2J[H[1;36;40mÉ{FILL:Í}»
+º{FILL: }[1;37;40mSysop Menu[1;36;40m{FILL: }º
+º{FILL: }Node {NODE}{FILL: }º
+Ì{FILL:Í}¹
+º{FILL: }º
+º[1;33;40m  [L][1;32;40m List Users[1;33;40m              [S][1;32;40m Set User Security Level[1;36;40m{FILL: }º
+º[1;33;40m  [C][1;32;40m Create Message Area[1;33;40m     [F][1;32;40m Create File Area[1;36;40m{FILL: }º
+º[1;33;40m  [I][1;32;40m Import File[1;36;40m{FILL: }º
+º{FILL: }º
+º[1;33;40m  [M][1;32;40m Back to Main Menu[1;33;40m       [Q][1;32;40m Quit[1;36;40m{FILL: }º
+º{FILL: }º
+È{FILL:Í}¼
 
-[0m[1;37m{USERNAME}[36m> [1;33m
+[1;37;40m{USERNAME}[1;36;40m> [0m
