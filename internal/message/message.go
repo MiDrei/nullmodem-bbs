@@ -168,8 +168,8 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id AND m.from_user_id = ?) AS yours,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id
-		           AND m.id > COALESCE((SELECT last_read_message_id FROM message_area_reads r
-		                                WHERE r.user_id = ? AND r.area_id = a.id), 0)) AS new
+		           AND NOT EXISTS (SELECT 1 FROM message_reads r
+		                           WHERE r.user_id = ? AND r.message_id = m.id)) AS new
 		 FROM message_areas a
 		 WHERE a.min_sl_read <= ?
 		 ORDER BY a.sort_order, a.name`,
@@ -196,18 +196,46 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	return stats, nil
 }
 
-// MarkAreaRead records that userID has now seen every message
-// currently in areaID, so ListAreaStats reports 0 New for it until
-// another message is posted there.
-func (s *Store) MarkAreaRead(userID, areaID int64) error {
-	_, err := s.db.Exec(
-		`INSERT INTO message_area_reads (user_id, area_id, last_read_message_id)
-		 VALUES (?, ?, (SELECT COALESCE(MAX(id), 0) FROM messages WHERE area_id = ?))
-		 ON CONFLICT(user_id, area_id) DO UPDATE SET last_read_message_id = excluded.last_read_message_id`,
-		userID, areaID, areaID,
+// ReadMessageIDs returns the set of message IDs within areaID that
+// userID has actually opened in the reader, so a caller can flag each
+// row in the message list as new (its ID is absent from this set)
+// without touching the read state itself -- unlike the old area-level
+// watermark, entering the area/list no longer marks anything read.
+func (s *Store) ReadMessageIDs(userID, areaID int64) (map[int64]bool, error) {
+	rows, err := s.db.Query(
+		`SELECT r.message_id FROM message_reads r
+		 JOIN messages m ON m.id = r.message_id
+		 WHERE r.user_id = ? AND m.area_id = ?`,
+		userID, areaID,
 	)
 	if err != nil {
-		return fmt.Errorf("message: mark area %d read for user %d: %w", areaID, userID, err)
+		return nil, fmt.Errorf("message: read message ids for area %d, user %d: %w", areaID, userID, err)
+	}
+	defer rows.Close()
+
+	read := make(map[int64]bool)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("message: scan read message id: %w", err)
+		}
+		read[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("message: read message ids for area %d, user %d: %w", areaID, userID, err)
+	}
+	return read, nil
+}
+
+// MarkMessageRead records that userID has actually opened messageID
+// in the reader, so ListAreaStats/ReadMessageIDs stop counting it as
+// new. Idempotent: reading the same message again is a no-op.
+func (s *Store) MarkMessageRead(userID, messageID int64) error {
+	if _, err := s.db.Exec(
+		`INSERT OR IGNORE INTO message_reads (user_id, message_id) VALUES (?, ?)`,
+		userID, messageID,
+	); err != nil {
+		return fmt.Errorf("message: mark message %d read for user %d: %w", messageID, userID, err)
 	}
 	return nil
 }

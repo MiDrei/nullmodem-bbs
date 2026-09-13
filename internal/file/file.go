@@ -192,8 +192,8 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id AND f.uploaded_by = ?) AS yours,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id
-		           AND f.id > COALESCE((SELECT last_read_file_id FROM file_area_reads r
-		                                WHERE r.user_id = ? AND r.area_id = a.id), 0)) AS new
+		           AND NOT EXISTS (SELECT 1 FROM file_reads r
+		                           WHERE r.user_id = ? AND r.file_id = f.id)) AS new
 		 FROM file_areas a
 		 WHERE a.min_sl_download <= ?
 		 ORDER BY a.sort_order, a.name`,
@@ -220,18 +220,44 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	return stats, nil
 }
 
-// MarkAreaRead records that userID has now seen every file currently
-// in areaID, so ListAreaStats reports 0 New for it until another file
-// is imported there.
-func (s *Store) MarkAreaRead(userID, areaID int64) error {
-	_, err := s.db.Exec(
-		`INSERT INTO file_area_reads (user_id, area_id, last_read_file_id)
-		 VALUES (?, ?, (SELECT COALESCE(MAX(id), 0) FROM files WHERE area_id = ?))
-		 ON CONFLICT(user_id, area_id) DO UPDATE SET last_read_file_id = excluded.last_read_file_id`,
-		userID, areaID, areaID,
+// ReadFileIDs returns the set of file IDs within areaID that userID
+// has actually opened in the file reader -- see message.Store's
+// ReadMessageIDs, which this mirrors.
+func (s *Store) ReadFileIDs(userID, areaID int64) (map[int64]bool, error) {
+	rows, err := s.db.Query(
+		`SELECT r.file_id FROM file_reads r
+		 JOIN files f ON f.id = r.file_id
+		 WHERE r.user_id = ? AND f.area_id = ?`,
+		userID, areaID,
 	)
 	if err != nil {
-		return fmt.Errorf("file: mark area %d read for user %d: %w", areaID, userID, err)
+		return nil, fmt.Errorf("file: read file ids for area %d, user %d: %w", areaID, userID, err)
+	}
+	defer rows.Close()
+
+	read := make(map[int64]bool)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("file: scan read file id: %w", err)
+		}
+		read[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("file: read file ids for area %d, user %d: %w", areaID, userID, err)
+	}
+	return read, nil
+}
+
+// MarkFileRead records that userID has actually opened fileID in the
+// file reader, so ListAreaStats/ReadFileIDs stop counting it as new.
+// Idempotent: viewing the same file again is a no-op.
+func (s *Store) MarkFileRead(userID, fileID int64) error {
+	if _, err := s.db.Exec(
+		`INSERT OR IGNORE INTO file_reads (user_id, file_id) VALUES (?, ?)`,
+		userID, fileID,
+	); err != nil {
+		return fmt.Errorf("file: mark file %d read for user %d: %w", fileID, userID, err)
 	}
 	return nil
 }

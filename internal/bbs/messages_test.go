@@ -117,7 +117,7 @@ func TestMessageAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
 	}
 }
 
-func TestMessageAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
+func TestMessageAreasLightbarNewCountUnaffectedByJustVisitingList(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
@@ -131,11 +131,10 @@ func TestMessageAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
 		t.Fatalf("PostMessage: %v", err)
 	}
 
-	// Enter the area (marks it read), leave, and check the lightbar's
-	// second draw shows New=0 instead of the initial New=1. Q exits
-	// browseArea's own message-list lightbar as a bare keystroke, like
-	// the outer area lightbar's Q -- only the final Q needs a CRLF, to
-	// be read as a line by the main menu's ReadLine prompt.
+	// Enter the area and immediately leave again WITHOUT opening the
+	// message -- merely visiting the message list must not clear the
+	// area lightbar's New count; only actually reading a message does
+	// (see TestMessageAreasLightbarNewCountClearsAfterReadingMessage).
 	conn := newFakeConn("M\r\n\r\nQQQ\r\n")
 	term := NewTerminal(conn)
 	err = s.runMenu(term, u, 1, "main")
@@ -149,8 +148,43 @@ func TestMessageAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
 	if !strings.Contains(renders[0], "     1      1      1") {
 		t.Fatalf("expected New=1 before visiting the area, got: %q", renders[0])
 	}
+	if !strings.Contains(renders[1], "     1      1      1") {
+		t.Fatalf("expected New still 1 after just visiting the list without reading, got: %q", renders[1])
+	}
+}
+
+func TestMessageAreasLightbarNewCountClearsAfterReadingMessage(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// Enter the area, open the message in the reader (Enter on the
+	// message list's only, already-highlighted row), leave, and check
+	// the area lightbar's second draw shows New=0.
+	conn := newFakeConn("M\r\n\r\n\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [Q] Back")
+	if len(renders) < 3 {
+		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
+	}
+	if !strings.Contains(renders[0], "     1      1      1") {
+		t.Fatalf("expected New=1 before visiting the area, got: %q", renders[0])
+	}
 	if !strings.Contains(renders[1], "     1      0      1") {
-		t.Fatalf("expected New=0 after visiting the area, got: %q", renders[1])
+		t.Fatalf("expected New=0 after reading the message, got: %q", renders[1])
 	}
 }
 
@@ -199,6 +233,48 @@ func TestMessageAreasLightbarUsesCustomRowTemplatesWhenPresent(t *testing.T) {
 	}
 }
 
+func TestMessageListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// Visit the message list twice (Enter the area, Q back out, Enter
+	// again) WITHOUT opening the message -- it must stay flagged NEW
+	// both times. Only the third visit, where Enter opens the message
+	// in the reader, actually marks it read; the list's next redraw
+	// (after backing out of the reader) must no longer flag it.
+	conn := newFakeConn("M\r\n\r\nQ\r\n\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	renders := strings.Split(out, "[Up/Down] Move   [Enter] Read   [P] Post   [Q] Back")
+	if len(renders) < 4 {
+		t.Fatalf("expected at least three message-list redraws, got %d: %q", len(renders)-1, out)
+	}
+	if !strings.Contains(renders[0], "NEW") {
+		t.Fatalf("expected the message flagged NEW on the first visit, got: %q", renders[0])
+	}
+	if !strings.Contains(renders[1], "NEW") {
+		t.Fatalf("expected the message still flagged NEW on the second visit (not yet read), got: %q", renders[1])
+	}
+	if strings.Contains(renders[2], "NEW") {
+		t.Fatalf("expected the NEW flag gone after actually reading the message, got: %q", renders[2])
+	}
+}
+
 func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -229,7 +305,7 @@ func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	if !strings.Contains(out, "\x1b[47m\x1b[30mSecond Subject") {
+	if !strings.Contains(out, "\x1b[47m\x1b[30mNEW Second Subject") {
 		t.Fatalf("expected Second Subject's row highlighted, got: %q", out)
 	}
 	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
@@ -297,12 +373,12 @@ func TestPostAndReadMessage(t *testing.T) {
 	// already highlighted; still empty, so browseArea shows its empty-
 	// list P/Q prompt), P -> post (a bare keystroke -- postMessage's
 	// own subject/body prompts are ReadLine-based and need real CRLFs),
-	// subject, two body lines, "." to end. browseArea's outer loop
+	// subject, two body lines, "/S" to save. browseArea's outer loop
 	// refetches and now shows the message-list lightbar with the new
 	// post highlighted; Enter opens the reader, Q backs out of the
 	// reader, Q out of the message list, Q out of the area lightbar,
 	// Q to log off from main.
-	input := "M\r\n\r\nPHello World\r\nLine one\r\nLine two\r\n.\r\n\r\nQQQQ\r\n"
+	input := "M\r\n\r\nPHello World\r\nLine one\r\nLine two\r\n/S\r\n\r\nQQQQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
@@ -322,6 +398,103 @@ func TestPostAndReadMessage(t *testing.T) {
 	}
 	if !strings.Contains(out, "From:    \x1b[1;37malice") {
 		t.Fatalf("expected author in read view, got: %q", out)
+	}
+}
+
+func TestPostMessageEditorDeleteLineCommand(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// P -> post, subject, three lines, "/D 2" deletes "Line B", "/L"
+	// lists what's left (for coverage), "/S" saves. Then read the
+	// posted message back to confirm the deleted line is really gone.
+	input := "M\r\n\r\nPDelete Test\r\nLine A\r\nLine B\r\nLine C\r\n/D 2\r\n/L\r\n/S\r\n\r\nQQQQ\r\n"
+	conn := newFakeConn(input)
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "Line 2 deleted.") {
+		t.Fatalf("expected delete confirmation, got: %q", out)
+	}
+	if !strings.Contains(out, "Message posted.") {
+		t.Fatalf("expected posting confirmation, got: %q", out)
+	}
+	// The editor echoes every typed line once as it's entered (a real
+	// terminal shows you what you type), so "Line B" appears exactly
+	// once from that echo -- it must not appear a second time in the
+	// /L listing or the read view, which is where a surviving line
+	// would show up twice.
+	if strings.Count(out, "Line A") < 2 || strings.Count(out, "Line C") < 2 {
+		t.Fatalf("expected the surviving lines in both the /L listing and the read view, got: %q", out)
+	}
+	if strings.Count(out, "Line B") != 1 {
+		t.Fatalf("expected the deleted line to appear only once (its typed echo), got %d times: %q", strings.Count(out, "Line B"), out)
+	}
+}
+
+func TestPostMessageEditorAbortCommand(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+
+	// P -> post, subject, one line, "/A" aborts -- nothing should be
+	// saved, so the area's message list stays empty.
+	input := "M\r\n\r\nPAbort Test\r\nnever mind\r\n/A\r\nQQQ\r\n"
+	conn := newFakeConn(input)
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "Message aborted.") {
+		t.Fatalf("expected abort confirmation, got: %q", conn.out.String())
+	}
+	msgs, err := s.Messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("expected no messages after abort, got %d", len(msgs))
+	}
+}
+
+func TestPostMessageEditorRejectsEmptySave(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// P -> post, subject, "/S" with no lines yet -- must be rejected
+	// instead of posting an empty message; "/A" then cleanly aborts.
+	input := "M\r\n\r\nPEmpty Test\r\n/S\r\n/A\r\nQQQ\r\n"
+	conn := newFakeConn(input)
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "Message is empty; nothing to save.") {
+		t.Fatalf("expected empty-save rejection, got: %q", out)
+	}
+	if strings.Contains(out, "Message posted.") {
+		t.Fatalf("expected nothing to have been posted, got: %q", out)
 	}
 }
 

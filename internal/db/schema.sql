@@ -38,15 +38,14 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_area_posted ON messages(area_id, posted_at);
 
--- Tracks how far into each area a caller has read, so the message
--- area lightbar can show a "New" count. last_read_message_id is the
--- highest message id seen; a message is "new" once its id exceeds
--- it. Absent a row here, everything in the area counts as new.
-CREATE TABLE IF NOT EXISTS message_area_reads (
-    user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    area_id               INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE CASCADE,
-    last_read_message_id  INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (user_id, area_id)
+-- Tracks exactly which individual messages a caller has actually
+-- opened in the reader, so a message stays flagged "New" in the
+-- message list -- and counted in the area lightbar's "New" column --
+-- until it's really read, not merely until the area was visited.
+CREATE TABLE IF NOT EXISTS message_reads (
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_id  INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, message_id)
 );
 
 CREATE TABLE IF NOT EXISTS file_areas (
@@ -78,14 +77,12 @@ CREATE TABLE IF NOT EXISTS files (
 
 CREATE INDEX IF NOT EXISTS idx_files_area_uploaded ON files(area_id, uploaded_at);
 
--- Tracks how far into each file area a caller has browsed, the same
--- way message_area_reads does for message areas: a file is "new"
--- once its id exceeds last_read_file_id.
-CREATE TABLE IF NOT EXISTS file_area_reads (
-    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    area_id             INTEGER NOT NULL REFERENCES file_areas(id) ON DELETE CASCADE,
-    last_read_file_id   INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (user_id, area_id)
+-- Tracks exactly which individual files a caller has actually opened
+-- in the file reader -- the file-area equivalent of message_reads.
+CREATE TABLE IF NOT EXISTS file_reads (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    file_id  INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, file_id)
 );
 
 -- Currently active BBS sessions ("nodes"). Node numbers are assigned

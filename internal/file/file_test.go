@@ -401,8 +401,14 @@ func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 		t.Fatalf("alice's stats = %+v, want Total=2 New=2 Yours=1", got)
 	}
 
-	if err := s.MarkAreaRead(alice.ID, area.ID); err != nil {
-		t.Fatalf("MarkAreaRead: %v", err)
+	files, err := s.ListFiles(area.ID)
+	if err != nil {
+		t.Fatalf("ListFiles: %v", err)
+	}
+	for _, f := range files {
+		if err := s.MarkFileRead(alice.ID, f.ID); err != nil {
+			t.Fatalf("MarkFileRead: %v", err)
+		}
 	}
 	stats, err = s.ListAreaStats(user.SLNewUser, alice.ID)
 	if err != nil {
@@ -410,7 +416,7 @@ func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 	}
 	got = fileStatsFor(t, stats, "uploads")
 	if got.New != 0 {
-		t.Fatalf("alice's New after MarkAreaRead = %d, want 0", got.New)
+		t.Fatalf("alice's New after reading every file = %d, want 0", got.New)
 	}
 
 	if _, err := s.UploadFile(area.ID, bob.ID, "three.txt", "", strings.NewReader("3")); err != nil {

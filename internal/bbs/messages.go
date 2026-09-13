@@ -12,10 +12,6 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
-// postBodyTerminator is the sentinel a caller types on its own line to
-// finish composing a message, matching classic BBS message editors.
-const postBodyTerminator = "."
-
 // showAreas is the "builtin:areas" command: a lightbar over every
 // message area the caller can read, showing each area's Total/New/
 // Yours message counts and letting them move the highlighted row
@@ -54,9 +50,6 @@ outer:
 				selected = (selected + 1) % len(stats)
 			case key.Type == KeyEnter:
 				area := stats[selected].Area
-				if err := s.Messages.MarkAreaRead(u.ID, area.ID); err != nil {
-					return err
-				}
 				if err := s.browseArea(term, u, &area); err != nil {
 					return err
 				}
@@ -173,11 +166,11 @@ const (
 )
 
 const (
-	fallbackMsgListRow         = "{SUBJECT:-40} {FROM:-18} {DATE:-16}"
-	fallbackMsgListRowSelected = "\x1b[47m\x1b[30m{SUBJECT:-40} {FROM:-18} {DATE:-16}\x1b[0m"
+	fallbackMsgListRow         = "\x1b[1;33m{NEWFLAG:-3} \x1b[0m{SUBJECT:-39} {FROM:-18} {DATE:16}"
+	fallbackMsgListRowSelected = "\x1b[47m\x1b[30m{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}\x1b[0m"
 )
 
-var fallbackMsgListColumns = "Subject                                  From               Date\r\n" + strings.Repeat("-", 79)
+var fallbackMsgListColumns = "    Subject                                 From                           Date\r\n" + strings.Repeat("-", 79)
 
 // browseArea is a lightbar over an area's messages -- the same
 // interaction as showAreas over areas: arrow keys move the highlight,
@@ -189,6 +182,10 @@ func (s *Server) browseArea(term *Terminal, u *user.User, area *message.Area) er
 outer:
 	for {
 		msgs, err := s.Messages.ListMessages(area.ID)
+		if err != nil {
+			return err
+		}
+		readIDs, err := s.Messages.ReadMessageIDs(u.ID, area.ID)
 		if err != nil {
 			return err
 		}
@@ -219,7 +216,7 @@ outer:
 		}
 
 		for {
-			if err := s.drawMessageList(term, u, area, msgs, selected, canWrite); err != nil {
+			if err := s.drawMessageList(term, u, area, msgs, selected, canWrite, readIDs); err != nil {
 				return err
 			}
 			key, err := term.ReadKey()
@@ -265,12 +262,13 @@ func (s *Server) drawEmptyMessageList(term *Terminal, area *message.Area, canWri
 }
 
 // drawMessageList redraws the header banner plus the Subject/From/
-// Date table, with the row at selected highlighted -- the message
-// list's equivalent of drawAreaLightbar. The column header and the
-// two row styles are each their own hand-designed screen file so the
-// sysop can restyle this table with macros/.ans files exactly like
-// the area list.
-func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, selected int, canWrite bool) error {
+// Date table, with the row at selected highlighted and any message
+// the caller hasn't actually opened in the reader yet (absent from
+// readIDs) flagged via NEWFLAG -- the message list's equivalent of
+// drawAreaLightbar. The column header and the two row styles are each
+// their own hand-designed screen file so the sysop can restyle this
+// table with macros/.ans files exactly like the area list.
+func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, selected int, canWrite bool, readIDs map[int64]bool) error {
 	if err := s.printMessageListHeader(term, area); err != nil {
 		return err
 	}
@@ -288,10 +286,15 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 		if i == selected {
 			tmpl = rowSelectedTemplate
 		}
+		newFlag := ""
+		if !readIDs[m.ID] {
+			newFlag = "NEW"
+		}
 		vars := ansi.Vars{
 			"SUBJECT": m.Subject,
 			"FROM":    m.FromName,
 			"DATE":    m.PostedAt.Format("2006-01-02 15:04"),
+			"NEWFLAG": newFlag,
 		}
 		b.WriteString(ansi.Render(tmpl, vars))
 		b.WriteString(ansi.CRLF)
@@ -325,6 +328,9 @@ var fallbackMsgReadMeta = "\x1b[1;36mFrom:    \x1b[1;37m{FROM:-40}\x1b[1;36m Dat
 // -- Q or Escape returns to browseArea's list.
 func (s *Server) readMessage(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, idx int) error {
 	for {
+		if err := s.Messages.MarkMessageRead(u.ID, msgs[idx].ID); err != nil {
+			return err
+		}
 		if err := s.drawMessageReader(term, u, area, msgs, idx); err != nil {
 			return err
 		}
@@ -396,9 +402,6 @@ func (s *Server) drawMessageReader(term *Terminal, u *user.User, area *message.A
 	return term.Print(b.String())
 }
 
-// postMessage prompts for a subject and a multi-line body (terminated
-// by a lone "." on its own line, the classic BBS message-editor
-// convention) and stores the result.
 // attemptPostMessage is the lightbar's P handler: it rejects the
 // attempt with a paused message if canWrite is false (the caller's SL
 // doesn't meet the area's write threshold), since the lightbar
@@ -414,7 +417,94 @@ func (s *Server) attemptPostMessage(term *Terminal, u *user.User, area *message.
 	return s.postMessage(term, u, area)
 }
 
+// msgPostScreen is the hand-designed banner shown while composing a
+// new message, the same clear-screen-then-banner convention as the
+// area/list/reader screens.
+const msgPostScreen = "msgpost.ans"
+
+// printPostMessageHeader shows msgpost.ans (with AREANAME filled in),
+// falling back to a plain colored title line on a cleared screen.
+func (s *Server) printPostMessageHeader(term *Terminal, area *message.Area) error {
+	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, msgPostScreen))
+	if err != nil {
+		return term.Println(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "Post to " + area.Name + ansi.Reset)
+	}
+	vars := ansi.Vars{
+		"BBSNAME":  s.BBSName,
+		"AREANAME": area.Name,
+	}
+	rendered := ansi.Render(raw, vars)
+	return term.Println(ansi.Layout(rendered, term.Width()))
+}
+
+// editorCommand identifies one of the classic BBS line-editor slash
+// commands recognized by postMessage's editor loop.
+type editorCommand int
+
+const (
+	editorNone editorCommand = iota
+	editorSave
+	editorAbort
+	editorList
+	editorDelete
+)
+
+// parseEditorCommand recognizes /S, /A, /L, and /D <n> case-
+// insensitively; anything else is ordinary message text to append as
+// a new line, matching what a Synchronet/Mystic-style message editor
+// accepts.
+func parseEditorCommand(line string) (cmd editorCommand, arg string) {
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case strings.EqualFold(trimmed, "/S"):
+		return editorSave, ""
+	case strings.EqualFold(trimmed, "/A"):
+		return editorAbort, ""
+	case strings.EqualFold(trimmed, "/L"):
+		return editorList, ""
+	case len(trimmed) >= 2 && strings.EqualFold(trimmed[:2], "/D"):
+		return editorDelete, strings.TrimSpace(trimmed[2:])
+	default:
+		return editorNone, ""
+	}
+}
+
+// printEditorHelp shows the line editor's command legend once, right
+// after the Subject prompt.
+func (s *Server) printEditorHelp(term *Terminal) error {
+	cmd := ansi.FG(ansi.Cyan, true)
+	reset := ansi.Reset
+	return term.Println(reset + "\nEnter your message, one line at a time." +
+		"\r\n" + cmd + "/S" + reset + " save & post   " +
+		cmd + "/A" + reset + " abort   " +
+		cmd + "/L" + reset + " list what you've written   " +
+		cmd + "/D <n>" + reset + " delete line n")
+}
+
+// printEditorListing shows the message composed so far, numbered the
+// same way as the line prompts, for the /L command.
+func (s *Server) printEditorListing(term *Terminal, lines []string) error {
+	if len(lines) == 0 {
+		return term.Println(ansi.Reset + "\n(no lines yet)")
+	}
+	var b strings.Builder
+	b.WriteString(ansi.Reset + "\r\n")
+	for i, line := range lines {
+		fmt.Fprintf(&b, "%s%3d:%s %s\r\n", ansi.FG(ansi.Cyan, true), i+1, ansi.Reset, line)
+	}
+	return term.Print(b.String())
+}
+
+// postMessage is a classic BBS line editor: after a Subject prompt,
+// each line of the body is entered and numbered as it's typed, with
+// /S to save and post, /A to abort, /L to list what's been entered so
+// far, and /D <n> to delete a line -- replacing the old bare
+// type-"." -to-finish prompt with the Synchronet/Mystic-style editor
+// the user asked for.
 func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) error {
+	if err := s.printPostMessageHeader(term, area); err != nil {
+		return err
+	}
 	if err := term.Print(ansi.Reset + "\nSubject: " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
@@ -427,25 +517,59 @@ func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) e
 		return term.Println(ansi.Reset + "Cancelled.")
 	}
 
-	if err := term.Println(ansi.Reset + fmt.Sprintf("Enter your message. End with a single %q on its own line.", postBodyTerminator)); err != nil {
+	if err := s.printEditorHelp(term); err != nil {
 		return err
 	}
-	var bodyLines []string
+
+	var lines []string
 	for {
-		line, err := term.ReadLine(false)
+		if err := term.Print(ansi.Reset + fmt.Sprintf("%3d: ", len(lines)+1) + ansi.FG(ansi.Yellow, true)); err != nil {
+			return err
+		}
+		input, err := term.ReadLine(false)
 		if err != nil {
 			return err
 		}
-		if line == postBodyTerminator {
-			break
-		}
-		bodyLines = append(bodyLines, line)
-	}
 
-	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", subject, strings.Join(bodyLines, "\n")); err != nil {
-		return err
+		cmd, arg := parseEditorCommand(input)
+		switch cmd {
+		case editorSave:
+			if len(lines) == 0 {
+				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message is empty; nothing to save."); err != nil {
+					return err
+				}
+				continue
+			}
+			if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", subject, strings.Join(lines, "\n")); err != nil {
+				return err
+			}
+			return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Message posted.")
+
+		case editorAbort:
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message aborted.")
+
+		case editorList:
+			if err := s.printEditorListing(term, lines); err != nil {
+				return err
+			}
+
+		case editorDelete:
+			idx, convErr := strconv.Atoi(arg)
+			if convErr != nil || idx < 1 || idx > len(lines) {
+				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "No such line."); err != nil {
+					return err
+				}
+				continue
+			}
+			lines = append(lines[:idx-1], lines[idx:]...)
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Line %d deleted.", idx)); err != nil {
+				return err
+			}
+
+		default:
+			lines = append(lines, input)
+		}
 	}
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Message posted.")
 }
 
 // sysopCreateArea is the "builtin:createarea" command: it prompts for

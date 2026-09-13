@@ -296,8 +296,14 @@ func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 		t.Fatalf("alice's stats = %+v, want Total=2 New=2 Yours=1", got)
 	}
 
-	if err := s.MarkAreaRead(alice.ID, area.ID); err != nil {
-		t.Fatalf("MarkAreaRead: %v", err)
+	msgs, err := s.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	for _, m := range msgs {
+		if err := s.MarkMessageRead(alice.ID, m.ID); err != nil {
+			t.Fatalf("MarkMessageRead: %v", err)
+		}
 	}
 	stats, err = s.ListAreaStats(user.SLNewUser, alice.ID)
 	if err != nil {
@@ -305,11 +311,12 @@ func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 	}
 	got = statsFor(t, stats, "chat")
 	if got.New != 0 {
-		t.Fatalf("alice's New after MarkAreaRead = %d, want 0", got.New)
+		t.Fatalf("alice's New after reading every message = %d, want 0", got.New)
 	}
 
-	// A message posted after marking read is new again, but the read
-	// marker for the earlier messages must not affect Bob independently.
+	// A message posted after marking the existing ones read is new
+	// again, but the read markers for the earlier messages must not
+	// affect Bob independently.
 	if _, err := s.PostMessage(area.ID, bob.ID, "All", "Three", "3"); err != nil {
 		t.Fatalf("PostMessage: %v", err)
 	}

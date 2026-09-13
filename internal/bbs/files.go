@@ -53,10 +53,7 @@ outer:
 				selected = (selected + 1) % len(stats)
 			case key.Type == KeyEnter:
 				area := stats[selected].Area
-				if err := s.Files.MarkAreaRead(u.ID, area.ID); err != nil {
-					return err
-				}
-				if err := s.browseFileArea(term, &area); err != nil {
+				if err := s.browseFileArea(term, u, &area); err != nil {
 					return err
 				}
 				continue outer
@@ -158,11 +155,11 @@ const (
 )
 
 const (
-	fallbackFileListRow         = "{FILENAME:-34} {BY:-16} {SIZE:10} {DATE:16}"
-	fallbackFileListRowSelected = "\x1b[47m\x1b[30m{FILENAME:-34} {BY:-16} {SIZE:10} {DATE:16}\x1b[0m"
+	fallbackFileListRow         = "\x1b[1;33m{NEWFLAG:-3} \x1b[0m{FILENAME:-30} {BY:-16} {SIZE:10} {DATE:16}"
+	fallbackFileListRowSelected = "\x1b[47m\x1b[30m{NEWFLAG:-3} {FILENAME:-30} {BY:-16} {SIZE:10} {DATE:16}\x1b[0m"
 )
 
-var fallbackFileListColumns = "Filename                           By                     Size             Date\r\n" + strings.Repeat("-", 79)
+var fallbackFileListColumns = "    Filename                       By                     Size             Date\r\n" + strings.Repeat("-", 79)
 
 // browseFileArea is a lightbar over an area's files -- the same
 // interaction as messages.go's browseArea over messages: arrow keys
@@ -170,11 +167,15 @@ var fallbackFileListColumns = "Filename                           By            
 // Escape returns to the area list. Uploading isn't part of this loop
 // (see sysopImportFile's doc comment), so there's no equivalent to
 // browseArea's P handling here.
-func (s *Server) browseFileArea(term *Terminal, area *file.Area) error {
+func (s *Server) browseFileArea(term *Terminal, u *user.User, area *file.Area) error {
 	selected := 0
 outer:
 	for {
 		files, err := s.Files.ListFiles(area.ID)
+		if err != nil {
+			return err
+		}
+		readIDs, err := s.Files.ReadFileIDs(u.ID, area.ID)
 		if err != nil {
 			return err
 		}
@@ -197,7 +198,7 @@ outer:
 		}
 
 		for {
-			if err := s.drawFileList(term, area, files, selected); err != nil {
+			if err := s.drawFileList(term, area, files, selected, readIDs); err != nil {
 				return err
 			}
 			key, err := term.ReadKey()
@@ -210,7 +211,7 @@ outer:
 			case key.Type == KeyDown:
 				selected = (selected + 1) % len(files)
 			case key.Type == KeyEnter:
-				if err := s.readFile(term, area, files, selected); err != nil {
+				if err := s.readFile(term, u, area, files, selected); err != nil {
 					return err
 				}
 				continue outer
@@ -235,7 +236,7 @@ func (s *Server) drawEmptyFileList(term *Terminal, area *file.Area) error {
 // drawFileList redraws the header banner plus the Filename/By/Size/
 // Date table, with the row at selected highlighted -- the file list's
 // equivalent of messages.go's drawMessageList.
-func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File, selected int) error {
+func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File, selected int, readIDs map[int64]bool) error {
 	if err := s.printFileListHeader(term, area); err != nil {
 		return err
 	}
@@ -253,11 +254,16 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 		if i == selected {
 			tmpl = rowSelectedTemplate
 		}
+		newFlag := ""
+		if !readIDs[f.ID] {
+			newFlag = "NEW"
+		}
 		vars := ansi.Vars{
 			"FILENAME": f.Filename,
 			"BY":       f.UploadedByName,
 			"SIZE":     humanize.Bytes(uint64(f.SizeBytes)),
 			"DATE":     f.UploadedAt.Format("2006-01-02 15:04"),
+			"NEWFLAG":  newFlag,
 		}
 		b.WriteString(ansi.Render(tmpl, vars))
 		b.WriteString(ansi.CRLF)
@@ -283,8 +289,11 @@ var fallbackFileReadMeta = "\x1b[1;32mFilename:  \x1b[1;37m{FILENAME:-40}\x1b[1;
 // keys / N,P without returning to the list each time -- mirroring
 // messages.go's readMessage, including clamping at the first/last
 // file instead of wrapping around.
-func (s *Server) readFile(term *Terminal, area *file.Area, files []file.File, idx int) error {
+func (s *Server) readFile(term *Terminal, u *user.User, area *file.Area, files []file.File, idx int) error {
 	for {
+		if err := s.Files.MarkFileRead(u.ID, files[idx].ID); err != nil {
+			return err
+		}
 		if err := s.drawFileReader(term, area, files, idx); err != nil {
 			return err
 		}

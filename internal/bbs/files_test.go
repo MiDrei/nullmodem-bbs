@@ -138,7 +138,7 @@ func TestFileAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
 	}
 }
 
-func TestFileAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
+func TestFileAreasLightbarNewCountUnaffectedByJustVisitingList(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
@@ -152,6 +152,10 @@ func TestFileAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
 		t.Fatalf("UploadFile: %v", err)
 	}
 
+	// Enter the area and immediately leave again WITHOUT opening the
+	// file -- merely visiting the file list must not clear the area
+	// lightbar's New count; only actually viewing a file does (see
+	// TestFileAreasLightbarNewCountClearsAfterReadingFile).
 	conn := newFakeConn("F\r\n\r\nQQQ\r\n")
 	term := NewTerminal(conn)
 	err = s.runMenu(term, u, 1, "main")
@@ -165,8 +169,85 @@ func TestFileAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
 	if !strings.Contains(renders[0], "     1      1      1") {
 		t.Fatalf("expected New=1 before visiting the area, got: %q", renders[0])
 	}
+	if !strings.Contains(renders[1], "     1      1      1") {
+		t.Fatalf("expected New still 1 after just visiting the list without viewing, got: %q", renders[1])
+	}
+}
+
+func TestFileAreasLightbarNewCountClearsAfterReadingFile(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Files.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Files.UploadFile(general.ID, u.ID, "notes.txt", "", strings.NewReader("hi")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	// Enter the area, open the file in the reader (Enter on the file
+	// list's only, already-highlighted row), leave, and check the area
+	// lightbar's second draw shows New=0.
+	conn := newFakeConn("F\r\n\r\n\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [Q] Back")
+	if len(renders) < 3 {
+		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
+	}
+	if !strings.Contains(renders[0], "     1      1      1") {
+		t.Fatalf("expected New=1 before visiting the area, got: %q", renders[0])
+	}
 	if !strings.Contains(renders[1], "     1      0      1") {
-		t.Fatalf("expected New=0 after visiting the area, got: %q", renders[1])
+		t.Fatalf("expected New=0 after reading the file, got: %q", renders[1])
+	}
+}
+
+func TestFileListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Files.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Files.UploadFile(general.ID, u.ID, "notes.txt", "", strings.NewReader("hi")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	// Visit the file list twice (Enter the area, Q back out, Enter
+	// again) WITHOUT opening the file -- it must stay flagged NEW both
+	// times. Only the third visit, where Enter opens the file in the
+	// reader, actually marks it read; the list's next redraw (after
+	// backing out of the reader) must no longer flag it.
+	conn := newFakeConn("F\r\n\r\nQ\r\n\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	renders := strings.Split(out, "[Up/Down] Move   [Enter] View   [Q] Back")
+	if len(renders) < 4 {
+		t.Fatalf("expected at least three file-list redraws, got %d: %q", len(renders)-1, out)
+	}
+	if !strings.Contains(renders[0], "NEW") {
+		t.Fatalf("expected the file flagged NEW on the first visit, got: %q", renders[0])
+	}
+	if !strings.Contains(renders[1], "NEW") {
+		t.Fatalf("expected the file still flagged NEW on the second visit (not yet read), got: %q", renders[1])
+	}
+	if strings.Contains(renders[2], "NEW") {
+		t.Fatalf("expected the NEW flag gone after actually reading the file, got: %q", renders[2])
 	}
 }
 
@@ -198,7 +279,7 @@ func TestFileListLightbarArrowNavigationSelectsSecondFile(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	if !strings.Contains(out, "\x1b[47m\x1b[30mbeta.txt") {
+	if !strings.Contains(out, "\x1b[47m\x1b[30mNEW beta.txt") {
 		t.Fatalf("expected beta.txt's row highlighted, got: %q", out)
 	}
 	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
