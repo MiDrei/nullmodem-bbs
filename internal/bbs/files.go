@@ -25,7 +25,7 @@ func (s *Server) showFileAreas(term *Terminal, u *user.User) error {
 			return term.Println(ansi.Reset + "\nNo file areas available.")
 		}
 
-		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "File Areas" + ansi.Reset); err != nil {
+		if err := s.printAreaHeader(term, u, "filareas.ans", "File Areas"); err != nil {
 			return err
 		}
 		for i, a := range areas {

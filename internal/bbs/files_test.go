@@ -38,6 +38,50 @@ func TestFileAreasListSeededArea(t *testing.T) {
 	}
 }
 
+func TestFileAreasUsesCustomHeaderScreenWhenPresent(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	if err := os.WriteFile(filepath.Join(dir, "filareas.ans"), []byte("File Areas at {BBSNAME}"), 0o644); err != nil {
+		t.Fatalf("write filareas.ans: %v", err)
+	}
+	s.BBSName = "Test BBS"
+
+	conn := newFakeConn("F\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "File Areas at Test BBS") {
+		t.Fatalf("expected rendered custom header, got: %q", out)
+	}
+}
+
+func TestFileAreasFallsBackToPlainTitleWhenHeaderScreenMissing(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	s.ScreensDir = t.TempDir()
+
+	conn := newFakeConn("F\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "File Areas") {
+		t.Fatalf("expected fallback plain title, got: %q", conn.out.String())
+	}
+}
+
 func TestSysopImportAndBrowseFile(t *testing.T) {
 	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)

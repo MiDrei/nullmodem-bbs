@@ -2,6 +2,8 @@ package bbs
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,6 +27,34 @@ func TestMessageAreasListAndReadSeededArea(t *testing.T) {
 	out := conn.out.String()
 	if !strings.Contains(out, "General Discussion") {
 		t.Fatalf("area list missing seeded area: %q", out)
+	}
+}
+
+func TestMessageAreasUsesCustomHeaderScreenWhenPresent(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	if err := os.WriteFile(filepath.Join(dir, "msgareas.ans"), []byte("Msg Areas at {BBSNAME}"), 0o644); err != nil {
+		t.Fatalf("write msgareas.ans: %v", err)
+	}
+	s.BBSName = "Test BBS"
+
+	conn := newFakeConn("M\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "Msg Areas at Test BBS") {
+		t.Fatalf("expected rendered custom header, got: %q", out)
+	}
+	if strings.Contains(out, "\x1b[1;36mMessage Areas") {
+		t.Fatalf("custom header should replace the plain fallback title, got: %q", out)
 	}
 }
 

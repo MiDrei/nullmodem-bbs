@@ -424,6 +424,33 @@ func (s *Server) printLogoffScreen(term *Terminal, u *user.User, node int) error
 	return term.Print(ansi.Layout(rendered, term.Width()))
 }
 
+// printAreaHeader shows a hand-designed banner screen (with
+// placeholders filled in) above a message/file area listing when
+// screenFile exists in ScreensDir, falling back to a plain colored
+// title line otherwise. Unlike a menu or logoff screen, this doesn't
+// clear the terminal first: it's a banner printed inline above a
+// runtime-length list, not a full-screen replacement.
+//
+// The builtin command signature (see the builtins map) doesn't carry
+// a node number, so only the node-independent placeholders are
+// available here -- BBSNAME, SYSOP, USERNAME, SL. That covers every
+// placeholder a sensible area-header design would want; NODE/DATE/
+// TIME/VERSION/TOTALCALLS aren't available in this context.
+func (s *Server) printAreaHeader(term *Terminal, u *user.User, screenFile, fallbackTitle string) error {
+	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, screenFile))
+	if err != nil {
+		return term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + fallbackTitle + ansi.Reset)
+	}
+	vars := ansi.Vars{
+		"BBSNAME":  s.BBSName,
+		"SYSOP":    s.SysopName,
+		"USERNAME": u.Username,
+		"SL":       strconv.Itoa(u.SecurityLevel),
+	}
+	rendered := ansi.Render(raw, vars)
+	return term.Println("\n" + ansi.Layout(rendered, term.Width()))
+}
+
 func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
 	var b strings.Builder
 	b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Green, true) + ansi.Render(m.Title, vars) + ansi.Reset + "\n")
