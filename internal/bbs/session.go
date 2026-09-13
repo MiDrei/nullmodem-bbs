@@ -347,7 +347,7 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 
 		switch {
 		case item.Action == "logoff":
-			if err := term.Println("\nGoodbye, " + u.Username + "!"); err != nil {
+			if err := s.printLogoffScreen(term, u, node); err != nil {
 				return err
 			}
 			return errLogoff
@@ -396,6 +396,24 @@ func (s *Server) renderMenuDisplay(m *menu.Menu, u *user.User, node int) string 
 		}
 	}
 	return renderMenu(m, u.SecurityLevel, vars)
+}
+
+// logoffScreenFile is the fixed, convention-based filename for the
+// optional hand-designed goodbye screen, the same way cmd/bbs always
+// loads "welcome.ans" for the connect banner -- there's no menu.Menu
+// to hang a Screen field off of for a logoff, since it's a builtin
+// action rather than a named menu.
+const logoffScreenFile = "logoff.ans"
+
+// printLogoffScreen shows logoff.ans (with placeholders filled in) if
+// present, falling back to a plain goodbye line otherwise.
+func (s *Server) printLogoffScreen(term *Terminal, u *user.User, node int) error {
+	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, logoffScreenFile))
+	if err != nil {
+		return term.Println("\nGoodbye, " + u.Username + "!")
+	}
+	rendered := ansi.Render(raw, s.userVars(u, node))
+	return term.Print(ansi.Layout(rendered, term.Width()))
 }
 
 func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {

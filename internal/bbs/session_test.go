@@ -112,6 +112,44 @@ func TestRunMenuGatesItemsBySecurityLevel(t *testing.T) {
 	}
 }
 
+func TestLogoffUsesCustomScreenWhenPresent(t *testing.T) {
+	conn := newFakeConn("Q\r\n")
+	term := NewTerminal(conn)
+	s := testServer(t)
+
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	if err := os.WriteFile(filepath.Join(dir, "logoff.ans"), []byte("So long, {USERNAME}!"), 0o644); err != nil {
+		t.Fatalf("write logoff.ans: %v", err)
+	}
+
+	err := s.runMenu(term, testUser(0), 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "So long, tester!") {
+		t.Fatalf("expected rendered logoff screen, got: %q", conn.out.String())
+	}
+	if strings.Contains(conn.out.String(), "Goodbye,") {
+		t.Fatalf("custom logoff screen should replace the plain goodbye line, got: %q", conn.out.String())
+	}
+}
+
+func TestLogoffFallsBackToPlainMessageWhenScreenMissing(t *testing.T) {
+	conn := newFakeConn("Q\r\n")
+	term := NewTerminal(conn)
+	s := testServer(t)
+	s.ScreensDir = t.TempDir()
+
+	err := s.runMenu(term, testUser(0), 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "Goodbye, tester!") {
+		t.Fatalf("expected fallback goodbye message, got: %q", conn.out.String())
+	}
+}
+
 func TestRunMenuUsesCustomScreenWhenSet(t *testing.T) {
 	conn := newFakeConn("Q\r\n")
 	term := NewTerminal(conn)
