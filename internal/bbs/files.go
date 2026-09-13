@@ -147,74 +147,215 @@ func (s *Server) printFileListHeader(term *Terminal, area *file.Area) error {
 	return term.Println(ansi.Layout(rendered, term.Width()))
 }
 
-// browseFileArea lists an area's files and lets the caller inspect
-// one's details, or return to the area list.
+// Fixed filenames for the hand-designed pieces of the file-list
+// lightbar, mirroring messages.go's msglist-columns.ans/-row.ans/
+// -row-selected.ans -- see that doc comment for why these are
+// separate, customizable screen files with a plain fallback.
+const (
+	fileListColumnsScreen     = "fillist-columns.ans"
+	fileListRowScreen         = "fillist-row.ans"
+	fileListRowSelectedScreen = "fillist-row-selected.ans"
+)
+
+const (
+	fallbackFileListRow         = "{FILENAME:-34} {BY:-16} {SIZE:10} {DATE:16}"
+	fallbackFileListRowSelected = "\x1b[47m\x1b[30m{FILENAME:-34} {BY:-16} {SIZE:10} {DATE:16}\x1b[0m"
+)
+
+var fallbackFileListColumns = "Filename                           By                     Size             Date\r\n" + strings.Repeat("-", 79)
+
+// browseFileArea is a lightbar over an area's files -- the same
+// interaction as messages.go's browseArea over messages: arrow keys
+// move the highlight, Enter opens the file reader at that file, Q/
+// Escape returns to the area list. Uploading isn't part of this loop
+// (see sysopImportFile's doc comment), so there's no equivalent to
+// browseArea's P handling here.
 func (s *Server) browseFileArea(term *Terminal, area *file.Area) error {
+	selected := 0
+outer:
 	for {
 		files, err := s.Files.ListFiles(area.ID)
 		if err != nil {
 			return err
 		}
 
-		if err := s.printFileListHeader(term, area); err != nil {
-			return err
-		}
 		if len(files) == 0 {
-			if err := term.Println("(no files yet)"); err != nil {
+			if err := s.drawEmptyFileList(term, area); err != nil {
 				return err
 			}
-		}
-		for i, f := range files {
-			line := fmt.Sprintf("%3d) %-30s %10s  %s", i+1, f.Filename, humanize.Bytes(uint64(f.SizeBytes)), f.Description)
-			if err := term.Println(line); err != nil {
+			key, err := term.ReadKey()
+			if err != nil {
 				return err
 			}
-		}
-		if err := term.Print(ansi.Reset + "\nFile # for details, or Q to return: " + ansi.FG(ansi.Yellow, true)); err != nil {
-			return err
-		}
-
-		choice, err := term.ReadLine(false)
-		if err != nil {
-			return err
-		}
-		choice = strings.TrimSpace(choice)
-		if choice == "" || strings.EqualFold(choice, "Q") {
-			return nil
-		}
-
-		idx, convErr := strconv.Atoi(choice)
-		if convErr != nil || idx < 1 || idx > len(files) {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid selection."); err != nil {
-				return err
+			if key.Type == KeyEscape || (key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q')) {
+				return nil
 			}
 			continue
 		}
-		if err := s.showFileDetails(term, &files[idx-1]); err != nil {
-			return err
+		if selected >= len(files) {
+			selected = len(files) - 1
+		}
+
+		for {
+			if err := s.drawFileList(term, area, files, selected); err != nil {
+				return err
+			}
+			key, err := term.ReadKey()
+			if err != nil {
+				return err
+			}
+			switch {
+			case key.Type == KeyUp:
+				selected = (selected - 1 + len(files)) % len(files)
+			case key.Type == KeyDown:
+				selected = (selected + 1) % len(files)
+			case key.Type == KeyEnter:
+				if err := s.readFile(term, area, files, selected); err != nil {
+					return err
+				}
+				continue outer
+			case key.Type == KeyEscape:
+				return nil
+			case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
+				return nil
+			}
 		}
 	}
 }
 
-func (s *Server) showFileDetails(term *Terminal, f *file.File) error {
-	rule := ansi.FG(ansi.Cyan, true) + strings.Repeat("-", 40) + ansi.Reset
-	lines := []string{
-		"",
-		rule,
-		fmt.Sprintf("Filename:  %s", f.Filename),
-		fmt.Sprintf("Size:      %s", humanize.Bytes(uint64(f.SizeBytes))),
-		fmt.Sprintf("Uploaded:  %s by %s", f.UploadedAt.Format("2006-01-02 15:04"), f.UploadedByName),
-		fmt.Sprintf("Downloads: %d", f.DownloadCount),
-		rule,
-		f.Description,
-		rule,
+// drawEmptyFileList shows just the header banner and a hint bar for
+// an area with no files yet -- see messages.go's drawEmptyMessageList.
+func (s *Server) drawEmptyFileList(term *Terminal, area *file.Area) error {
+	if err := s.printFileListHeader(term, area); err != nil {
+		return err
 	}
-	for _, line := range lines {
-		if err := term.Println(line); err != nil {
+	return term.Print(ansi.Reset + "\n(no files yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[Q] Back" + ansi.Reset)
+}
+
+// drawFileList redraws the header banner plus the Filename/By/Size/
+// Date table, with the row at selected highlighted -- the file list's
+// equivalent of messages.go's drawMessageList.
+func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File, selected int) error {
+	if err := s.printFileListHeader(term, area); err != nil {
+		return err
+	}
+
+	rowTemplate := s.loadOptionalScreen(fileListRowScreen, fallbackFileListRow)
+	rowSelectedTemplate := s.loadOptionalScreen(fileListRowSelectedScreen, fallbackFileListRowSelected)
+
+	var b strings.Builder
+	b.WriteString(ansi.Reset + "\r\n")
+	b.WriteString(s.loadOptionalScreen(fileListColumnsScreen, fallbackFileListColumns))
+	b.WriteString(ansi.CRLF)
+
+	for i, f := range files {
+		tmpl := rowTemplate
+		if i == selected {
+			tmpl = rowSelectedTemplate
+		}
+		vars := ansi.Vars{
+			"FILENAME": f.Filename,
+			"BY":       f.UploadedByName,
+			"SIZE":     humanize.Bytes(uint64(f.SizeBytes)),
+			"DATE":     f.UploadedAt.Format("2006-01-02 15:04"),
+		}
+		b.WriteString(ansi.Render(tmpl, vars))
+		b.WriteString(ansi.CRLF)
+	}
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] View   [Q] Back" + ansi.Reset)
+	return term.Print(b.String())
+}
+
+// Fixed filenames for the hand-designed pieces of the file reader,
+// mirroring messages.go's msgread.ans/msgread-meta.ans.
+const (
+	fileReadScreen     = "filread.ans"
+	fileReadMetaScreen = "filread-meta.ans"
+)
+
+var fallbackFileReadMeta = "\x1b[1;32mFilename:  \x1b[1;37m{FILENAME:-40}\x1b[1;32m Size: \x1b[1;37m{SIZE}\r\n" +
+	"\x1b[1;32mUploaded:  \x1b[1;37m{DATE}\x1b[1;32m by \x1b[1;37m{BY}\r\n" +
+	"\x1b[1;32mDownloads: \x1b[1;37m{DOWNLOADS}\r\n" +
+	"\x1b[32m" + strings.Repeat("-", 79) + ansi.Reset
+
+// readFile is a file-details reader over files, starting at idx, that
+// lets the caller page through every file in the area with the arrow
+// keys / N,P without returning to the list each time -- mirroring
+// messages.go's readMessage, including clamping at the first/last
+// file instead of wrapping around.
+func (s *Server) readFile(term *Terminal, area *file.Area, files []file.File, idx int) error {
+	for {
+		if err := s.drawFileReader(term, area, files, idx); err != nil {
 			return err
 		}
+		key, err := term.ReadKey()
+		if err != nil {
+			return err
+		}
+		switch {
+		case key.Type == KeyUp || key.Type == KeyLeft, key.Type == KeyChar && (key.Rune == 'p' || key.Rune == 'P'):
+			if idx > 0 {
+				idx--
+			}
+		case key.Type == KeyDown || key.Type == KeyRight || key.Type == KeyEnter, key.Type == KeyChar && (key.Rune == 'n' || key.Rune == 'N'):
+			if idx < len(files)-1 {
+				idx++
+			}
+		case key.Type == KeyEscape:
+			return nil
+		case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
+			return nil
+		}
 	}
-	return nil
+}
+
+// printFileReaderHeader shows filread.ans (with AREANAME/FILENUM/
+// FILECOUNT filled in), falling back to a plain colored area-name
+// line -- mirroring messages.go's printMessageReaderHeader.
+func (s *Server) printFileReaderHeader(term *Terminal, area *file.Area, idx, total int) error {
+	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, fileReadScreen))
+	if err != nil {
+		return term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset)
+	}
+	vars := ansi.Vars{
+		"BBSNAME":   s.BBSName,
+		"AREANAME":  area.Name,
+		"FILENUM":   strconv.Itoa(idx + 1),
+		"FILECOUNT": strconv.Itoa(total),
+	}
+	rendered := ansi.Render(raw, vars)
+	return term.Println(ansi.Layout(rendered, term.Width()))
+}
+
+// drawFileReader redraws the full reader screen for files[idx]: the
+// header banner, the Filename/Size/Uploaded/Downloads metadata block
+// (its own customizable screen file), the word-wrapped description,
+// and a footer hinting at the navigation keys -- mirroring
+// messages.go's drawMessageReader.
+func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.File, idx int) error {
+	if err := s.printFileReaderHeader(term, area, idx, len(files)); err != nil {
+		return err
+	}
+	f := &files[idx]
+
+	metaTemplate := s.loadOptionalScreen(fileReadMetaScreen, fallbackFileReadMeta)
+	vars := ansi.Vars{
+		"FILENAME":  f.Filename,
+		"SIZE":      humanize.Bytes(uint64(f.SizeBytes)),
+		"DATE":      f.UploadedAt.Format("2006-01-02 15:04"),
+		"BY":        f.UploadedByName,
+		"DOWNLOADS": strconv.Itoa(f.DownloadCount),
+	}
+
+	var b strings.Builder
+	b.WriteString(ansi.Reset + "\r\n")
+	b.WriteString(ansi.Layout(ansi.Render(metaTemplate, vars), term.Width()))
+	b.WriteString(ansi.CRLF)
+	for _, line := range ansi.WrapText(f.Description, term.Width()) {
+		b.WriteString(ansi.Reset + line + ansi.CRLF)
+	}
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list" + ansi.Reset)
+	return term.Print(b.String())
 }
 
 // sysopCreateFileArea is the "builtin:createfilearea" command: it
