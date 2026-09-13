@@ -330,7 +330,7 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx i
 }
 
 // composeNetmail prompts for a recipient (an existing local username,
-// or a FidoNet address for a system this BBS can't reach without a
+// or an FTN address for a system this BBS can't reach without a
 // BinkP mailer yet -- see internal/netmail's doc comment) and a
 // Subject, then hands off to the shared runLineEditor for the body.
 func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
@@ -361,7 +361,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		toName = to
 	} else {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) +
-			fmt.Sprintf("No such local user, and %q doesn't look like a FidoNet address (zone:net/node.point).", to))
+			fmt.Sprintf("No such local user, and %q doesn't look like an FTN address (zone:net/node.point).", to))
 	}
 
 	if err := term.Print(ansi.Reset + "Subject: " + ansi.FG(ansi.Yellow, true)); err != nil {

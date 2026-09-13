@@ -17,6 +17,7 @@ type configDTO struct {
 	Name          string `json:"name"`
 	Sysop         string `json:"sysop"`
 	NewUserSL     int    `json:"new_user_sl"`
+	FTNAddress    string `json:"ftn_address"`
 	TelnetEnabled bool   `json:"telnet_enabled"`
 	TelnetAddr    string `json:"telnet_addr"`
 	SSHEnabled    bool   `json:"ssh_enabled"`
@@ -28,6 +29,7 @@ func toDTO(c *config.Config) configDTO {
 		Name:          c.BBS.Name,
 		Sysop:         c.BBS.Sysop,
 		NewUserSL:     c.BBS.NewUserSL,
+		FTNAddress:    c.BBS.FTNAddress,
 		TelnetEnabled: c.Telnet.Enabled,
 		TelnetAddr:    c.Telnet.Addr,
 		SSHEnabled:    c.SSH.Enabled,
@@ -75,6 +77,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	c.BBS.Name = dto.Name
 	c.BBS.Sysop = dto.Sysop
 	c.BBS.NewUserSL = dto.NewUserSL
+	c.BBS.FTNAddress = dto.FTNAddress
 	c.Telnet.Enabled = dto.TelnetEnabled
 	c.Telnet.Addr = dto.TelnetAddr
 	c.SSH.Enabled = dto.SSHEnabled

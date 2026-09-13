@@ -180,6 +180,7 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	// Update and verify it persisted to disk.
 	got.Name = "My Awesome BBS"
 	got.NewUserSL = 20
+	got.FTNAddress = "1:234/56.0"
 	rec = doJSON(t, h, http.MethodPut, "/api/config", got, loginResp.Token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT /api/config status = %d, body=%s", rec.Code, rec.Body.String())
@@ -189,8 +190,8 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
-	if saved.BBS.Name != "My Awesome BBS" || saved.BBS.NewUserSL != 20 {
-		t.Fatalf("saved config = %+v, want updated name/SL", saved.BBS)
+	if saved.BBS.Name != "My Awesome BBS" || saved.BBS.NewUserSL != 20 || saved.BBS.FTNAddress != "1:234/56.0" {
+		t.Fatalf("saved config = %+v, want updated name/SL/ftn_address", saved.BBS)
 	}
 }
 

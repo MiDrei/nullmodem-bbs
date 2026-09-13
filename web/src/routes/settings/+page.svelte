@@ -87,6 +87,19 @@
 					required
 				/>
 			</label>
+			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">FTN Address (zone:net/node.point)</span>
+				<input
+					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+					bind:value={config.ftn_address}
+					placeholder="e.g. 1:234/56.0 -- leave blank if you don't have one"
+				/>
+				<span class="text-xs text-slate-500">
+					Your node address on whichever FTN-compatible network you're a member of (FidoNet,
+					fsxNet, etc.), if any. Stamped on outgoing netmail; has no other effect until a BinkP
+					mailer is set up.
+				</span>
+			</label>
 		</section>
 
 		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">

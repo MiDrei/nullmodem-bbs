@@ -2,6 +2,8 @@ export interface BBSConfig {
 	name: string;
 	sysop: string;
 	new_user_sl: number;
+	/** This system's own FTN address (zone:net/node.point) on whichever network it belongs to, if any -- stamped on outgoing netmail. Optional. */
+	ftn_address: string;
 	telnet_enabled: boolean;
 	telnet_addr: string;
 	ssh_enabled: boolean;

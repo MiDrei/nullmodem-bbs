@@ -54,7 +54,7 @@ func TestComposeNetmailToUnknownRecipientRejected(t *testing.T) {
 	}
 
 	// N -> netmail inbox (empty), C -> compose, an unresolvable
-	// recipient that also doesn't look like a FidoNet address -- the
+	// recipient that also doesn't look like an FTN address -- the
 	// attempt must be rejected before ever reaching the subject
 	// prompt, landing back at the (still empty) inbox's C/Q prompt.
 	conn := newFakeConn("N\r\nCnosuchuser\r\nQ\r\nQ\r\n")
@@ -64,7 +64,7 @@ func TestComposeNetmailToUnknownRecipientRejected(t *testing.T) {
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
-	if !strings.Contains(conn.out.String(), "doesn't look like a FidoNet address") {
+	if !strings.Contains(conn.out.String(), "doesn't look like an FTN address") {
 		t.Fatalf("expected a rejection explaining the bad recipient, got: %q", conn.out.String())
 	}
 }
@@ -76,7 +76,7 @@ func TestComposeNetmailToFTNAddressQueuesMessage(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	// A well-formed FidoNet address with no local match is accepted
+	// A well-formed FTN address with no local match is accepted
 	// and stored, but reported as queued rather than sent, since no
 	// BinkP mailer exists yet to actually deliver it.
 	input := "N\r\nC1:234/99.0\r\nHi remote\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
