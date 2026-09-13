@@ -1,0 +1,30 @@
+# Template for configs/bbs.yaml, which is gitignored (not tracked)
+# because the web admin Settings page can write a real BinkP uplink
+# password into it. Copy this file to configs/bbs.yaml and adjust it
+# for your system; the BBS daemon falls back to these same built-in
+# defaults if configs/bbs.yaml is missing entirely.
+bbs:
+    name: NullModem BBS
+    sysop: sysop
+    new_user_sl: 10
+    menus_dir: configs/menus
+    screens_dir: configs/screens
+    files_dir: data/files
+    ftn_address: ""
+database:
+    path: data/nullmodem.sqlite
+telnet:
+    enabled: true
+    addr: :2323
+ssh:
+    enabled: true
+    addr: :2222
+    host_key_path: data/ssh_host_key
+binkp:
+    uplinks: []
+    # Each uplink (also settable via the web Settings page, including
+    # a live "Test Connection" button) looks like:
+    # uplinks:
+    #     - address: "1:234/56"
+    #       host: "bbs.example.com:24554"
+    #       password: "..."

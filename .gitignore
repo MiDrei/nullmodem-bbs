@@ -7,5 +7,10 @@
 *_host_key
 *.db
 
+# Real BBS config -- the web admin Settings page can write a live
+# BinkP uplink password into this file. See configs/bbs.yaml.example
+# for the template new checkouts should copy.
+/configs/bbs.yaml
+
 # Editor/OS
 .DS_Store
