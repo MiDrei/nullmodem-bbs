@@ -67,10 +67,11 @@ type BinkpUplink struct {
 	Address string `yaml:"address"`
 	// Host is "host:port", e.g. "bbs.example.com:24554".
 	Host string `yaml:"host"`
-	// Password authenticates us to the uplink (sent as a CRAM-MD5
-	// response if the uplink advertises support, otherwise in the
-	// clear -- see internal/binkp.Config.Password). Empty means no
-	// password is sent.
+	// Password authenticates the BinkP *session* itself (sent as a
+	// CRAM-MD5 response if the uplink advertises support, otherwise
+	// in the clear -- see internal/binkp.Config.Password), distinct
+	// from PacketPassword below. Empty means no session password is
+	// sent.
 	Password string `yaml:"password"`
 	// PollDisabled excludes this uplink from cmd/mailer's regular
 	// scheduled poll -- for a link that should only ever be dialed
@@ -86,6 +87,24 @@ type BinkpUplink struct {
 	// internal/tosser's IsDue). Zero means "use the global default".
 	// Meaningless when PollDisabled is set.
 	PollIntervalSeconds int `yaml:"poll_interval_seconds"`
+	// PacketPassword authenticates the FTS-0001 packet itself (the
+	// 8-byte password field in a .pkt file's own header -- see
+	// internal/mail.PacketHeader), independent of the BinkP session
+	// Password above. internal/tosser stamps it on every outbound
+	// packet built for this uplink, and rejects an inbound packet
+	// whose own header password doesn't match. Empty means no packet
+	// password is set or expected.
+	PacketPassword string `yaml:"packet_password"`
+	// TICPassword authenticates TIC file-echo announcements from this
+	// uplink (the "type 2" file-distribution protocol layered over
+	// BinkP). Reserved for when TIC/file-echo support is implemented
+	// in internal/tosser -- stored but not used yet.
+	TICPassword string `yaml:"tic_password"`
+	// AreafixPassword authenticates automated echomail area
+	// subscription requests to/from this uplink's "AREAFIX" netmail
+	// robot. Reserved for when Areafix support is implemented in
+	// internal/tosser -- stored but not used yet.
+	AreafixPassword string `yaml:"areafix_password"`
 }
 
 // PrimaryFTNAddress returns c's first configured FTN address, or "" if

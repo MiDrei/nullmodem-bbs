@@ -202,6 +202,157 @@ func TestPollReceivesInboundNetmailForLocalUser(t *testing.T) {
 	}
 }
 
+func TestPollStampsPacketPasswordOnOutboundPacket(t *testing.T) {
+	netmailStore, users := newTestStores(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	if _, err := netmailStore.Send(alice.ID, "21:3/194.1", 0, "Mike Dreier", "21:3/194", "Hi", "body", false); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	var mu sync.Mutex
+	var received []byte
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		ReceiveFile: func(f binkp.InboundFile, r io.Reader) error {
+			data, err := io.ReadAll(r)
+			mu.Lock()
+			received = data
+			mu.Unlock()
+			return err
+		},
+	})
+
+	_, err = Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+		Address:        "21:3/194",
+		Host:           addr,
+		PacketPassword: "pktpass",
+	}, nil, netmailStore, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+
+	mu.Lock()
+	pkt := received
+	mu.Unlock()
+	p, err := mail.ReadPacket(bytes.NewReader(pkt))
+	if err != nil {
+		t.Fatalf("parsing sent packet: %v", err)
+	}
+	if p.Header.Password != "pktpass" {
+		t.Fatalf("sent packet header password = %q, want %q", p.Header.Password, "pktpass")
+	}
+}
+
+func TestPollRejectsInboundPacketWithWrongPassword(t *testing.T) {
+	netmailStore, users := newTestStores(t)
+	if _, err := users.Register("bob", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+
+	var buf bytes.Buffer
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 194, Point: 1},
+		Created:  time.Now(),
+		Password: "wrongpw",
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{ToName: "bob", FromName: "Mike Dreier", Subject: "Hi", Body: "hi"}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+		},
+	})
+
+	_, err = Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+		Address:        "21:3/194",
+		Host:           addr,
+		PacketPassword: "rightpw",
+	}, nil, netmailStore, users)
+	if err == nil {
+		t.Fatal("Poll with a wrong inbound packet password: want error, got nil")
+	}
+	<-done
+
+	inbox, err := netmailStore.Inbox(1)
+	if err != nil {
+		t.Fatalf("Inbox: %v", err)
+	}
+	if len(inbox) != 0 {
+		t.Fatalf("Inbox after a rejected packet = %+v, want no messages stored", inbox)
+	}
+}
+
+func TestPollAcceptsInboundPacketWithMatchingPassword(t *testing.T) {
+	netmailStore, users := newTestStores(t)
+	bob, err := users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+
+	var buf bytes.Buffer
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 194, Point: 1},
+		Created:  time.Now(),
+		Password: "rightpw",
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{ToName: "bob", FromName: "Mike Dreier", Subject: "Hi", Body: "hi"}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+		},
+	})
+
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+		Address:        "21:3/194",
+		Host:           addr,
+		PacketPassword: "rightpw",
+	}, nil, netmailStore, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+	if res.Received != 1 {
+		t.Fatalf("Result.Received = %d, want 1", res.Received)
+	}
+
+	inbox, err := netmailStore.Inbox(bob.ID)
+	if err != nil {
+		t.Fatalf("Inbox: %v", err)
+	}
+	if len(inbox) != 1 {
+		t.Fatalf("bob's inbox has %d messages, want 1", len(inbox))
+	}
+}
+
 func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 	netmailStore, users := newTestStores(t)
 

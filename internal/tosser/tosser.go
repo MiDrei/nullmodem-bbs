@@ -86,7 +86,7 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 		if err != nil {
 			return nil, fmt.Errorf("tosser: uplink address %q: %w", uplink.Address, err)
 		}
-		buf, err := buildPacket(ourAddr, uplinkAddr, routed)
+		buf, err := buildPacket(ourAddr, uplinkAddr, uplink.PacketPassword, routed)
 		if err != nil {
 			return nil, err
 		}
@@ -102,7 +102,7 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 	res := &Result{}
 	var receiveErr error
 	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
-		n, err := tossInbound(r, netmailStore, users)
+		n, err := tossInbound(r, uplink.PacketPassword, netmailStore, users)
 		res.Received += n
 		if err != nil {
 			receiveErr = err
@@ -205,17 +205,19 @@ func uplinkForDestination(uplinks []config.BinkpUplink, destAddr string) (config
 
 // buildPacket bundles pending into a single FTS-0001 packet addressed
 // (at the packet-header level) between ourAddr and uplinkAddr -- the
-// BinkP link's own two endpoints. Each message's own OrigAddr/DestAddr
-// carries its real origin/destination, which internal/mail encodes as
-// INTL/FMPT/TOPT kludge lines when they differ from the packet header
-// (e.g. a point address, or routing through this uplink to a third
-// system).
-func buildPacket(ourAddr, uplinkAddr mail.Address, pending []netmail.Message) (*bytes.Buffer, error) {
+// BinkP link's own two endpoints -- stamped with packetPassword (the
+// uplink's configured PacketPassword; empty means none). Each
+// message's own OrigAddr/DestAddr carries its real origin/destination,
+// which internal/mail encodes as INTL/FMPT/TOPT kludge lines when they
+// differ from the packet header (e.g. a point address, or routing
+// through this uplink to a third system).
+func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, pending []netmail.Message) (*bytes.Buffer, error) {
 	var buf bytes.Buffer
 	w, err := mail.NewWriter(&buf, mail.PacketHeader{
 		OrigAddr: ourAddr,
 		DestAddr: uplinkAddr,
 		Created:  time.Now(),
+		Password: packetPassword,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("tosser: building outbound packet: %w", err)
@@ -262,14 +264,35 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, pending []netmail.Message) (*
 // insensitive, matching internal/bbs's own recipient lookup), or kept
 // queued (ToUserID unset) with the sender's address preserved
 // otherwise, so nothing is silently dropped even though there's
-// nowhere local to put it yet.
-func tossInbound(r io.Reader, netmailStore *netmail.Store, users *user.Store) (int, error) {
+// nowhere local to put it yet. If expectedPassword is non-empty, the
+// packet's own header password (internal/mail.PacketHeader.Password)
+// must match it -- a mismatch discards the rest of the packet (see
+// below) before any message in it is stored, since a wrong packet
+// password indicates either a misconfiguration or a forged packet,
+// not partial content to salvage.
+//
+// Whatever the outcome, r is always drained to completion before
+// returning: binkp.Config.ReceiveFile's contract requires reading
+// every byte of the file, since the network-reading side on the other
+// end of the pipe blocks writing further data frames until this side
+// keeps consuming them -- returning early, as an earlier version of
+// this password check did, deadlocks that writer forever instead of
+// cleanly failing the session.
+func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Store, users *user.Store) (n int, err error) {
+	defer func() {
+		if _, drainErr := io.Copy(io.Discard, r); drainErr != nil && err == nil {
+			err = fmt.Errorf("tosser: draining inbound packet: %w", drainErr)
+		}
+	}()
+
 	pr, err := mail.NewReader(r)
 	if err != nil {
 		return 0, fmt.Errorf("tosser: reading inbound packet: %w", err)
 	}
+	if expectedPassword != "" && pr.Header.Password != expectedPassword {
+		return 0, fmt.Errorf("tosser: inbound packet password does not match this uplink's configured packet password")
+	}
 
-	n := 0
 	for {
 		msg, err := pr.ReadMessage()
 		if err == io.EOF {

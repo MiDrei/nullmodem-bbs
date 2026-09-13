@@ -30,6 +30,11 @@ type binkpUplinkDTO struct {
 	Password            string `json:"password"`
 	PollDisabled        bool   `json:"poll_disabled"`
 	PollIntervalSeconds int    `json:"poll_interval_seconds"`
+	PacketPassword      string `json:"packet_password"`
+	// TICPassword and AreafixPassword are stored and round-tripped
+	// but not used yet -- see config.BinkpUplink's doc comments.
+	TICPassword     string `json:"tic_password"`
+	AreafixPassword string `json:"areafix_password"`
 }
 
 type configDTO struct {
@@ -54,6 +59,9 @@ func toDTO(c *config.Config) configDTO {
 			Password:            u.Password,
 			PollDisabled:        u.PollDisabled,
 			PollIntervalSeconds: u.PollIntervalSeconds,
+			PacketPassword:      u.PacketPassword,
+			TICPassword:         u.TICPassword,
+			AreafixPassword:     u.AreafixPassword,
 		}
 	}
 	addrs := c.BBS.FTNAddresses
@@ -127,6 +135,9 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			Password:            u.Password,
 			PollDisabled:        u.PollDisabled,
 			PollIntervalSeconds: u.PollIntervalSeconds,
+			PacketPassword:      u.PacketPassword,
+			TICPassword:         u.TICPassword,
+			AreafixPassword:     u.AreafixPassword,
 		}
 	}
 	c.Binkp.PollIntervalSeconds = dto.BinkpDefaultPollIntervalSeconds
@@ -227,9 +238,10 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	result, err := tosser.Poll(ctx, c.BBS.FTNAddresses, config.BinkpUplink{
-		Address:  req.Address,
-		Host:     req.Host,
-		Password: req.Password,
+		Address:        req.Address,
+		Host:           req.Host,
+		Password:       req.Password,
+		PacketPassword: req.PacketPassword,
 	}, c.Binkp.Uplinks, s.Netmail, s.Users)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("poll failed: %v", err))
@@ -282,6 +294,9 @@ func validateConfigDTO(dto configDTO) string {
 		}
 		if u.PollIntervalSeconds < 0 {
 			return fmt.Sprintf("binkp uplink %d: poll_interval_seconds must not be negative", i+1)
+		}
+		if len(u.PacketPassword) > 8 {
+			return fmt.Sprintf("binkp uplink %d: packet_password must be at most 8 characters (FTS-0001's packet header field)", i+1)
 		}
 	}
 	return ""

@@ -62,6 +62,32 @@ func TestSaveAndLoadRoundTripsMultipleFTNAddresses(t *testing.T) {
 	}
 }
 
+func TestSaveAndLoadRoundTripsUplinkPasswords(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bbs.yaml")
+	c := Default()
+	c.Binkp.Uplinks = []BinkpUplink{
+		{
+			Address:         "21:3/194",
+			Host:            "bbs.example.com:24554",
+			Password:        "sesspass",
+			PacketPassword:  "pktpass",
+			TICPassword:     "ticpass",
+			AreafixPassword: "areapass",
+		},
+	}
+
+	if err := Save(path, c); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	reloaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !reflect.DeepEqual(reloaded.Binkp.Uplinks, c.Binkp.Uplinks) {
+		t.Fatalf("reloaded Binkp.Uplinks = %+v, want %+v", reloaded.Binkp.Uplinks, c.Binkp.Uplinks)
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {

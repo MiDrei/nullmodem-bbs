@@ -185,7 +185,10 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	got.NewUserSL = 20
 	got.FTNAddresses = []string{"1:234/56.0", "2:345/67"}
 	got.BinkpUplinks = []binkpUplinkDTO{
-		{Address: "21:3/194", Host: "bbs.maik.ch:24554", Password: "secret", PollIntervalSeconds: 7200},
+		{
+			Address: "21:3/194", Host: "bbs.maik.ch:24554", Password: "secret", PollIntervalSeconds: 7200,
+			PacketPassword: "pktpass", TICPassword: "ticpass", AreafixPassword: "areapass",
+		},
 	}
 	got.BinkpDefaultPollIntervalSeconds = 1800
 	rec = doJSON(t, h, http.MethodPut, "/api/config", got, loginResp.Token)
@@ -206,7 +209,10 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	}
 	if len(saved.Binkp.Uplinks) != 1 || saved.Binkp.Uplinks[0].Host != "bbs.maik.ch:24554" ||
 		saved.Binkp.Uplinks[0].Address != "21:3/194" || saved.Binkp.Uplinks[0].Password != "secret" ||
-		saved.Binkp.Uplinks[0].PollIntervalSeconds != 7200 {
+		saved.Binkp.Uplinks[0].PollIntervalSeconds != 7200 ||
+		saved.Binkp.Uplinks[0].PacketPassword != "pktpass" ||
+		saved.Binkp.Uplinks[0].TICPassword != "ticpass" ||
+		saved.Binkp.Uplinks[0].AreafixPassword != "areapass" {
 		t.Fatalf("saved.Binkp.Uplinks = %+v, want one uplink with the round-tripped fields", saved.Binkp.Uplinks)
 	}
 }
@@ -439,6 +445,15 @@ func TestPutConfigRejectsInvalidInput(t *testing.T) {
 	rec = doJSON(t, h, http.MethodPut, "/api/config", bad, loginResp.Token)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 for negative per-uplink poll interval", rec.Code)
+	}
+
+	bad = configDTO{
+		Name: "X", Sysop: "root", NewUserSL: 10, TelnetEnabled: true, TelnetAddr: ":2323",
+		BinkpUplinks: []binkpUplinkDTO{{Host: "example.org:24554", PacketPassword: "waytoolongforfields"}},
+	}
+	rec = doJSON(t, h, http.MethodPut, "/api/config", bad, loginResp.Token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a packet_password longer than 8 characters", rec.Code)
 	}
 }
 

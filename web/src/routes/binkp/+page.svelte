@@ -22,7 +22,16 @@
 	let sendingIndex = $state<number | null>(null);
 
 	function emptyUplink(): BinkpUplink {
-		return { address: '', host: '', password: '', poll_disabled: false, poll_interval_seconds: 0 };
+		return {
+			address: '',
+			host: '',
+			password: '',
+			poll_disabled: false,
+			poll_interval_seconds: 0,
+			packet_password: '',
+			tic_password: '',
+			areafix_password: ''
+		};
 	}
 
 	function addUplink() {
@@ -239,13 +248,54 @@
 						/>
 					</label>
 					<label class="col-span-2 flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Password</span>
+						<span class="text-slate-400">Session Password</span>
 						<input
 							type="password"
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
 							bind:value={uplink.password}
 							placeholder="(optional -- blank for an open/no-auth node)"
 						/>
+						<span class="text-xs text-slate-500">Authenticates the BinkP session itself.</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Packet Password</span>
+						<input
+							type="password"
+							maxlength="8"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.packet_password}
+							placeholder="(optional, max 8 chars)"
+						/>
+						<span class="text-xs text-slate-500">
+							Authenticates the FTS-0001 .pkt file itself (FTS-0001's 8-character packet header
+							field) -- distinct from the session password above.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">TIC Password</span>
+						<input
+							type="password"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.tic_password}
+							placeholder="(optional)"
+						/>
+						<span class="text-xs text-slate-500">
+							For file-echo (TIC) distribution -- stored for when that's implemented, not used
+							yet.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Areafix Password</span>
+						<input
+							type="password"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.areafix_password}
+							placeholder="(optional)"
+						/>
+						<span class="text-xs text-slate-500">
+							For automated echomail area subscription requests -- stored for when Areafix
+							support is implemented, not used yet.
+						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
 						<span class="text-slate-400">Poll interval override (seconds)</span>

@@ -8,6 +8,12 @@ export interface BinkpUplink {
 	poll_disabled: boolean;
 	/** Overrides the global default poll interval for this uplink specifically (seconds). 0 means "use the default" -- some hubs only permit polling every hour or two. Meaningless when poll_disabled is set. */
 	poll_interval_seconds: number;
+	/** Authenticates the FTS-0001 packet itself (max 8 characters -- the wire format's packet header field), distinct from the BinkP session password above. Stamped on every outbound packet for this uplink; an inbound packet with a different password is rejected. */
+	packet_password: string;
+	/** Authenticates TIC file-echo announcements from this uplink. Reserved for when file-echo/TIC support is implemented -- stored but not used yet. */
+	tic_password: string;
+	/** Authenticates automated echomail area subscription requests (the "AREAFIX" netmail robot) for this uplink. Reserved for when Areafix support is implemented -- stored but not used yet. */
+	areafix_password: string;
 }
 
 export interface BBSConfig {
