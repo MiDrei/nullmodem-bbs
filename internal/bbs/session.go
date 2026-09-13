@@ -125,6 +125,14 @@ func (s *Server) Handle(conn Conn) {
 	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
 		term.Println("\n" + ansi.FG(ansi.Red, true) + "Menu error: " + err.Error())
 	}
+
+	// The telnet/SSH listener closes conn the instant Handle returns
+	// (see internal/telnet.Server's accept loop). Closing immediately
+	// after a final write can race the OS/network into dropping that
+	// write before the client ever sees it -- most visible on a real
+	// terminal client disconnecting right after the logoff screen, so
+	// give it a moment to actually reach the other end first.
+	time.Sleep(300 * time.Millisecond)
 }
 
 func (s *Server) welcome(term *Terminal, node int) error {
