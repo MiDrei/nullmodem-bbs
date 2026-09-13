@@ -76,10 +76,11 @@ func TestComposeNetmailToFTNAddressQueuesMessage(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	// A well-formed FTN address with no local match is accepted
-	// and stored, but reported as queued rather than sent, since no
-	// BinkP mailer exists yet to actually deliver it.
-	input := "N\r\nC1:234/99.0\r\nHi remote\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
+	// A well-formed FTN address with no local match is accepted and
+	// stored, prompts for the remote recipient's name, and is reported
+	// as queued rather than sent, since no BinkP mailer exists yet to
+	// actually deliver it.
+	input := "N\r\nC1:234/99.0\r\nMike Dreier\r\nHi remote\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
@@ -88,8 +89,32 @@ func TestComposeNetmailToFTNAddressQueuesMessage(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	if !strings.Contains(out, "Netmail queued for 1:234/99.0") {
-		t.Fatalf("expected a queued-for-delivery message, got: %q", out)
+	if !strings.Contains(out, "Netmail queued for Mike Dreier at 1:234/99.0") {
+		t.Fatalf("expected a queued-for-delivery message naming the recipient, got: %q", out)
+	}
+}
+
+func TestComposeNetmailToFTNAddressWithBlankNameFallsBackToAddress(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// Leaving the recipient-name prompt blank keeps the previous
+	// behavior of using the address itself as the display name.
+	input := "N\r\nC1:234/99.0\r\n\r\nHi remote\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
+	conn := newFakeConn(input)
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+
+	out := conn.out.String()
+	if !strings.Contains(out, "Netmail queued for 1:234/99.0 at 1:234/99.0") {
+		t.Fatalf("expected recipient name to fall back to the address, got: %q", out)
 	}
 }
 

@@ -331,8 +331,11 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx i
 
 // composeNetmail prompts for a recipient (an existing local username,
 // or an FTN address for a system this BBS can't reach without a
-// BinkP mailer yet -- see internal/netmail's doc comment) and a
-// Subject, then hands off to the shared runLineEditor for the body.
+// BinkP mailer yet -- see internal/netmail's doc comment), and for an
+// FTN address also the recipient's name (a node has many possible
+// recipients; the address alone doesn't say who a remote sysop should
+// hand the message to), then a Subject, then hands off to the shared
+// runLineEditor for the body.
 func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Compose Netmail" + ansi.Reset); err != nil {
 		return err
@@ -358,7 +361,17 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		return err
 	} else if isFTNAddress(to) {
 		toAddress = to
-		toName = to
+		if err := term.Print(ansi.Reset + "Recipient name: " + ansi.FG(ansi.Yellow, true)); err != nil {
+			return err
+		}
+		name, err := term.ReadLine(false)
+		if err != nil {
+			return err
+		}
+		toName = strings.TrimSpace(name)
+		if toName == "" {
+			toName = to
+		}
 	} else {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) +
 			fmt.Sprintf("No such local user, and %q doesn't look like an FTN address (zone:net/node.point).", to))
@@ -391,5 +404,5 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Netmail sent.")
 	}
 	return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) +
-		fmt.Sprintf("Netmail queued for %s -- no BinkP mailer is configured yet, so it will be delivered once one is set up.", toAddress))
+		fmt.Sprintf("Netmail queued for %s at %s -- no BinkP mailer is configured yet, so it will be delivered once one is set up.", toName, toAddress))
 }
