@@ -1,6 +1,9 @@
 package ansi
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestVisibleWidthIgnoresANSIEscapes(t *testing.T) {
 	s := "\x1b[1;36mHello\x1b[0m"
@@ -120,6 +123,53 @@ func TestLayoutNoFillTokensReturnsUnchanged(t *testing.T) {
 	got := Layout("plain line, no tokens", 80)
 	if got != "plain line, no tokens" {
 		t.Fatalf("Layout() = %q, want unchanged input", got)
+	}
+}
+
+// TestLayoutStripsStrayWhitespaceAfterLastFill locks in a real bug fix:
+// a screen file shipped with a block of literal spaces left over after
+// a line's trailing {FILL:x} token (editor debris from before the
+// token was added). That dead weight counted against the line's
+// measured width, leaving no room for {FILL:x} to actually pad it --
+// so a banner meant to be centered ended up flush left, and a divider
+// bar rendered as blank instead of a rule. Layout must drop that
+// trailing padding automatically instead of requiring every screen
+// author to notice and hand-fix it.
+func TestLayoutStripsStrayWhitespaceAfterLastFill(t *testing.T) {
+	// 40 stray trailing spaces after the closing {FILL: } would, left
+	// in place, already consume the whole 20-column target width,
+	// leaving nothing for the two fills to actually center "Hi" with.
+	got := Layout("{FILL: }Hi{FILL: }"+strings.Repeat(" ", 40), 20)
+	want := Layout("{FILL: }Hi{FILL: }", 20)
+	if got != want {
+		t.Fatalf("Layout() with stray trailing spaces = %q, want the same as without them: %q", got, want)
+	}
+	if VisibleWidth(got) != 20 {
+		t.Fatalf("VisibleWidth() = %d, want exactly the target width 20", VisibleWidth(got))
+	}
+}
+
+// TestLayoutStripsStrayANSICodesAfterLastFill checks the same fix
+// tolerates trailing ANSI color codes mixed in with the stray spaces
+// (as the real bug did -- a trailing "\x1b[1;30;40m" sat among the
+// dead spaces), not just bare spaces.
+func TestLayoutStripsStrayANSICodesAfterLastFill(t *testing.T) {
+	got := Layout("{FILL: }Hi{FILL: }   \x1b[1;30;40m ", 20)
+	want := Layout("{FILL: }Hi{FILL: }", 20)
+	if got != want {
+		t.Fatalf("Layout() with stray trailing spaces+ANSI = %q, want %q", got, want)
+	}
+}
+
+// TestLayoutPreservesRealTrailingContentAfterLastFill checks the fix
+// doesn't overreach: genuine trailing content after a {FILL:x} token
+// (not just whitespace/color codes), like a dot-leader's trailing
+// figure, must survive untouched.
+func TestLayoutPreservesRealTrailingContentAfterLastFill(t *testing.T) {
+	got := Layout("AreaName{FILL:.}42 msgs", 23)
+	want := "AreaName........42 msgs"
+	if got != want {
+		t.Fatalf("Layout() = %q, want %q (real trailing content must be preserved)", got, want)
 	}
 }
 

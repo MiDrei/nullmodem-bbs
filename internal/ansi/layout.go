@@ -114,6 +114,29 @@ func findFillTokens(line string) []fillToken {
 // target width entirely -- for a fixed-length rule or leader
 // independent of terminal width, or to reserve part of a line's width
 // before the remaining {FILL:x} tokens split what's left.
+// trimTrailingPaddingAfterLastFill drops whatever follows a line's
+// last {FILL:x} token when it's nothing but literal spaces and/or
+// ANSI color codes -- authoring debris (e.g. a row hand-padded to
+// some fixed width in an editor before a trailing {FILL:x} was added
+// on top of it) that carries no visible content of its own but still
+// counts against the line's measured width, silently starving every
+// {FILL:x} token on the line of the room it needs to actually pad it
+// -- breaking centering/right-alignment without any visible sign why
+// (a real screen file shipped with exactly this bug: a stray blank
+// run after the trailing {FILL:x} left an otherwise-correct banner
+// unable to center itself, and a divider bar rendered as blank
+// instead of a rule). Real trailing content (anything with a
+// non-space character in it once escapes are stripped, e.g. a
+// dot-leader's trailing "42 msgs") is left untouched.
+func trimTrailingPaddingAfterLastFill(line string, tokens []fillToken) string {
+	last := tokens[len(tokens)-1]
+	tail := line[last.end:]
+	if strings.TrimSpace(ansiEscapePattern.ReplaceAllString(tail, "")) == "" {
+		return line[:last.end]
+	}
+	return line
+}
+
 func Layout(s string, width int) string {
 	lines := strings.Split(s, "\r\n")
 	for i, line := range lines {
@@ -127,6 +150,7 @@ func layoutLine(line string, width int) string {
 	if len(tokens) == 0 {
 		return line
 	}
+	line = trimTrailingPaddingAfterLastFill(line, tokens)
 
 	var nonFill strings.Builder
 	last := 0
