@@ -356,3 +356,81 @@ func TestUploadFileStripsPathFromFilename(t *testing.T) {
 		t.Fatalf("StoragePath = %q, want it under the managed files dir %q", f.StoragePath, s.filesDir)
 	}
 }
+
+func fileStatsFor(t *testing.T, stats []AreaWithStats, tag string) AreaWithStats {
+	t.Helper()
+	for _, st := range stats {
+		if st.Area.Tag == tag {
+			return st
+		}
+	}
+	t.Fatalf("no area stats for tag %q in %+v", tag, stats)
+	return AreaWithStats{}
+}
+
+func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
+	s, users := newTestStore(t)
+	area, err := s.CreateArea("uploads", "Uploads", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	bob, err := users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+
+	if _, err := s.UploadFile(area.ID, alice.ID, "one.txt", "", strings.NewReader("1")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+	if _, err := s.UploadFile(area.ID, bob.ID, "two.txt", "", strings.NewReader("2")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	// Alice has never visited: everything in the area is new to her,
+	// and one of the two files is hers.
+	stats, err := s.ListAreaStats(user.SLNewUser, alice.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats: %v", err)
+	}
+	got := fileStatsFor(t, stats, "uploads")
+	if got.Total != 2 || got.New != 2 || got.Yours != 1 {
+		t.Fatalf("alice's stats = %+v, want Total=2 New=2 Yours=1", got)
+	}
+
+	if err := s.MarkAreaRead(alice.ID, area.ID); err != nil {
+		t.Fatalf("MarkAreaRead: %v", err)
+	}
+	stats, err = s.ListAreaStats(user.SLNewUser, alice.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats after read: %v", err)
+	}
+	got = fileStatsFor(t, stats, "uploads")
+	if got.New != 0 {
+		t.Fatalf("alice's New after MarkAreaRead = %d, want 0", got.New)
+	}
+
+	if _, err := s.UploadFile(area.ID, bob.ID, "three.txt", "", strings.NewReader("3")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+	stats, err = s.ListAreaStats(user.SLNewUser, alice.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats after new upload: %v", err)
+	}
+	got = fileStatsFor(t, stats, "uploads")
+	if got.New != 1 || got.Total != 3 {
+		t.Fatalf("alice's stats after new upload = %+v, want New=1 Total=3", got)
+	}
+
+	bobStats, err := s.ListAreaStats(user.SLNewUser, bob.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats for bob: %v", err)
+	}
+	gotBob := fileStatsFor(t, bobStats, "uploads")
+	if gotBob.New != 3 || gotBob.Yours != 2 {
+		t.Fatalf("bob's stats = %+v, want New=3 (never visited) Yours=2", gotBob)
+	}
+}

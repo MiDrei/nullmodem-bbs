@@ -173,6 +173,69 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	return areas, nil
 }
 
+// AreaWithStats bundles an Area with one caller's per-area file
+// counts, for the lightbar area listing: Total files, New (uploaded
+// after that caller's last visit, or all of them if they've never
+// visited), and Yours (files they uploaded themselves).
+type AreaWithStats struct {
+	Area  Area
+	Total int
+	New   int
+	Yours int
+}
+
+// ListAreaStats is ListAreas plus, for userID, each area's Total/New/
+// Yours counts (see AreaWithStats) in a single query.
+func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats, error) {
+	rows, err := s.db.Query(
+		`SELECT a.id, a.tag, a.name, a.description, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at,
+		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id) AS total,
+		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id AND f.uploaded_by = ?) AS yours,
+		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id
+		           AND f.id > COALESCE((SELECT last_read_file_id FROM file_area_reads r
+		                                WHERE r.user_id = ? AND r.area_id = a.id), 0)) AS new
+		 FROM file_areas a
+		 WHERE a.min_sl_download <= ?
+		 ORDER BY a.sort_order, a.name`,
+		userID, userID, securityLevel,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("file: list area stats: %w", err)
+	}
+	defer rows.Close()
+
+	var stats []AreaWithStats
+	for rows.Next() {
+		var st AreaWithStats
+		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description,
+			&st.Area.MinSLDownload, &st.Area.MinSLUpload, &st.Area.SortOrder, &st.Area.CreatedAt,
+			&st.Total, &st.Yours, &st.New); err != nil {
+			return nil, fmt.Errorf("file: scan area stats: %w", err)
+		}
+		stats = append(stats, st)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("file: list area stats: %w", err)
+	}
+	return stats, nil
+}
+
+// MarkAreaRead records that userID has now seen every file currently
+// in areaID, so ListAreaStats reports 0 New for it until another file
+// is imported there.
+func (s *Store) MarkAreaRead(userID, areaID int64) error {
+	_, err := s.db.Exec(
+		`INSERT INTO file_area_reads (user_id, area_id, last_read_file_id)
+		 VALUES (?, ?, (SELECT COALESCE(MAX(id), 0) FROM files WHERE area_id = ?))
+		 ON CONFLICT(user_id, area_id) DO UPDATE SET last_read_file_id = excluded.last_read_file_id`,
+		userID, areaID, areaID,
+	)
+	if err != nil {
+		return fmt.Errorf("file: mark area %d read for user %d: %w", areaID, userID, err)
+	}
+	return nil
+}
+
 // UpdateArea changes an existing area's editable fields (not its tag,
 // which is treated as a stable identifier once created).
 func (s *Store) UpdateArea(id int64, name, description string, minSLDownload, minSLUpload, sortOrder int) (*Area, error) {

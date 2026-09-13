@@ -82,6 +82,90 @@ func TestFileAreasFallsBackToPlainTitleWhenHeaderScreenMissing(t *testing.T) {
 	}
 }
 
+func TestFileAreasLightbarShowsCounts(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Files.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Files.UploadFile(general.ID, u.ID, "notes.txt", "", strings.NewReader("hi")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	conn := newFakeConn("F\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "Total") || !strings.Contains(out, "New") || !strings.Contains(out, "Yours") {
+		t.Fatalf("expected a Total/New/Yours header, got: %q", out)
+	}
+	if !strings.Contains(out, "General Files") || !strings.Contains(out, "     1      1      1") {
+		t.Fatalf("expected counts 1/1/1 for General Files, got: %q", out)
+	}
+}
+
+func TestFileAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.Files.CreateArea("second", "Second Area", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// "General Files" sorts before "Second Area"; one Down arrow
+	// should highlight and then open the second one.
+	conn := newFakeConn("F\r\n\x1b[B\r\nQ\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "\x1b[1;36mSecond Area\x1b[0m") {
+		t.Fatalf("expected to have entered Second Area, got: %q", conn.out.String())
+	}
+}
+
+func TestFileAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Files.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Files.UploadFile(general.ID, u.ID, "notes.txt", "", strings.NewReader("hi")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	conn := newFakeConn("F\r\n\r\nQ\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [Q] Back")
+	if len(renders) < 3 {
+		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
+	}
+	if !strings.Contains(renders[0], "     1      1      1") {
+		t.Fatalf("expected New=1 before visiting the area, got: %q", renders[0])
+	}
+	if !strings.Contains(renders[1], "     1      0      1") {
+		t.Fatalf("expected New=0 after visiting the area, got: %q", renders[1])
+	}
+}
+
 func TestSysopImportAndBrowseFile(t *testing.T) {
 	s := testServer(t)
 	sysop, err := s.Users.Register("root", "password123", user.SLSysop)
@@ -91,9 +175,11 @@ func TestSysopImportAndBrowseFile(t *testing.T) {
 	src := writeTempUploadFile(t, "hello file area")
 
 	// S -> sysop menu, I -> import file, "1" -> General Files,
-	// <path>, description, M -> back to main, F -> file areas,
-	// "1" -> General Files, "1" -> file details, Q, Q, Q.
-	input := "S\r\nI\r\n1\r\n" + src + "\r\nA readme file\r\nM\r\nF\r\n1\r\n1\r\nQ\r\nQ\r\nQ\r\n"
+	// <path>, description, M -> back to main, F -> file areas
+	// lightbar, Enter -> General Files (the only area, already
+	// highlighted), "1" -> file details (still numeric within an
+	// area's own file list), Q, Q, Q.
+	input := "S\r\nI\r\n1\r\n" + src + "\r\nA readme file\r\nM\r\nF\r\n\r\n1\r\nQ\r\nQ\r\nQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 

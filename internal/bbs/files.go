@@ -13,51 +13,115 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
-// showFileAreas is the "builtin:files" command: it lists every file
-// area the caller can browse and lets them pick one.
+// showFileAreas is the "builtin:files" command: a lightbar over every
+// file area the caller can browse, showing each area's Total/New/
+// Yours file counts and letting them move the highlighted row with
+// the arrow keys, Enter to browse that area, Q/Escape to return --
+// the same interaction internal/bbs/messages.go's showAreas uses for
+// message areas.
 func (s *Server) showFileAreas(term *Terminal, u *user.User) error {
+	selected := 0
+outer:
 	for {
-		areas, err := s.Files.ListAreas(u.SecurityLevel)
+		stats, err := s.Files.ListAreaStats(u.SecurityLevel, u.ID)
 		if err != nil {
 			return err
 		}
-		if len(areas) == 0 {
+		if len(stats) == 0 {
+			if err := s.printAreaHeader(term, u, "filareas.ans", "File Areas"); err != nil {
+				return err
+			}
 			return term.Println(ansi.Reset + "\nNo file areas available.")
 		}
-
-		if err := s.printAreaHeader(term, u, "filareas.ans", "File Areas"); err != nil {
-			return err
+		if selected >= len(stats) {
+			selected = len(stats) - 1
 		}
-		for i, a := range areas {
-			line := fmt.Sprintf("%2d) %-30s %s", i+1, a.Name, a.Description)
-			if err := term.Println(line); err != nil {
+
+		for {
+			if err := s.drawFileAreaLightbar(term, u, stats, selected); err != nil {
 				return err
 			}
-		}
-		if err := term.Print(ansi.Reset + "\nSelect an area, or Q to return: " + ansi.FG(ansi.Yellow, true)); err != nil {
-			return err
-		}
-
-		choice, err := term.ReadLine(false)
-		if err != nil {
-			return err
-		}
-		choice = strings.TrimSpace(choice)
-		if choice == "" || strings.EqualFold(choice, "Q") {
-			return nil
-		}
-
-		idx, convErr := strconv.Atoi(choice)
-		if convErr != nil || idx < 1 || idx > len(areas) {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid selection."); err != nil {
+			key, err := term.ReadKey()
+			if err != nil {
 				return err
 			}
-			continue
-		}
-		if err := s.browseFileArea(term, &areas[idx-1]); err != nil {
-			return err
+			switch {
+			case key.Type == KeyUp:
+				selected = (selected - 1 + len(stats)) % len(stats)
+			case key.Type == KeyDown:
+				selected = (selected + 1) % len(stats)
+			case key.Type == KeyEnter:
+				area := stats[selected].Area
+				if err := s.Files.MarkAreaRead(u.ID, area.ID); err != nil {
+					return err
+				}
+				if err := s.browseFileArea(term, &area); err != nil {
+					return err
+				}
+				continue outer
+			case key.Type == KeyEscape:
+				return nil
+			case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
+				return nil
+			}
 		}
 	}
+}
+
+// Fixed filenames for the hand-designed pieces of the file-area
+// lightbar, mirroring msgareas-columns.ans/-row.ans/-row-selected.ans
+// in internal/bbs/messages.go -- see that file's doc comments for why
+// these are separate, customizable screen files with a plain fallback.
+const (
+	fileAreaColumnsScreen     = "filareas-columns.ans"
+	fileAreaRowScreen         = "filareas-row.ans"
+	fileAreaRowSelectedScreen = "filareas-row-selected.ans"
+)
+
+const (
+	fallbackFileAreaRow         = "{AREANAME:-58} {TOTAL:6} {NEW:6} {YOURS:6}"
+	fallbackFileAreaRowSelected = "\x1b[47m\x1b[30m{AREANAME:-58} {TOTAL:6} {NEW:6} {YOURS:6}\x1b[0m"
+)
+
+var fallbackFileAreaColumns = "Area                                                           Total    New  Yours\r\n" + strings.Repeat("-", 79)
+
+// drawFileAreaLightbar mirrors messages.go's drawAreaLightbar exactly,
+// against the file-area column/row screen files and file.AreaWithStats
+// instead of message.AreaWithStats.
+func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file.AreaWithStats, selected int) error {
+	if err := s.printAreaHeader(term, u, "filareas.ans", "File Areas"); err != nil {
+		return err
+	}
+
+	rowTemplate := s.loadOptionalScreen(fileAreaRowScreen, fallbackFileAreaRow)
+	rowSelectedTemplate := s.loadOptionalScreen(fileAreaRowSelectedScreen, fallbackFileAreaRowSelected)
+
+	var b strings.Builder
+	b.WriteString(ansi.Reset + "\r\n")
+	b.WriteString(s.loadOptionalScreen(fileAreaColumnsScreen, fallbackFileAreaColumns))
+	b.WriteString(ansi.CRLF)
+
+	for i, st := range stats {
+		tmpl := rowTemplate
+		if i == selected {
+			tmpl = rowSelectedTemplate
+		}
+		newFlag := ""
+		if st.New > 0 {
+			newFlag = "NEW"
+		}
+		vars := ansi.Vars{
+			"AREANAME": st.Area.Name,
+			"TOTAL":    strconv.Itoa(st.Total),
+			"NEW":      strconv.Itoa(st.New),
+			"YOURS":    strconv.Itoa(st.Yours),
+			"NEWFLAG":  newFlag,
+		}
+		b.WriteString(ansi.Render(tmpl, vars))
+		b.WriteString(ansi.CRLF)
+	}
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [Q] Back" + ansi.Reset)
+	return term.Print(b.String())
 }
 
 // browseFileArea lists an area's files and lets the caller inspect

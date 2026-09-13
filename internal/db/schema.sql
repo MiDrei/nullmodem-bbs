@@ -78,6 +78,16 @@ CREATE TABLE IF NOT EXISTS files (
 
 CREATE INDEX IF NOT EXISTS idx_files_area_uploaded ON files(area_id, uploaded_at);
 
+-- Tracks how far into each file area a caller has browsed, the same
+-- way message_area_reads does for message areas: a file is "new"
+-- once its id exceeds last_read_file_id.
+CREATE TABLE IF NOT EXISTS file_area_reads (
+    user_id             INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    area_id             INTEGER NOT NULL REFERENCES file_areas(id) ON DELETE CASCADE,
+    last_read_file_id   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, area_id)
+);
+
 -- Currently active BBS sessions ("nodes"). Node numbers are assigned
 -- by the BBS daemon's application code (not AUTOINCREMENT), so no
 -- CREATE TABLE-level default applies here. This table is the shared
