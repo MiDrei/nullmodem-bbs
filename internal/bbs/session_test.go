@@ -13,6 +13,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
@@ -25,6 +26,7 @@ func testMenus() menu.Set {
 			Items: []menu.Item{
 				{Key: "M", Label: "Message areas", Action: "builtin:areas", MinSL: 0},
 				{Key: "F", Label: "File areas", Action: "builtin:files", MinSL: 0},
+				{Key: "N", Label: "Netmail", Action: "builtin:netmail", MinSL: 0},
 				{Key: "V", Label: "Version", Action: "builtin:version", MinSL: 0},
 				{Key: "S", Label: "Sysop menu", Action: "goto:sysop", MinSL: 200},
 				{Key: "Q", Label: "Quit", Action: "logoff", MinSL: 0},
@@ -68,6 +70,7 @@ func testServer(t *testing.T) *Server {
 		Users:    user.NewStore(sqlDB),
 		Messages: message.NewStore(sqlDB),
 		Files:    file.NewStore(sqlDB, filepath.Join(t.TempDir(), "files")),
+		Netmail:  netmail.NewStore(sqlDB),
 		Logger:   applog.NewLogger(applog.NewStore(sqlDB), "bbs"),
 	}
 }

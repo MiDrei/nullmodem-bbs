@@ -10,6 +10,10 @@ items:
     label: "File areas"
     action: "builtin:files"
     min_sl: 0
+  - key: N
+    label: "Netmail"
+    action: "builtin:netmail"
+    min_sl: 0
   - key: W
     label: "Who's online"
     action: "builtin:who"

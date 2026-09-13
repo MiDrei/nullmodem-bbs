@@ -437,70 +437,10 @@ func (s *Server) printPostMessageHeader(term *Terminal, area *message.Area) erro
 	return term.Println(ansi.Layout(rendered, term.Width()))
 }
 
-// editorCommand identifies one of the classic BBS line-editor slash
-// commands recognized by postMessage's editor loop.
-type editorCommand int
-
-const (
-	editorNone editorCommand = iota
-	editorSave
-	editorAbort
-	editorList
-	editorDelete
-)
-
-// parseEditorCommand recognizes /S, /A, /L, and /D <n> case-
-// insensitively; anything else is ordinary message text to append as
-// a new line, matching what a Synchronet/Mystic-style message editor
-// accepts.
-func parseEditorCommand(line string) (cmd editorCommand, arg string) {
-	trimmed := strings.TrimSpace(line)
-	switch {
-	case strings.EqualFold(trimmed, "/S"):
-		return editorSave, ""
-	case strings.EqualFold(trimmed, "/A"):
-		return editorAbort, ""
-	case strings.EqualFold(trimmed, "/L"):
-		return editorList, ""
-	case len(trimmed) >= 2 && strings.EqualFold(trimmed[:2], "/D"):
-		return editorDelete, strings.TrimSpace(trimmed[2:])
-	default:
-		return editorNone, ""
-	}
-}
-
-// printEditorHelp shows the line editor's command legend once, right
-// after the Subject prompt.
-func (s *Server) printEditorHelp(term *Terminal) error {
-	cmd := ansi.FG(ansi.Cyan, true)
-	reset := ansi.Reset
-	return term.Println(reset + "\nEnter your message, one line at a time." +
-		"\r\n" + cmd + "/S" + reset + " save & post   " +
-		cmd + "/A" + reset + " abort   " +
-		cmd + "/L" + reset + " list what you've written   " +
-		cmd + "/D <n>" + reset + " delete line n")
-}
-
-// printEditorListing shows the message composed so far, numbered the
-// same way as the line prompts, for the /L command.
-func (s *Server) printEditorListing(term *Terminal, lines []string) error {
-	if len(lines) == 0 {
-		return term.Println(ansi.Reset + "\n(no lines yet)")
-	}
-	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n")
-	for i, line := range lines {
-		fmt.Fprintf(&b, "%s%3d:%s %s\r\n", ansi.FG(ansi.Cyan, true), i+1, ansi.Reset, line)
-	}
-	return term.Print(b.String())
-}
-
-// postMessage is a classic BBS line editor: after a Subject prompt,
-// each line of the body is entered and numbered as it's typed, with
-// /S to save and post, /A to abort, /L to list what's been entered so
-// far, and /D <n> to delete a line -- replacing the old bare
-// type-"." -to-finish prompt with the Synchronet/Mystic-style editor
-// the user asked for.
+// postMessage prompts for a Subject, then hands off to the shared
+// classic-BBS runLineEditor (see editor.go) for the body -- /S to
+// save and post, /A to abort, /L to list what's been entered so far,
+// /D <n> to delete a line.
 func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) error {
 	if err := s.printPostMessageHeader(term, area); err != nil {
 		return err
@@ -517,59 +457,17 @@ func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) e
 		return term.Println(ansi.Reset + "Cancelled.")
 	}
 
-	if err := s.printEditorHelp(term); err != nil {
+	lines, saved, err := s.runLineEditor(term)
+	if err != nil {
 		return err
 	}
-
-	var lines []string
-	for {
-		if err := term.Print(ansi.Reset + fmt.Sprintf("%3d: ", len(lines)+1) + ansi.FG(ansi.Yellow, true)); err != nil {
-			return err
-		}
-		input, err := term.ReadLine(false)
-		if err != nil {
-			return err
-		}
-
-		cmd, arg := parseEditorCommand(input)
-		switch cmd {
-		case editorSave:
-			if len(lines) == 0 {
-				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message is empty; nothing to save."); err != nil {
-					return err
-				}
-				continue
-			}
-			if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", subject, strings.Join(lines, "\n")); err != nil {
-				return err
-			}
-			return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Message posted.")
-
-		case editorAbort:
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message aborted.")
-
-		case editorList:
-			if err := s.printEditorListing(term, lines); err != nil {
-				return err
-			}
-
-		case editorDelete:
-			idx, convErr := strconv.Atoi(arg)
-			if convErr != nil || idx < 1 || idx > len(lines) {
-				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "No such line."); err != nil {
-					return err
-				}
-				continue
-			}
-			lines = append(lines[:idx-1], lines[idx:]...)
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Line %d deleted.", idx)); err != nil {
-				return err
-			}
-
-		default:
-			lines = append(lines, input)
-		}
+	if !saved {
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message aborted.")
 	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", subject, strings.Join(lines, "\n")); err != nil {
+		return err
+	}
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Message posted.")
 }
 
 // sysopCreateArea is the "builtin:createarea" command: it prompts for

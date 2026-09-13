@@ -13,6 +13,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 	"git.maik.ch/swissmaik/nullmodem/internal/version"
@@ -37,9 +38,11 @@ type Server struct {
 	Menus         menu.Set
 	Messages      *message.Store
 	Files         *file.Store
+	Netmail       *netmail.Store
 	Logger        *applog.Logger
 	SysopName     string
 	BBSName       string
+	FTNAddress    string
 	NewUserSL     int
 	WelcomeScreen string
 	ScreensDir    string
@@ -51,10 +54,12 @@ type Server struct {
 type Options struct {
 	BBSName       string
 	SysopName     string
+	FTNAddress    string
 	Users         *user.Store
 	Menus         menu.Set
 	Messages      *message.Store
 	Files         *file.Store
+	Netmail       *netmail.Store
 	Nodes         *session.Store
 	Logger        *applog.Logger
 	NewUserSL     int
@@ -70,9 +75,11 @@ func NewServer(opts Options) *Server {
 		Menus:         opts.Menus,
 		Messages:      opts.Messages,
 		Files:         opts.Files,
+		Netmail:       opts.Netmail,
 		Logger:        opts.Logger,
 		BBSName:       opts.BBSName,
 		SysopName:     opts.SysopName,
+		FTNAddress:    opts.FTNAddress,
 		NewUserSL:     opts.NewUserSL,
 		WelcomeScreen: opts.WelcomeScreen,
 		ScreensDir:    opts.ScreensDir,
@@ -318,6 +325,7 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"files":          (*Server).showFileAreas,
 	"createfilearea": (*Server).sysopCreateFileArea,
 	"importfile":     (*Server).sysopImportFile,
+	"netmail":        (*Server).showNetmail,
 }
 
 // runMenu displays the named menu and dispatches choices until the

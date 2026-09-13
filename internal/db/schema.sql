@@ -85,6 +85,33 @@ CREATE TABLE IF NOT EXISTS file_reads (
     PRIMARY KEY (user_id, file_id)
 );
 
+-- Netmail: private, per-recipient mail (as opposed to the shared,
+-- topic-based message_areas/messages tables above, which implement
+-- Echomail). Added ahead of the BinkP/FidoNet mailer (see CLAUDE.md's
+-- Phase 2 roadmap) so its schema doesn't need a later migration:
+-- from_address/to_address hold FTN addresses (zone:net/node.point)
+-- for routing once a mailer exists. to_user_id is set when the
+-- recipient resolved to a local account (delivered immediately); it's
+-- NULL when to_address is a remote system this BBS can't reach yet,
+-- leaving the message queued until the mailer is built. Since a
+-- netmail message always has exactly one recipient (unlike an echo
+-- area's many readers), read state lives directly on the row rather
+-- than needing a separate per-user reads table.
+CREATE TABLE IF NOT EXISTS netmail_messages (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_user_id   INTEGER NOT NULL REFERENCES users(id),
+    from_address   TEXT NOT NULL DEFAULT '',
+    to_user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    to_name        TEXT NOT NULL,
+    to_address     TEXT NOT NULL DEFAULT '',
+    subject        TEXT NOT NULL,
+    body           TEXT NOT NULL,
+    posted_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at        TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_netmail_to_user_posted ON netmail_messages(to_user_id, posted_at);
+
 -- Currently active BBS sessions ("nodes"). Node numbers are assigned
 -- by the BBS daemon's application code (not AUTOINCREMENT), so no
 -- CREATE TABLE-level default applies here. This table is the shared

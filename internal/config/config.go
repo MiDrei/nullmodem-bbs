@@ -17,6 +17,13 @@ type Config struct {
 		MenusDir   string `yaml:"menus_dir"`
 		ScreensDir string `yaml:"screens_dir"`
 		FilesDir   string `yaml:"files_dir"`
+		// FTNAddress is this system's own FidoNet address
+		// (zone:net/node.point), stamped as the From address on
+		// outgoing netmail. Optional and empty by default -- there's
+		// no BinkP mailer yet (see internal/netmail's doc comment),
+		// so it has no effect beyond that display/bookkeeping until
+		// one exists.
+		FTNAddress string `yaml:"ftn_address"`
 	} `yaml:"bbs"`
 
 	Database struct {

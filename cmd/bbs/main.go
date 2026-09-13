@@ -17,6 +17,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/hostkey"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/ssh"
 	"git.maik.ch/swissmaik/nullmodem/internal/telnet"
@@ -48,6 +49,7 @@ func main() {
 	users := user.NewStore(sqlDB)
 	messages := message.NewStore(sqlDB)
 	files := file.NewStore(sqlDB, cfg.BBS.FilesDir)
+	netmailStore := netmail.NewStore(sqlDB)
 
 	nodes := session.NewStore(sqlDB)
 	if err := nodes.ClearAll(); err != nil {
@@ -67,10 +69,12 @@ func main() {
 	srv := bbs.NewServer(bbs.Options{
 		BBSName:       cfg.BBS.Name,
 		SysopName:     cfg.BBS.Sysop,
+		FTNAddress:    cfg.BBS.FTNAddress,
 		Users:         users,
 		Menus:         menus,
 		Messages:      messages,
 		Files:         files,
+		Netmail:       netmailStore,
 		Nodes:         nodes,
 		NewUserSL:     cfg.BBS.NewUserSL,
 		WelcomeScreen: welcomeScreen,
