@@ -1,0 +1,146 @@
+package web
+
+import (
+	"context"
+	"encoding/json"
+	"net"
+	"net/http"
+	"testing"
+	"time"
+
+	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
+	"git.maik.ch/swissmaik/nullmodem/internal/config"
+	"git.maik.ch/swissmaik/nullmodem/internal/user"
+)
+
+// startTestAnswerer runs a single BinkP answering session on a local
+// loopback listener and returns its address, so handler tests can
+// point handleTestBinkpConnection at a real (if minimal) peer instead
+// of a live uplink.
+func startTestAnswerer(t *testing.T, password string) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		binkp.Answer(ctx, conn, binkp.Config{
+			OurAddresses: []string{"21:3/194"},
+			Password:     password,
+		})
+	}()
+	return ln.Addr().String()
+}
+
+func TestTestBinkpConnectionRejectsMissingHost(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	c, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	c.BBS.FTNAddress = "21:3/194.1"
+	if err := config.Save(configPath, c); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodPost, "/api/binkp/test-connection", binkpUplinkDTO{}, token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTestBinkpConnectionRequiresOwnFTNAddress(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodPost, "/api/binkp/test-connection", binkpUplinkDTO{
+		Host: "127.0.0.1:1", // unreachable, but we should fail validation before dialing
+	}, token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (missing own FTN address), body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestTestBinkpConnectionSucceedsAgainstLocalAnswerer(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	c, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	c.BBS.FTNAddress = "21:3/194.1"
+	if err := config.Save(configPath, c); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+
+	addr := startTestAnswerer(t, "correct horse")
+
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodPost, "/api/binkp/test-connection", binkpUplinkDTO{
+		Host:     addr,
+		Password: "correct horse",
+	}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		RemoteAddresses []string `json:"remote_addresses"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.RemoteAddresses) != 1 || resp.RemoteAddresses[0] != "21:3/194" {
+		t.Fatalf("remote_addresses = %v, want [21:3/194]", resp.RemoteAddresses)
+	}
+}
+
+func TestTestBinkpConnectionReportsAuthFailure(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	c, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	c.BBS.FTNAddress = "21:3/194.1"
+	if err := config.Save(configPath, c); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+
+	addr := startTestAnswerer(t, "correct horse")
+
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodPost, "/api/binkp/test-connection", binkpUplinkDTO{
+		Host:     addr,
+		Password: "wrong password",
+	}, token)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502, body=%s", rec.Code, rec.Body.String())
+	}
+}

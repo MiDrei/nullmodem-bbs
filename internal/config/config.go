@@ -42,6 +42,31 @@ type Config struct {
 		Addr        string `yaml:"addr"`
 		HostKeyPath string `yaml:"host_key_path"`
 	} `yaml:"ssh"`
+
+	Binkp struct {
+		// Uplinks are the BinkP nodes/hubs this system polls to
+		// exchange netmail/echomail. There's no scheduler or tosser
+		// wired up to them yet (see internal/binkp's doc comment --
+		// it's the wire protocol only so far); this is configuration
+		// storage plus a web UI "test connection" button ahead of
+		// that.
+		Uplinks []BinkpUplink `yaml:"uplinks"`
+	} `yaml:"binkp"`
+}
+
+// BinkpUplink is one BinkP node/hub this system connects out to.
+type BinkpUplink struct {
+	// Address is the uplink's own FTN address, for display/reference
+	// only -- it's not cross-checked against what the uplink actually
+	// claims via M_ADR when connecting.
+	Address string `yaml:"address"`
+	// Host is "host:port", e.g. "bbs.example.com:24554".
+	Host string `yaml:"host"`
+	// Password authenticates us to the uplink (sent as a CRAM-MD5
+	// response if the uplink advertises support, otherwise in the
+	// clear -- see internal/binkp.Config.Password). Empty means no
+	// password is sent.
+	Password string `yaml:"password"`
 }
 
 // Default returns the built-in configuration used when no config file

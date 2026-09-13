@@ -181,6 +181,9 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	got.Name = "My Awesome BBS"
 	got.NewUserSL = 20
 	got.FTNAddress = "1:234/56.0"
+	got.BinkpUplinks = []binkpUplinkDTO{
+		{Address: "21:3/194", Host: "bbs.maik.ch:24554", Password: "secret"},
+	}
 	rec = doJSON(t, h, http.MethodPut, "/api/config", got, loginResp.Token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT /api/config status = %d, body=%s", rec.Code, rec.Body.String())
@@ -192,6 +195,10 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	}
 	if saved.BBS.Name != "My Awesome BBS" || saved.BBS.NewUserSL != 20 || saved.BBS.FTNAddress != "1:234/56.0" {
 		t.Fatalf("saved config = %+v, want updated name/SL/ftn_address", saved.BBS)
+	}
+	if len(saved.Binkp.Uplinks) != 1 || saved.Binkp.Uplinks[0].Host != "bbs.maik.ch:24554" ||
+		saved.Binkp.Uplinks[0].Address != "21:3/194" || saved.Binkp.Uplinks[0].Password != "secret" {
+		t.Fatalf("saved.Binkp.Uplinks = %+v, want one uplink with the round-tripped fields", saved.Binkp.Uplinks)
 	}
 }
 

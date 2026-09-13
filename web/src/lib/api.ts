@@ -1,3 +1,11 @@
+export interface BinkpUplink {
+	/** The uplink's own FTN address, for display/reference only -- not verified against what it claims when connecting. */
+	address: string;
+	/** "host:port", e.g. "bbs.example.com:24554". */
+	host: string;
+	password: string;
+}
+
 export interface BBSConfig {
 	name: string;
 	sysop: string;
@@ -8,6 +16,7 @@ export interface BBSConfig {
 	telnet_addr: string;
 	ssh_enabled: boolean;
 	ssh_addr: string;
+	binkp_uplinks: BinkpUplink[];
 }
 
 export interface LoginResponse {
@@ -183,6 +192,17 @@ export function putConfig(
 	config: BBSConfig
 ): Promise<{ config: BBSConfig; note: string }> {
 	return request('/api/config', { method: 'PUT', body: JSON.stringify(config) }, token);
+}
+
+export function testBinkpConnection(
+	token: string,
+	uplink: BinkpUplink
+): Promise<{ remote_addresses: string[] }> {
+	return request(
+		'/api/binkp/test-connection',
+		{ method: 'POST', body: JSON.stringify(uplink) },
+		token
+	);
 }
 
 export function getDashboard(token: string): Promise<Dashboard> {

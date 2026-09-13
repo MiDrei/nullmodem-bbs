@@ -1,0 +1,549 @@
+package binkp
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+// OutboundFile is a file this side offers to send during a session --
+// typically an FTS-0001 .pkt bundle, built by internal/mail, handed
+// to this package as an opaque byte stream so the protocol layer
+// doesn't need to know anything about packet contents.
+type OutboundFile struct {
+	Name    string
+	Size    int64
+	ModTime time.Time
+	Data    io.Reader
+}
+
+// InboundFile describes a file the peer is sending us, announced via
+// M_FILE before its data frames arrive.
+type InboundFile struct {
+	Name    string
+	Size    int64
+	ModTime time.Time
+}
+
+// Config holds one side's session parameters. Both Dial (originator)
+// and Answer (answerer) take the same Config shape since most of it
+// -- addresses, password, the files offered, how to handle received
+// ones -- applies symmetrically.
+type Config struct {
+	// OurAddresses are the FTN addresses (e.g. "1:234/56.0") this
+	// side identifies as. At least one is required.
+	OurAddresses []string
+	// Password authenticates the session. An originator with a
+	// non-empty Password always sends it (as a CRAM-MD5 response if
+	// the answerer advertised support, otherwise in the clear); an
+	// answerer with a non-empty Password requires and checks it. An
+	// empty Password on the answerer side means "open node, no auth".
+	Password string
+	// SysName, Sysop, and Location are sent as informational M_NUL
+	// lines (SYS/ZYZ/LOC); all optional.
+	SysName, Sysop, Location string
+
+	// OutboundFiles are sent, in order, before this side's M_EOB.
+	OutboundFiles []OutboundFile
+	// ReceiveFile is called once per file the peer sends us; it must
+	// read r to completion (exactly Size bytes) before returning, or
+	// the session aborts. A nil ReceiveFile discards received files.
+	ReceiveFile func(f InboundFile, r io.Reader) error
+}
+
+// Result summarizes a completed session.
+type Result struct {
+	// RemoteAddresses are the FTN addresses the peer claimed via
+	// M_ADR. The caller decides whether to trust them for anything
+	// beyond logging -- this package doesn't cross-check them against
+	// any configured node list.
+	RemoteAddresses []string
+	// FilesSent are the names of our OutboundFiles the peer
+	// acknowledged with M_GOT.
+	FilesSent []string
+	// FilesReceived are the names of files the peer sent us that were
+	// fully received (and accepted by ReceiveFile without error).
+	FilesReceived []string
+}
+
+type role int
+
+const (
+	roleOriginator role = iota
+	roleAnswerer
+)
+
+// Dial opens an originating (caller) BinkP session to addr
+// ("host:port"), runs the full handshake and file transfer, and
+// closes the connection before returning.
+func Dial(ctx context.Context, addr string, cfg Config) (*Result, error) {
+	if len(cfg.OurAddresses) == 0 {
+		return nil, fmt.Errorf("binkp: dial %s: no OurAddresses configured", addr)
+	}
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("binkp: dial %s: %w", addr, err)
+	}
+	defer conn.Close()
+	return runSession(ctx, conn, cfg, roleOriginator)
+}
+
+// Answer runs an answering (callee) BinkP session over an
+// already-accepted connection. It does not close conn.
+func Answer(ctx context.Context, conn net.Conn, cfg Config) (*Result, error) {
+	if len(cfg.OurAddresses) == 0 {
+		return nil, fmt.Errorf("binkp: answer: no OurAddresses configured")
+	}
+	return runSession(ctx, conn, cfg, roleAnswerer)
+}
+
+// runSession watches ctx alongside the handshake/transfer state
+// machine, closing conn (aborting any in-flight read/write) if it's
+// cancelled before the session finishes on its own.
+func runSession(ctx context.Context, conn net.Conn, cfg Config, r role) (*Result, error) {
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			conn.Close()
+		case <-done:
+		}
+	}()
+
+	s := &session{conn: conn, cfg: cfg, role: r}
+	result, err := s.run()
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return nil, err
+	}
+	return result, nil
+}
+
+type session struct {
+	conn    net.Conn
+	cfg     Config
+	role    role
+	writeMu sync.Mutex
+
+	// pending holds one frame read during the handshake but not
+	// consumed there (see pushback) -- the transfer phase's
+	// nextFrame calls must check it before reading the connection.
+	pending *pendingFrame
+
+	mu     sync.Mutex
+	result Result
+}
+
+type pendingFrame struct {
+	isData  bool
+	payload []byte
+}
+
+// nextFrame returns a pushed-back frame if one is waiting, else reads
+// the next one from the connection.
+func (s *session) nextFrame() (isData bool, payload []byte, err error) {
+	if s.pending != nil {
+		f := s.pending
+		s.pending = nil
+		return f.isData, f.payload, nil
+	}
+	return readFrame(s.conn)
+}
+
+// pushback stashes a frame that was read to decide something (e.g.
+// "is the peer sending a password?") but turned out to belong to a
+// later phase, so the next nextFrame call returns it instead of
+// reading past it.
+func (s *session) pushback(isData bool, payload []byte) {
+	s.pending = &pendingFrame{isData: isData, payload: payload}
+}
+
+func (s *session) run() (*Result, error) {
+	var err error
+	if s.role == roleOriginator {
+		err = s.originatorHandshake()
+	} else {
+		err = s.answererHandshake()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("binkp: handshake: %w", err)
+	}
+	return s.runTransfer()
+}
+
+func (s *session) send(cmd Command, arg string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return writeCommandFrame(s.conn, cmd, arg)
+}
+
+func (s *session) sendData(data []byte) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	return writeDataFrame(s.conn, data)
+}
+
+// sendInfo emits this side's informational M_NUL lines. None are
+// required by the protocol; real answerers log them but don't act on
+// them, so a missing SysName/Sysop/Location is harmless.
+func (s *session) sendInfo() error {
+	lines := []string{"VER NullModem-BinkP/1.0 binkp/1.0"}
+	if s.cfg.SysName != "" {
+		lines = append(lines, "SYS "+s.cfg.SysName)
+	}
+	if s.cfg.Sysop != "" {
+		lines = append(lines, "ZYZ "+s.cfg.Sysop)
+	}
+	if s.cfg.Location != "" {
+		lines = append(lines, "LOC "+s.cfg.Location)
+	}
+	for _, l := range lines {
+		if err := s.send(MNUL, l); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// readHandshakeFrames reads command frames until it finds the peer's
+// M_ADR, collecting a CRAM-MD5 challenge from any M_NUL "OPT ..." line
+// seen along the way and tolerating (ignoring) anything else --
+// M_ERR/M_BSY abort immediately since neither side can proceed
+// without the other's address.
+func (s *session) readHandshakeFrames() (peerAddrs, cramChallenge string, err error) {
+	for {
+		isData, payload, err := readFrame(s.conn)
+		if err != nil {
+			return "", "", err
+		}
+		if isData {
+			return "", "", fmt.Errorf("unexpected data frame during handshake")
+		}
+		if len(payload) == 0 {
+			return "", "", fmt.Errorf("empty command frame during handshake")
+		}
+		cmd := Command(payload[0])
+		arg := string(payload[1:])
+		switch cmd {
+		case MNUL:
+			if ch, ok := parseCRAMChallenge(arg); ok {
+				cramChallenge = ch
+			}
+		case MADR:
+			return arg, cramChallenge, nil
+		case MERR:
+			return "", "", fmt.Errorf("peer reported error: %s", arg)
+		case MBSY:
+			return "", "", fmt.Errorf("peer busy: %s", arg)
+		}
+	}
+}
+
+// originatorHandshake is the caller's side: send our info/address,
+// learn the answerer's address (and CRAM-MD5 challenge, if any), then
+// authenticate if we have a password configured.
+func (s *session) originatorHandshake() error {
+	if err := s.sendInfo(); err != nil {
+		return err
+	}
+	if err := s.send(MADR, strings.Join(s.cfg.OurAddresses, " ")); err != nil {
+		return err
+	}
+
+	peerAddrs, challenge, err := s.readHandshakeFrames()
+	if err != nil {
+		return err
+	}
+	s.result.RemoteAddresses = strings.Fields(peerAddrs)
+
+	if s.cfg.Password == "" {
+		return nil
+	}
+
+	pwArg := s.cfg.Password
+	if challenge != "" {
+		pwArg = cramOptPrefix + cramDigest(s.cfg.Password, challenge)
+	}
+	if err := s.send(MPWD, pwArg); err != nil {
+		return err
+	}
+
+	isData, payload, err := readFrame(s.conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 {
+		return fmt.Errorf("malformed response to M_PWD")
+	}
+	cmd, arg := Command(payload[0]), string(payload[1:])
+	switch cmd {
+	case MOK:
+		return nil
+	case MERR:
+		return fmt.Errorf("authentication failed: %s", arg)
+	default:
+		return fmt.Errorf("unexpected response to M_PWD: %s %q", cmd, arg)
+	}
+}
+
+// answererHandshake is the callee's side: optionally advertise
+// CRAM-MD5, send our info/address, learn the caller's address, then
+// -- if we require a password -- validate its M_PWD.
+func (s *session) answererHandshake() error {
+	var challenge string
+	if s.cfg.Password != "" {
+		c, err := generateChallenge()
+		if err != nil {
+			return err
+		}
+		challenge = c
+		if err := s.send(MNUL, "OPT "+cramOptPrefix+challenge); err != nil {
+			return err
+		}
+	}
+	if err := s.sendInfo(); err != nil {
+		return err
+	}
+	if err := s.send(MADR, strings.Join(s.cfg.OurAddresses, " ")); err != nil {
+		return err
+	}
+
+	peerAddrs, _, err := s.readHandshakeFrames()
+	if err != nil {
+		return err
+	}
+	s.result.RemoteAddresses = strings.Fields(peerAddrs)
+
+	// Whether the caller sends M_PWD at all is its own decision (it
+	// might have no password configured for us even though we'd
+	// accept one, or vice versa) -- peek the next frame rather than
+	// assuming, and push it back if it turns out to belong to the
+	// transfer phase instead.
+	isData, payload, err := s.nextFrame()
+	if err != nil {
+		return err
+	}
+	isPWD := !isData && len(payload) > 0 && Command(payload[0]) == MPWD
+	if !isPWD {
+		if s.cfg.Password != "" {
+			_ = s.send(MERR, "password required")
+			return fmt.Errorf("peer did not authenticate")
+		}
+		// Open node and the caller sent no password -- whatever this
+		// frame is belongs to the transfer phase.
+		s.pushback(isData, payload)
+		return nil
+	}
+
+	arg := string(payload[1:])
+	var authOK bool
+	switch {
+	case s.cfg.Password == "":
+		// Open node: accept a password we don't require rather than
+		// rejecting a caller that sent one unprompted.
+		authOK = true
+	default:
+		if digest, ok := parseCRAMResponse(arg); ok {
+			authOK = digest == cramDigest(s.cfg.Password, challenge)
+		} else {
+			authOK = arg == s.cfg.Password
+		}
+	}
+	if !authOK {
+		_ = s.send(MERR, "authentication failed")
+		return fmt.Errorf("peer authentication failed")
+	}
+	return s.send(MOK, "")
+}
+
+// runTransfer sends our OutboundFiles (ending in M_EOB) concurrently
+// with reading whatever the peer sends, until both directions are
+// done: we've sent our M_EOB and read theirs.
+func (s *session) runTransfer() (*Result, error) {
+	sendErrCh := make(chan error, 1)
+	go func() { sendErrCh <- s.sendFiles() }()
+
+	recvErr := s.receiveLoop()
+	sendErr := <-sendErrCh
+
+	if recvErr != nil {
+		return nil, fmt.Errorf("binkp: receiving: %w", recvErr)
+	}
+	if sendErr != nil {
+		return nil, fmt.Errorf("binkp: sending: %w", sendErr)
+	}
+	return &s.result, nil
+}
+
+func (s *session) sendFiles() error {
+	for _, f := range s.cfg.OutboundFiles {
+		if err := s.sendOneFile(f); err != nil {
+			return err
+		}
+	}
+	return s.send(MEOB, "")
+}
+
+// sendOneFile holds writeMu for the file's entire M_FILE-plus-data-
+// frames sequence, not just one frame at a time: the receive loop's
+// M_GOT acknowledgments (for files the peer already finished sending
+// us) share the same connection and mutex, and a command frame like
+// M_GOT slipping in between two data frames of an in-progress file
+// would break receiveOneFile's "read only data frames until Size
+// bytes arrive" assumption on the peer's end.
+func (s *session) sendOneFile(f OutboundFile) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	arg := fmt.Sprintf("%s %d %d 0", f.Name, f.Size, f.ModTime.Unix())
+	if err := writeCommandFrame(s.conn, MFILE, arg); err != nil {
+		return err
+	}
+
+	buf := make([]byte, maxFrameLen)
+	var sent int64
+	for {
+		n, err := f.Data.Read(buf)
+		if n > 0 {
+			if werr := writeDataFrame(s.conn, buf[:n]); werr != nil {
+				return werr
+			}
+			sent += int64(n)
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("read outbound file %s: %w", f.Name, err)
+		}
+	}
+	if sent != f.Size {
+		return fmt.Errorf("outbound file %s: sent %d bytes, want %d", f.Name, sent, f.Size)
+	}
+	return nil
+}
+
+// receiveLoop reads command frames, dispatching M_FILE to
+// receiveOneFile and recording M_GOT acknowledgments, until the
+// session is truly over: the peer has sent M_EOB (no more files
+// coming from them) AND we've seen an M_GOT for every file we
+// offered. M_GOT for our last file(s) commonly arrives *after* the
+// peer's own M_EOB -- M_EOB only means "I have nothing more to send",
+// not "I'm done acknowledging what you sent me" -- so stopping on
+// M_EOB alone would drop trailing acknowledgments and, worse, let
+// Dial's deferred conn.Close race the peer still writing them.
+//
+// It tolerates stray handshake-phase commands (M_NUL/M_ADR/M_PWD/
+// M_OK) arriving late, since real implementations occasionally resend
+// them.
+func (s *session) receiveLoop() error {
+	expectedGot := len(s.cfg.OutboundFiles)
+	gotCount := 0
+	peerEOB := false
+
+	for {
+		if peerEOB && gotCount >= expectedGot {
+			return nil
+		}
+
+		isData, payload, err := s.nextFrame()
+		if err != nil {
+			return err
+		}
+		if isData {
+			return fmt.Errorf("unexpected data frame outside a file transfer")
+		}
+		if len(payload) == 0 {
+			return fmt.Errorf("empty command frame")
+		}
+		cmd, arg := Command(payload[0]), string(payload[1:])
+		switch cmd {
+		case MFILE:
+			if err := s.receiveOneFile(arg); err != nil {
+				return err
+			}
+		case MGOT:
+			gotCount++
+			s.mu.Lock()
+			s.result.FilesSent = append(s.result.FilesSent, strings.Fields(arg)[0])
+			s.mu.Unlock()
+		case MEOB:
+			peerEOB = true
+		case MERR:
+			return fmt.Errorf("peer reported error: %s", arg)
+		case MBSY:
+			return fmt.Errorf("peer busy: %s", arg)
+		case MNUL, MADR, MPWD, MOK:
+			// Stray/duplicate handshake frame after the handshake
+			// phase -- nothing to do.
+		}
+	}
+}
+
+func (s *session) receiveOneFile(arg string) error {
+	fields := strings.Fields(arg)
+	if len(fields) < 2 {
+		return fmt.Errorf("malformed M_FILE argument %q", arg)
+	}
+	name := fields[0]
+	size, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil {
+		return fmt.Errorf("malformed M_FILE size in %q: %w", arg, err)
+	}
+	var modTime time.Time
+	if len(fields) >= 3 {
+		if unixTime, err := strconv.ParseInt(fields[2], 10, 64); err == nil {
+			modTime = time.Unix(unixTime, 0)
+		}
+	}
+
+	pr, pw := io.Pipe()
+	doneCh := make(chan error, 1)
+	go func() {
+		if s.cfg.ReceiveFile != nil {
+			doneCh <- s.cfg.ReceiveFile(InboundFile{Name: name, Size: size, ModTime: modTime}, pr)
+		} else {
+			_, err := io.Copy(io.Discard, pr)
+			doneCh <- err
+		}
+	}()
+
+	var received int64
+	for received < size {
+		isData, payload, err := readFrame(s.conn)
+		if err != nil {
+			pw.CloseWithError(err)
+			<-doneCh
+			return err
+		}
+		if !isData {
+			pw.CloseWithError(fmt.Errorf("unexpected command frame mid-file"))
+			<-doneCh
+			return fmt.Errorf("unexpected command frame mid-transfer of %s", name)
+		}
+		if _, err := pw.Write(payload); err != nil {
+			<-doneCh
+			return fmt.Errorf("deliver received data for %s: %w", name, err)
+		}
+		received += int64(len(payload))
+	}
+	pw.Close()
+	if err := <-doneCh; err != nil {
+		return fmt.Errorf("handling received file %s: %w", name, err)
+	}
+
+	s.mu.Lock()
+	s.result.FilesReceived = append(s.result.FilesReceived, name)
+	s.mu.Unlock()
+
+	return s.send(MGOT, fmt.Sprintf("%s %d", name, size))
+}
