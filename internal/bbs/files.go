@@ -74,11 +74,16 @@ const (
 	fileAreaColumnsScreen     = "filareas-columns.ans"
 	fileAreaRowScreen         = "filareas-row.ans"
 	fileAreaRowSelectedScreen = "filareas-row-selected.ans"
+	// fileAreaNetworkScreen is the divider shown before the first area
+	// of each network group -- see messages.go's msgAreaNetworkScreen,
+	// which this mirrors.
+	fileAreaNetworkScreen = "filareas-network.ans"
 )
 
 const (
 	fallbackFileAreaRow         = "{AREANAME:-58} {TOTAL:6} {NEW:6} {YOURS:6}"
 	fallbackFileAreaRowSelected = "\x1b[47m\x1b[30m{AREANAME:-58} {TOTAL:6} {NEW:6} {YOURS:6}\x1b[0m"
+	fallbackFileAreaNetwork     = "\x1b[1;35m-- {NETWORK} {FILL:-}\x1b[0m"
 )
 
 var fallbackFileAreaColumns = "Area                                                           Total    New  Yours\r\n" + strings.Repeat("-", 79)
@@ -93,13 +98,26 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 
 	rowTemplate := s.loadOptionalScreen(fileAreaRowScreen, fallbackFileAreaRow)
 	rowSelectedTemplate := s.loadOptionalScreen(fileAreaRowSelectedScreen, fallbackFileAreaRowSelected)
+	networkTemplate := s.loadOptionalScreen(fileAreaNetworkScreen, fallbackFileAreaNetwork)
 
 	var b strings.Builder
 	b.WriteString(ansi.Reset + "\r\n")
 	b.WriteString(s.loadOptionalScreen(fileAreaColumnsScreen, fallbackFileAreaColumns))
 	b.WriteString(ansi.CRLF)
 
+	// stats is sorted network, sort_order, name (see ListAreaStats), so
+	// every area sharing a network is already contiguous -- see
+	// messages.go's drawAreaLightbar, which this mirrors.
+	lastNetwork := ""
 	for i, st := range stats {
+		if st.Area.Network != lastNetwork {
+			if st.Area.Network != "" {
+				b.WriteString(ansi.Layout(ansi.Render(networkTemplate, ansi.Vars{"NETWORK": st.Area.Network}), term.Width()))
+				b.WriteString(ansi.CRLF)
+			}
+			lastNetwork = st.Area.Network
+		}
+
 		tmpl := rowTemplate
 		if i == selected {
 			tmpl = rowSelectedTemplate
@@ -402,6 +420,15 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 
+	if err := term.Print(ansi.Reset + "Network (optional, e.g. fsxNet, FidoNet; blank for local-only): " + ansi.FG(ansi.Yellow, true)); err != nil {
+		return err
+	}
+	network, err := term.ReadLine(false)
+	if err != nil {
+		return err
+	}
+	network = strings.TrimSpace(network)
+
 	minDownload, err := s.promptSecurityLevel(term, "Minimum SL to download (0-255): ")
 	if err != nil {
 		return err
@@ -418,7 +445,7 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
 	}
 
-	area, err := s.Files.CreateArea(tag, name, description, minDownload, minUpload)
+	area, err := s.Files.CreateArea(tag, name, description, network, minDownload, minUpload)
 	if err != nil {
 		if errors.Is(err, file.ErrTagTaken) {
 			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That tag is already in use.")

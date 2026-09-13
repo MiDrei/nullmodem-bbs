@@ -57,6 +57,10 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "file_areas", "network", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 
 	return sqlDB, nil
 }

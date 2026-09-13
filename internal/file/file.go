@@ -35,10 +35,14 @@ var ErrFileNotFound = errors.New("file: file not found")
 
 // Area is one named file library.
 type Area struct {
-	ID            int64
-	Tag           string
-	Name          string
-	Description   string
+	ID          int64
+	Tag         string
+	Name        string
+	Description string
+	// Network groups related file areas by FTN network (e.g.
+	// "fsxNet", "FidoNet") once a BinkP mailer exists to feed them;
+	// empty means a local-only area with no network affiliation.
+	Network       string
 	MinSLDownload int
 	MinSLUpload   int
 	SortOrder     int
@@ -81,11 +85,12 @@ func NewStore(db *sql.DB, filesDir string) *Store {
 	return &Store{db: db, filesDir: filesDir}
 }
 
-// CreateArea adds a new file area.
-func (s *Store) CreateArea(tag, name, description string, minSLDownload, minSLUpload int) (*Area, error) {
+// CreateArea adds a new file area. network is the FTN network it
+// belongs to (e.g. "fsxNet"), or "" for a local-only area.
+func (s *Store) CreateArea(tag, name, description, network string, minSLDownload, minSLUpload int) (*Area, error) {
 	res, err := s.db.Exec(
-		`INSERT INTO file_areas (tag, name, description, min_sl_download, min_sl_upload) VALUES (?, ?, ?, ?, ?)`,
-		tag, name, description, minSLDownload, minSLUpload,
+		`INSERT INTO file_areas (tag, name, description, network, min_sl_download, min_sl_upload) VALUES (?, ?, ?, ?, ?, ?)`,
+		tag, name, description, network, minSLDownload, minSLUpload,
 	)
 	if err != nil {
 		if isUniqueConstraintErr(err) {
@@ -103,7 +108,7 @@ func (s *Store) CreateArea(tag, name, description string, minSLDownload, minSLUp
 // AreaByID loads a single area by primary key.
 func (s *Store) AreaByID(id int64) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, min_sl_download, min_sl_upload, sort_order, created_at
+		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at
 		 FROM file_areas WHERE id = ?`, id,
 	))
 }
@@ -111,14 +116,14 @@ func (s *Store) AreaByID(id int64) (*Area, error) {
 // AreaByTag loads a single area by its short tag (case-insensitive).
 func (s *Store) AreaByTag(tag string) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, min_sl_download, min_sl_upload, sort_order, created_at
+		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at
 		 FROM file_areas WHERE tag = ?`, tag,
 	))
 }
 
 func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	var a Area
-	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt); err != nil {
+	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAreaNotFound
 		}
@@ -137,19 +142,20 @@ func (s *Store) CountAreas() (int, error) {
 	return n, nil
 }
 
-// ListAreas returns every area downloadable at securityLevel, ordered
-// for menu display.
+// ListAreas returns every area downloadable at securityLevel, grouped
+// by network (local/ungrouped areas -- empty Network -- sort first)
+// then ordered for menu display within each group.
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, min_sl_download, min_sl_upload, sort_order, created_at
-		 FROM file_areas WHERE min_sl_download <= ? ORDER BY sort_order, name`, securityLevel)
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at
+		 FROM file_areas WHERE min_sl_download <= ? ORDER BY network, sort_order, name`, securityLevel)
 }
 
 // AllAreas returns every area regardless of SL gating, for sysop
 // administration (e.g. picking a destination area to import a file
-// into).
+// into), in the same network-grouped order as ListAreas.
 func (s *Store) AllAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, min_sl_download, min_sl_upload, sort_order, created_at
-		 FROM file_areas ORDER BY sort_order, name`)
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at
+		 FROM file_areas ORDER BY network, sort_order, name`)
 }
 
 func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
@@ -162,7 +168,7 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	var areas []Area
 	for rows.Next() {
 		var a Area
-		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt); err != nil {
 			return nil, fmt.Errorf("file: scan area: %w", err)
 		}
 		areas = append(areas, a)
@@ -188,7 +194,7 @@ type AreaWithStats struct {
 // Yours counts (see AreaWithStats) in a single query.
 func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats, error) {
 	rows, err := s.db.Query(
-		`SELECT a.id, a.tag, a.name, a.description, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at,
+		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id AND f.uploaded_by = ?) AS yours,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id
@@ -196,7 +202,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 		                           WHERE r.user_id = ? AND r.file_id = f.id)) AS new
 		 FROM file_areas a
 		 WHERE a.min_sl_download <= ?
-		 ORDER BY a.sort_order, a.name`,
+		 ORDER BY a.network, a.sort_order, a.name`,
 		userID, userID, securityLevel,
 	)
 	if err != nil {
@@ -207,7 +213,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	var stats []AreaWithStats
 	for rows.Next() {
 		var st AreaWithStats
-		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description,
+		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description, &st.Area.Network,
 			&st.Area.MinSLDownload, &st.Area.MinSLUpload, &st.Area.SortOrder, &st.Area.CreatedAt,
 			&st.Total, &st.Yours, &st.New); err != nil {
 			return nil, fmt.Errorf("file: scan area stats: %w", err)
@@ -264,10 +270,10 @@ func (s *Store) MarkFileRead(userID, fileID int64) error {
 
 // UpdateArea changes an existing area's editable fields (not its tag,
 // which is treated as a stable identifier once created).
-func (s *Store) UpdateArea(id int64, name, description string, minSLDownload, minSLUpload, sortOrder int) (*Area, error) {
+func (s *Store) UpdateArea(id int64, name, description, network string, minSLDownload, minSLUpload, sortOrder int) (*Area, error) {
 	if _, err := s.db.Exec(
-		`UPDATE file_areas SET name = ?, description = ?, min_sl_download = ?, min_sl_upload = ?, sort_order = ? WHERE id = ?`,
-		name, description, minSLDownload, minSLUpload, sortOrder, id,
+		`UPDATE file_areas SET name = ?, description = ?, network = ?, min_sl_download = ?, min_sl_upload = ?, sort_order = ? WHERE id = ?`,
+		name, description, network, minSLDownload, minSLUpload, sortOrder, id,
 	); err != nil {
 		return nil, fmt.Errorf("file: update area %d: %w", id, err)
 	}

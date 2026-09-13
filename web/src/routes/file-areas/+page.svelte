@@ -18,7 +18,15 @@
 	} from '$lib/api';
 
 	function emptyDraft(): FileAreaInput {
-		return { tag: '', name: '', description: '', min_sl_download: 0, min_sl_upload: 0, sort_order: 0 };
+		return {
+			tag: '',
+			name: '',
+			description: '',
+			network: '',
+			min_sl_download: 0,
+			min_sl_upload: 0,
+			sort_order: 0
+		};
 	}
 
 	let areas = $state<FileArea[]>([]);
@@ -75,6 +83,7 @@
 			tag: area.tag,
 			name: area.name,
 			description: area.description,
+			network: area.network,
 			min_sl_download: area.min_sl_download,
 			min_sl_upload: area.min_sl_upload,
 			sort_order: area.sort_order
@@ -219,6 +228,14 @@
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">Network</span>
+				<input
+					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					bind:value={newDraft.network}
+					placeholder="fsxNet, FidoNet… (blank for local-only)"
+				/>
+			</label>
+			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Min SL to download</span>
 				<input
 					type="number"
@@ -282,6 +299,14 @@
 							/>
 						</label>
 						<label class="flex flex-col gap-1 text-sm">
+							<span class="text-slate-400">Network</span>
+							<input
+								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								bind:value={draft.network}
+								placeholder="fsxNet, FidoNet… (blank for local-only)"
+							/>
+						</label>
+						<label class="flex flex-col gap-1 text-sm">
 							<span class="text-slate-400">Min SL to download</span>
 							<input
 								type="number"
@@ -321,7 +346,15 @@
 					<div class="flex items-start justify-between">
 						<div>
 							<div class="font-mono text-xs text-slate-500">{area.tag}</div>
-							<div class="text-slate-100">{area.name}</div>
+							<div class="text-slate-100">
+								{area.name}
+								{#if area.network}
+									<span
+										class="ml-2 rounded bg-fuchsia-950 px-1.5 py-0.5 text-xs text-fuchsia-400"
+										>{area.network}</span
+									>
+								{/if}
+							</div>
 							<div class="text-sm text-slate-400">{area.description}</div>
 							<div class="mt-1 text-xs text-slate-500">
 								Download: SL {area.min_sl_download} &middot; Upload: SL {area.min_sl_upload}

@@ -60,6 +60,8 @@ export interface FileArea {
 	tag: string;
 	name: string;
 	description: string;
+	/** FTN network this file area belongs to (e.g. "fsxNet", "FidoNet"), or "" for a local-only area. */
+	network: string;
 	min_sl_download: number;
 	min_sl_upload: number;
 	sort_order: number;

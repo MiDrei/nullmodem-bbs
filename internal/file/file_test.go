@@ -46,10 +46,10 @@ func TestSchemaSeedsGeneralFileArea(t *testing.T) {
 func TestCreateAreaRejectsDuplicateTag(t *testing.T) {
 	s, _ := newTestStore(t)
 
-	if _, err := s.CreateArea("dup", "First", "", 0, 0); err != nil {
+	if _, err := s.CreateArea("dup", "First", "", "", 0, 0); err != nil {
 		t.Fatalf("first CreateArea: %v", err)
 	}
-	if _, err := s.CreateArea("DUP", "Second", "", 0, 0); !errors.Is(err, ErrTagTaken) {
+	if _, err := s.CreateArea("DUP", "Second", "", "", 0, 0); !errors.Is(err, ErrTagTaken) {
 		t.Fatalf("second CreateArea = %v, want ErrTagTaken", err)
 	}
 }
@@ -61,7 +61,7 @@ func TestCountAreas(t *testing.T) {
 	if n, err := s.CountAreas(); err != nil || n != 1 {
 		t.Fatalf("CountAreas() = %d, %v; want 1, nil", n, err)
 	}
-	if _, err := s.CreateArea("dev", "Dev", "", 0, 0); err != nil {
+	if _, err := s.CreateArea("dev", "Dev", "", "", 0, 0); err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
 	if n, err := s.CountAreas(); err != nil || n != 2 {
@@ -87,7 +87,7 @@ func TestAreaCanDownloadUpload(t *testing.T) {
 
 func TestListAreasFiltersBySecurityLevel(t *testing.T) {
 	s, _ := newTestStore(t)
-	if _, err := s.CreateArea("sysop-only", "Sysop Only", "", 200, 200); err != nil {
+	if _, err := s.CreateArea("sysop-only", "Sysop Only", "", "", 200, 200); err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
 
@@ -212,7 +212,7 @@ func TestImportFileRejectsDirectory(t *testing.T) {
 
 func TestAllAreasIgnoresSecurityLevel(t *testing.T) {
 	s, _ := newTestStore(t)
-	if _, err := s.CreateArea("sysop-only", "Sysop Only", "", 200, 200); err != nil {
+	if _, err := s.CreateArea("sysop-only", "Sysop Only", "", "", 200, 200); err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
 
@@ -228,12 +228,12 @@ func TestAllAreasIgnoresSecurityLevel(t *testing.T) {
 
 func TestUpdateArea(t *testing.T) {
 	s, _ := newTestStore(t)
-	area, err := s.CreateArea("dev", "Dev", "old desc", 0, 0)
+	area, err := s.CreateArea("dev", "Dev", "old desc", "", 0, 0)
 	if err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
 
-	updated, err := s.UpdateArea(area.ID, "Dev Files", "new desc", 10, 20, 5)
+	updated, err := s.UpdateArea(area.ID, "Dev Files", "new desc", "", 10, 20, 5)
 	if err != nil {
 		t.Fatalf("UpdateArea: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestUpdateArea(t *testing.T) {
 
 func TestDeleteAreaRemovesFilesFromDisk(t *testing.T) {
 	s, users := newTestStore(t)
-	area, err := s.CreateArea("temp", "Temp", "", 0, 0)
+	area, err := s.CreateArea("temp", "Temp", "", "", 0, 0)
 	if err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
@@ -370,7 +370,7 @@ func fileStatsFor(t *testing.T, stats []AreaWithStats, tag string) AreaWithStats
 
 func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 	s, users := newTestStore(t)
-	area, err := s.CreateArea("uploads", "Uploads", "", 0, 0)
+	area, err := s.CreateArea("uploads", "Uploads", "", "", 0, 0)
 	if err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}

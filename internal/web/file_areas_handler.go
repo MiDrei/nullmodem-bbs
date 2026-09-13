@@ -19,6 +19,7 @@ type fileAreaDTO struct {
 	Tag           string `json:"tag"`
 	Name          string `json:"name"`
 	Description   string `json:"description"`
+	Network       string `json:"network"`
 	MinSLDownload int    `json:"min_sl_download"`
 	MinSLUpload   int    `json:"min_sl_upload"`
 	SortOrder     int    `json:"sort_order"`
@@ -30,6 +31,7 @@ func toFileAreaDTO(a file.Area) fileAreaDTO {
 		Tag:           a.Tag,
 		Name:          a.Name,
 		Description:   a.Description,
+		Network:       a.Network,
 		MinSLDownload: a.MinSLDownload,
 		MinSLUpload:   a.MinSLUpload,
 		SortOrder:     a.SortOrder,
@@ -86,7 +88,7 @@ func (s *Server) handleCreateFileArea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	area, err := s.Files.CreateArea(dto.Tag, dto.Name, dto.Description, dto.MinSLDownload, dto.MinSLUpload)
+	area, err := s.Files.CreateArea(dto.Tag, dto.Name, dto.Description, dto.Network, dto.MinSLDownload, dto.MinSLUpload)
 	if err != nil {
 		if errors.Is(err, file.ErrTagTaken) {
 			writeError(w, http.StatusConflict, "that tag is already in use")
@@ -117,7 +119,7 @@ func (s *Server) handleUpdateFileArea(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	area, err := s.Files.UpdateArea(id, dto.Name, dto.Description, dto.MinSLDownload, dto.MinSLUpload, dto.SortOrder)
+	area, err := s.Files.UpdateArea(id, dto.Name, dto.Description, dto.Network, dto.MinSLDownload, dto.MinSLUpload, dto.SortOrder)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update file area")
 		return

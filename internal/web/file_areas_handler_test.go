@@ -33,7 +33,7 @@ func TestFileAreaCRUD(t *testing.T) {
 	}
 
 	rec = doJSON(t, h, http.MethodPost, "/api/file-areas", fileAreaDTO{
-		Tag: "doors", Name: "Door Games", MinSLDownload: 0, MinSLUpload: 100,
+		Tag: "doors", Name: "Door Games", Network: "fsxNet", MinSLDownload: 0, MinSLUpload: 100,
 	}, token)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("POST status = %d, body=%s", rec.Code, rec.Body.String())
@@ -42,10 +42,13 @@ func TestFileAreaCRUD(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode created: %v", err)
 	}
+	if created.Network != "fsxNet" {
+		t.Fatalf("created.Network = %q, want %q", created.Network, "fsxNet")
+	}
 
 	path := fmt.Sprintf("/api/file-areas/%d", created.ID)
 	rec = doJSON(t, h, http.MethodPut, path, fileAreaDTO{
-		Name: "Door Games Renamed", MinSLDownload: 5, MinSLUpload: 100, SortOrder: 2,
+		Name: "Door Games Renamed", Network: "FidoNet", MinSLDownload: 5, MinSLUpload: 100, SortOrder: 2,
 	}, token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT status = %d, body=%s", rec.Code, rec.Body.String())
@@ -54,8 +57,8 @@ func TestFileAreaCRUD(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
 		t.Fatalf("decode updated: %v", err)
 	}
-	if updated.Name != "Door Games Renamed" || updated.MinSLDownload != 5 {
-		t.Fatalf("updated = %+v, want renamed fields", updated)
+	if updated.Name != "Door Games Renamed" || updated.MinSLDownload != 5 || updated.Network != "FidoNet" {
+		t.Fatalf("updated = %+v, want renamed fields with network=FidoNet", updated)
 	}
 
 	rec = doJSON(t, h, http.MethodDelete, path, nil, token)

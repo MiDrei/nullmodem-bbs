@@ -113,7 +113,7 @@ func TestFileAreasLightbarShowsCounts(t *testing.T) {
 
 func TestFileAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
 	s := testServer(t)
-	if _, err := s.Files.CreateArea("second", "Second Area", "", 0, 0); err != nil {
+	if _, err := s.Files.CreateArea("second", "Second Area", "", "", 0, 0); err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -135,6 +135,49 @@ func TestFileAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
 	}
 	if !strings.Contains(conn.out.String(), "\x1b[1;36mSecond Area\x1b[0m") {
 		t.Fatalf("expected to have entered Second Area, got: %q", conn.out.String())
+	}
+}
+
+func TestFileAreasLightbarGroupsByNetwork(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := s.Files.CreateArea("fido", "Fido Files", "", "FidoNet", 0, 0); err != nil {
+		t.Fatalf("CreateArea fido: %v", err)
+	}
+	if _, err := s.Files.CreateArea("fsx", "Fsx Files", "", "fsxNet", 0, 0); err != nil {
+		t.Fatalf("CreateArea fsx: %v", err)
+	}
+
+	conn := newFakeConn("F\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+
+	// Areas sort network ("" first, byte order thereafter), sort_order,
+	// name: the seeded local "General Files" (no network), then
+	// "FidoNet"'s divider and area, then "fsxNet"'s divider and area.
+	generalIdx := strings.Index(out, "General Files")
+	fidoDividerIdx := strings.Index(out, "FidoNet")
+	fidoAreaIdx := strings.Index(out, "Fido Files")
+	fsxDividerIdx := strings.Index(out, "fsxNet")
+	fsxAreaIdx := strings.Index(out, "Fsx Files")
+	if generalIdx < 0 || fidoDividerIdx < 0 || fidoAreaIdx < 0 || fsxDividerIdx < 0 || fsxAreaIdx < 0 {
+		t.Fatalf("expected local area, both network dividers, and both network areas present, got: %q", out)
+	}
+	if !(generalIdx < fidoDividerIdx && fidoDividerIdx < fidoAreaIdx && fidoAreaIdx < fsxDividerIdx && fsxDividerIdx < fsxAreaIdx) {
+		t.Fatalf("expected order General Files < FidoNet divider < Fido Files < fsxNet divider < Fsx Files, got: %q", out)
+	}
+	if strings.Count(out, "FidoNet") != 1 {
+		t.Fatalf(`expected exactly one "FidoNet" divider, got %d: %q`, strings.Count(out, "FidoNet"), out)
+	}
+	if strings.Count(out, "fsxNet") != 1 {
+		t.Fatalf(`expected exactly one "fsxNet" divider, got %d: %q`, strings.Count(out, "fsxNet"), out)
 	}
 }
 
@@ -488,7 +531,7 @@ func TestSysopCreateFileArea(t *testing.T) {
 		t.Fatalf("Register sysop: %v", err)
 	}
 
-	input := "S\r\nA\r\ndoors\r\nDoor Games\r\nDOS door games\r\n0\r\n0\r\nM\r\nQ\r\n"
+	input := "S\r\nA\r\ndoors\r\nDoor Games\r\nDOS door games\r\nfsxNet\r\n0\r\n0\r\nM\r\nQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
@@ -506,5 +549,8 @@ func TestSysopCreateFileArea(t *testing.T) {
 	}
 	if area.Name != "Door Games" {
 		t.Fatalf("area.Name = %q, want %q", area.Name, "Door Games")
+	}
+	if area.Network != "fsxNet" {
+		t.Fatalf("area.Network = %q, want %q", area.Network, "fsxNet")
 	}
 }

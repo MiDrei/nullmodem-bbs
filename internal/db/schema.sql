@@ -60,6 +60,12 @@ CREATE TABLE IF NOT EXISTS file_areas (
     tag              TEXT NOT NULL COLLATE NOCASE UNIQUE,
     name             TEXT NOT NULL,
     description      TEXT NOT NULL DEFAULT '',
+    -- Groups related file areas by FTN network the same way
+    -- message_areas.network does for echo areas -- empty means a
+    -- local-only area with no network affiliation. A database created
+    -- before this column existed gets it via ensureColumn (see
+    -- db.go).
+    network          TEXT NOT NULL DEFAULT '',
     min_sl_download  INTEGER NOT NULL DEFAULT 0,
     min_sl_upload    INTEGER NOT NULL DEFAULT 0,
     sort_order       INTEGER NOT NULL DEFAULT 0,
