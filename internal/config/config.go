@@ -50,11 +50,11 @@ type Config struct {
 		// exchange netmail (see internal/tosser). Echomail routing
 		// isn't implemented yet -- only netmail is tossed so far.
 		Uplinks []BinkpUplink `yaml:"uplinks"`
-		// PollIntervalSeconds is how often cmd/mailer connects to
-		// each configured uplink to send queued netmail and pick up
-		// anything waiting for us. The web admin's "Send Now" button
-		// (see internal/web) polls on demand regardless of this
-		// interval.
+		// PollIntervalSeconds is the default interval cmd/mailer waits
+		// between polls of an uplink that doesn't set its own
+		// BinkpUplink.PollIntervalSeconds. The web admin's "Send Now"
+		// button (see internal/web) polls on demand regardless of
+		// this interval.
 		PollIntervalSeconds int `yaml:"poll_interval_seconds"`
 	} `yaml:"binkp"`
 }
@@ -80,6 +80,12 @@ type BinkpUplink struct {
 	// flag). Ordinary mail for that uplink's network still flows
 	// through whichever uplink IS being polled regularly.
 	PollDisabled bool `yaml:"poll_disabled"`
+	// PollIntervalSeconds overrides Binkp.PollIntervalSeconds for
+	// this uplink specifically -- some hubs only permit polling every
+	// hour or two and reject a caller that connects more often (see
+	// internal/tosser's IsDue). Zero means "use the global default".
+	// Meaningless when PollDisabled is set.
+	PollIntervalSeconds int `yaml:"poll_interval_seconds"`
 }
 
 // PrimaryFTNAddress returns c's first configured FTN address, or "" if

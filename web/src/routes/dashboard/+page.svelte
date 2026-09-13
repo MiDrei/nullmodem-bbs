@@ -83,6 +83,48 @@
 		</div>
 	</div>
 
+	<section class="mb-8 rounded border border-slate-800 p-4">
+		<div class="mb-4 flex items-center justify-between">
+			<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">BinkP</h2>
+			<a href="/binkp" class="text-xs text-cyan-500 hover:text-cyan-300">Configure &rarr;</a>
+		</div>
+		{#if dashboard.binkp.own_ftn_addresses.length === 0}
+			<p class="text-sm text-slate-500">No FTN address configured yet.</p>
+		{:else}
+			<p class="mb-4 text-sm text-slate-400">
+				This system: <span class="font-mono text-slate-200"
+					>{dashboard.binkp.own_ftn_addresses.join(', ')}</span
+				>
+			</p>
+		{/if}
+		<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+			<div class="rounded border border-slate-800 p-3">
+				<div class="text-xl font-semibold text-slate-100">{dashboard.binkp.uplink_count}</div>
+				<div class="text-xs tracking-wide text-slate-500 uppercase">Uplinks</div>
+			</div>
+			<div class="rounded border border-slate-800 p-3">
+				<div class="text-xl font-semibold text-slate-100">
+					{dashboard.binkp.crash_only_uplink_count}
+				</div>
+				<div class="text-xs tracking-wide text-slate-500 uppercase">Crash-Only</div>
+			</div>
+			<div class="rounded border border-slate-800 p-3">
+				<div class="text-xl font-semibold text-slate-100">{dashboard.binkp.pending_outbound}</div>
+				<div class="text-xs tracking-wide text-slate-500 uppercase">Pending Netmail</div>
+			</div>
+			<div class="rounded border border-slate-800 p-3">
+				<div
+					class="text-xl font-semibold {dashboard.binkp.pending_crash > 0
+						? 'text-amber-400'
+						: 'text-slate-100'}"
+				>
+					{dashboard.binkp.pending_crash}
+				</div>
+				<div class="text-xs tracking-wide text-slate-500 uppercase">Pending Crash</div>
+			</div>
+		</div>
+	</section>
+
 	<section class="rounded border border-slate-800 p-4">
 		<h2 class="mb-4 text-sm font-semibold tracking-wide text-cyan-400 uppercase">Who's Online</h2>
 		{#if dashboard.nodes.length === 0}

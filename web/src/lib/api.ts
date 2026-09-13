@@ -6,6 +6,8 @@ export interface BinkpUplink {
 	password: string;
 	/** Excludes this uplink from the mailer daemon's regular scheduled poll -- for a link that should only ever be dialed for Crash-flagged netmail to its own network, or manually via "Send Now". */
 	poll_disabled: boolean;
+	/** Overrides the global default poll interval for this uplink specifically (seconds). 0 means "use the default" -- some hubs only permit polling every hour or two. Meaningless when poll_disabled is set. */
+	poll_interval_seconds: number;
 }
 
 export interface BBSConfig {
@@ -19,6 +21,8 @@ export interface BBSConfig {
 	ssh_enabled: boolean;
 	ssh_addr: string;
 	binkp_uplinks: BinkpUplink[];
+	/** Default poll interval (seconds) for an uplink that doesn't set its own poll_interval_seconds. */
+	binkp_default_poll_interval_seconds: number;
 }
 
 export interface LoginResponse {
@@ -36,6 +40,14 @@ export interface Node {
 	connected_at: string;
 }
 
+export interface BinkpStatus {
+	own_ftn_addresses: string[];
+	uplink_count: number;
+	crash_only_uplink_count: number;
+	pending_outbound: number;
+	pending_crash: number;
+}
+
 export interface Dashboard {
 	bbs_name: string;
 	version: string;
@@ -43,6 +55,7 @@ export interface Dashboard {
 	message_area_count: number;
 	file_area_count: number;
 	nodes: Node[];
+	binkp: BinkpStatus;
 }
 
 export interface BBSUser {

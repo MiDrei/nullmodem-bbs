@@ -137,6 +137,17 @@ CREATE TABLE IF NOT EXISTS netmail_messages (
 
 CREATE INDEX IF NOT EXISTS idx_netmail_to_user_posted ON netmail_messages(to_user_id, posted_at);
 
+-- Tracks when cmd/mailer last attempted (successfully or not) to poll
+-- each configured BinkP uplink, keyed by its "host:port" (see
+-- internal/tosser's poll-scheduling). Needed because some hubs only
+-- permit polling every hour or two: without this persisted, a daemon
+-- restart would forget how recently an uplink was tried and could
+-- poll it again immediately, violating that limit.
+CREATE TABLE IF NOT EXISTS binkp_uplink_polls (
+    host           TEXT PRIMARY KEY,
+    last_polled_at TIMESTAMP NOT NULL
+);
+
 -- Currently active BBS sessions ("nodes"). Node numbers are assigned
 -- by the BBS daemon's application code (not AUTOINCREMENT), so no
 -- CREATE TABLE-level default applies here. This table is the shared

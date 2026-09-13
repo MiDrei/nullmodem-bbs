@@ -193,6 +193,24 @@
 								</svg>
 								Logs
 							</a>
+							<a
+								href="/binkp"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<path d="M4 4l16 8-16 8V4z" />
+									<path d="M4 12h6" />
+								</svg>
+								BinkP
+							</a>
 							<div class="my-1 border-t border-slate-800"></div>
 							<a
 								href="/settings"

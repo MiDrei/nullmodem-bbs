@@ -15,13 +15,25 @@ type nodeDTO struct {
 	ConnectedAt string `json:"connected_at"`
 }
 
+// binkpStatusDTO summarizes BinkP/netmail state for the dashboard --
+// counts only, not full uplink details (see /binkp for those), so
+// this stays cheap to compute on every dashboard poll.
+type binkpStatusDTO struct {
+	OwnFTNAddresses      []string `json:"own_ftn_addresses"`
+	UplinkCount          int      `json:"uplink_count"`
+	CrashOnlyUplinkCount int      `json:"crash_only_uplink_count"`
+	PendingOutbound      int      `json:"pending_outbound"`
+	PendingCrash         int      `json:"pending_crash"`
+}
+
 type dashboardDTO struct {
-	BBSName          string    `json:"bbs_name"`
-	Version          string    `json:"version"`
-	UserCount        int       `json:"user_count"`
-	MessageAreaCount int       `json:"message_area_count"`
-	FileAreaCount    int       `json:"file_area_count"`
-	Nodes            []nodeDTO `json:"nodes"`
+	BBSName          string         `json:"bbs_name"`
+	Version          string         `json:"version"`
+	UserCount        int            `json:"user_count"`
+	MessageAreaCount int            `json:"message_area_count"`
+	FileAreaCount    int            `json:"file_area_count"`
+	Nodes            []nodeDTO      `json:"nodes"`
+	Binkp            binkpStatusDTO `json:"binkp"`
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -63,6 +75,30 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	binkp := binkpStatusDTO{OwnFTNAddresses: cfg.BBS.FTNAddresses}
+	if binkp.OwnFTNAddresses == nil {
+		binkp.OwnFTNAddresses = []string{}
+	}
+	for _, u := range cfg.Binkp.Uplinks {
+		binkp.UplinkCount++
+		if u.PollDisabled {
+			binkp.CrashOnlyUplinkCount++
+		}
+	}
+	if s.Netmail != nil {
+		pending, err := s.Netmail.PendingOutbound()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not count pending netmail")
+			return
+		}
+		binkp.PendingOutbound = len(pending)
+		for _, m := range pending {
+			if m.Crash {
+				binkp.PendingCrash++
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, dashboardDTO{
 		BBSName:          cfg.BBS.Name,
 		Version:          version.Version,
@@ -70,5 +106,6 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		MessageAreaCount: messageAreaCount,
 		FileAreaCount:    fileAreaCount,
 		Nodes:            nodeDTOs,
+		Binkp:            binkp,
 	})
 }

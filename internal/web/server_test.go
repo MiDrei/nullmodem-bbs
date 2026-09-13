@@ -185,8 +185,9 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	got.NewUserSL = 20
 	got.FTNAddresses = []string{"1:234/56.0", "2:345/67"}
 	got.BinkpUplinks = []binkpUplinkDTO{
-		{Address: "21:3/194", Host: "bbs.maik.ch:24554", Password: "secret"},
+		{Address: "21:3/194", Host: "bbs.maik.ch:24554", Password: "secret", PollIntervalSeconds: 7200},
 	}
+	got.BinkpDefaultPollIntervalSeconds = 1800
 	rec = doJSON(t, h, http.MethodPut, "/api/config", got, loginResp.Token)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PUT /api/config status = %d, body=%s", rec.Code, rec.Body.String())
@@ -200,8 +201,12 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	if saved.BBS.Name != "My Awesome BBS" || saved.BBS.NewUserSL != 20 || !reflect.DeepEqual(saved.BBS.FTNAddresses, wantAddrs) {
 		t.Fatalf("saved config = %+v, want updated name/SL/ftn_addresses %v", saved.BBS, wantAddrs)
 	}
+	if saved.Binkp.PollIntervalSeconds != 1800 {
+		t.Fatalf("saved.Binkp.PollIntervalSeconds = %d, want 1800", saved.Binkp.PollIntervalSeconds)
+	}
 	if len(saved.Binkp.Uplinks) != 1 || saved.Binkp.Uplinks[0].Host != "bbs.maik.ch:24554" ||
-		saved.Binkp.Uplinks[0].Address != "21:3/194" || saved.Binkp.Uplinks[0].Password != "secret" {
+		saved.Binkp.Uplinks[0].Address != "21:3/194" || saved.Binkp.Uplinks[0].Password != "secret" ||
+		saved.Binkp.Uplinks[0].PollIntervalSeconds != 7200 {
 		t.Fatalf("saved.Binkp.Uplinks = %+v, want one uplink with the round-tripped fields", saved.Binkp.Uplinks)
 	}
 }
@@ -253,6 +258,61 @@ func TestDashboardReportsCountsAndActiveNodes(t *testing.T) {
 	}
 	if len(got.Nodes) != 1 || got.Nodes[0].RemoteIP != "127.0.0.1:1234" {
 		t.Fatalf("Nodes = %+v, want one active node", got.Nodes)
+	}
+}
+
+func TestDashboardReportsBinkpStatus(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	root, err := users.Register("root", "supersecret", user.SLSysop)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	c, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	c.BBS.FTNAddresses = []string{"21:3/100", "954:700/1"}
+	c.Binkp.Uplinks = []config.BinkpUplink{
+		{Address: "21:3/100", Host: "n3.z21.example.org:24554"},
+		{Address: "954:700/1", Host: "n700.z954.example.org:24554", PollDisabled: true},
+	}
+	if err := config.Save(configPath, c); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+
+	if _, err := srv.Netmail.Send(root.ID, "21:3/100", 0, "Someone", "21:3/200", "Hi", "body", false); err != nil {
+		t.Fatalf("Netmail.Send: %v", err)
+	}
+	if _, err := srv.Netmail.Send(root.ID, "21:3/100", 0, "Someone", "954:700/2", "Urgent", "body", true); err != nil {
+		t.Fatalf("Netmail.Send: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodGet, "/api/dashboard", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/dashboard status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var got dashboardDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode dashboard: %v", err)
+	}
+	if got.Binkp.UplinkCount != 2 {
+		t.Fatalf("Binkp.UplinkCount = %d, want 2", got.Binkp.UplinkCount)
+	}
+	if got.Binkp.CrashOnlyUplinkCount != 1 {
+		t.Fatalf("Binkp.CrashOnlyUplinkCount = %d, want 1", got.Binkp.CrashOnlyUplinkCount)
+	}
+	if got.Binkp.PendingOutbound != 2 {
+		t.Fatalf("Binkp.PendingOutbound = %d, want 2", got.Binkp.PendingOutbound)
+	}
+	if got.Binkp.PendingCrash != 1 {
+		t.Fatalf("Binkp.PendingCrash = %d, want 1", got.Binkp.PendingCrash)
+	}
+	if len(got.Binkp.OwnFTNAddresses) != 2 || got.Binkp.OwnFTNAddresses[0] != "21:3/100" {
+		t.Fatalf("Binkp.OwnFTNAddresses = %v, want [21:3/100 954:700/1]", got.Binkp.OwnFTNAddresses)
 	}
 }
 
@@ -361,6 +421,24 @@ func TestPutConfigRejectsInvalidInput(t *testing.T) {
 	rec = doJSON(t, h, http.MethodPut, "/api/config", bad, loginResp.Token)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 for out-of-range SL", rec.Code)
+	}
+
+	bad = configDTO{
+		Name: "X", Sysop: "root", NewUserSL: 10, TelnetEnabled: true, TelnetAddr: ":2323",
+		BinkpDefaultPollIntervalSeconds: -1,
+	}
+	rec = doJSON(t, h, http.MethodPut, "/api/config", bad, loginResp.Token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for negative default poll interval", rec.Code)
+	}
+
+	bad = configDTO{
+		Name: "X", Sysop: "root", NewUserSL: 10, TelnetEnabled: true, TelnetAddr: ":2323",
+		BinkpUplinks: []binkpUplinkDTO{{Host: "example.org:24554", PollIntervalSeconds: -1}},
+	}
+	rec = doJSON(t, h, http.MethodPut, "/api/config", bad, loginResp.Token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for negative per-uplink poll interval", rec.Code)
 	}
 }
 

@@ -25,43 +25,52 @@ const binkpRequestTimeout = 60 * time.Second
 // edit. Fields like the database path and SSH host key path stay
 // internal and are preserved as-is on save.
 type binkpUplinkDTO struct {
-	Address      string `json:"address"`
-	Host         string `json:"host"`
-	Password     string `json:"password"`
-	PollDisabled bool   `json:"poll_disabled"`
+	Address             string `json:"address"`
+	Host                string `json:"host"`
+	Password            string `json:"password"`
+	PollDisabled        bool   `json:"poll_disabled"`
+	PollIntervalSeconds int    `json:"poll_interval_seconds"`
 }
 
 type configDTO struct {
-	Name          string           `json:"name"`
-	Sysop         string           `json:"sysop"`
-	NewUserSL     int              `json:"new_user_sl"`
-	FTNAddresses  []string         `json:"ftn_addresses"`
-	TelnetEnabled bool             `json:"telnet_enabled"`
-	TelnetAddr    string           `json:"telnet_addr"`
-	SSHEnabled    bool             `json:"ssh_enabled"`
-	SSHAddr       string           `json:"ssh_addr"`
-	BinkpUplinks  []binkpUplinkDTO `json:"binkp_uplinks"`
+	Name                            string           `json:"name"`
+	Sysop                           string           `json:"sysop"`
+	NewUserSL                       int              `json:"new_user_sl"`
+	FTNAddresses                    []string         `json:"ftn_addresses"`
+	TelnetEnabled                   bool             `json:"telnet_enabled"`
+	TelnetAddr                      string           `json:"telnet_addr"`
+	SSHEnabled                      bool             `json:"ssh_enabled"`
+	SSHAddr                         string           `json:"ssh_addr"`
+	BinkpUplinks                    []binkpUplinkDTO `json:"binkp_uplinks"`
+	BinkpDefaultPollIntervalSeconds int              `json:"binkp_default_poll_interval_seconds"`
 }
 
 func toDTO(c *config.Config) configDTO {
 	uplinks := make([]binkpUplinkDTO, len(c.Binkp.Uplinks))
 	for i, u := range c.Binkp.Uplinks {
-		uplinks[i] = binkpUplinkDTO{Address: u.Address, Host: u.Host, Password: u.Password, PollDisabled: u.PollDisabled}
+		uplinks[i] = binkpUplinkDTO{
+			Address:             u.Address,
+			Host:                u.Host,
+			Password:            u.Password,
+			PollDisabled:        u.PollDisabled,
+			PollIntervalSeconds: u.PollIntervalSeconds,
+		}
 	}
 	addrs := c.BBS.FTNAddresses
 	if addrs == nil {
 		addrs = []string{}
 	}
 	return configDTO{
-		Name:          c.BBS.Name,
-		Sysop:         c.BBS.Sysop,
-		NewUserSL:     c.BBS.NewUserSL,
-		FTNAddresses:  addrs,
-		TelnetEnabled: c.Telnet.Enabled,
-		TelnetAddr:    c.Telnet.Addr,
-		SSHEnabled:    c.SSH.Enabled,
-		SSHAddr:       c.SSH.Addr,
-		BinkpUplinks:  uplinks,
+		Name:                            c.BBS.Name,
+		Sysop:                           c.BBS.Sysop,
+		NewUserSL:                       c.BBS.NewUserSL,
+		FTNAddresses:                    addrs,
+		TelnetEnabled:                   c.Telnet.Enabled,
+		TelnetAddr:                      c.Telnet.Addr,
+		SSHEnabled:                      c.SSH.Enabled,
+		SSHAddr:                         c.SSH.Addr,
+		BinkpUplinks:                    uplinks,
+		BinkpDefaultPollIntervalSeconds: c.Binkp.PollIntervalSeconds,
 	}
 }
 
@@ -112,8 +121,15 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	c.SSH.Addr = dto.SSHAddr
 	c.Binkp.Uplinks = make([]config.BinkpUplink, len(dto.BinkpUplinks))
 	for i, u := range dto.BinkpUplinks {
-		c.Binkp.Uplinks[i] = config.BinkpUplink{Address: u.Address, Host: u.Host, Password: u.Password, PollDisabled: u.PollDisabled}
+		c.Binkp.Uplinks[i] = config.BinkpUplink{
+			Address:             u.Address,
+			Host:                u.Host,
+			Password:            u.Password,
+			PollDisabled:        u.PollDisabled,
+			PollIntervalSeconds: u.PollIntervalSeconds,
+		}
 	}
+	c.Binkp.PollIntervalSeconds = dto.BinkpDefaultPollIntervalSeconds
 
 	if err := config.Save(s.BBSConfigPath, c); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save config")
@@ -257,9 +273,15 @@ func validateConfigDTO(dto configDTO) string {
 			return fmt.Sprintf("ftn address %d: %v", i+1, err)
 		}
 	}
+	if dto.BinkpDefaultPollIntervalSeconds < 0 {
+		return "binkp_default_poll_interval_seconds must not be negative"
+	}
 	for i, u := range dto.BinkpUplinks {
 		if strings.TrimSpace(u.Host) == "" {
 			return fmt.Sprintf("binkp uplink %d: host must not be empty", i+1)
+		}
+		if u.PollIntervalSeconds < 0 {
+			return fmt.Sprintf("binkp uplink %d: poll_interval_seconds must not be negative", i+1)
 		}
 	}
 	return ""
