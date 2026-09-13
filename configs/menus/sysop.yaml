@@ -1,5 +1,6 @@
 name: sysop
 title: "Sysop Menu - Node {NODE}"
+screen: sysop.ans
 items:
   - key: L
     label: "List users"

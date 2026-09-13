@@ -1,5 +1,6 @@
 name: main
 title: "{BBSNAME} - Main Menu"
+screen: main.ans
 items:
   - key: M
     label: "Message areas"

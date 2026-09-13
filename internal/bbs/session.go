@@ -3,6 +3,7 @@ package bbs
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,7 @@ type Server struct {
 	BBSName       string
 	NewUserSL     int
 	WelcomeScreen string
+	ScreensDir    string
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -57,6 +59,7 @@ type Options struct {
 	Logger        *applog.Logger
 	NewUserSL     int
 	WelcomeScreen string
+	ScreensDir    string
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -72,6 +75,7 @@ func NewServer(opts Options) *Server {
 		SysopName:     opts.SysopName,
 		NewUserSL:     opts.NewUserSL,
 		WelcomeScreen: opts.WelcomeScreen,
+		ScreensDir:    opts.ScreensDir,
 	}
 }
 
@@ -319,7 +323,7 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 	}
 
 	for {
-		rendered := renderMenu(m, u.SecurityLevel, s.userVars(u, node))
+		rendered := s.renderMenuDisplay(m, u, node)
 		if err := term.Print(ansi.Layout(rendered, term.Width())); err != nil {
 			return err
 		}
@@ -373,6 +377,25 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 			}
 		}
 	}
+}
+
+// renderMenuDisplay returns what to print for one pass through a
+// menu loop: m.Screen verbatim (with placeholders filled in) if the
+// menu has a hand-designed screen, falling back to the generated
+// title+item-list text otherwise -- including when the screen file
+// is missing or unreadable, so a typo'd filename degrades gracefully
+// instead of locking callers out of the menu.
+func (s *Server) renderMenuDisplay(m *menu.Menu, u *user.User, node int) string {
+	vars := s.userVars(u, node)
+	if m.Screen != "" {
+		raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, m.Screen))
+		if err != nil {
+			s.logWarn("menu %q: could not load screen %q: %v", m.Name, m.Screen, err)
+		} else {
+			return ansi.Render(raw, vars)
+		}
+	}
+	return renderMenu(m, u.SecurityLevel, vars)
 }
 
 func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {

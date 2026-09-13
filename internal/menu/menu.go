@@ -27,6 +27,14 @@ type Menu struct {
 	Name  string `yaml:"name"`
 	Title string `yaml:"title"`
 	Items []Item `yaml:"items"`
+	// Screen, if set, names a fully hand-designed .ans file (in the
+	// BBS's configured screens directory) to display verbatim instead
+	// of the generated Title+item-list text -- the menu's item keys
+	// still gate what a keypress may do, but their visual
+	// presentation (labels, layout, art) lives entirely in that file.
+	// It must end without a trailing newline right where the input
+	// prompt should appear, since nothing else is appended after it.
+	Screen string `yaml:"screen,omitempty"`
 }
 
 // Set is a collection of menus keyed by name, as loaded from disk.

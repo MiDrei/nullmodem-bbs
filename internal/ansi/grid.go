@@ -214,13 +214,21 @@ func parseSingleParam(params string, def int) int {
 // cell whose BG came from a reverse-video-with-bright-foreground
 // import loses that extra bit here, a minor, known fidelity trade-off
 // for a designer that always paints BG from an 8-color palette
-// itself), and CRLF between rows.
+// itself), and CRLF between rows. Trailing blank cells on each row
+// are trimmed rather than written out as literal spaces: a screen
+// that uses {FILL:x}/{PLACEHOLDER} tokens for width-independent
+// layout (see Layout's doc comment) measures a line's own visible
+// width to compute padding, so literal trailing spaces baked in here
+// would silently eat into that budget and shrink or misalign the
+// layout the next time the screen is rendered -- trimming keeps a
+// round trip through the designer from corrupting such a screen.
 func (g Grid) Encode() string {
 	var b strings.Builder
 	b.WriteString("\x1b[2J\x1b[H")
 	prevFG, prevBG := -1, -1
 	for row := 0; row < g.Height; row++ {
-		for col := 0; col < g.Width; col++ {
+		lastCol := g.lastNonBlankCol(row)
+		for col := 0; col <= lastCol; col++ {
 			cell := g.Cells[g.index(row, col)]
 			if cell.FG != prevFG || cell.BG != prevBG {
 				b.WriteString(sgrFor(cell.FG, cell.BG))
@@ -234,6 +242,17 @@ func (g Grid) Encode() string {
 	}
 	b.WriteString(Reset)
 	return b.String()
+}
+
+// lastNonBlankCol returns the index of the last cell in row that
+// differs from blankCell(), or -1 if the entire row is blank.
+func (g Grid) lastNonBlankCol(row int) int {
+	for col := g.Width - 1; col >= 0; col-- {
+		if g.Cells[g.index(row, col)] != blankCell() {
+			return col
+		}
+	}
+	return -1
 }
 
 func sgrFor(fg, bg int) string {

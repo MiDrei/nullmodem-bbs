@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -108,6 +109,48 @@ func TestRunMenuGatesItemsBySecurityLevel(t *testing.T) {
 	}
 	if strings.Contains(conn.out.String(), "Sysop Menu") {
 		t.Fatalf("sysop submenu should not have been reachable at SL 0: %q", conn.out.String())
+	}
+}
+
+func TestRunMenuUsesCustomScreenWhenSet(t *testing.T) {
+	conn := newFakeConn("Q\r\n")
+	term := NewTerminal(conn)
+	s := testServer(t)
+
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	screen := "Welcome to {BBSNAME}, {USERNAME}!"
+	if err := os.WriteFile(filepath.Join(dir, "main.ans"), []byte(screen), 0o644); err != nil {
+		t.Fatalf("write screen: %v", err)
+	}
+	s.Menus["main"].Screen = "main.ans"
+	s.BBSName = "Test BBS"
+
+	err := s.runMenu(term, testUser(0), 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "Welcome to Test BBS, tester!") {
+		t.Fatalf("expected rendered custom screen, got: %q", conn.out.String())
+	}
+	if strings.Contains(conn.out.String(), "  [") {
+		t.Fatalf("custom screen should replace the generated item list, got: %q", conn.out.String())
+	}
+}
+
+func TestRunMenuFallsBackToGeneratedListWhenScreenMissing(t *testing.T) {
+	conn := newFakeConn("Q\r\n")
+	term := NewTerminal(conn)
+	s := testServer(t)
+	s.ScreensDir = t.TempDir()
+	s.Menus["main"].Screen = "does-not-exist.ans"
+
+	err := s.runMenu(term, testUser(0), 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "Main Menu") {
+		t.Fatalf("expected fallback to the generated menu text, got: %q", conn.out.String())
 	}
 }
 

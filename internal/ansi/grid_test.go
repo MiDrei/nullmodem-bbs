@@ -1,6 +1,9 @@
 package ansi
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNewGridIsBlank(t *testing.T) {
 	g := NewGrid(4, 2)
@@ -88,6 +91,38 @@ func TestGridEncodeRoundTripsThroughParseGrid(t *testing.T) {
 		if got.Cells[i] != g.Cells[i] {
 			t.Fatalf("cell %d = %+v, want %+v (encoded: %q)", i, got.Cells[i], g.Cells[i], encoded)
 		}
+	}
+}
+
+func TestGridEncodeTrimsTrailingBlankCells(t *testing.T) {
+	// A screen relying on {FILL:x} tokens (see Layout) measures a
+	// line's own visible width to compute padding at render time --
+	// literal trailing spaces baked in by a naive encoder would eat
+	// into that budget and corrupt the layout. Encode must trim them.
+	g := NewGrid(10, 1)
+	g.Cells[g.index(0, 0)] = Cell{Char: 'X', FG: 7, BG: 0}
+	// Columns 1-9 stay the default blank cell.
+
+	encoded := g.Encode()
+	if strings.Contains(encoded, "X ") {
+		t.Fatalf("encoded output still has trailing space(s) after content: %q", encoded)
+	}
+	if !strings.HasSuffix(encoded, "X"+Reset) {
+		t.Fatalf("encoded output = %q, want it to end right after the last non-blank cell", encoded)
+	}
+}
+
+func TestGridEncodeLeavesFullyBlankRowEmpty(t *testing.T) {
+	g := NewGrid(5, 2)
+	g.Cells[g.index(1, 0)] = Cell{Char: 'Y', FG: 7, BG: 0}
+
+	encoded := g.Encode()
+	got := ParseGrid(encoded, 5)
+	if got.Cells[got.index(0, 0)] != blankCell() {
+		t.Fatalf("row 0 should round-trip as entirely blank, got %+v", got.Cells[0])
+	}
+	if got.Cells[got.index(1, 0)].Char != 'Y' {
+		t.Fatalf("row 1 should still have its content, got %+v", got.Cells[got.index(1, 0)])
 	}
 }
 

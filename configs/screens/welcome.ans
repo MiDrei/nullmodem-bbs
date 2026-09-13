@@ -1,10 +1,11 @@
-[2J[H[1;36;40m…{FILL:Õ}ª[0;37;40m                                                                      
-[1;36;40m∫{FILL: }∫[0;37;40m                                                                      
-[1;36;40m∫[1;37;40m{FILL: }{BBSNAME}{FILL: }[1;36;40m∫[0;37;40m                                                     
-[1;36;40m∫[0;36;40m{FILL: }{VERSION}{FILL: }[1;36;40m∫[0;37;40m                                                     
-[1;36;40m∫{FILL: }∫[0;37;40m                                                                      
-[1;36;40m»{FILL:Õ}º[0;37;40m                                                                      
-                                                                                
-[1;33;40mNode {NODE}[0;37;40m | {DATE} {TIME}                                                     
-Sysop on duty: [1;32;40m{SYSOP}[0;37;40m                                                          
-[1;33;40m         [0;37;40m                                                                       [0m
+[2J[H
+[1;36m…{FILL:Õ}ª
+[1;36m∫{FILL: }∫
+[1;36m∫[1;37m{FILL: }{BBSNAME}{FILL: }[1;36m∫
+[1;36m∫[0;36m{FILL: }{VERSION}{FILL: }[1;36m∫
+[1;36m∫{FILL: }∫
+[1;36m»{FILL:Õ}º[0m
+
+[1;33mNode {NODE}[0m  |  {DATE} {TIME}
+Sysop on duty: [1;32m{SYSOP}[0m
+

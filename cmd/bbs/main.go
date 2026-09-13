@@ -74,6 +74,7 @@ func main() {
 		Nodes:         nodes,
 		NewUserSL:     cfg.BBS.NewUserSL,
 		WelcomeScreen: welcomeScreen,
+		ScreensDir:    cfg.BBS.ScreensDir,
 		Logger:        logger,
 	})
 
