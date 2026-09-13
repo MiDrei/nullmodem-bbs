@@ -371,6 +371,54 @@ func TestReadMessageNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 	}
 }
 
+func TestReadMessageNextPrevClampAtEnds(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "First Subject", "first body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Second Subject", "second body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// Open the reader on the first (and only highlighted) message,
+	// press Prev/Left immediately -- it must stay on the first message
+	// instead of wrapping to the last one. Then advance to the last
+	// message and press Next/Right again -- it must stay there instead
+	// of wrapping back to the first.
+	conn := newFakeConn("M\r\n\r\n\r\n\x1b[A\x1b[C\x1b[CQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	if len(renders) < 4 {
+		t.Fatalf("expected at least 3 reader redraws (initial, after Prev, after Next), got %d: %q", len(renders)-1, out)
+	}
+	if !strings.Contains(renders[0], "First Subject") {
+		t.Fatalf("expected first message shown initially, got: %q", renders[0])
+	}
+	if !strings.Contains(renders[1], "First Subject") {
+		t.Fatalf("expected Prev at the first message to stay put, got: %q", renders[1])
+	}
+	if !strings.Contains(renders[2], "Second Subject") {
+		t.Fatalf("expected Next to advance to the last message, got: %q", renders[2])
+	}
+	if !strings.Contains(renders[3], "Second Subject") {
+		t.Fatalf("expected Next at the last message to stay put instead of wrapping, got: %q", renders[3])
+	}
+}
+
 func TestPostRejectedBelowWriteThreshold(t *testing.T) {
 	s := testServer(t)
 	// A write-gated area (min_sl_write 100): a regular new user (SL

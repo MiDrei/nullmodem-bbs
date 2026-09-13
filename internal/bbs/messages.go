@@ -333,14 +333,14 @@ func (s *Server) readMessage(term *Terminal, u *user.User, area *message.Area, m
 			return err
 		}
 		switch {
-		case key.Type == KeyUp || key.Type == KeyLeft:
-			idx = (idx - 1 + len(msgs)) % len(msgs)
-		case key.Type == KeyDown || key.Type == KeyRight || key.Type == KeyEnter:
-			idx = (idx + 1) % len(msgs)
-		case key.Type == KeyChar && (key.Rune == 'n' || key.Rune == 'N'):
-			idx = (idx + 1) % len(msgs)
-		case key.Type == KeyChar && (key.Rune == 'p' || key.Rune == 'P'):
-			idx = (idx - 1 + len(msgs)) % len(msgs)
+		case key.Type == KeyUp || key.Type == KeyLeft, key.Type == KeyChar && (key.Rune == 'p' || key.Rune == 'P'):
+			if idx > 0 {
+				idx--
+			}
+		case key.Type == KeyDown || key.Type == KeyRight || key.Type == KeyEnter, key.Type == KeyChar && (key.Rune == 'n' || key.Rune == 'N'):
+			if idx < len(msgs)-1 {
+				idx++
+			}
 		case key.Type == KeyEscape:
 			return nil
 		case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
