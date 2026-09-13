@@ -38,6 +38,17 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_area_posted ON messages(area_id, posted_at);
 
+-- Tracks how far into each area a caller has read, so the message
+-- area lightbar can show a "New" count. last_read_message_id is the
+-- highest message id seen; a message is "new" once its id exceeds
+-- it. Absent a row here, everything in the area counts as new.
+CREATE TABLE IF NOT EXISTS message_area_reads (
+    user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    area_id               INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE CASCADE,
+    last_read_message_id  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, area_id)
+);
+
 CREATE TABLE IF NOT EXISTS file_areas (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     tag              TEXT NOT NULL COLLATE NOCASE UNIQUE,

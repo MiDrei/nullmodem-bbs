@@ -48,3 +48,45 @@ func TestRenderNoPlaceholders(t *testing.T) {
 		t.Fatalf("Render() = %q, want unchanged input", got)
 	}
 }
+
+func TestRenderWidthRightAlignsAndPads(t *testing.T) {
+	got := Render("[{TOTAL:6}]", Vars{"TOTAL": "5"})
+	want := "[     5]"
+	if got != want {
+		t.Fatalf("Render() = %q, want %q", got, want)
+	}
+}
+
+func TestRenderWidthLeftAlignsAndPads(t *testing.T) {
+	got := Render("[{AREANAME:-10}]", Vars{"AREANAME": "Chat"})
+	want := "[Chat      ]"
+	if got != want {
+		t.Fatalf("Render() = %q, want %q", got, want)
+	}
+}
+
+func TestRenderWidthTruncatesOverflowToPrefix(t *testing.T) {
+	// Truncation always keeps the prefix regardless of alignment
+	// direction -- alignment only governs which side padding goes on
+	// when the value is *shorter* than the requested width.
+	got := Render("[{AREANAME:-4}][{TOTAL:4}]", Vars{"AREANAME": "General Discussion", "TOTAL": "123456"})
+	want := "[Gene][1234]"
+	if got != want {
+		t.Fatalf("Render() = %q, want %q", got, want)
+	}
+}
+
+func TestRenderWidthUnknownPlaceholderStaysVerbatim(t *testing.T) {
+	got := Render("[{NOPE:10}]", Vars{})
+	want := "[{NOPE:10}]"
+	if got != want {
+		t.Fatalf("Render() = %q, want %q (unknown token with width should survive too)", got, want)
+	}
+}
+
+func TestRenderWidthDoesNotAffectPlainPlaceholders(t *testing.T) {
+	got := Render("{BBSNAME}", Vars{"BBSNAME": "Maiks Place BBS"})
+	if got != "Maiks Place BBS" {
+		t.Fatalf("Render() = %q, want unpadded value for a width-less placeholder", got)
+	}
+}

@@ -127,3 +127,58 @@ func TestReadLineBackspaceEditsBuffer(t *testing.T) {
 		t.Fatalf("ReadLine = %q, want %q", got, "ad")
 	}
 }
+
+func TestReadKeyRecognizesArrowKeys(t *testing.T) {
+	conn := newFakeConn("\x1b[A\x1b[B\x1b[C\x1b[D")
+	term := NewTerminal(conn)
+
+	want := []KeyType{KeyUp, KeyDown, KeyRight, KeyLeft}
+	for i, w := range want {
+		key, err := term.ReadKey()
+		if err != nil {
+			t.Fatalf("ReadKey %d: %v", i, err)
+		}
+		if key.Type != w {
+			t.Fatalf("ReadKey %d = %v, want %v", i, key.Type, w)
+		}
+	}
+}
+
+func TestReadKeyRecognizesEnterCharAndBackspace(t *testing.T) {
+	conn := newFakeConn("q\r\n\x08")
+	term := NewTerminal(conn)
+
+	key, err := term.ReadKey()
+	if err != nil || key.Type != KeyChar || key.Rune != 'q' {
+		t.Fatalf("ReadKey 1 = %+v, err=%v; want KeyChar 'q'", key, err)
+	}
+	key, err = term.ReadKey()
+	if err != nil || key.Type != KeyEnter {
+		t.Fatalf("ReadKey 2 = %+v, err=%v; want KeyEnter (CRLF collapsed)", key, err)
+	}
+	key, err = term.ReadKey()
+	if err != nil || key.Type != KeyBackspace {
+		t.Fatalf("ReadKey 3 = %+v, err=%v; want KeyBackspace", key, err)
+	}
+}
+
+func TestReadKeyDoesNotLeakEscapeLookaheadByte(t *testing.T) {
+	// A bare Escape (not followed by '[') must push the byte after it
+	// back for the next ReadKey call, the same lookahead discipline
+	// ReadLine uses for CRLF.
+	conn := newFakeConn("\x1bxq")
+	term := NewTerminal(conn)
+
+	key, err := term.ReadKey()
+	if err != nil || key.Type != KeyEscape {
+		t.Fatalf("ReadKey 1 = %+v, err=%v; want KeyEscape", key, err)
+	}
+	key, err = term.ReadKey()
+	if err != nil || key.Type != KeyChar || key.Rune != 'x' {
+		t.Fatalf("ReadKey 2 = %+v, err=%v; want KeyChar 'x' (pushed-back byte)", key, err)
+	}
+	key, err = term.ReadKey()
+	if err != nil || key.Type != KeyChar || key.Rune != 'q' {
+		t.Fatalf("ReadKey 3 = %+v, err=%v; want KeyChar 'q'", key, err)
+	}
+}

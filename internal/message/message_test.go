@@ -251,3 +251,83 @@ func TestListMessagesOrderedOldestFirst(t *testing.T) {
 		t.Fatalf("ListMessages order = %+v, want [First, Second]", msgs)
 	}
 }
+
+func statsFor(t *testing.T, stats []AreaWithStats, tag string) AreaWithStats {
+	t.Helper()
+	for _, st := range stats {
+		if st.Area.Tag == tag {
+			return st
+		}
+	}
+	t.Fatalf("no area stats for tag %q in %+v", tag, stats)
+	return AreaWithStats{}
+}
+
+func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
+	s, users := newTestStore(t)
+	area, err := s.CreateArea("chat", "Chat", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	bob, err := users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+
+	if _, err := s.PostMessage(area.ID, alice.ID, "All", "One", "1"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, err := s.PostMessage(area.ID, bob.ID, "All", "Two", "2"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// Alice has never visited: everything in the area is new to her,
+	// and one of the two posts is hers.
+	stats, err := s.ListAreaStats(user.SLNewUser, alice.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats: %v", err)
+	}
+	got := statsFor(t, stats, "chat")
+	if got.Total != 2 || got.New != 2 || got.Yours != 1 {
+		t.Fatalf("alice's stats = %+v, want Total=2 New=2 Yours=1", got)
+	}
+
+	if err := s.MarkAreaRead(alice.ID, area.ID); err != nil {
+		t.Fatalf("MarkAreaRead: %v", err)
+	}
+	stats, err = s.ListAreaStats(user.SLNewUser, alice.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats after read: %v", err)
+	}
+	got = statsFor(t, stats, "chat")
+	if got.New != 0 {
+		t.Fatalf("alice's New after MarkAreaRead = %d, want 0", got.New)
+	}
+
+	// A message posted after marking read is new again, but the read
+	// marker for the earlier messages must not affect Bob independently.
+	if _, err := s.PostMessage(area.ID, bob.ID, "All", "Three", "3"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	stats, err = s.ListAreaStats(user.SLNewUser, alice.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats after new post: %v", err)
+	}
+	got = statsFor(t, stats, "chat")
+	if got.New != 1 || got.Total != 3 {
+		t.Fatalf("alice's stats after new post = %+v, want New=1 Total=3", got)
+	}
+
+	bobStats, err := s.ListAreaStats(user.SLNewUser, bob.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats for bob: %v", err)
+	}
+	gotBob := statsFor(t, bobStats, "chat")
+	if gotBob.New != 3 || gotBob.Yours != 2 {
+		t.Fatalf("bob's stats = %+v, want New=3 (never visited) Yours=2", gotBob)
+	}
+}

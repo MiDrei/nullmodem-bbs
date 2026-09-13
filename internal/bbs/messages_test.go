@@ -58,6 +58,140 @@ func TestMessageAreasUsesCustomHeaderScreenWhenPresent(t *testing.T) {
 	}
 }
 
+func TestMessageAreasLightbarShowsCounts(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	conn := newFakeConn("M\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "Total") || !strings.Contains(out, "New") || !strings.Contains(out, "Yours") {
+		t.Fatalf("expected a Total/New/Yours header, got: %q", out)
+	}
+	// One message, posted by alice herself: Total=1, New=1 (never
+	// visited yet), Yours=1.
+	if !strings.Contains(out, "General Discussion") || !strings.Contains(out, "     1      1      1") {
+		t.Fatalf("expected counts 1/1/1 for General Discussion, got: %q", out)
+	}
+}
+
+func TestMessageAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.Messages.CreateArea("second", "Second Area", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// "General Discussion" sorts before "Second Area"; one Down arrow
+	// should highlight and then open the second one.
+	conn := newFakeConn("M\r\n\x1b[B\r\nQ\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	// browseArea prints the area's own name as a header once entered.
+	if !strings.Contains(conn.out.String(), "\x1b[1;36mSecond Area\x1b[0m") {
+		t.Fatalf("expected to have entered Second Area, got: %q", conn.out.String())
+	}
+}
+
+func TestMessageAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// Enter the area (marks it read), leave, and check the lightbar's
+	// second draw shows New=0 instead of the initial New=1.
+	conn := newFakeConn("M\r\n\r\nQ\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [Q] Back")
+	if len(renders) < 3 {
+		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
+	}
+	if !strings.Contains(renders[0], "     1      1      1") {
+		t.Fatalf("expected New=1 before visiting the area, got: %q", renders[0])
+	}
+	if !strings.Contains(renders[1], "     1      0      1") {
+		t.Fatalf("expected New=0 after visiting the area, got: %q", renders[1])
+	}
+}
+
+func TestMessageAreasLightbarUsesCustomRowTemplatesWhenPresent(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	writeFile := func(name, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	writeFile("msgareas-columns.ans", "CUSTOM-HEADER")
+	writeFile("msgareas-row.ans", ">> {AREANAME:-10}|{TOTAL:3}|{NEWFLAG}")
+	writeFile("msgareas-row-selected.ans", "** {AREANAME:-10}|{TOTAL:3}|{NEWFLAG}")
+
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	conn := newFakeConn("M\r\nQ\r\nQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "CUSTOM-HEADER") {
+		t.Fatalf("expected custom column header, got: %q", out)
+	}
+	// Only one area exists, so it's always the (selected) row.
+	if !strings.Contains(out, "** General Di|  1|NEW") {
+		t.Fatalf("expected custom selected-row template rendered with macros, got: %q", out)
+	}
+	if strings.Contains(out, ">> ") {
+		t.Fatalf("unselected row template should not appear when there's only one area, got: %q", out)
+	}
+}
+
 func TestPostAndReadMessage(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -65,10 +199,12 @@ func TestPostAndReadMessage(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	// M -> areas, "1" -> General Discussion, P -> post, subject, two
-	// body lines, "." to end, re-select "1" to read it back, Q out of
-	// the area, Q out of the area list, Q to log off from main.
-	input := "M\r\n1\r\nP\r\nHello World\r\nLine one\r\nLine two\r\n.\r\n1\r\nQ\r\nQ\r\nQ\r\n"
+	// M -> areas lightbar, Enter -> General Discussion (the only area,
+	// already highlighted), P -> post, subject, two body lines, "." to
+	// end, re-select message "1" (still numeric within the area's own
+	// message list) to read it back, Q out of the area, Q out of the
+	// lightbar, Q to log off from main.
+	input := "M\r\n\r\nP\r\nHello World\r\nLine one\r\nLine two\r\n.\r\n1\r\nQ\r\nQ\r\nQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
@@ -111,9 +247,10 @@ func TestPostRejectedBelowWriteThreshold(t *testing.T) {
 	}
 
 	// Areas are listed alphabetically: "General Discussion" (seeded)
-	// sorts before "Locked Area", so it's selection "2". Q out of the
-	// area, Q out of the area list, Q to log off from main.
-	conn := newFakeConn("M\r\n2\r\nP\r\nQ\r\nQ\r\nQ\r\n")
+	// sorts before "Locked Area", so one Down arrow highlights it in
+	// the lightbar before Enter opens it. Q out of the area, Q out of
+	// the lightbar, Q to log off from main.
+	conn := newFakeConn("M\r\n\x1b[B\r\nP\r\nQ\r\nQ\r\nQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, u, 1, "main")

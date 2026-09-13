@@ -88,6 +88,88 @@ func (t *Terminal) readByte() (byte, error) {
 	}
 }
 
+// KeyType classifies one keypress read by ReadKey.
+type KeyType int
+
+const (
+	KeyChar KeyType = iota
+	KeyEnter
+	KeyBackspace
+	KeyEscape
+	KeyUp
+	KeyDown
+	KeyLeft
+	KeyRight
+	KeyUnknown
+)
+
+// Key is one keypress as read by ReadKey: for KeyChar, Rune holds the
+// printable character; every other Type ignores it.
+type Key struct {
+	Type KeyType
+	Rune rune
+}
+
+// ReadKey reads a single keypress, unlike ReadLine's line-buffered
+// input: no local echo, and arrow keys are recognized (as the
+// standard VT100/ANSI cursor-key CSI sequences real BBS terminal
+// clients send: ESC [ A/B/C/D) rather than being swallowed as
+// unrecognized control bytes. Intended for lightbar-style UIs that
+// redraw themselves after every key rather than editing a line of
+// text.
+func (t *Terminal) ReadKey() (Key, error) {
+	c, err := t.readByte()
+	if err != nil {
+		return Key{}, err
+	}
+	switch {
+	case c == charCR || c == charLF:
+		if c == charCR {
+			if next, err := t.readByte(); err == nil && next != charLF {
+				t.pending = []byte{next}
+			}
+		}
+		return Key{Type: KeyEnter}, nil
+
+	case c == charBackspace || c == charDelete:
+		return Key{Type: KeyBackspace}, nil
+
+	case c == 0x1b:
+		next, err := t.readByte()
+		if err != nil {
+			// Nothing followed the escape byte before the connection
+			// ended; report it as a bare Escape rather than losing it.
+			return Key{Type: KeyEscape}, nil
+		}
+		if next != '[' {
+			t.pending = []byte{next}
+			return Key{Type: KeyEscape}, nil
+		}
+		final, err := t.readByte()
+		if err != nil {
+			return Key{}, err
+		}
+		switch final {
+		case 'A':
+			return Key{Type: KeyUp}, nil
+		case 'B':
+			return Key{Type: KeyDown}, nil
+		case 'C':
+			return Key{Type: KeyRight}, nil
+		case 'D':
+			return Key{Type: KeyLeft}, nil
+		default:
+			return Key{Type: KeyUnknown}, nil
+		}
+
+	case c >= 0x20 && c <= 0xfe:
+		return Key{Type: KeyChar, Rune: rune(c)}, nil
+
+	default:
+		return Key{Type: KeyUnknown}, nil
+	}
+}
+
 // ReadLine reads one line of input, echoing typed characters (masked
 // as '*' when mask is true) and honoring backspace/delete for editing.
 // It returns the line without its trailing CR/LF. Both bare LF and
