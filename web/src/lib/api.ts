@@ -4,14 +4,16 @@ export interface BinkpUplink {
 	/** "host:port", e.g. "bbs.example.com:24554". */
 	host: string;
 	password: string;
+	/** Excludes this uplink from the mailer daemon's regular scheduled poll -- for a link that should only ever be dialed for Crash-flagged netmail to its own network, or manually via "Send Now". */
+	poll_disabled: boolean;
 }
 
 export interface BBSConfig {
 	name: string;
 	sysop: string;
 	new_user_sl: number;
-	/** This system's own FTN address (zone:net/node.point) on whichever network it belongs to, if any -- stamped on outgoing netmail. Optional. */
-	ftn_address: string;
+	/** This system's own FTN addresses/AKAs (zone:net/node.point), if any. The first is "primary": stamped on outgoing netmail. Most systems have exactly one; more than one is for a point reachable through the same uplink under multiple FTN networks. */
+	ftn_addresses: string[];
 	telnet_enabled: boolean;
 	telnet_addr: string;
 	ssh_enabled: boolean;
@@ -200,6 +202,17 @@ export function testBinkpConnection(
 ): Promise<{ remote_addresses: string[] }> {
 	return request(
 		'/api/binkp/test-connection',
+		{ method: 'POST', body: JSON.stringify(uplink) },
+		token
+	);
+}
+
+export function sendNowBinkp(
+	token: string,
+	uplink: BinkpUplink
+): Promise<{ sent: number; received: number; remote_addresses: string[] }> {
+	return request(
+		'/api/binkp/send-now',
 		{ method: 'POST', body: JSON.stringify(uplink) },
 		token
 	);

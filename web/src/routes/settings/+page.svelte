@@ -7,6 +7,7 @@
 		getConfig,
 		putConfig,
 		testBinkpConnection,
+		sendNowBinkp,
 		ApiError,
 		type BBSConfig,
 		type BinkpUplink
@@ -18,9 +19,10 @@
 	let saveNote = $state<string | null>(null);
 	let saving = $state(false);
 	let testingIndex = $state<number | null>(null);
+	let sendingIndex = $state<number | null>(null);
 
 	function emptyUplink(): BinkpUplink {
-		return { address: '', host: '', password: '' };
+		return { address: '', host: '', password: '', poll_disabled: false };
 	}
 
 	function addUplink() {
@@ -33,6 +35,16 @@
 		config.binkp_uplinks = config.binkp_uplinks.filter((_, i) => i !== index);
 	}
 
+	function addFTNAddress() {
+		if (!config) return;
+		config.ftn_addresses = [...config.ftn_addresses, ''];
+	}
+
+	function removeFTNAddress(index: number) {
+		if (!config) return;
+		config.ftn_addresses = config.ftn_addresses.filter((_, i) => i !== index);
+	}
+
 	async function testUplink(index: number) {
 		if (!config || !auth.token) return;
 		const uplink = config.binkp_uplinks[index];
@@ -40,7 +52,7 @@
 			toast.push('Enter a host:port first.', 'error');
 			return;
 		}
-		if (!config.ftn_address.trim()) {
+		if (config.ftn_addresses.length === 0) {
 			toast.push('Set this system’s own FTN address above first.', 'error');
 			return;
 		}
@@ -57,6 +69,33 @@
 			toast.push(err instanceof ApiError ? err.message : 'Connection test failed.', 'error');
 		} finally {
 			testingIndex = null;
+		}
+	}
+
+	async function sendNowUplink(index: number) {
+		if (!config || !auth.token) return;
+		const uplink = config.binkp_uplinks[index];
+		if (!uplink.host.trim()) {
+			toast.push('Enter a host:port first.', 'error');
+			return;
+		}
+		if (config.ftn_addresses.length === 0) {
+			toast.push('Set this system’s own FTN address above first.', 'error');
+			return;
+		}
+		sendingIndex = index;
+		try {
+			const res = await sendNowBinkp(auth.token, uplink);
+			toast.push(`Polled uplink: sent ${res.sent}, received ${res.received}.`, 'success');
+		} catch (err) {
+			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+				auth.clear();
+				await goto('/login');
+				return;
+			}
+			toast.push(err instanceof ApiError ? err.message : 'Sending failed.', 'error');
+		} finally {
+			sendingIndex = null;
 		}
 	}
 
@@ -137,19 +176,43 @@
 					required
 				/>
 			</label>
-			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">FTN Address (zone:net/node.point)</span>
-				<input
-					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-					bind:value={config.ftn_address}
-					placeholder="e.g. 1:234/56.0 -- leave blank if you don't have one"
-				/>
+			<div class="flex flex-col gap-2 text-sm">
+				<div class="flex items-center justify-between">
+					<span class="text-slate-400">FTN Address(es) (zone:net/node.point)</span>
+					<button
+						type="button"
+						class="rounded border border-slate-700 px-2 py-0.5 text-xs hover:bg-slate-800"
+						onclick={addFTNAddress}
+					>
+						+ Add Address
+					</button>
+				</div>
 				<span class="text-xs text-slate-500">
-					Your node address on whichever FTN-compatible network you're a member of (FidoNet,
-					fsxNet, etc.), if any. Stamped on outgoing netmail; has no other effect until a BinkP
-					mailer is set up.
+					Your node address(es) on whichever FTN-compatible network(s) you're a member of
+					(FidoNet, fsxNet, etc.), if any. The first is "primary": stamped on outgoing netmail.
+					More than one is only needed if a single uplink presents you with more than one
+					network in the same BinkP session (see internal/tosser).
 				</span>
-			</label>
+				{#if config.ftn_addresses.length === 0}
+					<p class="text-sm text-slate-500">None configured.</p>
+				{/if}
+				{#each config.ftn_addresses as _, i (i)}
+					<div class="flex items-center gap-2">
+						<input
+							class="flex-1 rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={config.ftn_addresses[i]}
+							placeholder="e.g. 1:234/56.0"
+						/>
+						<button
+							type="button"
+							class="rounded border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950"
+							onclick={() => removeFTNAddress(i)}
+						>
+							Remove
+						</button>
+					</div>
+				{/each}
+			</div>
 		</section>
 
 		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">
@@ -196,8 +259,10 @@
 				</button>
 			</div>
 			<p class="text-xs text-slate-500">
-				Nodes/hubs this system polls to exchange netmail and echomail once BinkP is fully wired
-				up. "Test" connects and authenticates now, without sending or requesting any mail.
+				Nodes/hubs this system exchanges netmail with (echomail routing isn't wired up yet). The
+				mailer daemon polls each uplink automatically on its own schedule; "Test" connects and
+				authenticates now without sending or requesting any mail, and "Send Now" polls
+				immediately -- sending anything queued and picking up anything waiting for us.
 			</p>
 			{#if config.binkp_uplinks.length === 0}
 				<p class="text-sm text-slate-500">No uplinks configured.</p>
@@ -229,6 +294,14 @@
 							placeholder="(optional -- blank for an open/no-auth node)"
 						/>
 					</label>
+					<label class="col-span-2 flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={uplink.poll_disabled} />
+						<span class="text-slate-400">
+							Crash-only: exclude from the mailer's regular scheduled poll (still reachable via
+							"Send Now", and automatically dialed for Crash-flagged netmail addressed to this
+							uplink's own network)
+						</span>
+					</label>
 					<div class="col-span-2 flex gap-2">
 						<button
 							type="button"
@@ -237,6 +310,14 @@
 							onclick={() => testUplink(i)}
 						>
 							{testingIndex === i ? 'Testing…' : 'Test Connection'}
+						</button>
+						<button
+							type="button"
+							class="rounded border border-cyan-700 px-3 py-1 text-sm text-cyan-400 hover:bg-cyan-950 disabled:opacity-50"
+							disabled={sendingIndex === i}
+							onclick={() => sendNowUplink(i)}
+						>
+							{sendingIndex === i ? 'Sending…' : 'Send Now'}
 						</button>
 						<button
 							type="button"

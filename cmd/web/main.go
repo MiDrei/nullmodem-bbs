@@ -14,6 +14,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 	"git.maik.ch/swissmaik/nullmodem/internal/web"
@@ -59,6 +60,7 @@ func main() {
 		Users:    user.NewStore(sqlDB),
 		Messages: message.NewStore(sqlDB),
 		Files:    file.NewStore(sqlDB, bbsCfg.BBS.FilesDir),
+		Netmail:  netmail.NewStore(sqlDB),
 		// No ClearAll: the web daemon must never wipe the BBS daemon's
 		// live session state just by starting or restarting.
 		Nodes:         session.NewStore(sqlDB),

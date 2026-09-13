@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
@@ -15,6 +16,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
@@ -71,6 +73,7 @@ func newTestServer(t *testing.T) (*Server, *user.Store, string) {
 		Users:         users,
 		Messages:      message.NewStore(sqlDB),
 		Files:         file.NewStore(sqlDB, filepath.Join(dir, "files")),
+		Netmail:       netmail.NewStore(sqlDB),
 		Nodes:         nodes,
 		Logs:          logs,
 		Logger:        applog.NewLogger(logs, "web"),
@@ -180,7 +183,7 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	// Update and verify it persisted to disk.
 	got.Name = "My Awesome BBS"
 	got.NewUserSL = 20
-	got.FTNAddress = "1:234/56.0"
+	got.FTNAddresses = []string{"1:234/56.0", "2:345/67"}
 	got.BinkpUplinks = []binkpUplinkDTO{
 		{Address: "21:3/194", Host: "bbs.maik.ch:24554", Password: "secret"},
 	}
@@ -193,8 +196,9 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
-	if saved.BBS.Name != "My Awesome BBS" || saved.BBS.NewUserSL != 20 || saved.BBS.FTNAddress != "1:234/56.0" {
-		t.Fatalf("saved config = %+v, want updated name/SL/ftn_address", saved.BBS)
+	wantAddrs := []string{"1:234/56.0", "2:345/67"}
+	if saved.BBS.Name != "My Awesome BBS" || saved.BBS.NewUserSL != 20 || !reflect.DeepEqual(saved.BBS.FTNAddresses, wantAddrs) {
+		t.Fatalf("saved config = %+v, want updated name/SL/ftn_addresses %v", saved.BBS, wantAddrs)
 	}
 	if len(saved.Binkp.Uplinks) != 1 || saved.Binkp.Uplinks[0].Host != "bbs.maik.ch:24554" ||
 		saved.Binkp.Uplinks[0].Address != "21:3/194" || saved.Binkp.Uplinks[0].Password != "secret" {

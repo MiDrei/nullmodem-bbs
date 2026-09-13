@@ -105,14 +105,20 @@ CREATE TABLE IF NOT EXISTS file_reads (
 -- from_address/to_address hold FTN addresses (zone:net/node.point)
 -- for routing once a mailer exists. to_user_id is set when the
 -- recipient resolved to a local account (delivered immediately); it's
--- NULL when to_address is a remote system this BBS can't reach yet,
--- leaving the message queued until the mailer is built. Since a
--- netmail message always has exactly one recipient (unlike an echo
--- area's many readers), read state lives directly on the row rather
--- than needing a separate per-user reads table.
+-- NULL when to_address is a remote system, either still queued for
+-- internal/tosser to send (sent_at NULL) or already handed off
+-- (sent_at set). from_user_id is NULL for mail internal/tosser
+-- received from a remote FTN system -- there's no local sender
+-- account, so from_name carries the remote sender's name directly
+-- instead of being joined from users.username the way a local
+-- sender's is. Since a netmail message always has exactly one
+-- recipient (unlike an echo area's many readers), read state lives
+-- directly on the row rather than needing a separate per-user reads
+-- table.
 CREATE TABLE IF NOT EXISTS netmail_messages (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_user_id   INTEGER NOT NULL REFERENCES users(id),
+    from_user_id   INTEGER REFERENCES users(id),
+    from_name      TEXT NOT NULL DEFAULT '',
     from_address   TEXT NOT NULL DEFAULT '',
     to_user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
     to_name        TEXT NOT NULL,
@@ -120,7 +126,13 @@ CREATE TABLE IF NOT EXISTS netmail_messages (
     subject        TEXT NOT NULL,
     body           TEXT NOT NULL,
     posted_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    read_at        TIMESTAMP
+    read_at        TIMESTAMP,
+    sent_at        TIMESTAMP,
+    -- Crash-priority mail (FTS-0001's AttrCrash) is routed and
+    -- delivered specially by internal/tosser: it bypasses a
+    -- crash-only uplink's disabled regular poll and gets dialed
+    -- immediately instead of waiting for the next scheduled poll.
+    crash          INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_netmail_to_user_posted ON netmail_messages(to_user_id, posted_at);

@@ -276,22 +276,35 @@ func (s *session) originatorHandshake() error {
 	if err := s.send(MPWD, pwArg); err != nil {
 		return err
 	}
+	return s.readPasswordResponse()
+}
 
-	isData, payload, err := readFrame(s.conn)
-	if err != nil {
-		return err
-	}
-	if isData || len(payload) == 0 {
-		return fmt.Errorf("malformed response to M_PWD")
-	}
-	cmd, arg := Command(payload[0]), string(payload[1:])
-	switch cmd {
-	case MOK:
-		return nil
-	case MERR:
-		return fmt.Errorf("authentication failed: %s", arg)
-	default:
-		return fmt.Errorf("unexpected response to M_PWD: %s %q", cmd, arg)
+// readPasswordResponse reads command frames following our M_PWD until
+// it finds M_OK or M_ERR, tolerating (ignoring) any M_NUL in between
+// -- some real answerers (e.g. binkd-derived implementations) send
+// their SYS/ZYZ/LOC/VER informational lines interleaved with or after
+// the auth exchange rather than strictly before it, not just during
+// the address exchange readHandshakeFrames already tolerates.
+func (s *session) readPasswordResponse() error {
+	for {
+		isData, payload, err := readFrame(s.conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("malformed response to M_PWD")
+		}
+		cmd, arg := Command(payload[0]), string(payload[1:])
+		switch cmd {
+		case MNUL:
+			continue
+		case MOK:
+			return nil
+		case MERR:
+			return fmt.Errorf("authentication failed: %s", arg)
+		default:
+			return fmt.Errorf("unexpected response to M_PWD: %s %q", cmd, arg)
+		}
 	}
 }
 
@@ -327,10 +340,21 @@ func (s *session) answererHandshake() error {
 	// might have no password configured for us even though we'd
 	// accept one, or vice versa) -- peek the next frame rather than
 	// assuming, and push it back if it turns out to belong to the
-	// transfer phase instead.
-	isData, payload, err := s.nextFrame()
-	if err != nil {
-		return err
+	// transfer phase instead. Skip over any M_NUL first: some real
+	// callers interleave their own informational lines with or after
+	// M_ADR, before actually sending M_PWD (see readPasswordResponse's
+	// doc comment for the symmetric case on the originator side).
+	var isData bool
+	var payload []byte
+	for {
+		isData, payload, err = s.nextFrame()
+		if err != nil {
+			return err
+		}
+		if !isData && len(payload) > 0 && Command(payload[0]) == MNUL {
+			continue
+		}
+		break
 	}
 	isPWD := !isData && len(payload) > 0 && Command(payload[0]) == MPWD
 	if !isPWD {

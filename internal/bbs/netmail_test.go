@@ -77,10 +77,11 @@ func TestComposeNetmailToFTNAddressQueuesMessage(t *testing.T) {
 	}
 
 	// A well-formed FTN address with no local match is accepted and
-	// stored, prompts for the remote recipient's name, and is reported
-	// as queued rather than sent, since no BinkP mailer exists yet to
-	// actually deliver it.
-	input := "N\r\nC1:234/99.0\r\nMike Dreier\r\nHi remote\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
+	// stored, prompts for the remote recipient's name and Crash
+	// priority (answered "n" here), and is reported as queued rather
+	// than sent, since no BinkP mailer exists yet to actually deliver
+	// it.
+	input := "N\r\nC1:234/99.0\r\nMike Dreier\r\nn\r\nHi remote\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
@@ -94,6 +95,31 @@ func TestComposeNetmailToFTNAddressQueuesMessage(t *testing.T) {
 	}
 }
 
+func TestComposeNetmailToFTNAddressWithCrashSetsCrashFlag(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	input := "N\r\nC1:234/99.0\r\nMike Dreier\r\ny\r\nUrgent\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
+	conn := newFakeConn(input)
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+
+	pending, err := s.Netmail.PendingOutbound()
+	if err != nil {
+		t.Fatalf("PendingOutbound: %v", err)
+	}
+	if len(pending) != 1 || !pending[0].Crash {
+		t.Fatalf("PendingOutbound = %+v, want one Crash-flagged message", pending)
+	}
+}
+
 func TestComposeNetmailToFTNAddressWithBlankNameFallsBackToAddress(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -103,7 +129,7 @@ func TestComposeNetmailToFTNAddressWithBlankNameFallsBackToAddress(t *testing.T)
 
 	// Leaving the recipient-name prompt blank keeps the previous
 	// behavior of using the address itself as the display name.
-	input := "N\r\nC1:234/99.0\r\n\r\nHi remote\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
+	input := "N\r\nC1:234/99.0\r\n\r\nn\r\nHi remote\r\nbody\r\n/S\r\nQ\r\nQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
@@ -128,7 +154,7 @@ func TestNetmailInboxShowsNewFlagUntilRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Register bob: %v", err)
 	}
-	if _, err := s.Netmail.Send(alice.ID, "", bob.ID, "bob", "", "Hi", "hi bob"); err != nil {
+	if _, err := s.Netmail.Send(alice.ID, "", bob.ID, "bob", "", "Hi", "hi bob", false); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 
@@ -168,7 +194,7 @@ func TestReplyToNetmailSendsToOriginalSender(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Register bob: %v", err)
 	}
-	if _, err := s.Netmail.Send(alice.ID, "", bob.ID, "bob", "", "Original", "hi bob"); err != nil {
+	if _, err := s.Netmail.Send(alice.ID, "", bob.ID, "bob", "", "Original", "hi bob", false); err != nil {
 		t.Fatalf("Send: %v", err)
 	}
 
@@ -201,8 +227,8 @@ func TestReplyToNetmailSendsToOriginalSender(t *testing.T) {
 	if reply.Subject != "Re: Original" {
 		t.Fatalf("reply.Subject = %q, want %q", reply.Subject, "Re: Original")
 	}
-	if reply.FromUserID != bob.ID {
-		t.Fatalf("reply.FromUserID = %d, want bob's id %d", reply.FromUserID, bob.ID)
+	if !reply.FromUserID.Valid || reply.FromUserID.Int64 != bob.ID {
+		t.Fatalf("reply.FromUserID = %v, want bob's id %d", reply.FromUserID, bob.ID)
 	}
 	if reply.Body != "Thanks" {
 		t.Fatalf("reply.Body = %q, want %q", reply.Body, "Thanks")

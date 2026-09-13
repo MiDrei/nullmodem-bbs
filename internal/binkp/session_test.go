@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"reflect"
@@ -297,5 +298,208 @@ func TestSessionContextCancellationAbortsSession(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+}
+
+// TestOriginatorToleratesMNULAfterMPWD locks in a real interop fix:
+// a live uplink was observed sending its "SYS ..." informational line
+// interleaved after our M_PWD, before its actual M_OK -- not just
+// during the address exchange, which readHandshakeFrames already
+// tolerated. The hand-crafted peer below plays exactly that answerer
+// behavior over a real TCP loopback (see runPair's doc comment for
+// why a real socket, not net.Pipe, is needed for BinkP's handshake).
+func TestOriginatorToleratesMNULAfterMPWD(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	peerErrCh := make(chan error, 1)
+	go func() {
+		peerErrCh <- runQuirkyMNULAfterPWDPeer(ln)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		Password:     "correct horse",
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := <-peerErrCh; err != nil {
+		t.Fatalf("quirky peer: %v", err)
+	}
+}
+
+// TestAnswererToleratesMNULBeforeMPWD is runQuirkyMNULAfterPWDPeer's
+// mirror image: a hand-crafted caller interleaves an M_NUL line after
+// its own M_ADR but before its M_PWD, and a real Answer must not
+// mistake that M_NUL for "the caller sent no password" and reject the
+// (perfectly legitimate, if delayed) M_PWD that follows.
+func TestAnswererToleratesMNULBeforeMPWD(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	ansErrCh := make(chan error, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			ansErrCh <- err
+			return
+		}
+		defer conn.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err = Answer(ctx, conn, Config{
+			OurAddresses: []string{"1:234/99.0"},
+			Password:     "correct horse",
+		})
+		ansErrCh <- err
+	}()
+
+	if err := runQuirkyMNULBeforePWDPeer(ln.Addr().String()); err != nil {
+		t.Fatalf("quirky peer: %v", err)
+	}
+	if err := <-ansErrCh; err != nil {
+		t.Fatalf("Answer: %v", err)
+	}
+}
+
+// runQuirkyMNULBeforePWDPeer dials addr and manually plays an
+// originator that authenticates in the clear but, unlike this
+// package's own Dial, sends an extra M_NUL line after its M_ADR and
+// before its M_PWD.
+func runQuirkyMNULBeforePWDPeer(addr string) error {
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if err := writeCommandFrame(conn, MADR, "1:234/56.0"); err != nil {
+		return err
+	}
+
+	// Read until the answerer's M_ADR (ignoring its M_NUL info lines).
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+
+	// The quirk under test: an M_NUL line arrives before M_PWD.
+	if err := writeCommandFrame(conn, MNUL, "SYS quirky-caller"); err != nil {
+		return err
+	}
+	if err := writeCommandFrame(conn, MPWD, "correct horse"); err != nil {
+		return err
+	}
+
+	isData, payload, err := readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MOK {
+		return fmt.Errorf("expected M_OK, got isData=%v payload=%q", isData, payload)
+	}
+
+	// Empty transfer phase: send our M_EOB and wait for the answerer's.
+	if err := writeCommandFrame(conn, MEOB, ""); err != nil {
+		return err
+	}
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame during transfer phase")
+		}
+		if Command(payload[0]) == MEOB {
+			return nil
+		}
+	}
+}
+
+// runQuirkyMNULAfterPWDPeer accepts one connection and manually plays
+// an answerer that authenticates in the clear (no CRAM-MD5 challenge
+// offered) but, unlike this package's own Answer, sends an extra
+// M_NUL line after the client's M_PWD and before its M_OK.
+func runQuirkyMNULAfterPWDPeer(ln net.Listener) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	// Read until the client's M_ADR (ignoring its M_NUL info lines),
+	// matching readHandshakeFrames' own tolerance.
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+
+	if err := writeCommandFrame(conn, MNUL, "SYS quirky-peer"); err != nil {
+		return err
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+
+	isData, payload, err := readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MPWD {
+		return fmt.Errorf("expected M_PWD, got isData=%v payload=%q", isData, payload)
+	}
+	if arg := string(payload[1:]); arg != "correct horse" {
+		return fmt.Errorf("M_PWD arg = %q, want the plaintext password", arg)
+	}
+
+	// The quirk under test: an M_NUL line arrives before M_OK.
+	if err := writeCommandFrame(conn, MNUL, "SYS Clearing Houz"); err != nil {
+		return err
+	}
+	if err := writeCommandFrame(conn, MOK, ""); err != nil {
+		return err
+	}
+
+	// Empty transfer phase: send our M_EOB and wait for the client's.
+	if err := writeCommandFrame(conn, MEOB, ""); err != nil {
+		return err
+	}
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame during transfer phase")
+		}
+		if Command(payload[0]) == MEOB {
+			return nil
+		}
 	}
 }

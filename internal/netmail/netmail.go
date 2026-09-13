@@ -2,14 +2,14 @@
 // users -- the BBS's Netmail feature, distinct from the shared,
 // topic-based message areas (Echomail) internal/message implements.
 //
-// It exists ahead of schedule, before the BinkP/FidoNet mailer
-// (internal/mail, still an empty Phase 2 placeholder per CLAUDE.md's
-// roadmap), so the data model doesn't need a later migration: every
-// message carries optional From/To FTN addresses (zone:net/node.point)
-// alongside the local recipient. A message addressed to a remote
-// system just sits with ToUserID unset ("queued") until the future
-// mailer/tosser exists to actually route it -- nothing here transmits
-// anything over BinkP yet.
+// Its schema anticipated the BinkP/FidoNet mailer from the start (see
+// CLAUDE.md's roadmap): every message carries optional From/To FTN
+// addresses (zone:net/node.point) alongside the local recipient. A
+// message addressed to a remote system sits with ToUserID unset and
+// SentAt unset ("queued") until internal/tosser hands it to a
+// configured uplink; mail arriving from a remote system the same way
+// (via Receive) has FromUserID unset instead, since there's no local
+// sender account for it.
 package netmail
 
 import (
@@ -24,9 +24,9 @@ import (
 // separate per-user reads table the way message_reads/file_reads do.
 type Message struct {
 	ID          int64
-	FromUserID  int64
-	FromName    string // joined from users.username for display
-	FromAddress string // this BBS's own FTN address when sent, may be empty if unconfigured
+	FromUserID  sql.NullInt64
+	FromName    string // joined from users.username for a local sender, or the stored name for a remote one (see Receive)
+	FromAddress string // sender's FTN address, may be empty if unconfigured (local sender) or unknown (remote sender)
 	ToUserID    sql.NullInt64
 	ToName      string // the local username, or the raw FTN address if unresolved/remote
 	ToAddress   string // FTN address (zone:net/node.point); empty means purely local
@@ -34,6 +34,12 @@ type Message struct {
 	Body        string
 	PostedAt    time.Time
 	ReadAt      sql.NullTime
+	SentAt      sql.NullTime
+	// Crash marks a remote-addressed message for priority delivery
+	// (FTS-0001's AttrCrash): internal/tosser routes it to a specific
+	// crash-only uplink and dials that uplink immediately instead of
+	// waiting for the next scheduled poll. Meaningless for local mail.
+	Crash bool
 }
 
 // IsLocal reports whether m resolved to a user on this BBS.
@@ -41,6 +47,15 @@ func (m *Message) IsLocal() bool { return m.ToUserID.Valid }
 
 // IsRead reports whether the recipient has opened m in the reader.
 func (m *Message) IsRead() bool { return m.ReadAt.Valid }
+
+// IsSent reports whether m has been handed off to (and acknowledged
+// by) an uplink -- always true for local mail, meaningful only for a
+// message with ToAddress set and no ToUserID.
+func (m *Message) IsSent() bool { return m.SentAt.Valid }
+
+// IsFromRemote reports whether m arrived from a remote FTN system via
+// internal/tosser rather than being composed by a local user.
+func (m *Message) IsFromRemote() bool { return !m.FromUserID.Valid }
 
 // Store persists netmail Messages in the shared SQLite database.
 type Store struct {
@@ -53,16 +68,18 @@ func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 // Send stores a new netmail message. toUserID is 0 when the recipient
 // couldn't be resolved to a local user, in which case toAddress must
 // carry the intended FTN address -- it stays undeliverable until a
-// BinkP mailer exists to route it.
-func (s *Store) Send(fromUserID int64, fromAddress string, toUserID int64, toName, toAddress, subject, body string) (*Message, error) {
+// BinkP mailer exists to route it. crash is meaningless for a local
+// recipient; for a remote one, it flags the message for
+// internal/tosser's priority routing (see Message.Crash).
+func (s *Store) Send(fromUserID int64, fromAddress string, toUserID int64, toName, toAddress, subject, body string, crash bool) (*Message, error) {
 	var toUserIDArg any
 	if toUserID > 0 {
 		toUserIDArg = toUserID
 	}
 	res, err := s.db.Exec(
-		`INSERT INTO netmail_messages (from_user_id, from_address, to_user_id, to_name, to_address, subject, body)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		fromUserID, fromAddress, toUserIDArg, toName, toAddress, subject, body,
+		`INSERT INTO netmail_messages (from_user_id, from_address, to_user_id, to_name, to_address, subject, body, crash)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		fromUserID, fromAddress, toUserIDArg, toName, toAddress, subject, body, crash,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("netmail: send: %w", err)
@@ -74,18 +91,88 @@ func (s *Store) Send(fromUserID int64, fromAddress string, toUserID int64, toNam
 	return s.MessageByID(id)
 }
 
-// MessageByID loads a single message, with its sender's current
-// username joined in as FromName.
+// Receive stores a netmail message that arrived from a remote FTN
+// system via internal/tosser -- Send's counterpart for locally
+// composed mail. There's no local from_user_id for a remote sender,
+// so fromName is stored directly instead of being joined from
+// users.username at read time. postedAt is the message's own Written
+// timestamp from the packet, not when we happened to receive it.
+func (s *Store) Receive(fromName, fromAddress string, toUserID int64, toName, toAddress, subject, body string, postedAt time.Time, crash bool) (*Message, error) {
+	var toUserIDArg any
+	if toUserID > 0 {
+		toUserIDArg = toUserID
+	}
+	res, err := s.db.Exec(
+		`INSERT INTO netmail_messages (from_user_id, from_name, from_address, to_user_id, to_name, to_address, subject, body, posted_at, crash)
+		 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		fromName, fromAddress, toUserIDArg, toName, toAddress, subject, body, postedAt, crash,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("netmail: receive: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("netmail: receive: %w", err)
+	}
+	return s.MessageByID(id)
+}
+
+// PendingOutbound returns netmail addressed to a remote FTN system
+// that hasn't been handed to an uplink yet, oldest first -- what
+// internal/tosser bundles into an outbound packet on each poll.
+func (s *Store) PendingOutbound() ([]Message, error) {
+	rows, err := s.db.Query(
+		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
+		 WHERE m.to_user_id IS NULL AND m.to_address != '' AND m.sent_at IS NULL
+		 ORDER BY m.posted_at ASC, m.id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("netmail: pending outbound: %w", err)
+	}
+	defer rows.Close()
+
+	var msgs []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			return nil, fmt.Errorf("netmail: scan pending outbound row: %w", err)
+		}
+		msgs = append(msgs, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("netmail: pending outbound: %w", err)
+	}
+	return msgs, nil
+}
+
+// MarkSent records that messageID was successfully handed off to (and
+// acknowledged by) an uplink -- see internal/tosser.Poll. Idempotent.
+func (s *Store) MarkSent(messageID int64) error {
+	if _, err := s.db.Exec(
+		`UPDATE netmail_messages SET sent_at = CURRENT_TIMESTAMP WHERE id = ? AND sent_at IS NULL`,
+		messageID,
+	); err != nil {
+		return fmt.Errorf("netmail: mark %d sent: %w", messageID, err)
+	}
+	return nil
+}
+
+// MessageByID loads a single message, with its local sender's current
+// username joined in as FromName (a remote sender's stored FromName
+// is used as-is -- see Receive).
 func (s *Store) MessageByID(id int64) (*Message, error) {
 	row := s.db.QueryRow(
-		`SELECT m.id, m.from_user_id, u.username, m.from_address,
-		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at
-		 FROM netmail_messages m JOIN users u ON u.id = m.from_user_id
+		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.id = ?`, id,
 	)
 	var m Message
 	if err := row.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
-		&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt); err != nil {
+		&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
 		return nil, fmt.Errorf("netmail: load %d: %w", id, err)
 	}
 	return &m, nil
@@ -96,9 +183,9 @@ func (s *Store) MessageByID(id int64) (*Message, error) {
 // the opposite of an echo area's oldest-first message list.
 func (s *Store) Inbox(userID int64) ([]Message, error) {
 	rows, err := s.db.Query(
-		`SELECT m.id, m.from_user_id, u.username, m.from_address,
-		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at
-		 FROM netmail_messages m JOIN users u ON u.id = m.from_user_id
+		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.to_user_id = ?
 		 ORDER BY m.posted_at DESC, m.id DESC`, userID,
 	)
@@ -111,7 +198,7 @@ func (s *Store) Inbox(userID int64) ([]Message, error) {
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
-			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt); err != nil {
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
 			return nil, fmt.Errorf("netmail: scan inbox row: %w", err)
 		}
 		msgs = append(msgs, m)

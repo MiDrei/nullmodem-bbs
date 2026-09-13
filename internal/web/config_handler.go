@@ -12,26 +12,30 @@ import (
 
 	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
+	"git.maik.ch/swissmaik/nullmodem/internal/mail"
+	"git.maik.ch/swissmaik/nullmodem/internal/tosser"
 )
 
-// binkpTestTimeout bounds how long handleTestBinkpConnection waits
-// for a full handshake against a real uplink before giving up.
-const binkpTestTimeout = 20 * time.Second
+// binkpRequestTimeout bounds how long a single BinkP operation
+// (a connection test, or a manual "send now" poll) waits on a real
+// uplink before giving up.
+const binkpRequestTimeout = 60 * time.Second
 
 // configDTO is the subset of the BBS config the web UI can view and
 // edit. Fields like the database path and SSH host key path stay
 // internal and are preserved as-is on save.
 type binkpUplinkDTO struct {
-	Address  string `json:"address"`
-	Host     string `json:"host"`
-	Password string `json:"password"`
+	Address      string `json:"address"`
+	Host         string `json:"host"`
+	Password     string `json:"password"`
+	PollDisabled bool   `json:"poll_disabled"`
 }
 
 type configDTO struct {
 	Name          string           `json:"name"`
 	Sysop         string           `json:"sysop"`
 	NewUserSL     int              `json:"new_user_sl"`
-	FTNAddress    string           `json:"ftn_address"`
+	FTNAddresses  []string         `json:"ftn_addresses"`
 	TelnetEnabled bool             `json:"telnet_enabled"`
 	TelnetAddr    string           `json:"telnet_addr"`
 	SSHEnabled    bool             `json:"ssh_enabled"`
@@ -42,13 +46,17 @@ type configDTO struct {
 func toDTO(c *config.Config) configDTO {
 	uplinks := make([]binkpUplinkDTO, len(c.Binkp.Uplinks))
 	for i, u := range c.Binkp.Uplinks {
-		uplinks[i] = binkpUplinkDTO{Address: u.Address, Host: u.Host, Password: u.Password}
+		uplinks[i] = binkpUplinkDTO{Address: u.Address, Host: u.Host, Password: u.Password, PollDisabled: u.PollDisabled}
+	}
+	addrs := c.BBS.FTNAddresses
+	if addrs == nil {
+		addrs = []string{}
 	}
 	return configDTO{
 		Name:          c.BBS.Name,
 		Sysop:         c.BBS.Sysop,
 		NewUserSL:     c.BBS.NewUserSL,
-		FTNAddress:    c.BBS.FTNAddress,
+		FTNAddresses:  addrs,
 		TelnetEnabled: c.Telnet.Enabled,
 		TelnetAddr:    c.Telnet.Addr,
 		SSHEnabled:    c.SSH.Enabled,
@@ -97,14 +105,14 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	c.BBS.Name = dto.Name
 	c.BBS.Sysop = dto.Sysop
 	c.BBS.NewUserSL = dto.NewUserSL
-	c.BBS.FTNAddress = dto.FTNAddress
+	c.BBS.FTNAddresses = dto.FTNAddresses
 	c.Telnet.Enabled = dto.TelnetEnabled
 	c.Telnet.Addr = dto.TelnetAddr
 	c.SSH.Enabled = dto.SSHEnabled
 	c.SSH.Addr = dto.SSHAddr
 	c.Binkp.Uplinks = make([]config.BinkpUplink, len(dto.BinkpUplinks))
 	for i, u := range dto.BinkpUplinks {
-		c.Binkp.Uplinks[i] = config.BinkpUplink{Address: u.Address, Host: u.Host, Password: u.Password}
+		c.Binkp.Uplinks[i] = config.BinkpUplink{Address: u.Address, Host: u.Host, Password: u.Password, PollDisabled: u.PollDisabled}
 	}
 
 	if err := config.Save(s.BBSConfigPath, c); err != nil {
@@ -143,16 +151,16 @@ func (s *Server) handleTestBinkpConnection(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "could not load config")
 		return
 	}
-	if strings.TrimSpace(c.BBS.FTNAddress) == "" {
+	if len(c.BBS.FTNAddresses) == 0 {
 		writeError(w, http.StatusBadRequest, "set this system's own FTN address above before testing an uplink")
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), binkpTestTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), binkpRequestTimeout)
 	defer cancel()
 
 	result, err := binkp.Dial(ctx, req.Host, binkp.Config{
-		OurAddresses: []string{c.BBS.FTNAddress},
+		OurAddresses: c.BBS.FTNAddresses,
 		Password:     req.Password,
 		SysName:      c.BBS.Name,
 		Sysop:        c.BBS.Sysop,
@@ -166,6 +174,58 @@ func (s *Server) handleTestBinkpConnection(w http.ResponseWriter, r *http.Reques
 		s.logInfo("%s tested a BinkP connection to %s", claims.Subject, req.Host)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
+		"remote_addresses": result.RemoteAddresses,
+	})
+}
+
+// handleSendNowBinkp polls one configured uplink immediately (see
+// internal/tosser), instead of waiting for the mailer daemon's next
+// scheduled poll -- sending any queued netmail and filing away
+// whatever the uplink sends back, all in one BinkP session.
+func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
+	var req binkpUplinkDTO
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if strings.TrimSpace(req.Host) == "" {
+		writeError(w, http.StatusBadRequest, "host must not be empty")
+		return
+	}
+	if s.Netmail == nil {
+		writeError(w, http.StatusInternalServerError, "netmail store is not configured")
+		return
+	}
+
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	if len(c.BBS.FTNAddresses) == 0 {
+		writeError(w, http.StatusBadRequest, "set this system's own FTN address above before sending")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), binkpRequestTimeout)
+	defer cancel()
+
+	result, err := tosser.Poll(ctx, c.BBS.FTNAddresses, config.BinkpUplink{
+		Address:  req.Address,
+		Host:     req.Host,
+		Password: req.Password,
+	}, c.Binkp.Uplinks, s.Netmail, s.Users)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("poll failed: %v", err))
+		return
+	}
+
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s manually polled BinkP uplink %s (sent %d, received %d)", claims.Subject, req.Host, result.Sent, result.Received)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"sent":             result.Sent,
+		"received":         result.Received,
 		"remote_addresses": result.RemoteAddresses,
 	})
 }
@@ -188,6 +248,14 @@ func validateConfigDTO(dto configDTO) string {
 	}
 	if !dto.TelnetEnabled && !dto.SSHEnabled {
 		return "at least one of telnet or ssh must be enabled"
+	}
+	for i, addr := range dto.FTNAddresses {
+		if strings.TrimSpace(addr) == "" {
+			return fmt.Sprintf("ftn address %d: must not be empty", i+1)
+		}
+		if _, err := mail.ParseAddress(addr); err != nil {
+			return fmt.Sprintf("ftn address %d: %v", i+1, err)
+		}
 	}
 	for i, u := range dto.BinkpUplinks {
 		if strings.TrimSpace(u.Host) == "" {

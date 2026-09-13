@@ -251,8 +251,9 @@ func (s *Server) readNetmail(term *Terminal, u *user.User, msgs []netmail.Messag
 
 // replyToNetmail sends a reply to original's sender: Subject defaults
 // to "Re: <original subject>" (see replySubject) and the recipient to
-// the original sender (always local, since only local users can send
-// netmail without a BinkP mailer yet), then hands off to the shared
+// the original sender -- a local user if original was composed here,
+// or back out to their FTN address (via internal/tosser) if it
+// arrived from a remote system -- then hands off to the shared
 // runLineEditor for the body.
 func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.Message) error {
 	subject := replySubject(original.Subject)
@@ -273,7 +274,15 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 	if !saved {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Reply aborted.")
 	}
-	if _, err := s.Netmail.Send(u.ID, s.FTNAddress, original.FromUserID, original.FromName, "", subject, strings.Join(lines, "\n")); err != nil {
+
+	var toUserID int64
+	var toAddress string
+	if original.FromUserID.Valid {
+		toUserID = original.FromUserID.Int64
+	} else {
+		toAddress = original.FromAddress
+	}
+	if _, err := s.Netmail.Send(u.ID, s.FTNAddress, toUserID, original.FromName, toAddress, subject, strings.Join(lines, "\n"), false); err != nil {
 		return err
 	}
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Reply sent.")
@@ -354,6 +363,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 
 	var toUserID int64
 	var toName, toAddress string
+	var crash bool
 	if recipient, err := s.Users.ByUsername(to); err == nil {
 		toUserID = recipient.ID
 		toName = recipient.Username
@@ -372,6 +382,15 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		if toName == "" {
 			toName = to
 		}
+		if err := term.Print(ansi.Reset + "Crash priority (immediate delivery)? [y/N]: " + ansi.FG(ansi.Yellow, true)); err != nil {
+			return err
+		}
+		crashAnswer, err := term.ReadLine(false)
+		if err != nil {
+			return err
+		}
+		crashAnswer = strings.ToLower(strings.TrimSpace(crashAnswer))
+		crash = crashAnswer == "y" || crashAnswer == "yes"
 	} else {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) +
 			fmt.Sprintf("No such local user, and %q doesn't look like an FTN address (zone:net/node.point).", to))
@@ -397,7 +416,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message aborted.")
 	}
 
-	if _, err := s.Netmail.Send(u.ID, s.FTNAddress, toUserID, toName, toAddress, subject, strings.Join(lines, "\n")); err != nil {
+	if _, err := s.Netmail.Send(u.ID, s.FTNAddress, toUserID, toName, toAddress, subject, strings.Join(lines, "\n"), crash); err != nil {
 		return err
 	}
 	if toUserID > 0 {

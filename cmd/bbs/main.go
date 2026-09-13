@@ -69,7 +69,7 @@ func main() {
 	srv := bbs.NewServer(bbs.Options{
 		BBSName:       cfg.BBS.Name,
 		SysopName:     cfg.BBS.Sysop,
-		FTNAddress:    cfg.BBS.FTNAddress,
+		FTNAddress:    cfg.PrimaryFTNAddress(),
 		Users:         users,
 		Menus:         menus,
 		Messages:      messages,

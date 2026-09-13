@@ -10,7 +10,14 @@ bbs:
     menus_dir: configs/menus
     screens_dir: configs/screens
     files_dir: data/files
-    ftn_address: ""
+    ftn_addresses: []
+    # This system's own FTN address(es)/AKAs (also settable via the
+    # web Settings page). Most systems have exactly one; more than one
+    # is only needed if a single uplink presents you with more than
+    # one FTN network in the same BinkP session:
+    # ftn_addresses:
+    #     - "1:234/56.0"
+    #     - "954:700/14"
 database:
     path: data/nullmodem.sqlite
 telnet:
@@ -23,8 +30,16 @@ ssh:
 binkp:
     uplinks: []
     # Each uplink (also settable via the web Settings page, including
-    # a live "Test Connection" button) looks like:
+    # live "Test Connection"/"Send Now" buttons) looks like:
     # uplinks:
     #     - address: "1:234/56"
     #       host: "bbs.example.com:24554"
     #       password: "..."
+    #       poll_disabled: false
+    # poll_disabled excludes an uplink from the mailer daemon's regular
+    # scheduled poll -- for a link that should only ever be dialed for
+    # Crash-flagged netmail addressed to its own FTN network (see
+    # internal/tosser's routing), or manually via "Send Now". Ordinary
+    # mail for that network still goes out via whichever uplink IS
+    # being polled regularly.
+    poll_interval_seconds: 900

@@ -61,6 +61,22 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := migrateNetmailFromUserIDNullable(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := ensureColumn(sqlDB, "netmail_messages", "from_name", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := ensureColumn(sqlDB, "netmail_messages", "sent_at", "TIMESTAMP"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := ensureColumn(sqlDB, "netmail_messages", "crash", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 
 	return sqlDB, nil
 }
@@ -99,6 +115,82 @@ func ensureColumn(db *sql.DB, table, column, definition string) error {
 
 	if _, err := db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition)); err != nil {
 		return fmt.Errorf("db: add column %s.%s: %w", table, column, err)
+	}
+	return nil
+}
+
+// migrateNetmailFromUserIDNullable relaxes netmail_messages.from_user_id
+// from NOT NULL to nullable, needed so mail internal/tosser receives
+// from a remote FTN system (no local sender account) can be stored.
+// SQLite can't alter a column's constraints in place, so a database
+// created before this change gets the table rebuilt: a new table in
+// the current shape, existing rows copied over, then the old one
+// dropped. A fresh database already gets the nullable column straight
+// from schema.sql, so this is a no-op there.
+func migrateNetmailFromUserIDNullable(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(netmail_messages)`)
+	if err != nil {
+		return fmt.Errorf("db: inspect netmail_messages: %w", err)
+	}
+	needsRebuild := false
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			colType    string
+			notNull    int
+			dfltValue  sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &primaryKey); err != nil {
+			rows.Close()
+			return fmt.Errorf("db: inspect netmail_messages: %w", err)
+		}
+		if name == "from_user_id" && notNull == 1 {
+			needsRebuild = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("db: inspect netmail_messages: %w", err)
+	}
+	rows.Close()
+	if !needsRebuild {
+		return nil
+	}
+
+	const rebuild = `
+PRAGMA foreign_keys = OFF;
+
+ALTER TABLE netmail_messages RENAME TO netmail_messages_old;
+
+CREATE TABLE netmail_messages (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_user_id   INTEGER REFERENCES users(id),
+    from_name      TEXT NOT NULL DEFAULT '',
+    from_address   TEXT NOT NULL DEFAULT '',
+    to_user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    to_name        TEXT NOT NULL,
+    to_address     TEXT NOT NULL DEFAULT '',
+    subject        TEXT NOT NULL,
+    body           TEXT NOT NULL,
+    posted_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at        TIMESTAMP,
+    sent_at        TIMESTAMP
+);
+
+INSERT INTO netmail_messages (id, from_user_id, from_address, to_user_id, to_name, to_address, subject, body, posted_at, read_at)
+SELECT id, from_user_id, from_address, to_user_id, to_name, to_address, subject, body, posted_at, read_at
+FROM netmail_messages_old;
+
+DROP TABLE netmail_messages_old;
+
+CREATE INDEX IF NOT EXISTS idx_netmail_to_user_posted ON netmail_messages(to_user_id, posted_at);
+
+PRAGMA foreign_keys = ON;
+`
+	if _, err := db.Exec(rebuild); err != nil {
+		return fmt.Errorf("db: migrating netmail_messages: %w", err)
 	}
 	return nil
 }

@@ -17,15 +17,17 @@ type Config struct {
 		MenusDir   string `yaml:"menus_dir"`
 		ScreensDir string `yaml:"screens_dir"`
 		FilesDir   string `yaml:"files_dir"`
-		// FTNAddress is this system's own FTN address
-		// (zone:net/node.point) on whichever FTN-compatible network
-		// it belongs to (FidoNet, fsxNet, etc.), stamped as the From
-		// address on outgoing netmail. Optional and empty by default
-		// -- not every BBS is on an FTN network, and there's no
-		// BinkP mailer yet (see internal/netmail's doc comment)
-		// either way, so it has no effect beyond that
-		// display/bookkeeping until one exists.
-		FTNAddress string `yaml:"ftn_address"`
+		// FTNAddresses are this system's own FTN addresses (AKAs) on
+		// whichever FTN-compatible network(s) it belongs to (FidoNet,
+		// fsxNet, etc.) -- most systems have exactly one, but a point
+		// reachable through the same uplink under more than one
+		// network needs to identify with all of them in the same
+		// BinkP session (see internal/tosser and internal/binkp's
+		// OurAddresses). The first address is "primary": it's stamped
+		// as the From address on locally composed netmail and shown
+		// as this system's main address in the web UI. Optional and
+		// empty by default -- not every BBS is on an FTN network.
+		FTNAddresses []string `yaml:"ftn_addresses"`
 	} `yaml:"bbs"`
 
 	Database struct {
@@ -45,12 +47,15 @@ type Config struct {
 
 	Binkp struct {
 		// Uplinks are the BinkP nodes/hubs this system polls to
-		// exchange netmail/echomail. There's no scheduler or tosser
-		// wired up to them yet (see internal/binkp's doc comment --
-		// it's the wire protocol only so far); this is configuration
-		// storage plus a web UI "test connection" button ahead of
-		// that.
+		// exchange netmail (see internal/tosser). Echomail routing
+		// isn't implemented yet -- only netmail is tossed so far.
 		Uplinks []BinkpUplink `yaml:"uplinks"`
+		// PollIntervalSeconds is how often cmd/mailer connects to
+		// each configured uplink to send queued netmail and pick up
+		// anything waiting for us. The web admin's "Send Now" button
+		// (see internal/web) polls on demand regardless of this
+		// interval.
+		PollIntervalSeconds int `yaml:"poll_interval_seconds"`
 	} `yaml:"binkp"`
 }
 
@@ -67,6 +72,26 @@ type BinkpUplink struct {
 	// clear -- see internal/binkp.Config.Password). Empty means no
 	// password is sent.
 	Password string `yaml:"password"`
+	// PollDisabled excludes this uplink from cmd/mailer's regular
+	// scheduled poll -- for a link that should only ever be dialed
+	// for Crash-flagged netmail specifically addressed to its own
+	// network (see internal/tosser's routing), or purely on demand
+	// via the web admin's "Send Now" button (which ignores this
+	// flag). Ordinary mail for that uplink's network still flows
+	// through whichever uplink IS being polled regularly.
+	PollDisabled bool `yaml:"poll_disabled"`
+}
+
+// PrimaryFTNAddress returns c's first configured FTN address, or "" if
+// none are configured -- the address stamped on locally composed
+// netmail and shown as this system's main address, for callers that
+// only care about the single "our own address" case rather than the
+// full AKA list a BinkP session presents.
+func (c *Config) PrimaryFTNAddress() string {
+	if len(c.BBS.FTNAddresses) == 0 {
+		return ""
+	}
+	return c.BBS.FTNAddresses[0]
 }
 
 // Default returns the built-in configuration used when no config file
@@ -85,6 +110,7 @@ func Default() *Config {
 	c.SSH.Enabled = true
 	c.SSH.Addr = ":2222"
 	c.SSH.HostKeyPath = "data/ssh_host_key"
+	c.Binkp.PollIntervalSeconds = 900
 	return c
 }
 
@@ -98,7 +124,31 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return nil, fmt.Errorf("config: parse %s: %w", path, err)
 	}
+	migrateLegacyFTNAddress(data, c)
 	return c, nil
+}
+
+// migrateLegacyFTNAddress folds an already-deployed config's old
+// singular "bbs.ftn_address" key into FTNAddresses if that list came
+// back empty, so upgrading to the list form (see FTNAddresses' doc
+// comment) doesn't silently drop an address someone already
+// configured. The next Save rewrites the file in the new shape,
+// dropping the legacy key for good.
+func migrateLegacyFTNAddress(data []byte, c *Config) {
+	if len(c.BBS.FTNAddresses) > 0 {
+		return
+	}
+	var legacy struct {
+		BBS struct {
+			FTNAddress string `yaml:"ftn_address"`
+		} `yaml:"bbs"`
+	}
+	if err := yaml.Unmarshal(data, &legacy); err != nil {
+		return
+	}
+	if legacy.BBS.FTNAddress != "" {
+		c.BBS.FTNAddresses = []string{legacy.BBS.FTNAddress}
+	}
 }
 
 // Save marshals c as YAML and writes it to path, overwriting any

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -50,7 +51,7 @@ func TestTestBinkpConnectionRejectsMissingHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
-	c.BBS.FTNAddress = "21:3/194.1"
+	c.BBS.FTNAddresses = []string{"21:3/194.1"}
 	if err := config.Save(configPath, c); err != nil {
 		t.Fatalf("config.Save: %v", err)
 	}
@@ -89,7 +90,7 @@ func TestTestBinkpConnectionSucceedsAgainstLocalAnswerer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
-	c.BBS.FTNAddress = "21:3/194.1"
+	c.BBS.FTNAddresses = []string{"21:3/194.1"}
 	if err := config.Save(configPath, c); err != nil {
 		t.Fatalf("config.Save: %v", err)
 	}
@@ -126,7 +127,7 @@ func TestTestBinkpConnectionReportsAuthFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
-	c.BBS.FTNAddress = "21:3/194.1"
+	c.BBS.FTNAddresses = []string{"21:3/194.1"}
 	if err := config.Save(configPath, c); err != nil {
 		t.Fatalf("config.Save: %v", err)
 	}
@@ -143,4 +144,104 @@ func TestTestBinkpConnectionReportsAuthFailure(t *testing.T) {
 	if rec.Code != http.StatusBadGateway {
 		t.Fatalf("status = %d, want 502, body=%s", rec.Code, rec.Body.String())
 	}
+}
+
+func TestSendNowBinkpRequiresOwnFTNAddress(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodPost, "/api/binkp/send-now", binkpUplinkDTO{
+		Host: "127.0.0.1:1",
+	}, token)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (missing own FTN address), body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSendNowBinkpSendsQueuedNetmailAndReportsCounts(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	root, err := users.Register("root", "supersecret", user.SLSysop)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	c, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	c.BBS.FTNAddresses = []string{"21:3/194.1"}
+	if err := config.Save(configPath, c); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+	if _, err := srv.Netmail.Send(root.ID, "21:3/194.1", 0, "Mike Dreier", "21:3/194", "Hi", "body", false); err != nil {
+		t.Fatalf("Netmail.Send: %v", err)
+	}
+
+	var received int64
+	addr := startTestAnswererCountingFiles(t, "correct horse", &received)
+
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodPost, "/api/binkp/send-now", binkpUplinkDTO{
+		Address:  "21:3/194",
+		Host:     addr,
+		Password: "correct horse",
+	}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Sent     int `json:"sent"`
+		Received int `json:"received"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.Sent != 1 {
+		t.Fatalf("sent = %d, want 1", resp.Sent)
+	}
+
+	pending, err := srv.Netmail.PendingOutbound()
+	if err != nil {
+		t.Fatalf("PendingOutbound: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("PendingOutbound after send-now = %+v, want empty", pending)
+	}
+}
+
+// startTestAnswererCountingFiles is startTestAnswerer plus a
+// ReceiveFile that drains (and counts) whatever the caller sends, so
+// handleSendNowBinkp's outbound packet doesn't stall the session.
+func startTestAnswererCountingFiles(t *testing.T, password string, filesReceived *int64) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		binkp.Answer(ctx, conn, binkp.Config{
+			OurAddresses: []string{"21:3/194"},
+			Password:     password,
+			ReceiveFile: func(f binkp.InboundFile, r io.Reader) error {
+				*filesReceived++
+				_, err := io.Copy(io.Discard, r)
+				return err
+			},
+		})
+	}()
+	return ln.Addr().String()
 }

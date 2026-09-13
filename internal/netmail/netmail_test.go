@@ -3,6 +3,7 @@ package netmail
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -29,7 +30,7 @@ func TestSendToLocalUserDeliversToInboxAndTracksRead(t *testing.T) {
 		t.Fatalf("Register bob: %v", err)
 	}
 
-	sent, err := s.Send(alice.ID, "1:234/56.0", bob.ID, "bob", "", "Hello", "hi bob")
+	sent, err := s.Send(alice.ID, "1:234/56.0", bob.ID, "bob", "", "Hello", "hi bob", false)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -89,7 +90,7 @@ func TestSendToRemoteAddressLeavesToUserIDUnset(t *testing.T) {
 		t.Fatalf("Register alice: %v", err)
 	}
 
-	sent, err := s.Send(alice.ID, "1:234/56.0", 0, "1:234/99.0", "1:234/99.0", "Hi remote", "body")
+	sent, err := s.Send(alice.ID, "1:234/56.0", 0, "1:234/99.0", "1:234/99.0", "Hi remote", "body", false)
 	if err != nil {
 		t.Fatalf("Send: %v", err)
 	}
@@ -101,5 +102,97 @@ func TestSendToRemoteAddressLeavesToUserIDUnset(t *testing.T) {
 	}
 	if sent.FromAddress != "1:234/56.0" {
 		t.Fatalf("FromAddress = %q, want the sender's configured FTN address", sent.FromAddress)
+	}
+}
+
+func TestPendingOutboundAndMarkSent(t *testing.T) {
+	s, users := newTestStore(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+
+	// A local message and a remote one that's already been marked
+	// sent must not show up in PendingOutbound; only the still-queued
+	// remote message should.
+	if _, err := s.Send(alice.ID, "1:234/56.0", 0, "notpending", "1:234/1.0", "Already sent", "body", false); err != nil {
+		t.Fatalf("Send (already sent): %v", err)
+	}
+	already, err := s.Send(alice.ID, "1:234/56.0", 0, "notpending", "1:234/1.0", "Already sent", "body", false)
+	if err != nil {
+		t.Fatalf("Send (to mark sent): %v", err)
+	}
+	if err := s.MarkSent(already.ID); err != nil {
+		t.Fatalf("MarkSent: %v", err)
+	}
+
+	pending, err := s.Send(alice.ID, "1:234/56.0", 0, "1:234/99.0", "1:234/99.0", "Still queued", "body", false)
+	if err != nil {
+		t.Fatalf("Send (pending): %v", err)
+	}
+
+	outbound, err := s.PendingOutbound()
+	if err != nil {
+		t.Fatalf("PendingOutbound: %v", err)
+	}
+	if len(outbound) != 2 {
+		t.Fatalf("PendingOutbound = %+v, want 2 messages (excluding the already-sent one)", outbound)
+	}
+	for _, m := range outbound {
+		if m.ID == already.ID {
+			t.Fatalf("PendingOutbound included message %d, which was already marked sent", already.ID)
+		}
+	}
+
+	if err := s.MarkSent(pending.ID); err != nil {
+		t.Fatalf("MarkSent: %v", err)
+	}
+	outbound, err = s.PendingOutbound()
+	if err != nil {
+		t.Fatalf("PendingOutbound after marking sent: %v", err)
+	}
+	for _, m := range outbound {
+		if m.ID == pending.ID {
+			t.Fatalf("PendingOutbound still included message %d after MarkSent", pending.ID)
+		}
+	}
+
+	// Idempotent: marking an already-sent message sent again is a no-op.
+	if err := s.MarkSent(pending.ID); err != nil {
+		t.Fatalf("MarkSent again: %v", err)
+	}
+}
+
+func TestReceiveStoresRemoteSenderWithoutLocalAccount(t *testing.T) {
+	s, users := newTestStore(t)
+	bob, err := users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+
+	written := time.Date(2026, time.September, 13, 12, 0, 0, 0, time.UTC)
+	received, err := s.Receive("Mike Dreier", "21:3/194", bob.ID, "bob", "", "Hello from FidoNet", "hi there", written, false)
+	if err != nil {
+		t.Fatalf("Receive: %v", err)
+	}
+	if received.IsFromRemote() != true {
+		t.Fatalf("expected IsFromRemote() = true for a message with no local sender")
+	}
+	if received.FromName != "Mike Dreier" {
+		t.Fatalf("FromName = %q, want %q", received.FromName, "Mike Dreier")
+	}
+	if received.FromAddress != "21:3/194" {
+		t.Fatalf("FromAddress = %q, want %q", received.FromAddress, "21:3/194")
+	}
+	if !received.PostedAt.Equal(written) {
+		t.Fatalf("PostedAt = %v, want the message's own Written time %v", received.PostedAt, written)
+	}
+
+	inbox, err := s.Inbox(bob.ID)
+	if err != nil {
+		t.Fatalf("Inbox: %v", err)
+	}
+	if len(inbox) != 1 || inbox[0].FromName != "Mike Dreier" {
+		t.Fatalf("bob's inbox = %+v, want one message from Mike Dreier", inbox)
 	}
 }

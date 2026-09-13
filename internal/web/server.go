@@ -11,6 +11,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/session"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
@@ -20,6 +21,7 @@ type Server struct {
 	Users         *user.Store
 	Messages      *message.Store
 	Files         *file.Store
+	Netmail       *netmail.Store
 	Nodes         *session.Store
 	Logs          *applog.Store
 	Logger        *applog.Logger
@@ -50,6 +52,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/config", s.requireAuth(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.requireAuth(http.HandlerFunc(s.handlePutConfig)))
 	mux.Handle("POST /api/binkp/test-connection", s.requireAuth(http.HandlerFunc(s.handleTestBinkpConnection)))
+	mux.Handle("POST /api/binkp/send-now", s.requireAuth(http.HandlerFunc(s.handleSendNowBinkp)))
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))
