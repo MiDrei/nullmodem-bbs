@@ -116,6 +116,51 @@ func layoutLine(line string, width int) string {
 	return b.String()
 }
 
+// WrapText word-wraps s to width columns for plain-text display (a
+// message body, not a template), preserving existing line breaks and
+// hard-breaking any single word that alone exceeds width -- e.g. a
+// long URL -- so it still fits within width instead of relying on the
+// terminal's own line wrap, which the project can't assume behaves
+// consistently across clients.
+func WrapText(s string, width int) []string {
+	if width <= 0 {
+		width = 1
+	}
+	var out []string
+	for _, paragraph := range strings.Split(s, "\n") {
+		paragraph = strings.TrimRight(paragraph, "\r")
+		words := strings.Fields(paragraph)
+		if len(words) == 0 {
+			out = append(out, "")
+			continue
+		}
+		var line strings.Builder
+		for _, word := range words {
+			for len(word) > width {
+				if line.Len() > 0 {
+					out = append(out, line.String())
+					line.Reset()
+				}
+				out = append(out, word[:width])
+				word = word[width:]
+			}
+			switch {
+			case line.Len() == 0:
+				line.WriteString(word)
+			case line.Len()+1+len(word) > width:
+				out = append(out, line.String())
+				line.Reset()
+				line.WriteString(word)
+			default:
+				line.WriteString(" ")
+				line.WriteString(word)
+			}
+		}
+		out = append(out, line.String())
+	}
+	return out
+}
+
 // Center returns s padded with leading spaces so it appears centered
 // within width columns. For use directly from Go code that builds
 // dynamic content (e.g. a list header) without going through a

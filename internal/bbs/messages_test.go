@@ -100,8 +100,12 @@ func TestMessageAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
 	}
 
 	// "General Discussion" sorts before "Second Area"; one Down arrow
-	// should highlight and then open the second one.
-	conn := newFakeConn("M\r\n\x1b[B\r\nQ\r\nQ\r\nQ\r\n")
+	// should highlight and then open the second one. browseArea's own
+	// message-list lightbar and the outer area lightbar are both
+	// single-keystroke ReadKey loops now, so exiting each with Q sends
+	// a bare byte -- only the final Q (back at the ReadLine-based main
+	// menu) needs its own trailing CRLF.
+	conn := newFakeConn("M\r\n\x1b[B\r\nQQQ\r\n")
 	term := NewTerminal(conn)
 	err = s.runMenu(term, u, 1, "main")
 	if !errors.Is(err, errLogoff) {
@@ -128,8 +132,11 @@ func TestMessageAreasLightbarMarksAreaReadOnEnter(t *testing.T) {
 	}
 
 	// Enter the area (marks it read), leave, and check the lightbar's
-	// second draw shows New=0 instead of the initial New=1.
-	conn := newFakeConn("M\r\n\r\nQ\r\nQ\r\nQ\r\n")
+	// second draw shows New=0 instead of the initial New=1. Q exits
+	// browseArea's own message-list lightbar as a bare keystroke, like
+	// the outer area lightbar's Q -- only the final Q needs a CRLF, to
+	// be read as a line by the main menu's ReadLine prompt.
+	conn := newFakeConn("M\r\n\r\nQQQ\r\n")
 	term := NewTerminal(conn)
 	err = s.runMenu(term, u, 1, "main")
 	if !errors.Is(err, errLogoff) {
@@ -192,6 +199,93 @@ func TestMessageAreasLightbarUsesCustomRowTemplatesWhenPresent(t *testing.T) {
 	}
 }
 
+func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "First Subject", "first body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Second Subject", "second body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// M -> areas lightbar, Enter -> General Discussion, one Down arrow
+	// highlights the second message in the message-list lightbar, then
+	// Enter opens the reader on it. The reader's own footer only
+	// appears once we've actually entered it, confirming the arrow
+	// key moved the highlight before selection.
+	conn := newFakeConn("M\r\n\r\n\x1b[B\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "\x1b[47m\x1b[30mSecond Subject") {
+		t.Fatalf("expected Second Subject's row highlighted, got: %q", out)
+	}
+	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	if len(readerRenders) < 2 {
+		t.Fatalf("expected the reader to open, got: %q", out)
+	}
+	if !strings.Contains(readerRenders[0], "Second Subject") {
+		t.Fatalf("expected Down arrow to open the second message, got: %q", readerRenders[0])
+	}
+}
+
+func TestMessageListLightbarUsesCustomRowTemplatesWhenPresent(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	writeFile := func(name, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	writeFile("msglist-columns.ans", "CUSTOM-MSG-HEADER")
+	writeFile("msglist-row.ans", ">> {SUBJECT:-10}|{FROM}")
+	writeFile("msglist-row-selected.ans", "** {SUBJECT:-10}|{FROM}")
+
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Hi There", "hi"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	conn := newFakeConn("M\r\n\r\nQQQ\r\n")
+	term := NewTerminal(conn)
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "CUSTOM-MSG-HEADER") {
+		t.Fatalf("expected custom column header, got: %q", out)
+	}
+	// Only one message exists, so it's always the (selected) row.
+	if !strings.Contains(out, "** Hi There  |alice") {
+		t.Fatalf("expected custom selected-row template rendered with macros, got: %q", out)
+	}
+	if strings.Contains(out, ">> ") {
+		t.Fatalf("unselected row template should not appear when there's only one message, got: %q", out)
+	}
+}
+
 func TestPostAndReadMessage(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -200,11 +294,15 @@ func TestPostAndReadMessage(t *testing.T) {
 	}
 
 	// M -> areas lightbar, Enter -> General Discussion (the only area,
-	// already highlighted), P -> post, subject, two body lines, "." to
-	// end, re-select message "1" (still numeric within the area's own
-	// message list) to read it back, Q out of the area, Q out of the
-	// lightbar, Q to log off from main.
-	input := "M\r\n\r\nP\r\nHello World\r\nLine one\r\nLine two\r\n.\r\n1\r\nQ\r\nQ\r\nQ\r\n"
+	// already highlighted; still empty, so browseArea shows its empty-
+	// list P/Q prompt), P -> post (a bare keystroke -- postMessage's
+	// own subject/body prompts are ReadLine-based and need real CRLFs),
+	// subject, two body lines, "." to end. browseArea's outer loop
+	// refetches and now shows the message-list lightbar with the new
+	// post highlighted; Enter opens the reader, Q backs out of the
+	// reader, Q out of the message list, Q out of the area lightbar,
+	// Q to log off from main.
+	input := "M\r\n\r\nPHello World\r\nLine one\r\nLine two\r\n.\r\n\r\nQQQQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
@@ -222,8 +320,54 @@ func TestPostAndReadMessage(t *testing.T) {
 	if !strings.Contains(out, "Line one") || !strings.Contains(out, "Line two") {
 		t.Fatalf("expected multi-line body in read view, got: %q", out)
 	}
-	if !strings.Contains(out, "From:    alice") {
+	if !strings.Contains(out, "From:    \x1b[1;37malice") {
 		t.Fatalf("expected author in read view, got: %q", out)
+	}
+}
+
+func TestReadMessageNextPrevNavigatesWithoutReturningToList(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "First Subject", "first body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Second Subject", "second body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// M -> areas lightbar, Enter -> General Discussion, Enter again on
+	// the message-list lightbar's first row -> read the first message,
+	// Down arrow -> Next (Second Subject) without returning to the
+	// list, Up arrow -> Prev (First Subject) again, Q -> back to the
+	// message list, Q -> back to the area lightbar, Q -> back to main,
+	// Q to log off.
+	conn := newFakeConn("M\r\n\r\n\r\n\x1b[B\x1b[AQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	if len(renders) < 4 {
+		t.Fatalf("expected at least 3 reader redraws (initial, next, prev), got %d: %q", len(renders)-1, out)
+	}
+	if !strings.Contains(renders[0], "First Subject") {
+		t.Fatalf("expected first message shown initially, got: %q", renders[0])
+	}
+	if !strings.Contains(renders[1], "Second Subject") {
+		t.Fatalf("expected Down arrow to advance to second message, got: %q", renders[1])
+	}
+	if !strings.Contains(renders[2], "First Subject") {
+		t.Fatalf("expected Up arrow to return to first message, got: %q", renders[2])
 	}
 }
 
@@ -248,9 +392,13 @@ func TestPostRejectedBelowWriteThreshold(t *testing.T) {
 
 	// Areas are listed alphabetically: "General Discussion" (seeded)
 	// sorts before "Locked Area", so one Down arrow highlights it in
-	// the lightbar before Enter opens it. Q out of the area, Q out of
-	// the lightbar, Q to log off from main.
-	conn := newFakeConn("M\r\n\x1b[B\r\nP\r\nQ\r\nQ\r\nQ\r\n")
+	// the lightbar before Enter opens it (still empty, so browseArea
+	// shows its empty-list P/Q prompt). P is a bare keystroke that
+	// triggers the rejection message and its "Press Enter to
+	// continue..." pause (a real ReadLine, hence its own CRLF); then Q
+	// out of the area's message list, Q out of the area lightbar, Q to
+	// log off from main.
+	conn := newFakeConn("M\r\n\x1b[B\r\nP\r\nQQQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, u, 1, "main")

@@ -3,6 +3,7 @@ package bbs
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -124,6 +125,28 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 	return term.Print(b.String())
 }
 
+// fileListScreen is the hand-designed banner shown above an area's
+// file list -- see messages.go's msgListScreen doc comment for why
+// this clear-screen-then-banner is needed instead of printing the
+// list inline over whatever screen (e.g. the area lightbar) was there
+// before.
+const fileListScreen = "fillist.ans"
+
+// printFileListHeader shows fillist.ans (with AREANAME filled in),
+// falling back to a plain colored area-name line on a cleared screen.
+func (s *Server) printFileListHeader(term *Terminal, area *file.Area) error {
+	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, fileListScreen))
+	if err != nil {
+		return term.Println(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset)
+	}
+	vars := ansi.Vars{
+		"BBSNAME":  s.BBSName,
+		"AREANAME": area.Name,
+	}
+	rendered := ansi.Render(raw, vars)
+	return term.Println(ansi.Layout(rendered, term.Width()))
+}
+
 // browseFileArea lists an area's files and lets the caller inspect
 // one's details, or return to the area list.
 func (s *Server) browseFileArea(term *Terminal, area *file.Area) error {
@@ -133,7 +156,7 @@ func (s *Server) browseFileArea(term *Terminal, area *file.Area) error {
 			return err
 		}
 
-		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset); err != nil {
+		if err := s.printFileListHeader(term, area); err != nil {
 			return err
 		}
 		if len(files) == 0 {
