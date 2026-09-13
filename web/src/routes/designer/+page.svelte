@@ -43,6 +43,7 @@
 	let fillInterior = $state(false);
 	let zoom = $state(1);
 	let rowOpIndex = $state(1);
+	let selectedPlaceholder = $state('BBSNAME');
 
 	let newName = $state('');
 	let newWidth = $state(80);
@@ -158,6 +159,73 @@
 		for (let c = fromCol; c <= toCol; c++) cells.push({ row, col: c });
 		return cells;
 	}
+
+	// stampByte places one CP437 byte at textCursor and advances it,
+	// honoring insertMode the same way a typed keystroke does. Shared
+	// by keyboard typing and macro insertion so both follow identical
+	// row-shift/wrap behavior.
+	function stampByte(byteValue: number) {
+		if (!grid || !textCursor) return;
+		const { row, col } = textCursor;
+		if (insertMode) {
+			shiftRowRight(row, col);
+			grid.cells[idx(row, col)] = { char: byteValue, fg: currentFG, bg: currentBG };
+			redrawCells(rowRangeCells(row, col, grid.width - 1));
+		} else {
+			grid.cells[idx(row, col)] = { char: byteValue, fg: currentFG, bg: currentBG };
+			redrawCells([{ row, col }]);
+		}
+		let nextCol = col + 1;
+		let nextRow = row;
+		if (nextCol >= grid.width) {
+			nextCol = 0;
+			nextRow = Math.min(row + 1, grid.height - 1);
+		}
+		textCursor = { row: nextRow, col: nextCol };
+	}
+
+	// asciiBytes converts a plain-ASCII string (placeholder names,
+	// braces, colon -- never CP437 art bytes) to byte values directly,
+	// which is exact for 0x20-0x7E without going through charToCp437.
+	function asciiBytes(s: string): number[] {
+		return Array.from(s).map((c) => c.charCodeAt(0));
+	}
+
+	// insertMacroBytes stamps a sequence of raw CP437 bytes at
+	// textCursor as one undo step, requiring the text tool to already
+	// have a cursor placed (clicking a cell is how the designer knows
+	// *where* to insert).
+	function insertMacroBytes(bytes: number[]) {
+		if (!grid || tool !== 'text' || !textCursor) {
+			toast.push('Select the Text tool and click a cell first.', 'error');
+			return;
+		}
+		pushHistory();
+		textSessionSaved = true;
+		for (const b of bytes) stampByte(b);
+		cursorBlinkOn = true;
+		drawTextCursor();
+	}
+
+	function insertPlaceholder(name: string) {
+		insertMacroBytes(asciiBytes(`{${name}}`));
+	}
+
+	function insertFill(fillByte: number) {
+		insertMacroBytes([...asciiBytes('{FILL:'), fillByte, ...asciiBytes('}')]);
+	}
+
+	const PLACEHOLDERS = [
+		'BBSNAME',
+		'SYSOP',
+		'VERSION',
+		'NODE',
+		'DATE',
+		'TIME',
+		'USERNAME',
+		'SL',
+		'TOTALCALLS'
+	];
 
 	async function loadScreens() {
 		if (!auth.token) return;
@@ -626,23 +694,7 @@
 		}
 		if (e.key.length === 1) {
 			e.preventDefault();
-			const { row, col } = textCursor;
-			const char = charToCp437(e.key);
-			if (insertMode) {
-				shiftRowRight(row, col);
-				grid.cells[idx(row, col)] = { char, fg: currentFG, bg: currentBG };
-				redrawCells(rowRangeCells(row, col, grid.width - 1));
-			} else {
-				grid.cells[idx(row, col)] = { char, fg: currentFG, bg: currentBG };
-				redrawCells([{ row, col }]);
-			}
-			let nextCol = col + 1;
-			let nextRow = row;
-			if (nextCol >= grid.width) {
-				nextCol = 0;
-				nextRow = Math.min(row + 1, grid.height - 1);
-			}
-			textCursor = { row: nextRow, col: nextCol };
+			stampByte(charToCp437(e.key));
 			cursorBlinkOn = true;
 			drawTextCursor();
 		}
@@ -867,6 +919,63 @@
 							onclick={deleteRow}
 						>
 							Delete row
+						</button>
+					</div>
+				</section>
+
+				<section class="rounded border border-slate-800 p-3">
+					<h2 class="mb-2 text-xs font-semibold tracking-wide text-cyan-400 uppercase">Insert Field</h2>
+					<p class="mb-2 text-xs text-slate-500">
+						Text tool + click a cell, then insert a placeholder or fill token there instead of
+						typing braces by hand.
+					</p>
+					<div class="flex gap-1">
+						<select
+							bind:value={selectedPlaceholder}
+							class="min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+						>
+							{#each PLACEHOLDERS as p (p)}
+								<option value={p}>{'{' + p + '}'}</option>
+							{/each}
+						</select>
+						<button
+							class="shrink-0 rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500"
+							onclick={() => insertPlaceholder(selectedPlaceholder)}
+						>
+							Insert
+						</button>
+					</div>
+					<div class="mt-2 flex flex-wrap gap-1">
+						<button
+							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+							onclick={() => insertFill(0x20)}
+						>
+							Fill: space
+						</button>
+						<button
+							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+							onclick={() => insertFill(0xcd)}
+						>
+							Fill: ═
+						</button>
+						<button
+							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+							onclick={() => insertFill(0xc4)}
+						>
+							Fill: ─
+						</button>
+						<button
+							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+							onclick={() => insertFill(0x2e)}
+						>
+							Fill: .
+						</button>
+						<button
+							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+							onclick={() => insertFill(currentChar)}
+							title="Uses the character currently selected below"
+						>
+							Fill: selected char
 						</button>
 					</div>
 				</section>
