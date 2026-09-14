@@ -380,19 +380,49 @@ func (s *Store) PostMessage(areaID, fromUserID int64, toName, subject, body stri
 // FTN system's echomail -- PostMessage's counterpart for a message
 // with no local author account. postedAt is the message's own Written
 // timestamp from the packet, not when we happened to receive it.
-func (s *Store) ReceiveEcho(areaID int64, fromName, subject, body string, postedAt time.Time) (*Message, error) {
+//
+// msgID is the message's MSGID kludge (e.g. "21:3/100 5f3e2a1b"), or
+// "" if it carried none. A non-empty msgID already present in areaID
+// is treated as a duplicate -- not inserted again, created reports
+// false, and the existing message is returned -- since a hub that
+// closed its BinkP connection before seeing our M_GOT (a real,
+// spec-acknowledged risk; see FTS-1026's PendingFiles requirement and
+// internal/binkp's receiveOneFile) will resend the same message on its
+// next session. An empty msgID is never deduplicated: some systems
+// omit it, and dropping mail from one of those over a missing kludge
+// would be worse than the rare accidental duplicate.
+func (s *Store) ReceiveEcho(areaID int64, fromName, subject, body, msgID string, postedAt time.Time) (msg *Message, created bool, err error) {
 	res, err := s.db.Exec(
-		`INSERT INTO messages (area_id, from_user_id, from_name, to_name, subject, body, posted_at) VALUES (?, NULL, ?, 'All', ?, ?, ?)`,
-		areaID, fromName, subject, body, postedAt,
+		`INSERT OR IGNORE INTO messages (area_id, from_user_id, from_name, to_name, subject, body, msgid, posted_at) VALUES (?, NULL, ?, 'All', ?, ?, ?, ?)`,
+		areaID, fromName, subject, body, msgID, postedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("message: receive echo to area %d: %w", areaID, err)
+		return nil, false, fmt.Errorf("message: receive echo to area %d: %w", areaID, err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, false, fmt.Errorf("message: receive echo to area %d: rows affected: %w", areaID, err)
+	}
+	if affected == 0 {
+		var id int64
+		if err := s.db.QueryRow(`SELECT id FROM messages WHERE area_id = ? AND msgid = ?`, areaID, msgID).Scan(&id); err != nil {
+			return nil, false, fmt.Errorf("message: locating duplicate msgid %q in area %d: %w", msgID, areaID, err)
+		}
+		existing, err := s.MessageByID(id)
+		if err != nil {
+			return nil, false, err
+		}
+		return existing, false, nil
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, fmt.Errorf("message: last insert id: %w", err)
+		return nil, false, fmt.Errorf("message: last insert id: %w", err)
 	}
-	return s.MessageByID(id)
+	msg, err = s.MessageByID(id)
+	if err != nil {
+		return nil, false, err
+	}
+	return msg, true, nil
 }
 
 // MessageByID loads a single message, with its local author's current

@@ -47,9 +47,12 @@ type Result struct {
 	// user) out of whatever the uplink sent back in the same session.
 	Received int
 	// ReceivedEcho is how many echomail messages (an AREA-kludged
-	// message, as opposed to netmail) were tossed into a message
-	// area out of whatever the uplink sent back, whether or not the
-	// area already existed (see tossEcho).
+	// message, as opposed to netmail) were newly tossed into a
+	// message area out of whatever the uplink sent back, whether or
+	// not the area already existed (see tossEcho). A message whose
+	// MSGID the area already had -- the uplink resending mail it
+	// never saw our M_GOT for -- is recognized as a duplicate and not
+	// counted here.
 	ReceivedEcho int
 	// RemoteAddresses are the FTN addresses the uplink identified
 	// itself as, straight from binkp.Result.
@@ -331,10 +334,13 @@ func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Sto
 		}
 
 		if tag, ok := echoAreaTag(msg.Body); ok {
-			if err := tossEcho(tag, msg, messages); err != nil {
+			created, err := tossEcho(tag, msg, messages)
+			if err != nil {
 				return stats, fmt.Errorf("tosser: tossing echomail message %d: %w", stats.netmail+stats.echo+1, err)
 			}
-			stats.echo++
+			if created {
+				stats.echo++
+			}
 			continue
 		}
 
@@ -395,25 +401,51 @@ func stripLeadingKludges(body string) string {
 	return strings.Join(lines[i:], "\n")
 }
 
+// echoMsgID returns the value of body's MSGID kludge line (e.g.
+// "21:3/100 5f3e2a1b"), or "" if it has none -- scanning the same
+// leading AREA-then-\x01-kludges block as stripLeadingKludges, so it
+// never mistakes ordinary message text for a kludge.
+func echoMsgID(body string) string {
+	const prefix = "MSGID:"
+	lines := strings.Split(body, "\n")
+	i := 0
+	if i < len(lines) && len(lines[i]) > 5 && strings.EqualFold(lines[i][:5], "AREA:") {
+		i++
+	}
+	for i < len(lines) && strings.HasPrefix(lines[i], "\x01") {
+		line := lines[i][1:]
+		if len(line) > len(prefix) && strings.EqualFold(line[:len(prefix)], prefix) {
+			return strings.TrimSpace(line[len(prefix):])
+		}
+		i++
+	}
+	return ""
+}
+
 // tossEcho files msg into the message area tagged tag, creating it as
 // Pending (see message.Store.EnsureArea) if this is the first message
 // ever seen for it -- so an unrecognized incoming echo area doesn't
 // silently drop mail, but also doesn't appear in the BBS until the
-// sysop has reviewed and approved it.
-func tossEcho(tag string, msg *mail.Message, messages *message.Store) error {
+// sysop has reviewed and approved it. created reports whether msg was
+// actually new (false for a duplicate MSGID already stored in this
+// area -- see message.Store.ReceiveEcho), so the caller can avoid
+// double-counting a message a hub resent after failing to see our
+// M_GOT.
+func tossEcho(tag string, msg *mail.Message, messages *message.Store) (created bool, err error) {
 	area, _, err := messages.EnsureArea(tag, tag, "")
 	if err != nil {
-		return fmt.Errorf("ensuring area %q: %w", tag, err)
+		return false, fmt.Errorf("ensuring area %q: %w", tag, err)
 	}
 
 	fromName := msg.FromName
 	if fromName == "" {
 		fromName = msg.OrigAddr.String()
 	}
-	if _, err := messages.ReceiveEcho(area.ID, fromName, msg.Subject, stripLeadingKludges(msg.Body), msg.Written); err != nil {
-		return fmt.Errorf("storing message in area %q: %w", tag, err)
+	_, created, err = messages.ReceiveEcho(area.ID, fromName, msg.Subject, stripLeadingKludges(msg.Body), echoMsgID(msg.Body), msg.Written)
+	if err != nil {
+		return false, fmt.Errorf("storing message in area %q: %w", tag, err)
 	}
-	return nil
+	return created, nil
 }
 
 func containsString(ss []string, s string) bool {

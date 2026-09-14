@@ -53,10 +53,22 @@ CREATE TABLE IF NOT EXISTS messages (
     to_name       TEXT NOT NULL DEFAULT 'All',
     subject       TEXT NOT NULL,
     body          TEXT NOT NULL,
+    -- The remote message's MSGID kludge (e.g. "21:3/100 5f3e2a1b"),
+    -- empty for a locally-posted message or a remote one that carried
+    -- no MSGID. Lets internal/tosser's ReceiveEcho recognize and skip
+    -- a message a hub resends after a dropped BinkP session kept it
+    -- from seeing our M_GOT (see idx_messages_area_msgid below and
+    -- FTS-1026's PendingFiles requirement).
+    msgid         TEXT NOT NULL DEFAULT '',
     posted_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_area_posted ON messages(area_id, posted_at);
+-- Partial (msgid != '' only, so locally-posted/MSGID-less messages
+-- never collide) unique index enforcing echomail dedup by MSGID within
+-- an area. Not created here for an already-existing database -- the
+-- column doesn't exist yet at the point this file runs on one; see
+-- db.go's Open, which creates it right after ensureColumn adds msgid.
 
 -- Tracks exactly which individual messages a caller has actually
 -- opened in the reader, so a message stays flagged "New" in the

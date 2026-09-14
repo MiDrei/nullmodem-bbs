@@ -634,6 +634,84 @@ func TestPollTossesEchomailIntoAutoCreatedPendingArea(t *testing.T) {
 	}
 }
 
+// TestPollSkipsEchomailAlreadyTossedUnderTheSameMsgID locks in a real
+// interop fix: a hub that closed its BinkP connection right after
+// sending its last file (see internal/binkp's receiveOneFile) instead
+// of waiting for our M_GOT resends the same message on its next
+// session -- FTS-1026 acknowledges this exact risk. A second poll
+// delivering byte-identical mail (same MSGID) must not store it twice
+// or count it in ReceivedEcho again.
+func TestPollSkipsEchomailAlreadyTossedUnderTheSameMsgID(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	packet := func() bytes.Buffer {
+		var buf bytes.Buffer
+		w, err := mail.NewWriter(&buf, mail.PacketHeader{
+			OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+			DestAddr: mail.Address{Zone: 21, Net: 3, Node: 195},
+			Created:  time.Now(),
+		})
+		if err != nil {
+			t.Fatalf("NewWriter: %v", err)
+		}
+		if err := w.WriteMessage(mail.Message{
+			ToName:   "All",
+			FromName: "Geri Atricks",
+			Subject:  "Re: Immortal Barons",
+			Body:     "AREA:FSXNET_GENERAL\r\x01MSGID: 21:3/235 abcdef01\rhello area\r",
+		}); err != nil {
+			t.Fatalf("WriteMessage: %v", err)
+		}
+		if err := w.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		return buf
+	}
+
+	poll := func() *Result {
+		buf := packet()
+		addr, done := runFakeUplink(t, binkp.Config{
+			OurAddresses: []string{"21:3/194"},
+			OutboundFiles: []binkp.OutboundFile{
+				{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+			},
+		})
+		res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+			Address: "21:3/194",
+			Host:    addr,
+		}, nil, netmailStore, messages, users)
+		if err != nil {
+			t.Fatalf("Poll: %v", err)
+		}
+		if out := <-done; out.err != nil {
+			t.Fatalf("fake uplink answerer error: %v", out.err)
+		}
+		return res
+	}
+
+	first := poll()
+	if first.ReceivedEcho != 1 {
+		t.Fatalf("first poll Result.ReceivedEcho = %d, want 1", first.ReceivedEcho)
+	}
+
+	second := poll()
+	if second.ReceivedEcho != 0 {
+		t.Fatalf("resend poll Result.ReceivedEcho = %d, want 0 -- it's a duplicate MSGID", second.ReceivedEcho)
+	}
+
+	area, err := messages.AreaByTag("FSXNET_GENERAL")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	msgs, err := messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("ListMessages = %+v, want exactly 1 message despite the resend", msgs)
+	}
+}
+
 func TestPollTossesEchomailIntoExistingApprovedArea(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
 	existing, err := messages.CreateArea("dev", "Development Talk", "", "", 0, 0)

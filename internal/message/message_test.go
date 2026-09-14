@@ -547,9 +547,12 @@ func TestReceiveEchoStoresRemoteAuthorWithoutLocalAccount(t *testing.T) {
 	}
 
 	written := time.Date(2026, time.September, 13, 12, 0, 0, 0, time.UTC)
-	msg, err := s.ReceiveEcho(area.ID, "Geri Atricks", "Re: Immortal Barons", "body text", written)
+	msg, created, err := s.ReceiveEcho(area.ID, "Geri Atricks", "Re: Immortal Barons", "body text", "21:3/100 5f3e2a1b", written)
 	if err != nil {
 		t.Fatalf("ReceiveEcho: %v", err)
+	}
+	if !created {
+		t.Fatal("created = false, want true for a brand new MSGID")
 	}
 	if !msg.IsFromRemote() {
 		t.Fatal("IsFromRemote() = false, want true for a message with no local author")
@@ -567,5 +570,77 @@ func TestReceiveEchoStoresRemoteAuthorWithoutLocalAccount(t *testing.T) {
 	}
 	if len(msgs) != 1 || msgs[0].FromName != "Geri Atricks" {
 		t.Fatalf("ListMessages = %+v, want one message from Geri Atricks", msgs)
+	}
+}
+
+// TestReceiveEchoDeduplicatesByMsgIDWithinAnArea locks in a real
+// interop fix: a hub that closes its BinkP connection right after
+// sending its last file (see internal/binkp's receiveOneFile) instead
+// of waiting for our M_GOT resends the same message on its next
+// session -- FTS-1026 acknowledges this exact risk. Retossing must
+// recognize the duplicate by MSGID rather than storing it twice.
+func TestReceiveEchoDeduplicatesByMsgIDWithinAnArea(t *testing.T) {
+	s, _ := newTestStore(t)
+	area, err := s.CreateArea("dev", "Development Talk", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	written := time.Date(2026, time.September, 13, 12, 0, 0, 0, time.UTC)
+	first, created, err := s.ReceiveEcho(area.ID, "Geri Atricks", "Re: Immortal Barons", "body text", "21:3/100 5f3e2a1b", written)
+	if err != nil {
+		t.Fatalf("ReceiveEcho (first): %v", err)
+	}
+	if !created {
+		t.Fatal("created = false on first toss, want true")
+	}
+
+	second, created, err := s.ReceiveEcho(area.ID, "Geri Atricks", "Re: Immortal Barons", "body text", "21:3/100 5f3e2a1b", written)
+	if err != nil {
+		t.Fatalf("ReceiveEcho (resend): %v", err)
+	}
+	if created {
+		t.Fatal("created = true on a resend with an already-seen MSGID, want false")
+	}
+	if second.ID != first.ID {
+		t.Fatalf("resend returned message ID %d, want the original %d", second.ID, first.ID)
+	}
+
+	msgs, err := s.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("ListMessages = %+v, want exactly one message stored despite the resend", msgs)
+	}
+}
+
+// TestReceiveEchoNeverDeduplicatesAnEmptyMsgID covers a system that
+// omits MSGID entirely: dropping its mail over a missing kludge would
+// be worse than the rare accidental duplicate.
+func TestReceiveEchoNeverDeduplicatesAnEmptyMsgID(t *testing.T) {
+	s, _ := newTestStore(t)
+	area, err := s.CreateArea("dev", "Development Talk", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	written := time.Date(2026, time.September, 13, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 2; i++ {
+		_, created, err := s.ReceiveEcho(area.ID, "Geri Atricks", "Re: Immortal Barons", "body text", "", written)
+		if err != nil {
+			t.Fatalf("ReceiveEcho %d: %v", i, err)
+		}
+		if !created {
+			t.Fatalf("created = false on toss %d with an empty MSGID, want true (never deduplicated)", i)
+		}
+	}
+
+	msgs, err := s.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("ListMessages = %+v, want two separate messages", msgs)
 	}
 }

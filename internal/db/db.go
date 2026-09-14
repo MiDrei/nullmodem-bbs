@@ -93,6 +93,19 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "messages", "msgid", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	// Created here rather than in schema.sql: on an already-existing
+	// database, schema.sql runs (see above) before the ensureColumn
+	// call just above adds the msgid column, so an index referencing
+	// it there would fail the first time this runs against such a
+	// database.
+	if _, err := sqlDB.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_area_msgid ON messages(area_id, msgid) WHERE msgid != ''`); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("db: create idx_messages_area_msgid: %w", err)
+	}
 
 	return sqlDB, nil
 }
