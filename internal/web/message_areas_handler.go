@@ -27,6 +27,12 @@ type messageAreaDTO struct {
 	MinSLRead   int    `json:"min_sl_read"`
 	MinSLWrite  int    `json:"min_sl_write"`
 	SortOrder   int    `json:"sort_order"`
+	// Pending is read-only here (see handleApprovePendingMessageArea):
+	// an auto-created area internal/tosser is still awaiting sysop
+	// review never appears in this endpoint's own listing in the
+	// first place (see AllAreas), but the field rides along on a
+	// single Area anyway so /api/pending-areas can reuse this DTO.
+	Pending bool `json:"pending"`
 }
 
 func toMessageAreaDTO(a message.Area) messageAreaDTO {
@@ -39,6 +45,7 @@ func toMessageAreaDTO(a message.Area) messageAreaDTO {
 		MinSLRead:   a.MinSLRead,
 		MinSLWrite:  a.MinSLWrite,
 		SortOrder:   a.SortOrder,
+		Pending:     a.Pending,
 	}
 }
 

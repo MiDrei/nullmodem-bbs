@@ -569,8 +569,8 @@ func TestReplyToMessagePrefillsToAndSubjectAndPosts(t *testing.T) {
 	if reply.ToName != "alice" {
 		t.Fatalf("reply.ToName = %q, want %q (the original author)", reply.ToName, "alice")
 	}
-	if reply.FromUserID != bob.ID {
-		t.Fatalf("reply.FromUserID = %d, want bob's id %d", reply.FromUserID, bob.ID)
+	if !reply.FromUserID.Valid || reply.FromUserID.Int64 != bob.ID {
+		t.Fatalf("reply.FromUserID = %v, want bob's id %d", reply.FromUserID, bob.ID)
 	}
 	if reply.Body != "Thanks for that" {
 		t.Fatalf("reply.Body = %q, want %q", reply.Body, "Thanks for that")

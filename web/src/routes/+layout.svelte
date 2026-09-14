@@ -211,6 +211,24 @@
 								</svg>
 								BinkP
 							</a>
+							<a
+								href="/pending-areas"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<circle cx="12" cy="12" r="9" />
+									<path d="M12 7v5l3 3" />
+								</svg>
+								Pending Areas
+							</a>
 							<div class="my-1 border-t border-slate-800"></div>
 							<a
 								href="/settings"

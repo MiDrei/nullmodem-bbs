@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -336,5 +337,235 @@ func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 	gotBob := statsFor(t, bobStats, "chat")
 	if gotBob.New != 3 || gotBob.Yours != 2 {
 		t.Fatalf("bob's stats = %+v, want New=3 (never visited) Yours=2", gotBob)
+	}
+}
+
+func TestNetworksListsDistinctNonEmptyValuesSorted(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	if _, err := s.CreateArea("dev", "Dev", "", "fsxNet", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if _, err := s.CreateArea("news", "News", "", "HobbyNet", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if _, err := s.CreateArea("dev2", "Dev2", "", "fsxNet", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if _, err := s.CreateArea("local", "Local", "", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	got, err := s.Networks()
+	if err != nil {
+		t.Fatalf("Networks: %v", err)
+	}
+	want := []string{"HobbyNet", "fsxNet"}
+	if len(got) != len(want) {
+		t.Fatalf("Networks() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Networks() = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestEnsureAreaCreatesPendingAreaOnFirstUse(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	area, created, err := s.EnsureArea("FSXNET_GENERAL", "FSXNET_GENERAL", "fsxNet")
+	if err != nil {
+		t.Fatalf("EnsureArea: %v", err)
+	}
+	if !created {
+		t.Fatal("created = false, want true for a brand new tag")
+	}
+	if !area.Pending {
+		t.Fatal("Pending = false, want true for a freshly auto-created area")
+	}
+	if area.Network != "fsxNet" {
+		t.Fatalf("Network = %q, want %q", area.Network, "fsxNet")
+	}
+}
+
+func TestEnsureAreaReturnsExistingAreaUnchanged(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	first, created, err := s.EnsureArea("FSXNET_GENERAL", "FSXNET_GENERAL", "fsxNet")
+	if err != nil {
+		t.Fatalf("EnsureArea (first): %v", err)
+	}
+	if err := s.ApproveArea(first.ID); err != nil {
+		t.Fatalf("ApproveArea: %v", err)
+	}
+
+	second, created, err := s.EnsureArea("FSXNET_GENERAL", "some other name", "some other network")
+	if err != nil {
+		t.Fatalf("EnsureArea (second): %v", err)
+	}
+	if created {
+		t.Fatal("created = true, want false for an already-existing tag")
+	}
+	if second.Pending {
+		t.Fatal("Pending = true, want false -- EnsureArea must not un-approve an already-approved area")
+	}
+	if second.Name != first.Name || second.Network != first.Network {
+		t.Fatalf("EnsureArea (second) = %+v, want the untouched existing area %+v", second, first)
+	}
+}
+
+func TestEnsureAreaAlsoFindsAManuallyCreatedArea(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	manual, err := s.CreateArea("dev", "Development Talk", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	found, created, err := s.EnsureArea("dev", "ignored", "ignored")
+	if err != nil {
+		t.Fatalf("EnsureArea: %v", err)
+	}
+	if created {
+		t.Fatal("created = true, want false for a tag a sysop already created by hand")
+	}
+	if found.ID != manual.ID || found.Pending {
+		t.Fatalf("EnsureArea found = %+v, want the existing non-pending manual area", found)
+	}
+}
+
+func TestPendingAreaHiddenFromListAreasAndAllAreas(t *testing.T) {
+	s, users := newTestStore(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	if _, _, err := s.EnsureArea("FSXNET_GENERAL", "FSXNET_GENERAL", ""); err != nil {
+		t.Fatalf("EnsureArea: %v", err)
+	}
+
+	all, err := s.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	for _, a := range all {
+		if a.Tag == "FSXNET_GENERAL" {
+			t.Fatalf("AllAreas included the pending area %+v, want it excluded", a)
+		}
+	}
+
+	listed, err := s.ListAreas(user.SLNewUser)
+	if err != nil {
+		t.Fatalf("ListAreas: %v", err)
+	}
+	for _, a := range listed {
+		if a.Tag == "FSXNET_GENERAL" {
+			t.Fatalf("ListAreas included the pending area %+v, want it excluded", a)
+		}
+	}
+
+	stats, err := s.ListAreaStats(user.SLNewUser, alice.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats: %v", err)
+	}
+	for _, st := range stats {
+		if st.Area.Tag == "FSXNET_GENERAL" {
+			t.Fatalf("ListAreaStats included the pending area %+v, want it excluded", st)
+		}
+	}
+}
+
+func TestPendingAreasListsOnlyPendingOnes(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	if _, _, err := s.EnsureArea("FSXNET_GENERAL", "FSXNET_GENERAL", ""); err != nil {
+		t.Fatalf("EnsureArea: %v", err)
+	}
+	if _, err := s.CreateArea("dev", "Development Talk", "", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	pending, err := s.PendingAreas()
+	if err != nil {
+		t.Fatalf("PendingAreas: %v", err)
+	}
+	if len(pending) != 1 || pending[0].Tag != "FSXNET_GENERAL" {
+		t.Fatalf("PendingAreas = %+v, want just the auto-created FSXNET_GENERAL area", pending)
+	}
+}
+
+func TestApproveAreaMakesItVisible(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	area, _, err := s.EnsureArea("FSXNET_GENERAL", "FSXNET_GENERAL", "")
+	if err != nil {
+		t.Fatalf("EnsureArea: %v", err)
+	}
+	if err := s.ApproveArea(area.ID); err != nil {
+		t.Fatalf("ApproveArea: %v", err)
+	}
+
+	reloaded, err := s.AreaByID(area.ID)
+	if err != nil {
+		t.Fatalf("AreaByID: %v", err)
+	}
+	if reloaded.Pending {
+		t.Fatal("Pending = true after ApproveArea, want false")
+	}
+
+	all, err := s.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	found := false
+	for _, a := range all {
+		if a.Tag == "FSXNET_GENERAL" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("AllAreas did not include the area after approval")
+	}
+
+	// Idempotent.
+	if err := s.ApproveArea(area.ID); err != nil {
+		t.Fatalf("ApproveArea (again): %v", err)
+	}
+}
+
+func TestReceiveEchoStoresRemoteAuthorWithoutLocalAccount(t *testing.T) {
+	s, users := newTestStore(t)
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	area, err := s.CreateArea("dev", "Development Talk", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	written := time.Date(2026, time.September, 13, 12, 0, 0, 0, time.UTC)
+	msg, err := s.ReceiveEcho(area.ID, "Geri Atricks", "Re: Immortal Barons", "body text", written)
+	if err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
+	}
+	if !msg.IsFromRemote() {
+		t.Fatal("IsFromRemote() = false, want true for a message with no local author")
+	}
+	if msg.FromName != "Geri Atricks" {
+		t.Fatalf("FromName = %q, want %q", msg.FromName, "Geri Atricks")
+	}
+	if !msg.PostedAt.Equal(written) {
+		t.Fatalf("PostedAt = %v, want the message's own Written time %v", msg.PostedAt, written)
+	}
+
+	msgs, err := s.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 1 || msgs[0].FromName != "Geri Atricks" {
+		t.Fatalf("ListMessages = %+v, want one message from Geri Atricks", msgs)
 	}
 }

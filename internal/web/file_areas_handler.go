@@ -23,6 +23,9 @@ type fileAreaDTO struct {
 	MinSLDownload int    `json:"min_sl_download"`
 	MinSLUpload   int    `json:"min_sl_upload"`
 	SortOrder     int    `json:"sort_order"`
+	// Pending mirrors messageAreaDTO.Pending -- see its doc comment.
+	// Nothing sets this on a file area yet (no TIC/file-echo tossing).
+	Pending bool `json:"pending"`
 }
 
 func toFileAreaDTO(a file.Area) fileAreaDTO {
@@ -35,6 +38,7 @@ func toFileAreaDTO(a file.Area) fileAreaDTO {
 		MinSLDownload: a.MinSLDownload,
 		MinSLUpload:   a.MinSLUpload,
 		SortOrder:     a.SortOrder,
+		Pending:       a.Pending,
 	}
 }
 

@@ -77,6 +77,22 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "message_areas", "pending", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := ensureColumn(sqlDB, "file_areas", "pending", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := migrateMessagesFromUserIDNullable(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := ensureColumn(sqlDB, "messages", "from_name", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 
 	return sqlDB, nil
 }
@@ -191,6 +207,76 @@ PRAGMA foreign_keys = ON;
 `
 	if _, err := db.Exec(rebuild); err != nil {
 		return fmt.Errorf("db: migrating netmail_messages: %w", err)
+	}
+	return nil
+}
+
+// migrateMessagesFromUserIDNullable is migrateNetmailFromUserIDNullable's
+// counterpart for messages.from_user_id, needed so echomail
+// internal/tosser tosses in from a remote FTN system (no local author
+// account) can be stored. See that function's doc comment for why a
+// full table rebuild is necessary and why a fresh database needs none
+// of this.
+func migrateMessagesFromUserIDNullable(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(messages)`)
+	if err != nil {
+		return fmt.Errorf("db: inspect messages: %w", err)
+	}
+	needsRebuild := false
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			colType    string
+			notNull    int
+			dfltValue  sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &primaryKey); err != nil {
+			rows.Close()
+			return fmt.Errorf("db: inspect messages: %w", err)
+		}
+		if name == "from_user_id" && notNull == 1 {
+			needsRebuild = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("db: inspect messages: %w", err)
+	}
+	rows.Close()
+	if !needsRebuild {
+		return nil
+	}
+
+	const rebuild = `
+PRAGMA foreign_keys = OFF;
+
+ALTER TABLE messages RENAME TO messages_old;
+
+CREATE TABLE messages (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    area_id       INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE CASCADE,
+    from_user_id  INTEGER REFERENCES users(id),
+    from_name     TEXT NOT NULL DEFAULT '',
+    to_name       TEXT NOT NULL DEFAULT 'All',
+    subject       TEXT NOT NULL,
+    body          TEXT NOT NULL,
+    posted_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO messages (id, area_id, from_user_id, to_name, subject, body, posted_at)
+SELECT id, area_id, from_user_id, to_name, subject, body, posted_at
+FROM messages_old;
+
+DROP TABLE messages_old;
+
+CREATE INDEX IF NOT EXISTS idx_messages_area_posted ON messages(area_id, posted_at);
+
+PRAGMA foreign_keys = ON;
+`
+	if _, err := db.Exec(rebuild); err != nil {
+		return fmt.Errorf("db: migrating messages: %w", err)
 	}
 	return nil
 }

@@ -25,7 +25,14 @@ CREATE TABLE IF NOT EXISTS message_areas (
     min_sl_read   INTEGER NOT NULL DEFAULT 0,
     min_sl_write  INTEGER NOT NULL DEFAULT 0,
     sort_order    INTEGER NOT NULL DEFAULT 0,
-    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Set on an area internal/tosser auto-created for an inbound
+    -- echomail AREA kludge it hadn't seen before. Pending areas are
+    -- hidden from every BBS-facing listing (ListAreas/ListAreaStats)
+    -- and the normal web admin area list until the sysop reviews and
+    -- approves them (see ApproveArea) -- an area a sysop creates by
+    -- hand is never pending.
+    pending       INTEGER NOT NULL DEFAULT 0
 );
 
 -- Seeded once (idempotent via the UNIQUE tag) so a fresh install has a
@@ -33,10 +40,16 @@ CREATE TABLE IF NOT EXISTS message_areas (
 INSERT OR IGNORE INTO message_areas (tag, name, description, min_sl_read, min_sl_write, sort_order)
 VALUES ('general', 'General Discussion', 'General chat for all callers', 0, 0, 0);
 
+-- from_user_id is NULL for a message internal/tosser tossed in from a
+-- remote FTN system's echomail (no local author account), in which
+-- case from_name carries the remote author's name directly instead of
+-- being joined from users.username -- mirrors netmail_messages'
+-- from_user_id/from_name split (see internal/netmail's doc comment).
 CREATE TABLE IF NOT EXISTS messages (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     area_id       INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE CASCADE,
-    from_user_id  INTEGER NOT NULL REFERENCES users(id),
+    from_user_id  INTEGER REFERENCES users(id),
+    from_name     TEXT NOT NULL DEFAULT '',
     to_name       TEXT NOT NULL DEFAULT 'All',
     subject       TEXT NOT NULL,
     body          TEXT NOT NULL,
@@ -69,7 +82,11 @@ CREATE TABLE IF NOT EXISTS file_areas (
     min_sl_download  INTEGER NOT NULL DEFAULT 0,
     min_sl_upload    INTEGER NOT NULL DEFAULT 0,
     sort_order       INTEGER NOT NULL DEFAULT 0,
-    created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- Mirrors message_areas.pending -- not set by anything yet (no
+    -- TIC/file-echo tossing exists), but the same review/approve
+    -- workflow will apply once it does.
+    pending          INTEGER NOT NULL DEFAULT 0
 );
 
 INSERT OR IGNORE INTO file_areas (tag, name, description, min_sl_download, min_sl_upload, sort_order)

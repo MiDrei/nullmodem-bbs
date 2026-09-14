@@ -11,6 +11,7 @@
 		listAreaFiles,
 		uploadAreaFile,
 		deleteFile,
+		listGroups,
 		ApiError,
 		type FileArea,
 		type FileAreaInput,
@@ -30,6 +31,7 @@
 	}
 
 	let areas = $state<FileArea[]>([]);
+	let groups = $state<string[]>([]);
 	let loadError = $state<string | null>(null);
 	let loaded = $state(false);
 
@@ -75,6 +77,11 @@
 			return;
 		}
 		await load();
+		try {
+			groups = await listGroups(auth.token);
+		} catch {
+			// Non-critical: the Group field just falls back to free text.
+		}
 	});
 
 	function startEdit(area: FileArea) {
@@ -191,6 +198,12 @@
 	}
 </script>
 
+<datalist id="groups-list">
+	{#each groups as g (g)}
+		<option value={g}></option>
+	{/each}
+</datalist>
+
 <div class="mb-6 flex items-center justify-between">
 	<h1 class="text-xl font-semibold text-slate-100">File Areas</h1>
 	<button
@@ -228,11 +241,12 @@
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">Network</span>
+				<span class="text-slate-400">Group</span>
 				<input
 					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
 					bind:value={newDraft.network}
-					placeholder="fsxNet, FidoNet… (blank for local-only)"
+					list="groups-list"
+					placeholder="fsxNet, FidoNet… (blank for ungrouped)"
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
@@ -299,11 +313,12 @@
 							/>
 						</label>
 						<label class="flex flex-col gap-1 text-sm">
-							<span class="text-slate-400">Network</span>
+							<span class="text-slate-400">Group</span>
 							<input
 								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
 								bind:value={draft.network}
-								placeholder="fsxNet, FidoNet… (blank for local-only)"
+								list="groups-list"
+								placeholder="fsxNet, FidoNet… (blank for ungrouped)"
 							/>
 						</label>
 						<label class="flex flex-col gap-1 text-sm">

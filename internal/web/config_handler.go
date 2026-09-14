@@ -242,18 +242,19 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 		Host:           req.Host,
 		Password:       req.Password,
 		PacketPassword: req.PacketPassword,
-	}, c.Binkp.Uplinks, s.Netmail, s.Users)
+	}, c.Binkp.Uplinks, s.Netmail, s.Messages, s.Users)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("poll failed: %v", err))
 		return
 	}
 
 	if claims, ok := claimsFromContext(r.Context()); ok {
-		s.logInfo("%s manually polled BinkP uplink %s (sent %d, received %d)", claims.Subject, req.Host, result.Sent, result.Received)
+		s.logInfo("%s manually polled BinkP uplink %s (sent %d, received %d netmail, %d echomail)", claims.Subject, req.Host, result.Sent, result.Received, result.ReceivedEcho)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sent":             result.Sent,
 		"received":         result.Received,
+		"received_echo":    result.ReceivedEcho,
 		"remote_addresses": result.RemoteAddresses,
 	})
 }

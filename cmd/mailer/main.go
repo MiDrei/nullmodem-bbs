@@ -23,6 +23,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/tosser"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -57,6 +58,7 @@ func main() {
 
 	logger := applog.NewLogger(applog.NewStore(sqlDB), "mailer")
 	netmailStore := netmail.NewStore(sqlDB)
+	messages := message.NewStore(sqlDB)
 	users := user.NewStore(sqlDB)
 	pollStore := tosser.NewUplinkPollStore(sqlDB)
 
@@ -73,7 +75,7 @@ func main() {
 	defer stop()
 
 	logger.Info("mailer daemon starting, checking every %s which uplinks are due (default interval %s)", checkInterval, defaultInterval)
-	checkUplinks(ctx, cfg, netmailStore, users, pollStore, defaultInterval, logger)
+	checkUplinks(ctx, cfg, netmailStore, messages, users, pollStore, defaultInterval, logger)
 
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
@@ -83,7 +85,7 @@ func main() {
 			logger.Info("mailer daemon shutting down")
 			return
 		case <-ticker.C:
-			checkUplinks(ctx, cfg, netmailStore, users, pollStore, defaultInterval, logger)
+			checkUplinks(ctx, cfg, netmailStore, messages, users, pollStore, defaultInterval, logger)
 		}
 	}
 }
@@ -95,14 +97,14 @@ func main() {
 // last tried, tracked persistently so a restart can't reset the
 // clock. One uplink's failure doesn't stop the others from being
 // tried.
-func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail.Store, users *user.Store, pollStore *tosser.UplinkPollStore, defaultInterval time.Duration, logger *applog.Logger) {
+func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail.Store, messages *message.Store, users *user.Store, pollStore *tosser.UplinkPollStore, defaultInterval time.Duration, logger *applog.Logger) {
 	if len(cfg.BBS.FTNAddresses) == 0 {
 		logger.Warn("this system's FTN address isn't configured; skipping poll")
 		return
 	}
 	for _, uplink := range cfg.Binkp.Uplinks {
 		if uplink.PollDisabled {
-			checkCrashUplink(ctx, cfg, uplink, netmailStore, users, logger)
+			checkCrashUplink(ctx, cfg, uplink, netmailStore, messages, users, logger)
 			continue
 		}
 
@@ -119,12 +121,12 @@ func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail
 			continue
 		}
 
-		res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, uplink, cfg.Binkp.Uplinks, netmailStore, users)
+		res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users)
 		if err != nil {
 			logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
 			continue
 		}
-		logger.Info("polled %s (%s): sent %d, received %d", uplink.Address, uplink.Host, res.Sent, res.Received)
+		logger.Info("polled %s (%s): sent %d, received %d netmail, %d echomail", uplink.Address, uplink.Host, res.Sent, res.Received, res.ReceivedEcho)
 	}
 }
 
@@ -133,7 +135,7 @@ func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail
 // whole point of marking a message Crash is not waiting around for
 // the next scheduled poll, but a crash-only uplink still shouldn't be
 // dialed needlessly.
-func checkCrashUplink(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, users *user.Store, logger *applog.Logger) {
+func checkCrashUplink(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, logger *applog.Logger) {
 	routed, err := tosser.RoutedOutbound(netmailStore, uplink, cfg.Binkp.Uplinks)
 	if err != nil {
 		logger.Warn("checking crash mail for %s (%s): %v", uplink.Address, uplink.Host, err)
@@ -142,10 +144,10 @@ func checkCrashUplink(ctx context.Context, cfg *config.Config, uplink config.Bin
 	if len(routed) == 0 {
 		return
 	}
-	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, uplink, cfg.Binkp.Uplinks, netmailStore, users)
+	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users)
 	if err != nil {
 		logger.Warn("crash-dialing %s (%s): %v", uplink.Address, uplink.Host, err)
 		return
 	}
-	logger.Info("crash-dialed %s (%s): sent %d, received %d", uplink.Address, uplink.Host, res.Sent, res.Received)
+	logger.Info("crash-dialed %s (%s): sent %d, received %d netmail, %d echomail", uplink.Address, uplink.Host, res.Sent, res.Received, res.ReceivedEcho)
 }

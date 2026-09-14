@@ -83,6 +83,8 @@ export interface MessageArea {
 	min_sl_read: number;
 	min_sl_write: number;
 	sort_order: number;
+	/** Set when internal/tosser auto-created this area for an inbound echomail AREA kludge it hadn't seen before -- invisible everywhere in the BBS until approved (see /pending-areas). Always false for an area created by hand. */
+	pending: boolean;
 }
 
 export interface FileArea {
@@ -95,6 +97,13 @@ export interface FileArea {
 	min_sl_download: number;
 	min_sl_upload: number;
 	sort_order: number;
+	/** Mirrors MessageArea.pending -- reserved for when TIC/file-echo tossing exists; nothing sets this yet. */
+	pending: boolean;
+}
+
+export interface PendingAreas {
+	message_areas: MessageArea[];
+	file_areas: FileArea[];
 }
 
 export interface BBSFile {
@@ -229,7 +238,12 @@ export function testBinkpConnection(
 export function sendNowBinkp(
 	token: string,
 	uplink: BinkpUplink
-): Promise<{ sent: number; received: number; remote_addresses: string[] }> {
+): Promise<{
+	sent: number;
+	received: number;
+	received_echo: number;
+	remote_addresses: string[];
+}> {
 	return request(
 		'/api/binkp/send-now',
 		{ method: 'POST', body: JSON.stringify(uplink) },
@@ -257,7 +271,7 @@ export function setUserSecurityLevel(
 	);
 }
 
-export type MessageAreaInput = Omit<MessageArea, 'id'>;
+export type MessageAreaInput = Omit<MessageArea, 'id' | 'pending'>;
 
 export function listMessageAreas(token: string): Promise<MessageArea[]> {
 	return request<MessageArea[]>('/api/message-areas', { method: 'GET' }, token);
@@ -290,7 +304,7 @@ export function deleteMessageArea(token: string, id: number): Promise<void> {
 	return request<void>(`/api/message-areas/${id}`, { method: 'DELETE' }, token);
 }
 
-export type FileAreaInput = Omit<FileArea, 'id'>;
+export type FileAreaInput = Omit<FileArea, 'id' | 'pending'>;
 
 export function listFileAreas(token: string): Promise<FileArea[]> {
 	return request<FileArea[]>('/api/file-areas', { method: 'GET' }, token);
@@ -314,6 +328,27 @@ export function updateFileArea(
 
 export function deleteFileArea(token: string, id: number): Promise<void> {
 	return request<void>(`/api/file-areas/${id}`, { method: 'DELETE' }, token);
+}
+
+export function listPendingAreas(token: string): Promise<PendingAreas> {
+	return request<PendingAreas>('/api/pending-areas', { method: 'GET' }, token);
+}
+
+/** Every distinct group ("network") already in use across message and file areas combined, sorted -- suggestions for that field on the area forms. */
+export function listGroups(token: string): Promise<string[]> {
+	return request<string[]>('/api/groups', { method: 'GET' }, token);
+}
+
+export function approvePendingMessageArea(token: string, id: number): Promise<MessageArea> {
+	return request<MessageArea>(
+		`/api/pending-areas/message-areas/${id}/approve`,
+		{ method: 'POST' },
+		token
+	);
+}
+
+export function approvePendingFileArea(token: string, id: number): Promise<FileArea> {
+	return request<FileArea>(`/api/pending-areas/file-areas/${id}/approve`, { method: 'POST' }, token);
 }
 
 export function listAreaFiles(token: string, areaId: number): Promise<BBSFile[]> {

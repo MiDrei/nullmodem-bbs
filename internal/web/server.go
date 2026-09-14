@@ -70,6 +70,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/file-areas/{id}/files", s.requireAuth(http.HandlerFunc(s.handleUploadAreaFile)))
 	mux.Handle("DELETE /api/files/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteFile)))
 
+	mux.Handle("GET /api/groups", s.requireAuth(http.HandlerFunc(s.handleListGroups)))
+	mux.Handle("GET /api/pending-areas", s.requireAuth(http.HandlerFunc(s.handleListPendingAreas)))
+	mux.Handle("POST /api/pending-areas/message-areas/{id}/approve", s.requireAuth(http.HandlerFunc(s.handleApprovePendingMessageArea)))
+	mux.Handle("POST /api/pending-areas/file-areas/{id}/approve", s.requireAuth(http.HandlerFunc(s.handleApprovePendingFileArea)))
+
 	mux.Handle("GET /api/screens", s.requireAuth(http.HandlerFunc(s.handleListScreens)))
 	mux.Handle("POST /api/screens", s.requireAuth(http.HandlerFunc(s.handleCreateScreen)))
 	mux.Handle("POST /api/screens/import", s.requireAuth(http.HandlerFunc(s.handleImportScreen)))

@@ -23,11 +23,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/mail"
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
@@ -44,6 +46,11 @@ type Result struct {
 	// queued locally, if the recipient didn't resolve to a local
 	// user) out of whatever the uplink sent back in the same session.
 	Received int
+	// ReceivedEcho is how many echomail messages (an AREA-kludged
+	// message, as opposed to netmail) were tossed into a message
+	// area out of whatever the uplink sent back, whether or not the
+	// area already existed (see tossEcho).
+	ReceivedEcho int
 	// RemoteAddresses are the FTN addresses the uplink identified
 	// itself as, straight from binkp.Result.
 	RemoteAddresses []string
@@ -65,7 +72,7 @@ type Result struct {
 // yet), and uplink need not be poll-disabled just because it's being
 // dialed here (that flag only governs cmd/mailer's own scheduled
 // loop, not a manual or crash-triggered dial).
-func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, users *user.Store) (*Result, error) {
+func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (*Result, error) {
 	if len(ourAddresses) == 0 {
 		return nil, fmt.Errorf("tosser: no FTN addresses configured for this system")
 	}
@@ -102,8 +109,9 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 	res := &Result{}
 	var receiveErr error
 	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
-		n, err := tossInbound(r, uplink.PacketPassword, netmailStore, users)
-		res.Received += n
+		stats, err := tossInbound(r, uplink.PacketPassword, netmailStore, messages, users)
+		res.Received += stats.netmail
+		res.ReceivedEcho += stats.echo
 		if err != nil {
 			receiveErr = err
 		}
@@ -258,18 +266,33 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, pendin
 	return &buf, nil
 }
 
+// inboundStats counts what tossInbound filed away, split by whether
+// each message was netmail or echomail (see Result.Received/
+// ReceivedEcho).
+type inboundStats struct {
+	netmail, echo int
+}
+
 // tossInbound reads a complete FTS-0001 packet from r and files each
-// message into the local netmail store: delivered straight to a
-// user's inbox if ToName resolves to a local account (case-
-// insensitive, matching internal/bbs's own recipient lookup), or kept
-// queued (ToUserID unset) with the sender's address preserved
-// otherwise, so nothing is silently dropped even though there's
-// nowhere local to put it yet. If expectedPassword is non-empty, the
-// packet's own header password (internal/mail.PacketHeader.Password)
-// must match it -- a mismatch discards the rest of the packet (see
-// below) before any message in it is stored, since a wrong packet
-// password indicates either a misconfiguration or a forged packet,
-// not partial content to salvage.
+// message either into the local netmail store or a message area,
+// depending on whether it carries an AREA kludge (see echoAreaTag):
+//
+//   - Echomail (AREA kludge present) is tossed into the area matching
+//     that tag, auto-creating it as Pending if this is the first
+//     message ever seen for it (see message.Store.EnsureArea) --
+//     invisible to callers until the sysop reviews and approves it.
+//   - Netmail (no AREA kludge) is delivered straight to a user's
+//     inbox if ToName resolves to a local account (case-insensitive,
+//     matching internal/bbs's own recipient lookup), or kept queued
+//     (ToUserID unset) with the sender's address preserved otherwise,
+//     so nothing is silently dropped even though there's nowhere
+//     local to put it yet.
+//
+// If expectedPassword is non-empty, the packet's own header password
+// (internal/mail.PacketHeader.Password) must match it -- a mismatch
+// discards the rest of the packet (see below) before any message in
+// it is stored, since a wrong packet password indicates either a
+// misconfiguration or a forged packet, not partial content to salvage.
 //
 // Whatever the outcome, r is always drained to completion before
 // returning: binkp.Config.ReceiveFile's contract requires reading
@@ -278,7 +301,7 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, pendin
 // keeps consuming them -- returning early, as an earlier version of
 // this password check did, deadlocks that writer forever instead of
 // cleanly failing the session.
-func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Store, users *user.Store) (n int, err error) {
+func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (stats inboundStats, err error) {
 	defer func() {
 		if _, drainErr := io.Copy(io.Discard, r); drainErr != nil && err == nil {
 			err = fmt.Errorf("tosser: draining inbound packet: %w", drainErr)
@@ -287,26 +310,34 @@ func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Sto
 
 	pr, err := mail.NewReader(r)
 	if err != nil {
-		return 0, fmt.Errorf("tosser: reading inbound packet: %w", err)
+		return stats, fmt.Errorf("tosser: reading inbound packet: %w", err)
 	}
 	if expectedPassword != "" && pr.Header.Password != expectedPassword {
-		return 0, fmt.Errorf("tosser: inbound packet password does not match this uplink's configured packet password")
+		return stats, fmt.Errorf("tosser: inbound packet password does not match this uplink's configured packet password")
 	}
 
 	for {
 		msg, err := pr.ReadMessage()
 		if err == io.EOF {
-			return n, nil
+			return stats, nil
 		}
 		if err != nil {
-			return n, fmt.Errorf("tosser: reading inbound message %d: %w", n+1, err)
+			return stats, fmt.Errorf("tosser: reading inbound message %d: %w", stats.netmail+stats.echo+1, err)
+		}
+
+		if tag, ok := echoAreaTag(msg.Body); ok {
+			if err := tossEcho(tag, msg, messages); err != nil {
+				return stats, fmt.Errorf("tosser: tossing echomail message %d: %w", stats.netmail+stats.echo+1, err)
+			}
+			stats.echo++
+			continue
 		}
 
 		var toUserID int64
 		if recipient, err := users.ByUsername(msg.ToName); err == nil {
 			toUserID = recipient.ID
 		} else if !errors.Is(err, user.ErrNotFound) {
-			return n, fmt.Errorf("tosser: resolving recipient %q: %w", msg.ToName, err)
+			return stats, fmt.Errorf("tosser: resolving recipient %q: %w", msg.ToName, err)
 		}
 
 		fromName := msg.FromName
@@ -315,10 +346,69 @@ func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Sto
 		}
 		crash := msg.Attr&mail.AttrCrash != 0
 		if _, err := netmailStore.Receive(fromName, msg.OrigAddr.String(), toUserID, msg.ToName, "", msg.Subject, msg.Body, msg.Written, crash); err != nil {
-			return n, fmt.Errorf("tosser: storing inbound message %d: %w", n+1, err)
+			return stats, fmt.Errorf("tosser: storing inbound message %d: %w", stats.netmail+stats.echo+1, err)
 		}
-		n++
+		stats.netmail++
 	}
+}
+
+// echoAreaTag returns the echomail area tag from body's leading AREA
+// line, if present. Per FTS-0009 (the echomail convention layered on
+// top of FTS-0001), AREA is deliberately the one exception to every
+// other kludge's \x01 control-byte prefix -- it's written as a bare
+// "AREA:tag" first line precisely so a system with no echomail
+// support still sees ordinary (if odd) text rather than a control
+// character, unlike the \x01-prefixed kludges that follow it (MSGID,
+// PID, TID, ...; see internal/mail's scanAddressingKludges, which
+// parses INTL/FMPT/TOPT among those the same way, leaving AREA and
+// the rest for this tosser layer to interpret). Confirmed against
+// real inbound fsxNet traffic (Synchronet- and binkd-tossed messages
+// alike), which all write a bare "AREA:tag" line with no \x01.
+func echoAreaTag(body string) (string, bool) {
+	const prefix = "AREA:"
+	firstLine, _, _ := strings.Cut(body, "\n")
+	if len(firstLine) > len(prefix) && strings.EqualFold(firstLine[:len(prefix)], prefix) {
+		return strings.TrimSpace(firstLine[len(prefix):]), true
+	}
+	return "", false
+}
+
+// stripLeadingKludges drops the leading AREA line (see echoAreaTag)
+// and every kludge line after it (anything still marked with FTN's
+// \x01 control byte) from body, so a tossed echomail message displays
+// as clean text in the BBS reader instead of literal control lines
+// meant for tossers, not readers.
+func stripLeadingKludges(body string) string {
+	lines := strings.Split(body, "\n")
+	i := 0
+	if i < len(lines) && len(lines[i]) > 5 && strings.EqualFold(lines[i][:5], "AREA:") {
+		i++
+	}
+	for i < len(lines) && strings.HasPrefix(lines[i], "\x01") {
+		i++
+	}
+	return strings.Join(lines[i:], "\n")
+}
+
+// tossEcho files msg into the message area tagged tag, creating it as
+// Pending (see message.Store.EnsureArea) if this is the first message
+// ever seen for it -- so an unrecognized incoming echo area doesn't
+// silently drop mail, but also doesn't appear in the BBS until the
+// sysop has reviewed and approved it.
+func tossEcho(tag string, msg *mail.Message, messages *message.Store) error {
+	area, _, err := messages.EnsureArea(tag, tag, "")
+	if err != nil {
+		return fmt.Errorf("ensuring area %q: %w", tag, err)
+	}
+
+	fromName := msg.FromName
+	if fromName == "" {
+		fromName = msg.OrigAddr.String()
+	}
+	if _, err := messages.ReceiveEcho(area.ID, fromName, msg.Subject, stripLeadingKludges(msg.Body), msg.Written); err != nil {
+		return fmt.Errorf("storing message in area %q: %w", tag, err)
+	}
+	return nil
 }
 
 func containsString(ss []string, s string) bool {

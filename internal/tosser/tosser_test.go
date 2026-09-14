@@ -15,6 +15,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/mail"
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
@@ -53,18 +54,18 @@ type ansOutcome struct {
 	err    error
 }
 
-func newTestStores(t *testing.T) (*netmail.Store, *user.Store) {
+func newTestStores(t *testing.T) (*netmail.Store, *message.Store, *user.Store) {
 	t.Helper()
 	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
 	t.Cleanup(func() { sqlDB.Close() })
-	return netmail.NewStore(sqlDB), user.NewStore(sqlDB)
+	return netmail.NewStore(sqlDB), message.NewStore(sqlDB), user.NewStore(sqlDB)
 }
 
 func TestPollSendsPendingNetmailAndMarksSent(t *testing.T) {
-	netmailStore, users := newTestStores(t)
+	netmailStore, messages, users := newTestStores(t)
 	alice, err := users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register alice: %v", err)
@@ -89,7 +90,7 @@ func TestPollSendsPendingNetmailAndMarksSent(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, users)
+	}, nil, netmailStore, messages, users)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -138,7 +139,7 @@ func TestPollSendsPendingNetmailAndMarksSent(t *testing.T) {
 }
 
 func TestPollReceivesInboundNetmailForLocalUser(t *testing.T) {
-	netmailStore, users := newTestStores(t)
+	netmailStore, messages, users := newTestStores(t)
 	bob, err := users.Register("bob", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register bob: %v", err)
@@ -175,7 +176,7 @@ func TestPollReceivesInboundNetmailForLocalUser(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, users)
+	}, nil, netmailStore, messages, users)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -203,7 +204,7 @@ func TestPollReceivesInboundNetmailForLocalUser(t *testing.T) {
 }
 
 func TestPollStampsPacketPasswordOnOutboundPacket(t *testing.T) {
-	netmailStore, users := newTestStores(t)
+	netmailStore, messages, users := newTestStores(t)
 	alice, err := users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register alice: %v", err)
@@ -229,7 +230,7 @@ func TestPollStampsPacketPasswordOnOutboundPacket(t *testing.T) {
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "pktpass",
-	}, nil, netmailStore, users)
+	}, nil, netmailStore, messages, users)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -250,7 +251,7 @@ func TestPollStampsPacketPasswordOnOutboundPacket(t *testing.T) {
 }
 
 func TestPollRejectsInboundPacketWithWrongPassword(t *testing.T) {
-	netmailStore, users := newTestStores(t)
+	netmailStore, messages, users := newTestStores(t)
 	if _, err := users.Register("bob", "password123", user.SLNewUser); err != nil {
 		t.Fatalf("Register bob: %v", err)
 	}
@@ -283,7 +284,7 @@ func TestPollRejectsInboundPacketWithWrongPassword(t *testing.T) {
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "rightpw",
-	}, nil, netmailStore, users)
+	}, nil, netmailStore, messages, users)
 	if err == nil {
 		t.Fatal("Poll with a wrong inbound packet password: want error, got nil")
 	}
@@ -299,7 +300,7 @@ func TestPollRejectsInboundPacketWithWrongPassword(t *testing.T) {
 }
 
 func TestPollAcceptsInboundPacketWithMatchingPassword(t *testing.T) {
-	netmailStore, users := newTestStores(t)
+	netmailStore, messages, users := newTestStores(t)
 	bob, err := users.Register("bob", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register bob: %v", err)
@@ -333,7 +334,7 @@ func TestPollAcceptsInboundPacketWithMatchingPassword(t *testing.T) {
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "rightpw",
-	}, nil, netmailStore, users)
+	}, nil, netmailStore, messages, users)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -354,7 +355,7 @@ func TestPollAcceptsInboundPacketWithMatchingPassword(t *testing.T) {
 }
 
 func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
-	netmailStore, users := newTestStores(t)
+	netmailStore, messages, users := newTestStores(t)
 
 	var buf bytes.Buffer
 	w, err := mail.NewWriter(&buf, mail.PacketHeader{
@@ -387,7 +388,7 @@ func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, users)
+	}, nil, netmailStore, messages, users)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -400,21 +401,21 @@ func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 }
 
 func TestPollRejectsInvalidOwnAddress(t *testing.T) {
-	netmailStore, users := newTestStores(t)
-	if _, err := Poll(context.Background(), []string{"not-an-address"}, config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, users); err == nil {
+	netmailStore, messages, users := newTestStores(t)
+	if _, err := Poll(context.Background(), []string{"not-an-address"}, config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users); err == nil {
 		t.Fatal("Poll with an invalid own FTN address: want error, got nil")
 	}
 }
 
 func TestPollRejectsNoOwnAddresses(t *testing.T) {
-	netmailStore, users := newTestStores(t)
-	if _, err := Poll(context.Background(), nil, config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, users); err == nil {
+	netmailStore, messages, users := newTestStores(t)
+	if _, err := Poll(context.Background(), nil, config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users); err == nil {
 		t.Fatal("Poll with no own FTN addresses: want error, got nil")
 	}
 }
 
 func TestPollPresentsAllConfiguredAKAsToUplink(t *testing.T) {
-	netmailStore, users := newTestStores(t)
+	netmailStore, messages, users := newTestStores(t)
 
 	addr, done := runFakeUplink(t, binkp.Config{
 		OurAddresses: []string{"21:3/194"},
@@ -426,7 +427,7 @@ func TestPollPresentsAllConfiguredAKAsToUplink(t *testing.T) {
 	_, err := Poll(context.Background(), []string{"21:3/194.1", "954:700/14"}, config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, users)
+	}, nil, netmailStore, messages, users)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -448,7 +449,7 @@ func TestPollPresentsAllConfiguredAKAsToUplink(t *testing.T) {
 }
 
 func TestPollErrorsWhenUplinkUnreachable(t *testing.T) {
-	netmailStore, users := newTestStores(t)
+	netmailStore, messages, users := newTestStores(t)
 	alice, err := users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register alice: %v", err)
@@ -465,7 +466,7 @@ func TestPollErrorsWhenUplinkUnreachable(t *testing.T) {
 	addr := ln.Addr().String()
 	ln.Close()
 
-	if _, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{Address: "21:3/194", Host: addr}, nil, netmailStore, users); err == nil {
+	if _, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{Address: "21:3/194", Host: addr}, nil, netmailStore, messages, users); err == nil {
 		t.Fatal("Poll against an unreachable uplink: want error, got nil")
 	}
 
@@ -475,5 +476,201 @@ func TestPollErrorsWhenUplinkUnreachable(t *testing.T) {
 	}
 	if len(pending) != 1 {
 		t.Fatalf("PendingOutbound after a failed poll = %+v, want the message still queued", pending)
+	}
+}
+
+func TestPollTossesEchomailIntoAutoCreatedPendingArea(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	var buf bytes.Buffer
+	// No Point on either address: unlike netmail, echomail doesn't
+	// carry per-message zone/point kludges (it's always routed via
+	// its AREA tag, addressed to "All"), so internal/mail won't
+	// prepend an FMPT/INTL line before our hand-written AREA line --
+	// matching a real inbound echomail packet's shape.
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 195},
+		Created:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{
+		ToName:   "All",
+		FromName: "Geri Atricks",
+		Subject:  "Re: Immortal Barons",
+		Body:     "AREA:FSXNET_GENERAL\r\x01MSGID: 21:3/235 abcdef01\rhello area\r",
+	}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+		},
+	})
+
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+		Address: "21:3/194",
+		Host:    addr,
+	}, nil, netmailStore, messages, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+
+	if res.ReceivedEcho != 1 {
+		t.Fatalf("Result.ReceivedEcho = %d, want 1", res.ReceivedEcho)
+	}
+	if res.Received != 0 {
+		t.Fatalf("Result.Received (netmail) = %d, want 0 -- this was echomail", res.Received)
+	}
+
+	// Netmail must never see this message.
+	pending, err := netmailStore.PendingOutbound()
+	if err != nil {
+		t.Fatalf("PendingOutbound: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("PendingOutbound = %+v, want empty -- echomail must not land in netmail", pending)
+	}
+
+	area, err := messages.AreaByTag("FSXNET_GENERAL")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if !area.Pending {
+		t.Fatal("auto-created area Pending = false, want true until the sysop approves it")
+	}
+
+	// Invisible to the BBS until approved.
+	all, err := messages.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	for _, a := range all {
+		if a.Tag == "FSXNET_GENERAL" {
+			t.Fatal("AllAreas included the still-pending auto-created area")
+		}
+	}
+
+	msgs, err := messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("ListMessages = %+v, want 1 message", msgs)
+	}
+	got := msgs[0]
+	if got.FromName != "Geri Atricks" || got.Subject != "Re: Immortal Barons" {
+		t.Fatalf("tossed message = %+v, want From %q Subject %q", got, "Geri Atricks", "Re: Immortal Barons")
+	}
+	if !got.IsFromRemote() {
+		t.Fatal("expected IsFromRemote() = true for a tossed echomail message")
+	}
+	if strings.Contains(got.Body, "\x01") {
+		t.Fatalf("tossed message body still contains kludge lines: %q", got.Body)
+	}
+	if !strings.Contains(got.Body, "hello area") {
+		t.Fatalf("tossed message body lost its real text: %q", got.Body)
+	}
+}
+
+func TestPollTossesEchomailIntoExistingApprovedArea(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+	existing, err := messages.CreateArea("dev", "Development Talk", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	var buf bytes.Buffer
+	// No Point (see TestPollTossesEchomailIntoAutoCreatedPendingArea).
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 195},
+		Created:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{
+		ToName:   "All",
+		FromName: "Someone",
+		Subject:  "Hi",
+		Body:     "AREA:dev\rbody text",
+	}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+		},
+	})
+
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+		Address: "21:3/194",
+		Host:    addr,
+	}, nil, netmailStore, messages, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+	if res.ReceivedEcho != 1 {
+		t.Fatalf("Result.ReceivedEcho = %d, want 1", res.ReceivedEcho)
+	}
+
+	reloaded, err := messages.AreaByID(existing.ID)
+	if err != nil {
+		t.Fatalf("AreaByID: %v", err)
+	}
+	if reloaded.Pending {
+		t.Fatal("an already-existing, already-approved area must not become pending again")
+	}
+	if reloaded.Name != "Development Talk" {
+		t.Fatalf("Name = %q, want the untouched original %q", reloaded.Name, "Development Talk")
+	}
+}
+
+func TestEchoAreaTagRequiresBareAreaLineNotKludgePrefixed(t *testing.T) {
+	// Real-world shape (confirmed against live fsxNet traffic from
+	// both Synchronet- and binkd-based systems): AREA is a bare first
+	// line with no \x01, unlike every kludge that follows it.
+	tag, ok := echoAreaTag("AREA:FSX_GAMING\n\x01TID: clrghouz fcc93214\nsome text")
+	if !ok || tag != "FSX_GAMING" {
+		t.Fatalf("echoAreaTag() = (%q, %v), want (\"FSX_GAMING\", true)", tag, ok)
+	}
+}
+
+func TestEchoAreaTagFalseForOrdinaryNetmail(t *testing.T) {
+	if _, ok := echoAreaTag("just a normal netmail body\nwith no area line"); ok {
+		t.Fatal("echoAreaTag() = true for a body with no AREA line, want false")
+	}
+	// A \x01-prefixed "AREA:" (not the real convention) must not
+	// match either -- only a bare first line counts.
+	if _, ok := echoAreaTag("\x01AREA:SHOULDNOTMATCH\ntext"); ok {
+		t.Fatal("echoAreaTag() = true for a \\x01-prefixed AREA line, want false (that's not the real convention)")
+	}
+}
+
+func TestStripLeadingKludgesRemovesBareAreaLineAndFollowingKludges(t *testing.T) {
+	body := "AREA:FSX_GAMING\n\x01TID: clrghouz fcc93214\n\x01MSGID: 21:3/235 0ddd24af\nthe actual message text\nmore text"
+	got := stripLeadingKludges(body)
+	want := "the actual message text\nmore text"
+	if got != want {
+		t.Fatalf("stripLeadingKludges() = %q, want %q", got, want)
 	}
 }

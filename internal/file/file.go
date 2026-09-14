@@ -47,6 +47,11 @@ type Area struct {
 	MinSLUpload   int
 	SortOrder     int
 	CreatedAt     time.Time
+	// Pending mirrors message.Area.Pending -- reserved for when
+	// TIC/file-echo tossing auto-creates a file area the same way
+	// internal/tosser's echomail toss does for message areas (see
+	// EnsureArea); nothing sets this yet.
+	Pending bool
 }
 
 // CanDownload reports whether an account at securityLevel may browse
@@ -108,7 +113,7 @@ func (s *Store) CreateArea(tag, name, description, network string, minSLDownload
 // AreaByID loads a single area by primary key.
 func (s *Store) AreaByID(id int64) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at
+		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
 		 FROM file_areas WHERE id = ?`, id,
 	))
 }
@@ -116,14 +121,14 @@ func (s *Store) AreaByID(id int64) (*Area, error) {
 // AreaByTag loads a single area by its short tag (case-insensitive).
 func (s *Store) AreaByTag(tag string) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at
+		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
 		 FROM file_areas WHERE tag = ?`, tag,
 	))
 }
 
 func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	var a Area
-	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt); err != nil {
+	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAreaNotFound
 		}
@@ -142,20 +147,89 @@ func (s *Store) CountAreas() (int, error) {
 	return n, nil
 }
 
-// ListAreas returns every area downloadable at securityLevel, grouped
-// by network (local/ungrouped areas -- empty Network -- sort first)
-// then ordered for menu display within each group.
-func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at
-		 FROM file_areas WHERE min_sl_download <= ? ORDER BY network, sort_order, name`, securityLevel)
+// Networks mirrors message.Store's Networks: every distinct non-empty
+// Network value already in use across all file areas, sorted.
+func (s *Store) Networks() ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT network FROM file_areas WHERE network != '' ORDER BY network`)
+	if err != nil {
+		return nil, fmt.Errorf("file: list networks: %w", err)
+	}
+	defer rows.Close()
+
+	var networks []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, fmt.Errorf("file: scan network: %w", err)
+		}
+		networks = append(networks, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("file: list networks: %w", err)
+	}
+	return networks, nil
 }
 
-// AllAreas returns every area regardless of SL gating, for sysop
-// administration (e.g. picking a destination area to import a file
-// into), in the same network-grouped order as ListAreas.
+// ListAreas returns every non-pending area downloadable at
+// securityLevel, grouped by network (local/ungrouped areas -- empty
+// Network -- sort first) then ordered for menu display within each
+// group. A pending area (see EnsureArea) never appears here.
+func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
+		 FROM file_areas WHERE min_sl_download <= ? AND pending = 0 ORDER BY network, sort_order, name`, securityLevel)
+}
+
+// AllAreas returns every non-pending area regardless of SL gating,
+// for sysop administration (e.g. picking a destination area to import
+// a file into), in the same network-grouped order as ListAreas. See
+// PendingAreas for the areas this excludes.
 func (s *Store) AllAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at
-		 FROM file_areas ORDER BY network, sort_order, name`)
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
+		 FROM file_areas WHERE pending = 0 ORDER BY network, sort_order, name`)
+}
+
+// PendingAreas returns every area awaiting sysop review (see
+// EnsureArea), oldest first.
+func (s *Store) PendingAreas() ([]Area, error) {
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
+		 FROM file_areas WHERE pending = 1 ORDER BY created_at`)
+}
+
+// ApproveArea clears an area's Pending flag. Idempotent.
+func (s *Store) ApproveArea(id int64) error {
+	if _, err := s.db.Exec(`UPDATE file_areas SET pending = 0 WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("file: approve area %d: %w", id, err)
+	}
+	return nil
+}
+
+// EnsureArea returns the area tagged tag, creating it as Pending if it
+// doesn't exist yet -- mirrors message.Store's EnsureArea, for when
+// TIC/file-echo tossing needs it; nothing calls this yet.
+func (s *Store) EnsureArea(tag, name, network string) (area *Area, created bool, err error) {
+	if existing, err := s.AreaByTag(tag); err == nil {
+		return existing, false, nil
+	} else if !errors.Is(err, ErrAreaNotFound) {
+		return nil, false, err
+	}
+
+	res, err := s.db.Exec(
+		`INSERT INTO file_areas (tag, name, description, network, min_sl_download, min_sl_upload, pending) VALUES (?, ?, '', ?, 0, 0, 1)`,
+		tag, name, network,
+	)
+	if err != nil {
+		if isUniqueConstraintErr(err) {
+			existing, err := s.AreaByTag(tag)
+			return existing, false, err
+		}
+		return nil, false, fmt.Errorf("file: ensure area %s: %w", tag, err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, false, fmt.Errorf("file: last insert id: %w", err)
+	}
+	area, err = s.AreaByID(id)
+	return area, true, err
 }
 
 func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
@@ -168,7 +242,7 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	var areas []Area
 	for rows.Next() {
 		var a Area
-		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending); err != nil {
 			return nil, fmt.Errorf("file: scan area: %w", err)
 		}
 		areas = append(areas, a)
@@ -191,17 +265,18 @@ type AreaWithStats struct {
 }
 
 // ListAreaStats is ListAreas plus, for userID, each area's Total/New/
-// Yours counts (see AreaWithStats) in a single query.
+// Yours counts (see AreaWithStats) in a single query. Like ListAreas,
+// a pending area never appears here.
 func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats, error) {
 	rows, err := s.db.Query(
-		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at,
+		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at, a.pending,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id AND f.uploaded_by = ?) AS yours,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id
 		           AND NOT EXISTS (SELECT 1 FROM file_reads r
 		                           WHERE r.user_id = ? AND r.file_id = f.id)) AS new
 		 FROM file_areas a
-		 WHERE a.min_sl_download <= ?
+		 WHERE a.min_sl_download <= ? AND a.pending = 0
 		 ORDER BY a.network, a.sort_order, a.name`,
 		userID, userID, securityLevel,
 	)
@@ -214,7 +289,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	for rows.Next() {
 		var st AreaWithStats
 		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description, &st.Area.Network,
-			&st.Area.MinSLDownload, &st.Area.MinSLUpload, &st.Area.SortOrder, &st.Area.CreatedAt,
+			&st.Area.MinSLDownload, &st.Area.MinSLUpload, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending,
 			&st.Total, &st.Yours, &st.New); err != nil {
 			return nil, fmt.Errorf("file: scan area stats: %w", err)
 		}
