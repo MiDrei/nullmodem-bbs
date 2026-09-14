@@ -289,10 +289,15 @@ type inboundStats struct {
 //     local to put it yet.
 //
 // If expectedPassword is non-empty, the packet's own header password
-// (internal/mail.PacketHeader.Password) must match it -- a mismatch
-// discards the rest of the packet (see below) before any message in
-// it is stored, since a wrong packet password indicates either a
-// misconfiguration or a forged packet, not partial content to salvage.
+// (internal/mail.PacketHeader.Password) must match it case-
+// insensitively -- FTN packet passwords, like most FTN passwords, are
+// conventionally uppercased by tossers regardless of how a sysop
+// typed them, confirmed against a real uplink that stamped its
+// packets in all caps while our configured value used mixed case. A
+// mismatch discards the rest of the packet (see below) before any
+// message in it is stored, since a wrong packet password indicates
+// either a misconfiguration or a forged packet, not partial content
+// to salvage.
 //
 // Whatever the outcome, r is always drained to completion before
 // returning: binkp.Config.ReceiveFile's contract requires reading
@@ -312,7 +317,7 @@ func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Sto
 	if err != nil {
 		return stats, fmt.Errorf("tosser: reading inbound packet: %w", err)
 	}
-	if expectedPassword != "" && pr.Header.Password != expectedPassword {
+	if expectedPassword != "" && !strings.EqualFold(pr.Header.Password, expectedPassword) {
 		return stats, fmt.Errorf("tosser: inbound packet password does not match this uplink's configured packet password")
 	}
 

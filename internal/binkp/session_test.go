@@ -503,3 +503,206 @@ func runQuirkyMNULAfterPWDPeer(ln net.Listener) error {
 		}
 	}
 }
+
+// TestOriginatorToleratesPeerClosingInsteadOfSendingMEOB locks in a
+// real interop fix: a live uplink sent its file, then closed the TCP
+// connection immediately afterward instead of sending a formal M_EOB
+// first. Since we offered no files of our own (nothing of ours could
+// be left unacknowledged), that clean close must be tolerated as an
+// implicit "nothing more from me", not surfaced as an error -- see
+// receiveLoop's doc comment.
+func TestOriginatorToleratesPeerClosingInsteadOfSendingMEOB(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	peerErrCh := make(chan error, 1)
+	go func() {
+		peerErrCh <- runQuirkyNoMEOBPeer(ln)
+	}()
+
+	var received []byte
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		ReceiveFile: func(f InboundFile, r io.Reader) error {
+			data, err := io.ReadAll(r)
+			received = data
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := <-peerErrCh; err != nil {
+		t.Fatalf("quirky peer: %v", err)
+	}
+	if string(received) != "hello from a peer that skips M_EOB" {
+		t.Fatalf("received file content = %q, want the full file", received)
+	}
+	if len(res.FilesReceived) != 1 || res.FilesReceived[0] != "12345678.pkt" {
+		t.Fatalf("FilesReceived = %v, want [12345678.pkt]", res.FilesReceived)
+	}
+}
+
+// runQuirkyNoMEOBPeer accepts one connection and manually plays an
+// answerer that sends one file and then closes the connection
+// immediately, without ever sending M_EOB.
+func runQuirkyNoMEOBPeer(ln net.Listener) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+
+	// The client (having no password configured) sends nothing more
+	// before its own M_EOB -- consume it before sending our file, to
+	// match a real transfer phase's ordering.
+	isData, payload, err := readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MEOB {
+		return fmt.Errorf("expected the client's M_EOB, got isData=%v payload=%q", isData, payload)
+	}
+
+	data := []byte("hello from a peer that skips M_EOB")
+	if err := writeCommandFrame(conn, MFILE, fmt.Sprintf("12345678.pkt %d %d 0", len(data), time.Now().Unix())); err != nil {
+		return err
+	}
+	if err := writeDataFrame(conn, data); err != nil {
+		return err
+	}
+
+	// Wait for the client's M_GOT acknowledging the file, then close
+	// without ever sending our own M_EOB -- the quirk under test.
+	isData, payload, err = readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MGOT {
+		return fmt.Errorf("expected M_GOT, got isData=%v payload=%q", isData, payload)
+	}
+	return nil
+}
+
+// TestReceiveOneFileSendsMGOTBeforeReceiveFileProcessingCompletes locks
+// in the ack-latency fix: M_GOT must reach the peer as soon as the
+// transfer itself is verified complete (all bytes in), not after our
+// own ReceiveFile callback (packet parsing, per-message DB writes --
+// which can be slow) finishes running. A peer that hangs up right
+// after its last data frame instead of waiting for M_EOB (see
+// TestOriginatorToleratesPeerClosingInsteadOfSendingMEOB, observed
+// live against a real uplink) needs that ack as fast as possible. This
+// test deadlocks under the old ordering, where M_GOT was gated on
+// ReceiveFile's return: the peer here refuses to unblock our
+// deliberately slow ReceiveFile until it has actually seen M_GOT.
+func TestReceiveOneFileSendsMGOTBeforeReceiveFileProcessingCompletes(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	unblockProcessing := make(chan struct{})
+	peerErrCh := make(chan error, 1)
+	go func() {
+		peerErrCh <- runSlowConsumerPeer(ln, unblockProcessing)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		ReceiveFile: func(f InboundFile, r io.Reader) error {
+			if _, err := io.ReadAll(r); err != nil {
+				return err
+			}
+			<-unblockProcessing
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := <-peerErrCh; err != nil {
+		t.Fatalf("peer: %v", err)
+	}
+	if len(res.FilesReceived) != 1 || res.FilesReceived[0] != "slow.pkt" {
+		t.Fatalf("FilesReceived = %v, want [slow.pkt]", res.FilesReceived)
+	}
+}
+
+// runSlowConsumerPeer sends one file, waits to see the client's M_GOT,
+// then unblocks the client's deliberately slow ReceiveFile before
+// finishing the session normally.
+func runSlowConsumerPeer(ln net.Listener, unblockProcessing chan<- struct{}) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+
+	isData, payload, err := readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MEOB {
+		return fmt.Errorf("expected the client's M_EOB, got isData=%v payload=%q", isData, payload)
+	}
+
+	data := []byte("slow consumer test payload")
+	if err := writeCommandFrame(conn, MFILE, fmt.Sprintf("slow.pkt %d %d 0", len(data), time.Now().Unix())); err != nil {
+		return err
+	}
+	if err := writeDataFrame(conn, data); err != nil {
+		return err
+	}
+
+	isData, payload, err = readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MGOT {
+		return fmt.Errorf("expected M_GOT, got isData=%v payload=%q", isData, payload)
+	}
+
+	close(unblockProcessing)
+
+	return writeCommandFrame(conn, MEOB, "")
+}

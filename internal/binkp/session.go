@@ -468,7 +468,13 @@ func (s *session) sendOneFile(f OutboundFile) error {
 //
 // It tolerates stray handshake-phase commands (M_NUL/M_ADR/M_PWD/
 // M_OK) arriving late, since real implementations occasionally resend
-// them.
+// them. It also tolerates a peer that closes the connection instead
+// of sending a formal M_EOB once it has nothing left to send --
+// observed live against a real uplink that does exactly this right
+// after its last file -- but only once every file we offered has
+// already been acknowledged; an EOF while our own M_GOT is still
+// outstanding is a real failure, not an implicit M_EOB, and still
+// surfaces as an error.
 func (s *session) receiveLoop() error {
 	expectedGot := len(s.cfg.OutboundFiles)
 	gotCount := 0
@@ -481,6 +487,9 @@ func (s *session) receiveLoop() error {
 
 		isData, payload, err := s.nextFrame()
 		if err != nil {
+			if err == io.EOF && gotCount >= expectedGot {
+				return nil
+			}
 			return err
 		}
 		if isData {
@@ -561,6 +570,25 @@ func (s *session) receiveOneFile(arg string) error {
 		received += int64(len(payload))
 	}
 	pw.Close()
+
+	// Acknowledge with M_GOT as soon as the transfer itself is verified
+	// complete (exactly size bytes received), before waiting on our own
+	// (potentially slow -- packet parsing, per-message DB writes)
+	// ReceiveFile processing. Per FTS-1026, the sender keeps a file in
+	// its PendingFiles list -- and is required to keep the connection
+	// open -- until it sees our M_GOT; delaying our send behind local
+	// processing only widens the window in which an impatient peer
+	// (observed live: closes the TCP connection right after its last
+	// data frame instead of waiting for M_GOT) can hang up before our
+	// acknowledgment reaches it. M_GOT is a transport-layer "these bytes
+	// arrived intact" receipt, not an application-layer "I filed this
+	// away successfully" signal, so acking it before ReceiveFile
+	// returns is correct even if ReceiveFile then fails.
+	if err := s.send(MGOT, fmt.Sprintf("%s %d", name, size)); err != nil {
+		<-doneCh
+		return err
+	}
+
 	if err := <-doneCh; err != nil {
 		return fmt.Errorf("handling received file %s: %w", name, err)
 	}
@@ -569,5 +597,5 @@ func (s *session) receiveOneFile(arg string) error {
 	s.result.FilesReceived = append(s.result.FilesReceived, name)
 	s.mu.Unlock()
 
-	return s.send(MGOT, fmt.Sprintf("%s %d", name, size))
+	return nil
 }

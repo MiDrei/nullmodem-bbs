@@ -354,6 +354,57 @@ func TestPollAcceptsInboundPacketWithMatchingPassword(t *testing.T) {
 	}
 }
 
+// TestPollAcceptsInboundPacketPasswordCaseInsensitively locks in a
+// real interop fix: a live uplink stamped its packets with an
+// all-uppercase password while our configured value used mixed case
+// -- FTN packet passwords are conventionally compared case-
+// insensitively, same as most FTN passwords.
+func TestPollAcceptsInboundPacketPasswordCaseInsensitively(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+	if _, err := users.Register("bob", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+
+	var buf bytes.Buffer
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 194, Point: 1},
+		Created:  time.Now(),
+		Password: "RIGHTPW",
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{ToName: "bob", FromName: "Mike Dreier", Subject: "Hi", Body: "hi"}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+		},
+	})
+
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+		Address:        "21:3/194",
+		Host:           addr,
+		PacketPassword: "rightpw", // mixed/lower case configured, uppercase on the wire
+	}, nil, netmailStore, messages, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+	if res.Received != 1 {
+		t.Fatalf("Result.Received = %d, want 1", res.Received)
+	}
+}
+
 func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
 
