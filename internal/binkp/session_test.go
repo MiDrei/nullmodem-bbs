@@ -105,6 +105,58 @@ func TestSessionPasswordAuthFailureAbortsBothSides(t *testing.T) {
 	}
 }
 
+// TestSessionPasswordForAddressesPicksPasswordByCaller locks in
+// multi-uplink inbound support: an answerer with PasswordForAddresses
+// set (instead of a single static Password) picks the right password
+// to check based on the caller's M_ADR, letting one listener serve
+// several known callers each with their own password.
+func TestSessionPasswordForAddressesPicksPasswordByCaller(t *testing.T) {
+	origResult, ansResult, origErr, ansErr := runPair(t,
+		Config{OurAddresses: []string{"1:234/56.0"}, Password: "carols-password"},
+		Config{
+			OurAddresses: []string{"1:234/99.0"},
+			PasswordForAddresses: func(peerAddrs []string) (string, bool) {
+				for _, a := range peerAddrs {
+					if a == "1:234/56.0" {
+						return "carols-password", true
+					}
+				}
+				return "", false
+			},
+		},
+	)
+	if origErr != nil {
+		t.Fatalf("originator error: %v", origErr)
+	}
+	if ansErr != nil {
+		t.Fatalf("answerer error: %v", ansErr)
+	}
+	if origResult == nil || ansResult == nil {
+		t.Fatal("expected both sides to complete successfully")
+	}
+}
+
+// TestSessionPasswordForAddressesRejectsUnrecognizedCaller locks in
+// the reject path: a caller PasswordForAddresses doesn't recognize is
+// refused outright, before even exchanging M_PWD.
+func TestSessionPasswordForAddressesRejectsUnrecognizedCaller(t *testing.T) {
+	_, _, origErr, ansErr := runPair(t,
+		Config{OurAddresses: []string{"1:234/77.0"}, Password: "whatever"},
+		Config{
+			OurAddresses: []string{"1:234/99.0"},
+			PasswordForAddresses: func(peerAddrs []string) (string, bool) {
+				return "", false
+			},
+		},
+	)
+	if origErr == nil {
+		t.Fatal("expected the originator to see the session fail")
+	}
+	if ansErr == nil {
+		t.Fatal("expected the answerer to reject the unrecognized caller")
+	}
+}
+
 func TestSessionPlaintextFallbackWhenAnswererHasNoPassword(t *testing.T) {
 	// An originator with a password configured still sends it even if
 	// the answerer is an open node; the answerer just doesn't ask for

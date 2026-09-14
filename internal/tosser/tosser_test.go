@@ -952,3 +952,148 @@ func TestStripLeadingKludgesRemovesBareAreaLineAndFollowingKludges(t *testing.T)
 		t.Fatalf("stripLeadingKludges() = %q, want %q", got, want)
 	}
 }
+
+// TestAnswerAuthenticatesKnownUplinkAndTossesMail locks in inbound
+// BinkP support (a caller dialing us, e.g. a hub pushing mail between
+// our own scheduled polls): Answer must recognize a caller by
+// matching its M_ADR against configured Uplinks, authenticate with
+// that uplink's own Password, and toss whatever it sends using that
+// same uplink's PacketPassword -- exactly like Poll does for an
+// outbound session, just mirrored.
+func TestAnswerAuthenticatesKnownUplinkAndTossesMail(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	uplink := config.BinkpUplink{
+		Address:        "21:3/100",
+		Host:           "unused-for-answer-test",
+		Password:       "sess3cret",
+		PacketPassword: "pktpw01",
+	}
+
+	var buf bytes.Buffer
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 100},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		Created:  time.Now(),
+		Password: "pktpw01",
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{
+		ToName:   "All",
+		FromName: "Someone",
+		Subject:  "Pushed while we weren't polling",
+		Body:     "AREA:FSX_PUSHED\rhello from a push\r",
+	}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	type answerOutcome struct {
+		res *Result
+		err error
+	}
+	answerCh := make(chan answerOutcome, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			answerCh <- answerOutcome{err: err}
+			return
+		}
+		defer conn.Close()
+		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, []config.BinkpUplink{uplink}, netmailStore, messages, users)
+		answerCh <- answerOutcome{res: res, err: err}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = binkp.Dial(ctx, ln.Addr().String(), binkp.Config{
+		OurAddresses: []string{uplink.Address},
+		Password:     uplink.Password,
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+		},
+	})
+	if err != nil {
+		t.Fatalf("caller-side Dial: %v", err)
+	}
+
+	out := <-answerCh
+	if out.err != nil {
+		t.Fatalf("Answer: %v", out.err)
+	}
+	if out.res.ReceivedEcho != 1 {
+		t.Fatalf("Result.ReceivedEcho = %d, want 1", out.res.ReceivedEcho)
+	}
+
+	area, err := messages.AreaByTag("FSX_PUSHED")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	msgs, err := messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 1 || msgs[0].Subject != "Pushed while we weren't polling" {
+		t.Fatalf("ListMessages = %+v, want the pushed message", msgs)
+	}
+}
+
+// TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink locks in the
+// reject path: a caller whose M_ADR matches none of our configured
+// uplinks must be refused, not silently accepted as an open node.
+func TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	knownUplink := config.BinkpUplink{
+		Address:  "21:3/100",
+		Host:     "unused-for-answer-test",
+		Password: "sess3cret",
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	type answerOutcome struct {
+		res *Result
+		err error
+	}
+	answerCh := make(chan answerOutcome, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			answerCh <- answerOutcome{err: err}
+			return
+		}
+		defer conn.Close()
+		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, []config.BinkpUplink{knownUplink}, netmailStore, messages, users)
+		answerCh <- answerOutcome{res: res, err: err}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, dialErr := binkp.Dial(ctx, ln.Addr().String(), binkp.Config{
+		OurAddresses: []string{"9:9/999"},
+		Password:     "doesnt-matter",
+	})
+	if dialErr == nil {
+		t.Fatal("caller-side Dial: expected an error for a rejected, unrecognized caller")
+	}
+
+	out := <-answerCh
+	if out.err == nil {
+		t.Fatal("Answer: expected an error for an unrecognized caller")
+	}
+}

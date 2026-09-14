@@ -56,6 +56,15 @@ type Config struct {
 		// button (see internal/web) polls on demand regardless of
 		// this interval.
 		PollIntervalSeconds int `yaml:"poll_interval_seconds"`
+		// ListenEnabled and ListenAddr configure cmd/mailer's inbound
+		// BinkP listener (a caller dialing us, e.g. a hub that wants to
+		// push mail between our own scheduled polls rather than
+		// waiting for us to ask -- see tosser.Answer). A caller is
+		// authenticated by matching its claimed FTN address against
+		// Uplinks, so only a system already configured as one of our
+		// uplinks can push mail to us; nothing else is accepted.
+		ListenEnabled bool   `yaml:"listen_enabled"`
+		ListenAddr    string `yaml:"listen_addr"`
 	} `yaml:"binkp"`
 }
 

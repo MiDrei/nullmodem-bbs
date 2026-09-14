@@ -42,8 +42,21 @@ type Config struct {
 	// non-empty Password always sends it (as a CRAM-MD5 response if
 	// the answerer advertised support, otherwise in the clear); an
 	// answerer with a non-empty Password requires and checks it. An
-	// empty Password on the answerer side means "open node, no auth".
+	// empty Password on the answerer side means "open node, no auth"
+	// -- unless PasswordForAddresses is set, which takes over instead.
 	Password string
+	// PasswordForAddresses, set only on the answerer side, overrides
+	// Password once the caller's M_ADR has been read (received before
+	// their M_PWD, so this is called in time): it's handed the
+	// caller's claimed addresses and returns the password to check
+	// their M_PWD against, or ok=false to reject an unrecognized
+	// caller outright. Lets one listener serve several known callers
+	// (e.g. one per configured uplink, each with its own password)
+	// instead of one fixed Password for the whole node. Whether CRAM-
+	// MD5 gets advertised is still decided before this can run (no
+	// M_ADR yet), based on whether either Password or
+	// PasswordForAddresses is set at all.
+	PasswordForAddresses func(peerAddrs []string) (password string, ok bool)
 	// SysName, Sysop, and Location are sent as informational M_NUL
 	// lines (SYS/ZYZ/LOC); all optional.
 	SysName, Sysop, Location string
@@ -360,8 +373,9 @@ func (s *session) readPasswordResponse() error {
 // CRAM-MD5, send our info/address, learn the caller's address, then
 // -- if we require a password -- validate its M_PWD.
 func (s *session) answererHandshake() error {
+	requiresAuth := s.cfg.Password != "" || s.cfg.PasswordForAddresses != nil
 	var challenge string
-	if s.cfg.Password != "" {
+	if requiresAuth {
 		c, err := generateChallenge()
 		if err != nil {
 			return err
@@ -383,6 +397,22 @@ func (s *session) answererHandshake() error {
 		return err
 	}
 	s.result.RemoteAddresses = strings.Fields(peerAddrs)
+
+	// PasswordForAddresses, when set, overrides the static Password
+	// now that the caller's claimed addresses are known -- see its
+	// doc comment. An unrecognized caller is rejected outright, before
+	// even checking whether it sent an M_PWD at all.
+	expectedPassword := s.cfg.Password
+	passwordRequired := s.cfg.Password != ""
+	if s.cfg.PasswordForAddresses != nil {
+		pw, ok := s.cfg.PasswordForAddresses(s.result.RemoteAddresses)
+		if !ok {
+			_ = s.send(MERR, "unrecognized caller")
+			return fmt.Errorf("peer address not recognized: %v", s.result.RemoteAddresses)
+		}
+		expectedPassword = pw
+		passwordRequired = pw != ""
+	}
 
 	// Whether the caller sends M_PWD at all is its own decision (it
 	// might have no password configured for us even though we'd
@@ -406,7 +436,7 @@ func (s *session) answererHandshake() error {
 	}
 	isPWD := !isData && len(payload) > 0 && Command(payload[0]) == MPWD
 	if !isPWD {
-		if s.cfg.Password != "" {
+		if passwordRequired {
 			_ = s.send(MERR, "password required")
 			return fmt.Errorf("peer did not authenticate")
 		}
@@ -419,15 +449,15 @@ func (s *session) answererHandshake() error {
 	arg := string(payload[1:])
 	var authOK bool
 	switch {
-	case s.cfg.Password == "":
+	case !passwordRequired:
 		// Open node: accept a password we don't require rather than
 		// rejecting a caller that sent one unprompted.
 		authOK = true
 	default:
 		if digest, ok := parseCRAMResponse(arg); ok {
-			authOK = digest == cramDigest(s.cfg.Password, challenge)
+			authOK = digest == cramDigest(expectedPassword, challenge)
 		} else {
-			authOK = arg == s.cfg.Password
+			authOK = arg == expectedPassword
 		}
 	}
 	if !authOK {

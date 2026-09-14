@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"time"
 
@@ -163,6 +164,88 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 	}
 
 	return res, receiveErr
+}
+
+// Answer handles one inbound BinkP connection -- a caller dialing us,
+// e.g. a hub that wants to push mail to us between our own scheduled
+// polls rather than waiting for us to ask. It matches the caller's
+// claimed FTN address (from M_ADR) against uplinks to authenticate it
+// and pick the right packet password (see binkp.Config.
+// PasswordForAddresses and acceptedPacketPasswords), then files away
+// whatever it sends exactly as Poll does for an outbound session --
+// same tossInbound/isPacketFile handling, same SkippedFiles reporting
+// for anything that isn't a mail packet. Unlike Poll, it doesn't also
+// hand the caller this system's own queued outbound mail in the same
+// session; an inbound call only ever receives, and sending stays with
+// the regular scheduled/crash Poll flow.
+func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, uplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (*Result, error) {
+	var matchedUplink config.BinkpUplink
+	var matched bool
+
+	res := &Result{}
+	var receiveErr error
+	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
+		if !matched {
+			// PasswordForAddresses already required a match before
+			// authentication could succeed, so this shouldn't happen --
+			// drain defensively rather than risk deadlocking the
+			// peer's writer goroutine.
+			_, err := io.Copy(io.Discard, r)
+			return err
+		}
+		if !isPacketFile(f.Name) {
+			if _, err := io.Copy(io.Discard, r); err != nil {
+				return fmt.Errorf("tosser: draining unsupported inbound file %s: %w", f.Name, err)
+			}
+			res.SkippedFiles = append(res.SkippedFiles, f.Name)
+			return nil
+		}
+		stats, err := tossInbound(r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users)
+		res.Received += stats.netmail
+		res.ReceivedEcho += stats.echo
+		if err != nil {
+			receiveErr = err
+		}
+		return err
+	}
+
+	sessionResult, err := binkp.Answer(ctx, conn, binkp.Config{
+		OurAddresses: ourAddresses,
+		PasswordForAddresses: func(peerAddrs []string) (string, bool) {
+			u, ok := matchUplink(peerAddrs, uplinks)
+			if !ok {
+				return "", false
+			}
+			matchedUplink, matched = u, true
+			return u.Password, true
+		},
+		ReceiveFile: receiveFile,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("tosser: answering inbound session: %w", err)
+	}
+	res.RemoteAddresses = sessionResult.RemoteAddresses
+	return res, receiveErr
+}
+
+// matchUplink returns the configured uplink whose own Address matches
+// one of peerAddrs (the caller's claimed FTN addresses from M_ADR), if
+// any -- used by Answer to authenticate an inbound caller and pick
+// which packet password(s) to accept from it.
+func matchUplink(peerAddrs []string, uplinks []config.BinkpUplink) (config.BinkpUplink, bool) {
+	for _, raw := range peerAddrs {
+		addr, err := mail.ParseAddress(raw)
+		if err != nil {
+			continue
+		}
+		for _, u := range uplinks {
+			uAddr, err := mail.ParseAddress(u.Address)
+			if err == nil && uAddr == addr {
+				return u, true
+			}
+		}
+	}
+	return config.BinkpUplink{}, false
 }
 
 // RoutedOutbound returns the subset of currently pending netmail that
