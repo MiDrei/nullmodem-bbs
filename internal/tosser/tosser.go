@@ -57,6 +57,15 @@ type Result struct {
 	// RemoteAddresses are the FTN addresses the uplink identified
 	// itself as, straight from binkp.Result.
 	RemoteAddresses []string
+	// SkippedFiles are inbound files the uplink sent that weren't FTS-
+	// 0001 mail packets (see isPacketFile) -- e.g. a .tic file-echo
+	// announcement, observed live bundled into the very same session
+	// as ordinary mail. This system doesn't toss file-echo content
+	// yet, so these are drained and acknowledged (M_GOT) rather than
+	// dropped or, worse, fed to the packet parser (which fails hard on
+	// them and used to abort the whole session, including mail already
+	// successfully tossed earlier in it).
+	SkippedFiles []string
 }
 
 // Poll connects to uplink, sends whatever netmail routes to it (see
@@ -114,6 +123,13 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 	res := &Result{}
 	var receiveErr error
 	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
+		if !isPacketFile(f.Name) {
+			if _, err := io.Copy(io.Discard, r); err != nil {
+				return fmt.Errorf("tosser: draining unsupported inbound file %s: %w", f.Name, err)
+			}
+			res.SkippedFiles = append(res.SkippedFiles, f.Name)
+			return nil
+		}
 		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users)
 		res.Received += stats.netmail
 		res.ReceivedEcho += stats.echo
@@ -211,6 +227,22 @@ func routeOutbound(pending []netmail.Message, target config.BinkpUplink, allUpli
 // password (see tossInbound's doc comment) -- accepting any of them
 // avoids wrongly rejecting, and aborting the whole session over, a
 // file packed under a sibling network's password.
+// isPacketFile reports whether name looks like an FTS-0001 mail
+// packet -- conventionally an 8-hex-digit basename with a .pkt
+// extension, though this only checks the extension -- rather than
+// some other kind of file a BinkP session can carry alongside mail.
+// Observed live: a real hub bundled a .tic file-echo announcement
+// into the very same session as an ordinary mail packet. Feeding
+// anything but a real packet to mail.NewReader fails hard (a .tic
+// file made it report "unsupported packet version 17930") and, before
+// this check existed, aborted the entire session over it -- discarding
+// the Result for mail already successfully tossed earlier in that
+// same session, even though the DB writes themselves had already
+// happened and stuck.
+func isPacketFile(name string) bool {
+	return strings.HasSuffix(strings.ToLower(name), ".pkt")
+}
+
 func acceptedPacketPasswords(primary config.BinkpUplink, allUplinks []config.BinkpUplink) []string {
 	seen := map[string]bool{}
 	var out []string

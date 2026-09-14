@@ -14,9 +14,11 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -126,8 +128,19 @@ func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail
 			logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
 			continue
 		}
-		logger.Info("polled %s (%s): sent %d, received %d netmail, %d echomail", uplink.Address, uplink.Host, res.Sent, res.Received, res.ReceivedEcho)
+		logger.Info("polled %s (%s): sent %d, received %d netmail, %d echomail%s", uplink.Address, uplink.Host, res.Sent, res.Received, res.ReceivedEcho, skippedFilesSuffix(res.SkippedFiles))
 	}
+}
+
+// skippedFilesSuffix formats a log-line suffix noting any inbound
+// files tosser.Poll couldn't process (see tosser.Result.SkippedFiles)
+// -- empty when there were none, so it doesn't clutter the common
+// case.
+func skippedFilesSuffix(skipped []string) string {
+	if len(skipped) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(", skipped %d unsupported file(s): %s", len(skipped), strings.Join(skipped, ", "))
 }
 
 // checkCrashUplink dials a crash-only uplink immediately, but only if
@@ -149,5 +162,5 @@ func checkCrashUplink(ctx context.Context, cfg *config.Config, uplink config.Bin
 		logger.Warn("crash-dialing %s (%s): %v", uplink.Address, uplink.Host, err)
 		return
 	}
-	logger.Info("crash-dialed %s (%s): sent %d, received %d netmail, %d echomail", uplink.Address, uplink.Host, res.Sent, res.Received, res.ReceivedEcho)
+	logger.Info("crash-dialed %s (%s): sent %d, received %d netmail, %d echomail%s", uplink.Address, uplink.Host, res.Sent, res.Received, res.ReceivedEcho, skippedFilesSuffix(res.SkippedFiles))
 }

@@ -249,13 +249,18 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if claims, ok := claimsFromContext(r.Context()); ok {
-		s.logInfo("%s manually polled BinkP uplink %s (sent %d, received %d netmail, %d echomail)", claims.Subject, req.Host, result.Sent, result.Received, result.ReceivedEcho)
+		skippedNote := ""
+		if len(result.SkippedFiles) > 0 {
+			skippedNote = fmt.Sprintf(", skipped %d unsupported file(s): %s", len(result.SkippedFiles), strings.Join(result.SkippedFiles, ", "))
+		}
+		s.logInfo("%s manually polled BinkP uplink %s (sent %d, received %d netmail, %d echomail%s)", claims.Subject, req.Host, result.Sent, result.Received, result.ReceivedEcho, skippedNote)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sent":             result.Sent,
 		"received":         result.Received,
 		"received_echo":    result.ReceivedEcho,
 		"remote_addresses": result.RemoteAddresses,
+		"skipped_files":    result.SkippedFiles,
 	})
 }
 

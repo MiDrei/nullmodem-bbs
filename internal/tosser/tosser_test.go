@@ -711,6 +711,85 @@ func TestPollTossesEchomailIntoAutoCreatedPendingArea(t *testing.T) {
 // session -- FTS-1026 acknowledges this exact risk. A second poll
 // delivering byte-identical mail (same MSGID) must not store it twice
 // or count it in ReceivedEcho again.
+// TestPollSkipsNonPacketInboundFilesInsteadOfAbortingTheSession locks
+// in a real interop fix: a live hub bundled a .tic file-echo
+// announcement into the very same session as an ordinary mail packet
+// (a .tic file's OPT-advertised place in binkp is entirely different
+// from FTS-0001's -- it's a plain key/value text file, not a mail
+// packet). Feeding it to the packet parser failed hard ("unsupported
+// packet version") and aborted the whole session, discarding the
+// Result for mail already tossed earlier in it -- even though the DB
+// writes themselves had already happened and stuck. The fix must
+// recognize a non-.pkt file, skip it (report it in SkippedFiles), and
+// still return the mail packet's own results successfully.
+func TestPollSkipsNonPacketInboundFilesInsteadOfAbortingTheSession(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	var buf bytes.Buffer
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 195},
+		Created:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{
+		ToName:   "All",
+		FromName: "Geri Atricks",
+		Subject:  "Re: Immortal Barons",
+		Body:     "AREA:FSXNET_GENERAL\r\x01MSGID: 21:3/235 abcdef01\rhello area\r",
+	}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// A .tic file is plain text, nothing like an FTS-0001 packet --
+	// enough to make mail.NewReader fail if it's ever handed this.
+	ticContent := "Area FSX_GAMES\r\nFile somefile.zip\r\nSize 12345\r\nOrigin 21:3/235\r\n"
+	ticBuf := bytes.NewBufferString(ticContent)
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+			{Name: "a5d42c40.tic", Size: int64(ticBuf.Len()), ModTime: time.Now(), Data: ticBuf},
+		},
+	})
+
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+		Address: "21:3/194",
+		Host:    addr,
+	}, nil, netmailStore, messages, users)
+	if err != nil {
+		t.Fatalf("Poll: %v, want no error despite the non-packet .tic file", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+
+	if res.ReceivedEcho != 1 {
+		t.Fatalf("Result.ReceivedEcho = %d, want 1 -- the .pkt file's mail should still be tossed", res.ReceivedEcho)
+	}
+	if len(res.SkippedFiles) != 1 || res.SkippedFiles[0] != "a5d42c40.tic" {
+		t.Fatalf("Result.SkippedFiles = %v, want [a5d42c40.tic]", res.SkippedFiles)
+	}
+
+	area, err := messages.AreaByTag("FSXNET_GENERAL")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	msgs, err := messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("ListMessages = %+v, want 1 message from the .pkt file", msgs)
+	}
+}
+
 func TestPollSkipsEchomailAlreadyTossedUnderTheSameMsgID(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
 
