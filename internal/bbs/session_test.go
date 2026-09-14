@@ -406,3 +406,64 @@ func TestHandleLogsConnectLoginAndDisconnect(t *testing.T) {
 		}
 	}
 }
+
+// TestHandleLogsMenuErrors locks in a real production fix: an
+// unexpected error bubbling up out of runMenu used to be shown to the
+// caller and nowhere else, leaving the sysop with no server-side
+// trail of it (an actual "mark message read" DB error was only
+// discovered from a user's screenshot, never from the log). Handle
+// must log it in addition to displaying it.
+func TestHandleLogsMenuErrors(t *testing.T) {
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+
+	nodes := session.NewStore(sqlDB)
+	if err := nodes.ClearAll(); err != nil {
+		t.Fatalf("Nodes.ClearAll: %v", err)
+	}
+	logStore := applog.NewStore(sqlDB)
+
+	// A menu item pointing at a nonexistent submenu is a simple,
+	// deterministic way to make runMenu return a real error (see its
+	// "menu %q not found" case) without needing to break the database.
+	brokenMenus := menu.Set{
+		"main": &menu.Menu{
+			Name:  "main",
+			Title: "Main Menu",
+			Items: []menu.Item{
+				{Key: "B", Label: "Broken", Action: "goto:doesnotexist", MinSL: 0},
+			},
+		},
+	}
+
+	s := &Server{
+		Nodes:  nodes,
+		Menus:  brokenMenus,
+		Users:  user.NewStore(sqlDB),
+		Logger: applog.NewLogger(logStore, "bbs"),
+	}
+
+	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\nB\r\n")
+	s.Handle(conn)
+
+	entries, err := logStore.Recent(50)
+	if err != nil {
+		t.Fatalf("Recent: %v", err)
+	}
+	var messages []string
+	for _, e := range entries {
+		messages = append(messages, e.Message)
+	}
+	joined := strings.Join(messages, "\n")
+	if !strings.Contains(joined, "menu error") || !strings.Contains(joined, `menu "doesnotexist" not found`) {
+		t.Fatalf("log entries missing the menu error; got:\n%s", joined)
+	}
+
+	if !strings.Contains(conn.out.String(), "Menu error:") {
+		t.Fatalf("expected the error to still be shown on-screen too, got: %q", conn.out.String())
+	}
+}

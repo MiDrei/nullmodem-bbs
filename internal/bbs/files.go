@@ -515,6 +515,7 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 		if errors.Is(err, file.ErrDuplicateFilename) {
 			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "A file with that name already exists in this area.")
 		}
+		s.logWarn("%s: import into file area %d failed: %v", u.Username, area.ID, err)
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + fmt.Sprintf("Import failed: %v", err))
 	}
 	s.logInfo("%s imported %s (%s) into file area %d", u.Username, f.Filename, humanize.Bytes(uint64(f.SizeBytes)), f.AreaID)

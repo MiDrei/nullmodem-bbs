@@ -130,6 +130,7 @@ func (s *Server) Handle(conn Conn) {
 	s.logInfo("node %d: %s logged in", node, u.Username)
 
 	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
+		s.logWarn("node %d (%s): menu error: %v", node, u.Username, err)
 		term.Println("\n" + ansi.FG(ansi.Red, true) + "Menu error: " + err.Error())
 	}
 
