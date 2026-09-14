@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -320,6 +321,102 @@ func TestMessageListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
 	}
 }
 
+// TestMessageListScrollsAndKeepsHeaderVisibleWithManyMessages locks in
+// a real production fix: a message list taller than the terminal used
+// to just dump every row in one shot, pushing the header off the top
+// of the screen -- the same class of bug drawMessageReader's own
+// fixed-header scrolling already addressed for a long message body.
+func TestMessageListScrollsAndKeepsHeaderVisibleWithManyMessages(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	for i := 1; i <= 40; i++ {
+		if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", fmt.Sprintf("Subject %d", i), "body"); err != nil {
+			t.Fatalf("PostMessage %d: %v", i, err)
+		}
+	}
+
+	conn := newFakeConn("M\r\n\r\nQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	renders := strings.Split(out, "[Up/Down] Move   [Enter] Read   [P] Post   [Q] Back")
+	if len(renders) < 2 {
+		t.Fatalf("expected at least one message-list redraw, got: %q", out)
+	}
+	firstRender := renders[0]
+	if !strings.Contains(firstRender, "General Discussion") {
+		t.Fatalf("expected the header (area name) to stay visible with 40 messages, got: %q", firstRender)
+	}
+	if !strings.Contains(firstRender, "Subject 1 ") {
+		t.Fatalf("expected the first message to appear in the initial view, got: %q", firstRender)
+	}
+	if strings.Contains(firstRender, "Subject 40") {
+		t.Fatalf("expected the last message NOT to be visible in the initial (unscrolled) view, got: %q", firstRender)
+	}
+	if !strings.Contains(firstRender, "-- 1-") {
+		t.Fatalf("expected a scroll-position indicator since the list doesn't fit one screen, got: %q", firstRender)
+	}
+}
+
+// TestMessageListFooterAnchoredRegardlessOfMessageCount locks in a
+// real production fix: the footer hint used to trail right after the
+// last message row, so it landed on a different line depending on how
+// many messages happened to be in the area. It must always land on
+// the same line -- short lists are padded with blank rows so the
+// footer stays anchored at a consistent position.
+func TestMessageListFooterAnchoredRegardlessOfMessageCount(t *testing.T) {
+	renderWithNMessages := func(t *testing.T, n int) string {
+		t.Helper()
+		s := testServer(t)
+		u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+		if err != nil {
+			t.Fatalf("Register: %v", err)
+		}
+		general, err := s.Messages.AreaByTag("general")
+		if err != nil {
+			t.Fatalf("AreaByTag: %v", err)
+		}
+		for i := 1; i <= n; i++ {
+			if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", fmt.Sprintf("Subject %d", i), "body"); err != nil {
+				t.Fatalf("PostMessage %d: %v", i, err)
+			}
+		}
+
+		conn := newFakeConn("M\r\n\r\nQQQ\r\n")
+		term := NewTerminal(conn)
+		if err := s.runMenu(term, u, 1, "main"); !errors.Is(err, errLogoff) {
+			t.Fatalf("runMenu error = %v, want errLogoff", err)
+		}
+		out := conn.out.String()
+		colIdx := strings.Index(out, "Subject")
+		hintIdx := strings.Index(out, "[Up/Down] Move   [Enter] Read   [P] Post   [Q] Back")
+		if colIdx < 0 || hintIdx < 0 || hintIdx < colIdx {
+			t.Fatalf("expected both the column header and the hint line to appear in order, got: %q", out)
+		}
+		return out[colIdx:hintIdx]
+	}
+
+	between1 := renderWithNMessages(t, 1)
+	between3 := renderWithNMessages(t, 3)
+
+	lines1 := strings.Count(between1, "\r\n")
+	lines3 := strings.Count(between3, "\r\n")
+	if lines1 != lines3 {
+		t.Fatalf("lines between column header and footer hint = %d (1 message) vs %d (3 messages), want equal -- the footer should be anchored, not trailing right after the last row", lines1, lines3)
+	}
+}
+
 func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
 	s := testServer(t)
 	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
@@ -353,7 +450,7 @@ func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
 	if !strings.Contains(out, "\x1b[47m\x1b[30mNEW Second Subject") {
 		t.Fatalf("expected Second Subject's row highlighted, got: %q", out)
 	}
-	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list")
+	readerRenders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list")
 	if len(readerRenders) < 2 {
 		t.Fatalf("expected the reader to open, got: %q", out)
 	}
@@ -671,11 +768,12 @@ func TestReadMessageNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 
 	// M -> areas lightbar, Enter -> General Discussion, Enter again on
 	// the message-list lightbar's first row -> read the first message,
-	// Down arrow -> Next (Second Subject) without returning to the
-	// list, Up arrow -> Prev (First Subject) again, Q -> back to the
+	// Right arrow -> Next (Second Subject) without returning to the
+	// list, Left arrow -> Prev (First Subject) again, Q -> back to the
 	// message list, Q -> back to the area lightbar, Q -> back to main,
-	// Q to log off.
-	conn := newFakeConn("M\r\n\r\n\r\n\x1b[B\x1b[AQQQQ\r\n")
+	// Q to log off. (Up/Down are body-scroll now, not message
+	// switching -- see TestReadMessageArrowsScrollBodyInsteadOfSwitchingMessages.)
+	conn := newFakeConn("M\r\n\r\n\r\n\x1b[C\x1b[DQQQQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, u, 1, "main")
@@ -683,7 +781,7 @@ func TestReadMessageNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list")
+	renders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, next, prev), got %d: %q", len(renders)-1, out)
 	}
@@ -691,10 +789,10 @@ func TestReadMessageNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 		t.Fatalf("expected first message shown initially, got: %q", renders[0])
 	}
 	if !strings.Contains(renders[1], "Second Subject") {
-		t.Fatalf("expected Down arrow to advance to second message, got: %q", renders[1])
+		t.Fatalf("expected Right arrow to advance to second message, got: %q", renders[1])
 	}
 	if !strings.Contains(renders[2], "First Subject") {
-		t.Fatalf("expected Up arrow to return to first message, got: %q", renders[2])
+		t.Fatalf("expected Left arrow to return to first message, got: %q", renders[2])
 	}
 }
 
@@ -720,7 +818,7 @@ func TestReadMessageNextPrevClampAtEnds(t *testing.T) {
 	// instead of wrapping to the last one. Then advance to the last
 	// message and press Next/Right again -- it must stay there instead
 	// of wrapping back to the first.
-	conn := newFakeConn("M\r\n\r\n\r\n\x1b[A\x1b[C\x1b[CQQQQ\r\n")
+	conn := newFakeConn("M\r\n\r\n\r\n\x1b[D\x1b[C\x1b[CQQQQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, u, 1, "main")
@@ -728,7 +826,7 @@ func TestReadMessageNextPrevClampAtEnds(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list")
+	renders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, after Prev, after Next), got %d: %q", len(renders)-1, out)
 	}
@@ -743,6 +841,223 @@ func TestReadMessageNextPrevClampAtEnds(t *testing.T) {
 	}
 	if !strings.Contains(renders[3], "Second Subject") {
 		t.Fatalf("expected Next at the last message to stay put instead of wrapping, got: %q", renders[3])
+	}
+}
+
+// TestReadMessageArrowsScrollBodyInsteadOfSwitchingMessages locks in
+// the fixed-header scroll fix: a long body that doesn't fit the
+// screen used to push the header off the top with no way to bring it
+// back (see drawMessageReader). Up/Down must now scroll within the
+// current message's body -- clamped at the top/bottom, never
+// switching to a different message on their own, since only N/P/
+// Left/Right/Enter are supposed to do that (a deliberate choice, not
+// an oversight).
+func TestReadMessageArrowsScrollBodyInsteadOfSwitchingMessages(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	// Comfortably more lines than a 24-row terminal's reader viewport
+	// (header + meta + footer eat a chunk of it too) can show at once.
+	var bodyLines []string
+	for i := 1; i <= 40; i++ {
+		bodyLines = append(bodyLines, fmt.Sprintf("body line %d", i))
+	}
+	body := strings.Join(bodyLines, "\n")
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Long Message", body); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// Open the reader on the only message, scroll down twice, then
+	// back up twice, then quit out without ever pressing N/P/arrow-
+	// left/arrow-right.
+	conn := newFakeConn("M\r\n\r\n\r\n\x1b[B\x1b[B\x1b[A\x1b[AQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+
+	if !strings.Contains(out, "body line 1\r\n") {
+		t.Fatalf("expected the body's first line to appear in the initial view, got: %q", out)
+	}
+	if !strings.Contains(out, "line 1-") {
+		t.Fatalf("expected a scroll-position hint since the body doesn't fit one screen, got: %q", out)
+	}
+	if strings.Contains(out, "body line 40") {
+		t.Fatalf("expected the last line NOT to be visible yet (only scrolled down twice), got: %q", out)
+	}
+
+	renders := strings.Split(out, "[Up/Dn] Scroll  [R] Reply  [Q] Back to list")
+	if len(renders) < 6 {
+		t.Fatalf("expected at least 5 reader redraws (initial + 2 down + 2 up), got %d: %q", len(renders)-1, out)
+	}
+	for i, r := range renders[:5] {
+		if !strings.Contains(r, "Long Message") {
+			t.Fatalf("redraw %d left the reader (or switched messages) unexpectedly, got: %q", i, r)
+		}
+	}
+}
+
+// TestReadMessageResolvesANSICursorPositioningViaGrid locks in a real
+// production fix on drawMessageReader's own ANSI branch specifically
+// (it can't reuse printBody, since it also needs to paginate the
+// plain-text case). Two prior attempts both failed against a real
+// fsxNet ad: reflowing it via WrapText corrupted the color codes, and
+// even passing its bytes through completely untouched still came out
+// scrambled, because real ANSI art positions itself with cursor moves
+// that assume a blank screen at row 1 col 1 -- not true once a header
+// banner has already been printed above it. The fix resolves the art
+// against a virtual canvas first (ansi.ParseGrid, the same mechanism
+// the web ANSI designer uses to load a .ans file) and prints the
+// result, which no longer depends on where on the real screen it
+// starts: "Positioned" here is written after a save/newline/restore,
+// so it must land on the very same row "Colorful" was on, not two
+// rows down where a naively-interpreted bare newline would put it.
+func TestReadMessageResolvesANSICursorPositioningViaGrid(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	body := "\x1b[1;33mColorful\x1b[0m\n\x1b[s\n\x1b[uPositioned"
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "ANSI Ad", body); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	conn := newFakeConn("M\r\n\r\n\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	colorfulIdx := strings.Index(out, "Colorful")
+	positionedIdx := strings.Index(out, "Positioned")
+	if colorfulIdx < 0 || positionedIdx < 0 {
+		t.Fatalf("expected both %q and %q to appear in the reader output, got: %q", "Colorful", "Positioned", out)
+	}
+	between := out[colorfulIdx:positionedIdx]
+	if strings.Count(between, "\r\n") != 1 {
+		t.Fatalf("expected exactly one line break between Colorful and Positioned (cursor save/restore resolved onto the same row), got %d in %q", strings.Count(between, "\r\n"), between)
+	}
+}
+
+// TestReadMessageKeepsHeaderAndScrollsTallANSIArt locks in the fixed-
+// header scroll behavior for pre-formatted content (both real ANSI
+// escape codes and plain CP437 block art with none at all): unlike
+// the earlier full-screen-takeover design, the header/meta banner
+// must stay visible and Up/Down must scroll a tall image the same way
+// it already does for plain text, since a resolved grid's rows no
+// longer depend on where on the real screen they're printed.
+func TestReadMessageKeepsHeaderAndScrollsTallANSIArt(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	// Plain block art (0xDB, a solid block) with no escape codes at
+	// all -- must still be treated as pre-formatted (see
+	// ansi.HasArtBytes) and paginated by row, not word-wrapped.
+	var artRows []string
+	for i := 1; i <= 40; i++ {
+		artRows = append(artRows, fmt.Sprintf("\xdb\xdb\xdb row %d", i))
+	}
+	body := strings.Join(artRows, "\n")
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Tall Art", body); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	conn := newFakeConn("M\r\n\r\n\r\n\x1b[B\x1b[BQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+
+	if !strings.Contains(out, "Tall Art") {
+		t.Fatalf("expected the header (subject) to stay visible for pre-formatted content, got: %q", out)
+	}
+	if !strings.Contains(out, "row 1\r\n") {
+		t.Fatalf("expected the first art row to appear in the initial view, got: %q", out)
+	}
+	if !strings.Contains(out, "line 1-") {
+		t.Fatalf("expected a scroll-position hint since the art doesn't fit one screen, got: %q", out)
+	}
+	if strings.Contains(out, "row 40") {
+		t.Fatalf("expected the last row NOT to be visible yet (only scrolled down twice), got: %q", out)
+	}
+}
+
+// TestReadMessageScrollStatusStaysOnItsOwnFooterLine locks in a real
+// production fix: the scroll-status text ("-- line X-Y of Z --") used
+// to be prepended directly onto the hotkey hint on one shared line --
+// with large enough line numbers that combined line exceeded the
+// terminal's width and wrapped on its own, silently consuming one
+// more physical row than drawMessageReader had budgeted for and
+// pushing the header off the top of the screen. The scroll status
+// must always be on its own dedicated line, never concatenated onto
+// the hint.
+func TestReadMessageScrollStatusStaysOnItsOwnFooterLine(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	// 200 lines so the rendered "-- line X-Y of 200 --" status is
+	// realistically long -- concatenated onto the hotkey hint, this
+	// combination is well past 80 columns.
+	var bodyLines []string
+	for i := 1; i <= 200; i++ {
+		bodyLines = append(bodyLines, fmt.Sprintf("line %d", i))
+	}
+	body := strings.Join(bodyLines, "\n")
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Very Long Message", body); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	conn := newFakeConn("M\r\n\r\n\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+
+	statusIdx := strings.Index(out, "-- line")
+	if statusIdx < 0 {
+		t.Fatalf("expected a scroll-status hint, got: %q", out)
+	}
+	hintOffset := strings.Index(out[statusIdx:], "[N/Right]")
+	if hintOffset < 0 {
+		t.Fatalf("expected the hotkey hint to appear after the scroll status, got: %q", out)
+	}
+	between := out[statusIdx : statusIdx+hintOffset]
+	if !strings.Contains(between, "\r\n") {
+		t.Fatalf("expected the scroll status and the hotkey hint on separate lines, got them joined: %q", between)
 	}
 }
 
@@ -815,5 +1130,110 @@ func TestSysopCreateMessageArea(t *testing.T) {
 	}
 	if area.Network != "fsxNet" {
 		t.Fatalf("area.Network = %q, want %q", area.Network, "fsxNet")
+	}
+}
+
+// TestPrintBodyResolvesANSICursorPositioningViaGrid locks in a real
+// production fix: a message/description body containing real ANSI
+// escape sequences (a BBS ad tossed into an ANSI-tagged area, an
+// ANSImation, etc.) came out scrambled three times over -- first
+// because ansi.WrapText treated every escape-sequence byte as an
+// ordinary character to word-wrap; then, even sending its bytes
+// through completely untouched still corrupted it, because Print's
+// automatic bare-LF-to-CRLF translation inserted a \r real ANSI art
+// didn't expect; and even bypassing that, real ANSI art's absolute/
+// relative cursor positioning assumes it's drawing on a blank screen
+// starting at row 1 col 1, which is false once other content (a
+// header banner) has already been printed above it. The fix resolves
+// the art against a virtual canvas first (ansi.ParseGrid, the same
+// mechanism the web ANSI designer uses to load a .ans file) and
+// prints the result, which no longer depends on where on the real
+// screen it starts: "Positioned" here is written after a save/
+// newline/restore, so it must land on the very same row "Colorful"
+// was on, not two rows down where a naively-interpreted bare newline
+// would put it.
+func TestPrintBodyResolvesANSICursorPositioningViaGrid(t *testing.T) {
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	body := "\x1b[1;33mColorful\x1b[0m\n\x1b[s\n\x1b[uPositioned"
+
+	var b strings.Builder
+	b.WriteString("header\r\n")
+	if err := printBody(term, &b, body, "footer", 80); err != nil {
+		t.Fatalf("printBody: %v", err)
+	}
+
+	got := conn.out.String()
+	colorfulIdx := strings.Index(got, "Colorful")
+	positionedIdx := strings.Index(got, "Positioned")
+	if colorfulIdx < 0 || positionedIdx < 0 {
+		t.Fatalf("expected both %q and %q to appear in the output, got: %q", "Colorful", "Positioned", got)
+	}
+	between := got[colorfulIdx:positionedIdx]
+	if strings.Count(between, "\r\n") != 1 {
+		t.Fatalf("expected exactly one line break between Colorful and Positioned (cursor save/restore resolved onto the same row), got %d in %q", strings.Count(between, "\r\n"), between)
+	}
+	if !strings.Contains(got, "footer") {
+		t.Fatalf("expected the footer to still be printed after the resolved art, got: %q", got)
+	}
+}
+
+// TestPrintBodyWordWrapsPlainText confirms ordinary prose still gets
+// the normal word-wrap treatment (printBody isn't a blanket bypass).
+func TestPrintBodyWordWrapsPlainText(t *testing.T) {
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	body := "this is a perfectly ordinary message with no ANSI codes in it at all"
+
+	var b strings.Builder
+	if err := printBody(term, &b, body, "footer", 20); err != nil {
+		t.Fatalf("printBody: %v", err)
+	}
+
+	got := conn.out.String()
+	if strings.Count(got, "\r\n") < 2 {
+		t.Fatalf("printBody output = %q, want it word-wrapped across multiple lines at width 20", got)
+	}
+}
+
+func TestStripSeenByAndPathForDisplayRemovesTrailingRoutingLinesButKeepsFooter(t *testing.T) {
+	body := "the actual message text\n" +
+		"\n" +
+		"--- Mystic BBS v1.12 A49 (Linux/64)\n" +
+		"* Origin: TheForze - bbs.theforze.eu:23 (21:3/126)\n" +
+		"SEEN-BY: 1/100 179 2/100 116 3/100 105\n" +
+		"SEEN-BY: 3/141 156 158\n" +
+		"PATH: 3/126 100\n"
+	got := stripSeenByAndPathForDisplay(body)
+	want := "the actual message text\n" +
+		"\n" +
+		"--- Mystic BBS v1.12 A49 (Linux/64)\n" +
+		"* Origin: TheForze - bbs.theforze.eu:23 (21:3/126)"
+	if got != want {
+		t.Fatalf("stripSeenByAndPathForDisplay() = %q, want %q", got, want)
+	}
+}
+
+func TestStripSeenByAndPathForDisplayLeavesBodyUnchangedWhenNeitherPresent(t *testing.T) {
+	body := "just an ordinary message\nwith no routing footer"
+	if got := stripSeenByAndPathForDisplay(body); got != body {
+		t.Fatalf("stripSeenByAndPathForDisplay() = %q, want body unchanged (%q)", got, body)
+	}
+}
+
+// TestStripSeenByAndPathForDisplayHandlesKludgedPath locks in a real
+// production fix: PATH commonly arrives \x01-kludged even though
+// SEEN-BY doesn't (observed live) -- since the scan works backward
+// from the end and stops at the first non-matching line, an
+// unstripped leading \x01 on PATH alone left the entire block,
+// SEEN-BY lines included, still showing.
+func TestStripSeenByAndPathForDisplayHandlesKludgedPath(t *testing.T) {
+	body := "the actual message text\n" +
+		"SEEN-BY: 1/100 179 2/100 116\n" +
+		"\x01PATH: 3/126 100\n"
+	got := stripSeenByAndPathForDisplay(body)
+	want := "the actual message text"
+	if got != want {
+		t.Fatalf("stripSeenByAndPathForDisplay() = %q, want %q", got, want)
 	}
 }

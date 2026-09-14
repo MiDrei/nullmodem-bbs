@@ -135,3 +135,32 @@ func TestGridEncodeFoldsBrightBackgroundToBaseEight(t *testing.T) {
 		t.Fatalf("BG after encode round trip = %d, want 4 (12%%8)", got.Cells[0].BG)
 	}
 }
+
+func TestGridEncodeRowsOmitsLeadingClearAndSlicesRowRange(t *testing.T) {
+	g := NewGrid(3, 3)
+	g.Cells[g.index(0, 0)] = Cell{Char: 'A', FG: 7, BG: 0}
+	g.Cells[g.index(1, 0)] = Cell{Char: 'B', FG: 7, BG: 0}
+	g.Cells[g.index(2, 0)] = Cell{Char: 'C', FG: 7, BG: 0}
+
+	got := g.EncodeRows(1, 2)
+	if strings.Contains(got, "\x1b[2J") {
+		t.Fatalf("EncodeRows() = %q, want no leading clear+home (unlike Encode)", got)
+	}
+	if !strings.Contains(got, "B") {
+		t.Fatalf("EncodeRows(1, 2) = %q, want it to contain row 1's content", got)
+	}
+	if strings.Contains(got, "A") || strings.Contains(got, "C") {
+		t.Fatalf("EncodeRows(1, 2) = %q, want only row 1, not rows 0 or 2", got)
+	}
+}
+
+func TestGridEncodeRowsClampsOutOfRangeWindow(t *testing.T) {
+	g := NewGrid(2, 2)
+	g.Cells[g.index(0, 0)] = Cell{Char: 'X', FG: 7, BG: 0}
+	// Requesting well past the grid's actual height must not panic --
+	// just yield whatever rows actually exist.
+	got := g.EncodeRows(0, 100)
+	if !strings.Contains(got, "X") {
+		t.Fatalf("EncodeRows(0, 100) = %q, want it to still contain row 0's content", got)
+	}
+}

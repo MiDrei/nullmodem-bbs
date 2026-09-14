@@ -378,11 +378,8 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 	b.WriteString(ansi.Reset + "\r\n")
 	b.WriteString(ansi.Layout(ansi.Render(metaTemplate, vars), term.Width()))
 	b.WriteString(ansi.CRLF)
-	for _, line := range ansi.WrapText(f.Description, term.Width()) {
-		b.WriteString(ansi.Reset + line + ansi.CRLF)
-	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list" + ansi.Reset)
-	return term.Print(b.String())
+	footer := ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list" + ansi.Reset
+	return printBody(term, &b, f.Description, footer, term.Width())
 }
 
 // sysopCreateFileArea is the "builtin:createfilearea" command: it

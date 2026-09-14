@@ -331,11 +331,8 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx i
 	b.WriteString(ansi.Reset + "\r\n")
 	b.WriteString(ansi.Layout(ansi.Render(metaTemplate, vars), term.Width()))
 	b.WriteString(ansi.CRLF)
-	for _, line := range ansi.WrapText(m.Body, term.Width()) {
-		b.WriteString(ansi.Reset + line + ansi.CRLF)
-	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list" + ansi.Reset)
-	return term.Print(b.String())
+	footer := ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list" + ansi.Reset
+	return printBody(term, &b, m.Body, footer, term.Width())
 }
 
 // composeNetmail prompts for a recipient (an existing local username,

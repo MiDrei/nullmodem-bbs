@@ -223,10 +223,27 @@ func parseSingleParam(params string, def int) int {
 // layout the next time the screen is rendered -- trimming keeps a
 // round trip through the designer from corrupting such a screen.
 func (g Grid) Encode() string {
+	return "\x1b[2J\x1b[H" + g.EncodeRows(0, g.Height)
+}
+
+// EncodeRows serializes rows [start, end) of g -- one SGR run per
+// color change, CRLF between rows, trailing blanks trimmed, same as
+// Encode -- but without Encode's leading clear+home, for compositing
+// a resolved grid's rows alongside other already-printed content (a
+// header banner, a scroll window showing only part of a tall image)
+// instead of a full-screen takeover. start is clamped to 0 and end to
+// g.Height, so an out-of-range window just yields fewer rows rather
+// than panicking.
+func (g Grid) EncodeRows(start, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end > g.Height {
+		end = g.Height
+	}
 	var b strings.Builder
-	b.WriteString("\x1b[2J\x1b[H")
 	prevFG, prevBG := -1, -1
-	for row := 0; row < g.Height; row++ {
+	for row := start; row < end; row++ {
 		lastCol := g.lastNonBlankCol(row)
 		for col := 0; col <= lastCol; col++ {
 			cell := g.Cells[g.index(row, col)]
@@ -236,7 +253,7 @@ func (g Grid) Encode() string {
 			}
 			b.WriteByte(cell.Char)
 		}
-		if row < g.Height-1 {
+		if row < end-1 {
 			b.WriteString(CRLF)
 		}
 	}

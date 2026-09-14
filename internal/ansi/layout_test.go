@@ -187,3 +187,54 @@ func TestCenterLeavesOverlongStringsUnchanged(t *testing.T) {
 		t.Fatalf("Center() = %q, want unchanged %q", got, s)
 	}
 }
+
+func TestHasEscapeCodesTrueForRealANSI(t *testing.T) {
+	s := "\x1b[1;33mHello\x1b[0m"
+	if !HasEscapeCodes(s) {
+		t.Fatalf("HasEscapeCodes(%q) = false, want true", s)
+	}
+}
+
+func TestHasEscapeCodesFalseForPlainText(t *testing.T) {
+	s := "just an ordinary message\nwith more than one line"
+	if HasEscapeCodes(s) {
+		t.Fatalf("HasEscapeCodes(%q) = true, want false", s)
+	}
+}
+
+// TestHasArtBytesTrueForBlockDrawingCharacters locks in a real
+// production fix: pure CP437 block/line-drawing art with no color
+// codes at all (no ESC[ anywhere) still needs its exact spacing
+// preserved -- HasEscapeCodes alone misses it, and WrapText's word-
+// wrap collapses runs of spaces the artist placed deliberately.
+func TestHasArtBytesTrueForBlockDrawingCharacters(t *testing.T) {
+	s := "plain text then a block: \xdb\xdb\xdb and a line: \xc4\xc4\xc4"
+	if !HasArtBytes(s) {
+		t.Fatalf("HasArtBytes(%q) = false, want true", s)
+	}
+}
+
+// TestHasArtBytesFalseForAccentedLatinProse confirms ordinary prose
+// with accented Latin letters (CP437's lower high-byte range,
+// 0x80-0xAF -- ü, ä, ö, ... -- plus ß at 0xE1) is never mistaken for
+// art: German or French messages must still go through normal word-
+// wrap.
+func TestHasArtBytesFalseForAccentedLatinProse(t *testing.T) {
+	// "Grüße aus München" using real CP437 code points: ü=0x81, ß=0xE1.
+	s := "Gr\x81\xe1e aus M\x81nchen"
+	if HasArtBytes(s) {
+		t.Fatalf("HasArtBytes(%q) = true, want false (accented prose, not art)", s)
+	}
+}
+
+func TestIsPreformattedTrueForEitherSignal(t *testing.T) {
+	if !IsPreformatted("\x1b[1mcolored\x1b[0m") {
+		t.Fatal("IsPreformatted() = false for ANSI escape codes, want true")
+	}
+	if !IsPreformatted("block art: \xdb\xdb\xdb") {
+		t.Fatal("IsPreformatted() = false for block-drawing bytes, want true")
+	}
+	if IsPreformatted("just ordinary text") {
+		t.Fatal("IsPreformatted() = true for plain prose, want false")
+	}
+}

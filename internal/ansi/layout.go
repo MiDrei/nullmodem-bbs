@@ -197,12 +197,59 @@ func layoutLine(line string, width int) string {
 	return b.String()
 }
 
+// HasEscapeCodes reports whether s contains a raw ANSI/CSI escape
+// sequence (ESC followed by '[') -- a strong signal it's pre-
+// formatted ANSI art (a BBS ad, ANSImation, etc.) rather than plain
+// prose. Callers must check this before handing text to WrapText: art
+// like that relies on absolute cursor positioning and must be shown
+// verbatim (see ToCRLF), never reflowed -- WrapText has no concept of
+// an escape sequence and would count every one of its bytes as an
+// ordinary character, breaking words (and colors) mid-sequence.
+// Confirmed live: a real fsxNet ad tossed into an ANSI-tagged area
+// came out as scrambled color blocks once WrapText got hold of it.
+func HasEscapeCodes(s string) bool {
+	return strings.Contains(s, "\x1b[")
+}
+
+// HasArtBytes reports whether s contains a CP437 byte from the box/
+// block-drawing range (0xB0-0xDF: shading, line-drawing, and solid/
+// half-block glyphs) -- a strong signal of pre-formatted ASCII art
+// relying on exact character positions and spacing, even with no
+// color codes at all (HasEscapeCodes alone misses this: plain block-
+// character art with no SGR/cursor sequences still gets its
+// deliberate spacing collapsed by WrapText's word-wrapping
+// otherwise). Deliberately excludes CP437's other high-byte ranges:
+// 0x80-0xAF is accented Latin (ü, é, ä, ö, ...) and 0xE0-0xFF mixes a
+// few Greek letters with math symbols -- both include characters that
+// belong to ordinary prose (ß, for one, sits at 0xE1 and is entirely
+// unremarkable in German text) and must still go through normal
+// word-wrap, not be treated as art.
+func HasArtBytes(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0xB0 && s[i] <= 0xDF {
+			return true
+		}
+	}
+	return false
+}
+
+// IsPreformatted reports whether body should be displayed verbatim
+// (via ParseGrid, not word-wrapped) -- see HasEscapeCodes and
+// HasArtBytes for the two independent signals this checks.
+func IsPreformatted(s string) bool {
+	return HasEscapeCodes(s) || HasArtBytes(s)
+}
+
 // WrapText word-wraps s to width columns for plain-text display (a
 // message body, not a template), preserving existing line breaks and
 // hard-breaking any single word that alone exceeds width -- e.g. a
 // long URL -- so it still fits within width instead of relying on the
 // terminal's own line wrap, which the project can't assume behaves
 // consistently across clients.
+//
+// Never call this on text that might contain real ANSI escape
+// sequences -- check HasEscapeCodes first and, if true, display the
+// text verbatim (via ToCRLF) instead of wrapping it.
 func WrapText(s string, width int) []string {
 	if width <= 0 {
 		width = 1

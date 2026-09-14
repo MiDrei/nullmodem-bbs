@@ -57,9 +57,41 @@ func (t *Terminal) Width() int {
 	return w
 }
 
+// defaultHeight is what Height() reports when the client hasn't
+// negotiated one (or reports something implausible) -- the same
+// classic-BBS row count internal/telnet.Session already falls back to
+// before any NAWS update arrives.
+const defaultHeight = 24
+
+// Height returns the client's negotiated NAWS row count, falling back
+// to defaultHeight if the client hasn't reported one or reports
+// something nonsensical (zero/negative). Unlike Width, there's no
+// known upper cap to enforce -- a tall terminal window is just a
+// tall terminal window.
+func (t *Terminal) Height() int {
+	_, h := t.conn.WindowSize()
+	if h <= 0 {
+		h = defaultHeight
+	}
+	return h
+}
+
 // Print writes s to the client, translating bare LF to CRLF.
 func (t *Terminal) Print(s string) error {
 	_, err := t.conn.Write([]byte(ansi.ToCRLF(s)))
+	return err
+}
+
+// PrintRaw writes s to the client completely unchanged -- no bare-LF-
+// to-CRLF translation (see Print). For content whose exact bytes were
+// chosen deliberately and must reach the terminal as authored, like
+// pre-formatted ANSI art: real .ANS art commonly pairs a bare LF with
+// cursor save/restore (ESC[s ... ESC[u) to advance one row while
+// snapping back to a remembered column, and Print's automatic \r
+// insertion shifts terminal state the artist never intended,
+// scrambling the result (confirmed live against a real fsxNet ad).
+func (t *Terminal) PrintRaw(s string) error {
+	_, err := t.conn.Write([]byte(s))
 	return err
 }
 
