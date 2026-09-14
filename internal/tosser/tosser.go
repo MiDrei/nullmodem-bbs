@@ -18,6 +18,7 @@
 package tosser
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"errors"
@@ -33,6 +34,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/swissmaik/nullmodem/internal/version"
 )
 
 // dialTimeout bounds one poll attempt against an uplink.
@@ -43,6 +45,10 @@ type Result struct {
 	// Sent is how many queued netmail messages were bundled, handed
 	// off, and acknowledged (M_GOT) by the uplink.
 	Sent int
+	// SentEcho is how many locally-posted echomail messages (see
+	// message.Store.PendingOutboundEcho) were bundled, handed off, and
+	// acknowledged (M_GOT) by the uplink, in the same packet as Sent.
+	SentEcho int
 	// Received is how many netmail messages were filed away (or
 	// queued locally, if the recipient didn't resolve to a local
 	// user) out of whatever the uplink sent back in the same session.
@@ -77,20 +83,25 @@ type Result struct {
 // both the BinkP handshake and the outbound packet's header need one.
 // All of them are presented to the uplink via BinkP's M_ADR (needed
 // when the same uplink bridges more than one FTN network and expects
-// us to identify under each); the first is used as the outbound
-// packet's own header address. allUplinks is every uplink configured
-// for this system (config.Config's Binkp.Uplinks), used only to
-// resolve routing -- it need not include uplink itself (e.g. the web
-// admin's "Send Now" button tries an address the sysop hasn't saved
-// yet), and uplink need not be poll-disabled just because it's being
-// dialed here (that flag only governs cmd/mailer's own scheduled
-// loop, not a manual or crash-triggered dial).
-func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (*Result, error) {
+// us to identify under each); whichever one shares uplink's own FTN
+// zone is used as the outbound packet's header address and every
+// message's origin (see ourAddressForUplink) -- not just the first --
+// so a system with an AKA per network stamps each hub's mail with the
+// AKA that actually belongs to it. bbsName (config.Config's BBS.Name)
+// is stamped, alongside that address, into an FTS-0004 tearline and
+// origin line appended to every locally composed message (see
+// appendTearline). allUplinks is every uplink configured for this
+// system (config.Config's Binkp.Uplinks), used only to resolve
+// routing -- it need not include uplink itself (e.g. the web admin's
+// "Send Now" button tries an address the sysop hasn't saved yet), and
+// uplink need not be poll-disabled just because it's being dialed
+// here (that flag only governs cmd/mailer's own scheduled loop, not a
+// manual or crash-triggered dial).
+func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (*Result, error) {
 	if len(ourAddresses) == 0 {
 		return nil, fmt.Errorf("tosser: no FTN addresses configured for this system")
 	}
-	ourAddr, err := mail.ParseAddress(ourAddresses[0])
-	if err != nil {
+	if _, err := mail.ParseAddress(ourAddresses[0]); err != nil {
 		return nil, fmt.Errorf("tosser: this system's FTN address %q: %w", ourAddresses[0], err)
 	}
 
@@ -98,15 +109,20 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 	if err != nil {
 		return nil, err
 	}
+	routedEcho, err := RoutedOutboundEcho(messages, uplink)
+	if err != nil {
+		return nil, err
+	}
 
 	var outFiles []binkp.OutboundFile
 	var packetName string
-	if len(routed) > 0 {
+	if len(routed) > 0 || len(routedEcho) > 0 {
 		uplinkAddr, err := mail.ParseAddress(uplink.Address)
 		if err != nil {
 			return nil, fmt.Errorf("tosser: uplink address %q: %w", uplink.Address, err)
 		}
-		buf, err := buildPacket(ourAddr, uplinkAddr, uplink.PacketPassword, routed)
+		ourAddr := ourAddressForUplink(ourAddresses, uplinkAddr)
+		buf, err := buildPacket(ourAddr, uplinkAddr, uplink.PacketPassword, bbsName, routed, routedEcho)
 		if err != nil {
 			return nil, err
 		}
@@ -124,16 +140,7 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 	res := &Result{}
 	var receiveErr error
 	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
-		if !isPacketFile(f.Name) {
-			if _, err := io.Copy(io.Discard, r); err != nil {
-				return fmt.Errorf("tosser: draining unsupported inbound file %s: %w", f.Name, err)
-			}
-			res.SkippedFiles = append(res.SkippedFiles, f.Name)
-			return nil
-		}
-		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users)
-		res.Received += stats.netmail
-		res.ReceivedEcho += stats.echo
+		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, res)
 		if err != nil {
 			receiveErr = err
 		}
@@ -161,6 +168,12 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 			}
 			res.Sent++
 		}
+		for _, m := range routedEcho {
+			if err := messages.MarkSent(m.ID); err != nil {
+				return res, fmt.Errorf("tosser: marking echo message %d sent: %w", m.ID, err)
+			}
+			res.SentEcho++
+		}
 	}
 
 	return res, receiveErr
@@ -173,8 +186,8 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 // and pick the right packet password (see binkp.Config.
 // PasswordForAddresses and acceptedPacketPasswords), then files away
 // whatever it sends exactly as Poll does for an outbound session --
-// same tossInbound/isPacketFile handling, same SkippedFiles reporting
-// for anything that isn't a mail packet. Unlike Poll, it doesn't also
+// same handleInboundFile handling (plain packets, ArcMail bundles,
+// and everything else via SkippedFiles). Unlike Poll, it doesn't also
 // hand the caller this system's own queued outbound mail in the same
 // session; an inbound call only ever receives, and sending stays with
 // the regular scheduled/crash Poll flow.
@@ -193,16 +206,7 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, uplinks [
 			_, err := io.Copy(io.Discard, r)
 			return err
 		}
-		if !isPacketFile(f.Name) {
-			if _, err := io.Copy(io.Discard, r); err != nil {
-				return fmt.Errorf("tosser: draining unsupported inbound file %s: %w", f.Name, err)
-			}
-			res.SkippedFiles = append(res.SkippedFiles, f.Name)
-			return nil
-		}
-		stats, err := tossInbound(r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users)
-		res.Received += stats.netmail
-		res.ReceivedEcho += stats.echo
+		err := handleInboundFile(f, r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users, res)
 		if err != nil {
 			receiveErr = err
 		}
@@ -271,6 +275,24 @@ func RoutedOutbound(netmailStore *netmail.Store, target config.BinkpUplink, allU
 	return routeOutbound(pending, target, allUplinks), nil
 }
 
+// RoutedOutboundEcho returns the locally-posted echomail messages
+// (see message.Store.PendingOutboundEcho) that Poll would bundle for
+// target, without dialing anything -- so a caller can check whether
+// dialing target is even worthwhile. Unlike netmail's routing (an
+// ordinary message defaults to whichever uplink is asked, a Crash one
+// goes to a zone-specific uplink if configured), echo routing is
+// simple: target.Network says outright which areas' posts it carries,
+// with no ambiguity to resolve, since an area belongs to exactly one
+// network. An uplink with no Network configured never carries any
+// (see config.BinkpUplink.Network's doc comment).
+func RoutedOutboundEcho(messages *message.Store, target config.BinkpUplink) ([]message.PendingEcho, error) {
+	pending, err := messages.PendingOutboundEcho(target.Network)
+	if err != nil {
+		return nil, fmt.Errorf("tosser: loading pending outbound echomail: %w", err)
+	}
+	return pending, nil
+}
+
 func routeOutbound(pending []netmail.Message, target config.BinkpUplink, allUplinks []config.BinkpUplink) []netmail.Message {
 	var routed []netmail.Message
 	for _, m := range pending {
@@ -326,6 +348,124 @@ func isPacketFile(name string) bool {
 	return strings.HasSuffix(strings.ToLower(name), ".pkt")
 }
 
+// isPacketBundleFile reports whether name looks like an FTS-5005
+// "ArcMail" bundle of one or more compressed FTS-0001 packets --
+// conventionally an 8-hex-digit basename (like a .pkt file) with an
+// extension encoding day-of-week + a one-character sequence (su/mo/
+// tu/we/th/fr/sa followed by 0-9 or a-z/A-Z, e.g. ".mo0", ".th9",
+// ".fra") rather than a compression format. Which archiver actually
+// produced it is a matter of agreement between the two systems, not
+// something the extension itself says -- see extractPacketBundle,
+// which detects the real format from the file's own magic bytes.
+// Observed live: a real lovlynet push included a genuine .mo0 file we
+// couldn't yet process, skipped as unsupported until this existed.
+func isPacketBundleFile(name string) bool {
+	dot := strings.LastIndexByte(name, '.')
+	if dot < 0 || len(name)-dot != 4 {
+		return false
+	}
+	ext := name[dot+1:]
+	switch strings.ToLower(ext[:2]) {
+	case "su", "mo", "tu", "we", "th", "fr", "sa":
+	default:
+		return false
+	}
+	seq := ext[2]
+	return seq >= '0' && seq <= '9' || seq >= 'a' && seq <= 'z' || seq >= 'A' && seq <= 'Z'
+}
+
+// namedPacket is one FTS-0001 packet file's name and contents,
+// extracted from a packet bundle.
+type namedPacket struct {
+	name string
+	data []byte
+}
+
+// extractPacketBundle decompresses a packet bundle's data (read fully
+// into memory -- ArcMail bundles are small, KB-scale files, the same
+// order of magnitude as the .pkt files inside them) and returns the
+// name and contents of every file found inside. Only ZIP is
+// recognized today -- the modern, near-universal choice among FTN
+// systems still exchanging compressed bundles -- detected from its
+// own magic bytes rather than name's extension (see
+// isPacketBundleFile's doc comment for why the extension can't say).
+// An unrecognized format is a plain error, not a panic, so the caller
+// can report the file as skipped rather than losing the whole
+// session over it.
+func extractPacketBundle(name string, data []byte) ([]namedPacket, error) {
+	if !bytes.HasPrefix(data, []byte("PK\x03\x04")) && !bytes.HasPrefix(data, []byte("PK\x05\x06")) {
+		return nil, fmt.Errorf("tosser: %s: unrecognized packet bundle format (only ZIP is supported)", name)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, fmt.Errorf("tosser: %s: opening zip: %w", name, err)
+	}
+	var packets []namedPacket
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, fmt.Errorf("tosser: %s: opening %s: %w", name, f.Name, err)
+		}
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			return nil, fmt.Errorf("tosser: %s: reading %s: %w", name, f.Name, err)
+		}
+		packets = append(packets, namedPacket{name: f.Name, data: content})
+	}
+	return packets, nil
+}
+
+// handleInboundFile processes one file a peer sent us during a BinkP
+// session -- shared by Poll's and Answer's ReceiveFile callback. It
+// dispatches by shape: a plain FTS-0001 packet is tossed directly; an
+// FTS-5005 packet bundle (isPacketBundleFile) is decompressed and
+// every packet inside tossed in turn, res.SkippedFiles noting the
+// bundle's own name if it can't be decompressed (an unrecognized
+// archive format, say) rather than aborting the session over it;
+// anything else is drained and reported in res.SkippedFiles rather
+// than dropped silently or fed to the packet parser (which fails hard
+// on it -- see isPacketFile's doc comment).
+func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, res *Result) error {
+	switch {
+	case isPacketFile(f.Name):
+		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users)
+		res.Received += stats.netmail
+		res.ReceivedEcho += stats.echo
+		return err
+
+	case isPacketBundleFile(f.Name):
+		data, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("tosser: reading packet bundle %s: %w", f.Name, err)
+		}
+		packets, err := extractPacketBundle(f.Name, data)
+		if err != nil {
+			res.SkippedFiles = append(res.SkippedFiles, f.Name)
+			return nil
+		}
+		for _, p := range packets {
+			stats, err := tossInbound(bytes.NewReader(p.data), acceptedPasswords, netmailStore, messages, users)
+			res.Received += stats.netmail
+			res.ReceivedEcho += stats.echo
+			if err != nil {
+				return fmt.Errorf("tosser: tossing %s from bundle %s: %w", p.name, f.Name, err)
+			}
+		}
+		return nil
+
+	default:
+		if _, err := io.Copy(io.Discard, r); err != nil {
+			return fmt.Errorf("tosser: draining unsupported inbound file %s: %w", f.Name, err)
+		}
+		res.SkippedFiles = append(res.SkippedFiles, f.Name)
+		return nil
+	}
+}
+
 func acceptedPacketPasswords(primary config.BinkpUplink, allUplinks []config.BinkpUplink) []string {
 	seen := map[string]bool{}
 	var out []string
@@ -366,15 +506,66 @@ func uplinkForDestination(uplinks []config.BinkpUplink, destAddr string) (config
 	return config.BinkpUplink{}, false
 }
 
-// buildPacket bundles pending into a single FTS-0001 packet addressed
-// (at the packet-header level) between ourAddr and uplinkAddr -- the
-// BinkP link's own two endpoints -- stamped with packetPassword (the
-// uplink's configured PacketPassword; empty means none). Each
-// message's own OrigAddr/DestAddr carries its real origin/destination,
-// which internal/mail encodes as INTL/FMPT/TOPT kludge lines when they
-// differ from the packet header (e.g. a point address, or routing
-// through this uplink to a third system).
-func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, pending []netmail.Message) (*bytes.Buffer, error) {
+// ourAddressForUplink returns whichever of ourAddresses shares
+// uplinkAddr's own FTN zone -- the AKA this system presents as its
+// origin when talking to that specific hub, matching how
+// uplinkForDestination picks an uplink for a destination the other
+// way around. A system with more than one AKA (typically one per FTN
+// network it belongs to) needs this: stamping every hub's outbound
+// mail with the AKA that actually belongs to its network, rather than
+// always whichever AKA happens to be configured first, is what makes
+// the origin line/packet header address correct for readers and
+// downstream routing on that network. Falls back to ourAddresses[0]
+// (already validated as parseable by Poll before this is called) if
+// none share uplinkAddr's zone -- the common single-AKA case, or an
+// uplink whose own configured Address's zone doesn't match any of
+// ours.
+func ourAddressForUplink(ourAddresses []string, uplinkAddr mail.Address) mail.Address {
+	fallback, _ := mail.ParseAddress(ourAddresses[0])
+	for _, raw := range ourAddresses {
+		addr, err := mail.ParseAddress(raw)
+		if err == nil && addr.Zone == uplinkAddr.Zone {
+			return addr
+		}
+	}
+	return fallback
+}
+
+// appendTearline appends an FTS-0004 tearline and origin line to
+// body, identifying this system's software and the FTN address it's
+// presenting to this specific hub -- readers on the wider network
+// rely on the origin line to know where a message actually
+// originated, and hub software commonly uses it (alongside MSGID) for
+// duplicate detection and routing.
+func appendTearline(body, bbsName string, origAddr mail.Address) string {
+	body = strings.TrimRight(body, "\r\n")
+	return fmt.Sprintf("%s\r\r--- %s\r * Origin: %s (%s)\r", body, version.Version, bbsName, origAddr.String())
+}
+
+// buildPacket bundles pendingNetmail and pendingEcho into a single
+// FTS-0001 packet addressed (at the packet-header level) between
+// ourAddr and uplinkAddr -- the BinkP link's own two endpoints --
+// stamped with packetPassword (the uplink's configured
+// PacketPassword; empty means none). A real .pkt file routinely mixes
+// both kinds of message, distinguished per-message by whether its
+// body starts with a bare "AREA:tag" line (see echoAreaTag) --
+// there's no packet-level distinction.
+//
+// Each netmail message's own OrigAddr/DestAddr carries its real
+// origin/destination, which internal/mail encodes as INTL/FMPT/TOPT
+// kludge lines when they differ from the packet header (e.g. a point
+// address, or routing through this uplink to a third system). An echo
+// message is always addressed OrigAddr=ourAddr/DestAddr=uplinkAddr/
+// ToName="All", like every other echomail message; its body is
+// prefixed with the AREA: line and a generated MSGID (the message's
+// own database ID, hex-formatted -- already unique within this
+// system, which combined with our own address is everything FTN
+// requires of one) ahead of the actual text. Every message here is a
+// fresh local post (see RoutedOutbound/RoutedOutboundEcho -- neither
+// ever returns mail relayed in from elsewhere), so appendTearline is
+// always safe to add: there's no pre-existing tearline/origin from an
+// upstream system to preserve or duplicate.
+func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsName string, pendingNetmail []netmail.Message, pendingEcho []message.PendingEcho) (*bytes.Buffer, error) {
 	var buf bytes.Buffer
 	w, err := mail.NewWriter(&buf, mail.PacketHeader{
 		OrigAddr: ourAddr,
@@ -386,7 +577,7 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, pendin
 		return nil, fmt.Errorf("tosser: building outbound packet: %w", err)
 	}
 
-	for _, m := range pending {
+	for _, m := range pendingNetmail {
 		destAddr, err := mail.ParseAddress(m.ToAddress)
 		if err != nil {
 			return nil, fmt.Errorf("tosser: message %d has an unparseable destination %q: %w", m.ID, m.ToAddress, err)
@@ -409,9 +600,34 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, pendin
 			ToName:   m.ToName,
 			FromName: m.FromName,
 			Subject:  m.Subject,
-			Body:     m.Body,
+			Body:     appendTearline(m.Body, bbsName, origAddr),
 		}); err != nil {
 			return nil, fmt.Errorf("tosser: writing message %d: %w", m.ID, err)
+		}
+	}
+
+	// Point stripped: internal/mail prepends an FMPT kludge whenever a
+	// message's own OrigAddr has one (needed for netmail, since the
+	// packet header's binary net/node fields can't otherwise convey a
+	// point origin at all), but FTS-0009 requires the bare "AREA:tag"
+	// line to be the message body's literal first line with nothing
+	// -- kludge or otherwise -- before it. A point system's echomail
+	// conventionally flows under its boundary node's flat address
+	// regardless, so this loses nothing real messages don't already
+	// omit.
+	echoOrigAddr := mail.Address{Zone: ourAddr.Zone, Net: ourAddr.Net, Node: ourAddr.Node}
+	for _, m := range pendingEcho {
+		body := fmt.Sprintf("AREA:%s\r\x01MSGID: %s %08x\r%s", m.AreaTag, echoOrigAddr.String(), m.ID, appendTearline(m.Body, bbsName, echoOrigAddr))
+		if err := w.WriteMessage(mail.Message{
+			OrigAddr: echoOrigAddr,
+			DestAddr: uplinkAddr,
+			Written:  m.PostedAt,
+			ToName:   "All",
+			FromName: m.FromName,
+			Subject:  m.Subject,
+			Body:     body,
+		}); err != nil {
+			return nil, fmt.Errorf("tosser: writing echo message %d: %w", m.ID, err)
 		}
 	}
 

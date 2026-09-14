@@ -4,7 +4,7 @@ export interface BinkpUplink {
 	/** "host:port", e.g. "bbs.example.com:24554". */
 	host: string;
 	password: string;
-	/** Excludes this uplink from the mailer daemon's regular scheduled poll -- for a link that should only ever be dialed for Crash-flagged netmail to its own network, or manually via "Send Now". */
+	/** Excludes this uplink from the mailer daemon's regular, interval-based scheduled poll -- it's still dialed immediately whenever there's netmail or echomail actually pending for it, plus its own poll_interval_seconds as a slow fallback if set, or manually via "Send Now". */
 	poll_disabled: boolean;
 	/** Overrides the global default poll interval for this uplink specifically (seconds). 0 means "use the default" -- some hubs only permit polling every hour or two. Meaningless when poll_disabled is set. */
 	poll_interval_seconds: number;
@@ -14,6 +14,8 @@ export interface BinkpUplink {
 	tic_password: string;
 	/** Authenticates automated echomail area subscription requests (the "AREAFIX" netmail robot) for this uplink. Reserved for when Areafix support is implemented -- stored but not used yet. */
 	areafix_password: string;
+	/** Which FTN network this uplink carries echomail for (e.g. "fsxNet", "HobbyNet"), matched case-insensitively against a message area's own Network to decide which uplink a locally-posted echo message goes out through. Empty means this uplink never sends locally-originated echomail. */
+	network: string;
 }
 
 export interface BBSConfig {
@@ -240,6 +242,7 @@ export function sendNowBinkp(
 	uplink: BinkpUplink
 ): Promise<{
 	sent: number;
+	sent_echo: number;
 	received: number;
 	received_echo: number;
 	remote_addresses: string[];

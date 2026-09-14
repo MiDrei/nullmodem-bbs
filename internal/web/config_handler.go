@@ -35,6 +35,9 @@ type binkpUplinkDTO struct {
 	// but not used yet -- see config.BinkpUplink's doc comments.
 	TICPassword     string `json:"tic_password"`
 	AreafixPassword string `json:"areafix_password"`
+	// Network labels which FTN network this uplink carries echomail
+	// for -- see config.BinkpUplink.Network's doc comment.
+	Network string `json:"network"`
 }
 
 type configDTO struct {
@@ -62,6 +65,7 @@ func toDTO(c *config.Config) configDTO {
 			PacketPassword:      u.PacketPassword,
 			TICPassword:         u.TICPassword,
 			AreafixPassword:     u.AreafixPassword,
+			Network:             u.Network,
 		}
 	}
 	addrs := c.BBS.FTNAddresses
@@ -138,6 +142,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			PacketPassword:      u.PacketPassword,
 			TICPassword:         u.TICPassword,
 			AreafixPassword:     u.AreafixPassword,
+			Network:             u.Network,
 		}
 	}
 	c.Binkp.PollIntervalSeconds = dto.BinkpDefaultPollIntervalSeconds
@@ -237,11 +242,12 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), binkpRequestTimeout)
 	defer cancel()
 
-	result, err := tosser.Poll(ctx, c.BBS.FTNAddresses, config.BinkpUplink{
+	result, err := tosser.Poll(ctx, c.BBS.FTNAddresses, c.BBS.Name, config.BinkpUplink{
 		Address:        req.Address,
 		Host:           req.Host,
 		Password:       req.Password,
 		PacketPassword: req.PacketPassword,
+		Network:        req.Network,
 	}, c.Binkp.Uplinks, s.Netmail, s.Messages, s.Users)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("poll failed: %v", err))
@@ -253,10 +259,11 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 		if len(result.SkippedFiles) > 0 {
 			skippedNote = fmt.Sprintf(", skipped %d unsupported file(s): %s", len(result.SkippedFiles), strings.Join(result.SkippedFiles, ", "))
 		}
-		s.logInfo("%s manually polled BinkP uplink %s (sent %d, received %d netmail, %d echomail%s)", claims.Subject, req.Host, result.Sent, result.Received, result.ReceivedEcho, skippedNote)
+		s.logInfo("%s manually polled BinkP uplink %s (sent %d netmail, %d echomail, received %d netmail, %d echomail%s)", claims.Subject, req.Host, result.Sent, result.SentEcho, result.Received, result.ReceivedEcho, skippedNote)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"sent":             result.Sent,
+		"sent_echo":        result.SentEcho,
 		"received":         result.Received,
 		"received_echo":    result.ReceivedEcho,
 		"remote_addresses": result.RemoteAddresses,

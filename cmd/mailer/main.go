@@ -1,13 +1,16 @@
 // Command mailer runs the BinkP mailer daemon: on a fixed, frequent
-// check, it polls whichever configured uplink is actually due (each
+// check, it dials any uplink that has netmail or echomail routed to
+// it right now -- "crash" delivery, immediate rather than waiting on
+// any interval, applying to ordinary mail just as much as
+// Crash-flagged mail -- throttled so no uplink is dialed more than
+// once per minGapBetweenAnyPolls. Absent any pending mail, it falls
+// back to polling whichever configured uplink is actually due (each
 // uplink can set its own interval -- some hubs only permit polling
-// every hour or two) to send queued netmail and pick up anything
-// waiting for us, and dials a crash-only uplink immediately once
-// there's Crash-flagged mail routed to it rather than waiting on any
-// interval. It shares its database and BBS config file with cmd/bbs
-// and cmd/web, but runs as its own process so it can be deployed,
-// restarted, and scaled independently -- e.g. as its own
-// container/service in docker-compose.
+// every hour or two) to pick up anything waiting for us. It shares
+// its database and BBS config file with cmd/bbs and cmd/web, but runs
+// as its own process so it can be deployed, restarted, and scaled
+// independently -- e.g. as its own container/service in
+// docker-compose.
 package main
 
 import (
@@ -157,11 +160,19 @@ func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, n
 	logger.Info("inbound BinkP session from %s (%v): received %d netmail, %d echomail%s", remote, res.RemoteAddresses, res.Received, res.ReceivedEcho, skippedFilesSuffix(res.SkippedFiles))
 }
 
-// checkUplinks visits every configured uplink once: a crash-only one
-// (PollDisabled) is dialed only if Crash-flagged mail is actually
-// routed to it right now; any other is dialed only once its own (or
-// the global default) poll interval has actually elapsed since it was
-// last tried, tracked persistently so a restart can't reset the
+// checkUplinks visits every configured uplink once: any uplink --
+// crash-only (PollDisabled) or not -- is dialed immediately if any
+// netmail or echomail is actually routed to it right now (see
+// dialedForPendingMail), regardless of whether that mail is
+// Crash-flagged. Only once an uplink has nothing pending does it fall
+// back to slower scheduling: a crash-only uplink gets a fallback poll
+// if it has its own explicit PollIntervalSeconds set (never the
+// global default: an uplink that wants this must say so explicitly,
+// or it stays purely crash-only, picking up mail only when something
+// becomes pending or it pushes to us the way lovlynet's inbound
+// BinkP listener does), and any other uplink is dialed once its own
+// (or the global default) poll interval has actually elapsed since it
+// was last tried, tracked persistently so a restart can't reset the
 // clock. One uplink's failure doesn't stop the others from being
 // tried on a later tick.
 //
@@ -176,7 +187,10 @@ func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, n
 // cmd/mailer's restart, and both got rejected with "Polling too
 // frequently" a second apart. Spreading dials out at most one per
 // checkInterval tick, plus this explicit gap, keeps that from
-// recurring even right after enabling several uplinks together.
+// recurring even right after enabling several uplinks together --
+// and, since checkInterval is 60s and minGapBetweenAnyPolls is 5
+// minutes, this same gap is what throttles crash delivery to at most
+// once per 5 minutes even when mail keeps arriving faster than that.
 func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail.Store, messages *message.Store, users *user.Store, pollStore *tosser.UplinkPollStore, defaultInterval time.Duration, logger *applog.Logger) {
 	if len(cfg.BBS.FTNAddresses) == 0 {
 		logger.Warn("this system's FTN address isn't configured; skipping poll")
@@ -200,34 +214,47 @@ func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail
 	}
 
 	for _, uplink := range cfg.Binkp.Uplinks {
-		if uplink.PollDisabled {
-			if dialedCrashUplink(ctx, cfg, uplink, netmailStore, messages, users, pollStore, logger) {
-				return
-			}
-			continue
-		}
-
-		last, err := pollStore.LastPolledAt(uplink.Host)
-		if err != nil {
-			logger.Warn("checking last poll time for %s (%s): %v", uplink.Address, uplink.Host, err)
-			continue
-		}
-		if !tosser.IsDue(uplink, last, now, defaultInterval) {
-			continue
-		}
-		if err := pollStore.RecordAttempt(uplink.Host); err != nil {
-			logger.Warn("recording poll attempt for %s (%s): %v", uplink.Address, uplink.Host, err)
-			continue
-		}
-
-		res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users)
-		if err != nil {
-			logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
+		if dialedForPendingMail(ctx, cfg, uplink, netmailStore, messages, users, pollStore, logger) {
 			return
 		}
-		logger.Info("polled %s (%s): sent %d, received %d netmail, %d echomail%s", uplink.Address, uplink.Host, res.Sent, res.Received, res.ReceivedEcho, skippedFilesSuffix(res.SkippedFiles))
-		return
+		if uplink.PollDisabled {
+			if uplink.PollIntervalSeconds <= 0 {
+				continue // purely crash-only: no fallback interval configured
+			}
+		}
+		if pollIfDue(ctx, cfg, uplink, netmailStore, messages, users, pollStore, defaultInterval, now, logger) {
+			return
+		}
 	}
+}
+
+// pollIfDue dials uplink if its own (or, for a uplink that doesn't
+// set PollIntervalSeconds, the global default) interval has actually
+// elapsed since it was last tried, recording the attempt and logging
+// the outcome. Reports whether it actually dialed (whether or not
+// that dial succeeded), so checkUplinks' caller can stop after one
+// dial per tick the same way it does for a crash dial.
+func pollIfDue(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, pollStore *tosser.UplinkPollStore, defaultInterval time.Duration, now time.Time, logger *applog.Logger) bool {
+	last, err := pollStore.LastPolledAt(uplink.Host)
+	if err != nil {
+		logger.Warn("checking last poll time for %s (%s): %v", uplink.Address, uplink.Host, err)
+		return false
+	}
+	if !tosser.IsDue(uplink, last, now, defaultInterval) {
+		return false
+	}
+	if err := pollStore.RecordAttempt(uplink.Host); err != nil {
+		logger.Warn("recording poll attempt for %s (%s): %v", uplink.Address, uplink.Host, err)
+		return false
+	}
+
+	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, cfg.BBS.Name, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users)
+	if err != nil {
+		logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
+		return true
+	}
+	logger.Info("polled %s (%s): sent %d netmail, %d echomail, received %d netmail, %d echomail%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.Received, res.ReceivedEcho, skippedFilesSuffix(res.SkippedFiles))
+	return true
 }
 
 // minGapBetweenAnyPolls is the minimum time between dialing any two
@@ -245,31 +272,37 @@ func skippedFilesSuffix(skipped []string) string {
 	return fmt.Sprintf(", skipped %d unsupported file(s): %s", len(skipped), strings.Join(skipped, ", "))
 }
 
-// dialedCrashUplink dials a crash-only uplink immediately, but only if
-// there's actually Crash-flagged mail routed to it right now -- the
-// whole point of marking a message Crash is not waiting around for
-// the next scheduled poll, but a crash-only uplink still shouldn't be
-// dialed needlessly. Reports whether it actually dialed (whether or
-// not that dial succeeded), so checkUplinks' caller can stop after one
-// dial per tick the same way it does for a regular poll.
-func dialedCrashUplink(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, pollStore *tosser.UplinkPollStore, logger *applog.Logger) bool {
-	routed, err := tosser.RoutedOutbound(netmailStore, uplink, cfg.Binkp.Uplinks)
+// dialedForPendingMail dials uplink immediately -- "crash" delivery,
+// ahead of any scheduled poll -- if it has any netmail or echomail
+// routed to it right now, ordinary or Crash-flagged alike (see
+// tosser.RoutedOutbound and tosser.RoutedOutboundEcho); otherwise it
+// dials nothing, leaving the uplink to checkUplinks' slower fallback
+// scheduling. Reports whether it actually dialed (whether or not that
+// dial succeeded), so checkUplinks' caller can stop after one dial
+// per tick the same way it does for a regular poll.
+func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, pollStore *tosser.UplinkPollStore, logger *applog.Logger) bool {
+	routedNetmail, err := tosser.RoutedOutbound(netmailStore, uplink, cfg.Binkp.Uplinks)
 	if err != nil {
-		logger.Warn("checking crash mail for %s (%s): %v", uplink.Address, uplink.Host, err)
+		logger.Warn("checking pending netmail for %s (%s): %v", uplink.Address, uplink.Host, err)
 		return false
 	}
-	if len(routed) == 0 {
+	routedEcho, err := tosser.RoutedOutboundEcho(messages, uplink)
+	if err != nil {
+		logger.Warn("checking pending echomail for %s (%s): %v", uplink.Address, uplink.Host, err)
+		return false
+	}
+	if len(routedNetmail) == 0 && len(routedEcho) == 0 {
 		return false
 	}
 	if err := pollStore.RecordAttempt(uplink.Host); err != nil {
 		logger.Warn("recording poll attempt for %s (%s): %v", uplink.Address, uplink.Host, err)
 		return false
 	}
-	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users)
+	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, cfg.BBS.Name, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users)
 	if err != nil {
-		logger.Warn("crash-dialing %s (%s): %v", uplink.Address, uplink.Host, err)
+		logger.Warn("crash-dialing %s (%s) for pending mail: %v", uplink.Address, uplink.Host, err)
 		return true
 	}
-	logger.Info("crash-dialed %s (%s): sent %d, received %d netmail, %d echomail%s", uplink.Address, uplink.Host, res.Sent, res.Received, res.ReceivedEcho, skippedFilesSuffix(res.SkippedFiles))
+	logger.Info("crash-dialed %s (%s) for pending mail: sent %d netmail, %d echomail, received %d netmail, %d echomail%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.Received, res.ReceivedEcho, skippedFilesSuffix(res.SkippedFiles))
 	return true
 }

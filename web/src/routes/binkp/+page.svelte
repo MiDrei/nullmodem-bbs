@@ -8,12 +8,14 @@
 		putConfig,
 		testBinkpConnection,
 		sendNowBinkp,
+		listGroups,
 		ApiError,
 		type BBSConfig,
 		type BinkpUplink
 	} from '$lib/api';
 
 	let config = $state<BBSConfig | null>(null);
+	let groups = $state<string[]>([]);
 	let loadError = $state<string | null>(null);
 	let saveError = $state<string | null>(null);
 	let saveNote = $state<string | null>(null);
@@ -30,7 +32,8 @@
 			poll_interval_seconds: 0,
 			packet_password: '',
 			tic_password: '',
-			areafix_password: ''
+			areafix_password: '',
+			network: ''
 		};
 	}
 
@@ -95,7 +98,10 @@
 		sendingIndex = index;
 		try {
 			const res = await sendNowBinkp(auth.token, uplink);
-			toast.push(`Polled uplink: sent ${res.sent}, received ${res.received}.`, 'success');
+			toast.push(
+				`Polled uplink: sent ${res.sent} netmail, ${res.sent_echo} echomail, received ${res.received} netmail, ${res.received_echo} echomail.`,
+				'success'
+			);
 		} catch (err) {
 			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
 				auth.clear();
@@ -123,6 +129,11 @@
 			}
 			loadError = err instanceof ApiError ? err.message : 'Could not load configuration.';
 		}
+		try {
+			groups = await listGroups(auth.token);
+		} catch {
+			// Non-critical: the Group field just falls back to free text.
+		}
 	});
 
 	async function handleSubmit(e: SubmitEvent) {
@@ -147,6 +158,12 @@
 		}
 	}
 </script>
+
+<datalist id="groups-list">
+	{#each groups as g (g)}
+		<option value={g}></option>
+	{/each}
+</datalist>
 
 <h1 class="mb-6 text-xl font-semibold text-slate-100">BinkP</h1>
 
@@ -298,22 +315,39 @@
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Group / Network</span>
+						<input
+							list="groups-list"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.network}
+							placeholder="fsxNet, HobbyNet… (blank if this uplink never carries outgoing echomail)"
+						/>
+						<span class="text-xs text-slate-500">
+							Matched against a message area's own Group to decide which uplink a locally-posted
+							echo message goes out through.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
 						<span class="text-slate-400">Poll interval override (seconds)</span>
 						<input
 							type="number"
 							min="0"
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
 							bind:value={uplink.poll_interval_seconds}
-							disabled={uplink.poll_disabled}
 							placeholder={`0 = use default (${config.binkp_default_poll_interval_seconds || 900}s)`}
 						/>
+						<span class="text-xs text-slate-500">
+							Still meaningful when Crash-only is checked below: a slow fallback poll, since a
+							crash-only uplink otherwise only gets dialed when there's actually mail to send.
+						</span>
 					</label>
 					<label class="flex items-center gap-2 text-sm">
 						<input type="checkbox" bind:checked={uplink.poll_disabled} />
 						<span class="text-slate-400">
-							Crash-only: exclude from the mailer's regular scheduled poll (still reachable via
-							"Send Now", and automatically dialed for Crash-flagged netmail addressed to this
-							uplink's own network)
+							Crash-only: exclude from the mailer's regular, interval-based scheduled poll --
+							still dialed immediately whenever there's netmail or echomail actually pending for
+							it (see the mailer's crash-style triggering), plus the poll interval above as a slow
+							fallback if set, or manually via "Send Now"
 						</span>
 					</label>
 					<div class="col-span-2 flex gap-2">

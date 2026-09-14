@@ -376,6 +376,68 @@ func (s *Store) PostMessage(areaID, fromUserID int64, toName, subject, body stri
 	return s.MessageByID(id)
 }
 
+// PendingEcho is one locally-posted echo message ready to be handed
+// to an uplink, paired with its area's tag (needed for the AREA:
+// kludge line internal/tosser writes ahead of the body) -- returned
+// only by PendingOutboundEcho, kept separate from the general Message
+// API since nothing else needs the tag riding along with the message.
+type PendingEcho struct {
+	Message
+	AreaTag string
+}
+
+// PendingOutboundEcho returns locally-posted messages (never one
+// tossed in from a remote system -- see Message.IsFromRemote) in
+// areas whose network matches (case-insensitively) network, that
+// haven't been handed to an uplink yet, oldest first -- what
+// internal/tosser bundles into an outbound packet alongside any
+// pending netmail. network must be non-empty (an empty network,
+// meaning a local-only area, never has anywhere to send to) or this
+// returns nothing at all rather than matching every arealess post.
+func (s *Store) PendingOutboundEcho(network string) ([]PendingEcho, error) {
+	if network == "" {
+		return nil, nil
+	}
+	rows, err := s.db.Query(
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at, a.tag
+		 FROM messages m
+		 JOIN message_areas a ON a.id = m.area_id
+		 LEFT JOIN users u ON u.id = m.from_user_id
+		 WHERE m.from_user_id IS NOT NULL AND m.sent_at IS NULL AND a.network != '' AND LOWER(a.network) = LOWER(?)
+		 ORDER BY m.posted_at ASC, m.id ASC`,
+		network,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("message: pending outbound echo for network %q: %w", network, err)
+	}
+	defer rows.Close()
+
+	var out []PendingEcho
+	for rows.Next() {
+		var p PendingEcho
+		if err := rows.Scan(&p.ID, &p.AreaID, &p.FromUserID, &p.FromName, &p.ToName, &p.Subject, &p.Body, &p.PostedAt, &p.AreaTag); err != nil {
+			return nil, fmt.Errorf("message: scan pending outbound echo row: %w", err)
+		}
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("message: pending outbound echo for network %q: %w", network, err)
+	}
+	return out, nil
+}
+
+// MarkSent records that messageID was successfully handed off to (and
+// acknowledged by) an uplink -- see internal/tosser.Poll. Idempotent.
+func (s *Store) MarkSent(messageID int64) error {
+	if _, err := s.db.Exec(
+		`UPDATE messages SET sent_at = CURRENT_TIMESTAMP WHERE id = ? AND sent_at IS NULL`,
+		messageID,
+	); err != nil {
+		return fmt.Errorf("message: mark %d sent: %w", messageID, err)
+	}
+	return nil
+}
+
 // ReceiveEcho adds a message internal/tosser tossed in from a remote
 // FTN system's echomail -- PostMessage's counterpart for a message
 // with no local author account. postedAt is the message's own Written

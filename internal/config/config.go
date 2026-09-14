@@ -82,13 +82,18 @@ type BinkpUplink struct {
 	// from PacketPassword below. Empty means no session password is
 	// sent.
 	Password string `yaml:"password"`
-	// PollDisabled excludes this uplink from cmd/mailer's regular
-	// scheduled poll -- for a link that should only ever be dialed
-	// for Crash-flagged netmail specifically addressed to its own
-	// network (see internal/tosser's routing), or purely on demand
-	// via the web admin's "Send Now" button (which ignores this
-	// flag). Ordinary mail for that uplink's network still flows
-	// through whichever uplink IS being polled regularly.
+	// PollDisabled excludes this uplink from cmd/mailer's regular,
+	// interval-based scheduled poll -- for a link that should only
+	// ever be dialed when there's actually something to send (any
+	// pending netmail or echomail routed to it -- see cmd/mailer's
+	// crash-style triggering, not just Crash-flagged netmail
+	// specifically), plus its own PollIntervalSeconds as a slow
+	// fallback if set (needed for a link with no way to push mail
+	// to us the way internal/tosser.Answer lets a configured
+	// uplink do -- otherwise it would only ever receive anything
+	// when Crash-flagged netmail happened to be routed to it), or
+	// purely on demand via the web admin's "Send Now" button
+	// (which ignores this flag entirely).
 	PollDisabled bool `yaml:"poll_disabled"`
 	// PollIntervalSeconds overrides Binkp.PollIntervalSeconds for
 	// this uplink specifically -- some hubs only permit polling every
@@ -114,6 +119,15 @@ type BinkpUplink struct {
 	// robot. Reserved for when Areafix support is implemented in
 	// internal/tosser -- stored but not used yet.
 	AreafixPassword string `yaml:"areafix_password"`
+	// Network labels which FTN network this uplink carries echomail
+	// for (e.g. "fsxNet", "HobbyNet"), matched case-insensitively
+	// against a message area's own Network field (set by the sysop
+	// when approving/editing an area -- see internal/message.Area) to
+	// decide which uplink a locally-posted echo message goes out
+	// through. Empty means this uplink never carries any locally-
+	// originated echomail (fine for a network we only read, never
+	// post to).
+	Network string `yaml:"network"`
 }
 
 // PrimaryFTNAddress returns c's first configured FTN address, or "" if

@@ -102,6 +102,10 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "messages", "sent_at", "TIMESTAMP"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	// Created here rather than in schema.sql: on an already-existing
 	// database, schema.sql runs (see above) before the ensureColumn
 	// call just above adds the msgid column, so an index referencing

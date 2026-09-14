@@ -60,7 +60,13 @@ CREATE TABLE IF NOT EXISTS messages (
     -- from seeing our M_GOT (see idx_messages_area_msgid below and
     -- FTS-1026's PendingFiles requirement).
     msgid         TEXT NOT NULL DEFAULT '',
-    posted_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    posted_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- When a locally-posted message (from_user_id set) was last handed
+    -- off to (and acknowledged by) an uplink -- see internal/tosser's
+    -- PendingOutboundEcho/MarkSent. NULL for a message tossed in from
+    -- a remote system, and for a local post not sent out yet, mirrors
+    -- netmail_messages.sent_at.
+    sent_at       TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_area_posted ON messages(area_id, posted_at);

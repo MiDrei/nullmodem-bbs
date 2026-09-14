@@ -644,3 +644,93 @@ func TestReceiveEchoNeverDeduplicatesAnEmptyMsgID(t *testing.T) {
 		t.Fatalf("ListMessages = %+v, want two separate messages", msgs)
 	}
 }
+
+// TestPendingOutboundEchoReturnsOnlyLocalPostsForMatchingNetwork locks
+// in outbound echomail support: only locally-posted messages (never
+// one tossed in from a remote system) in an area whose network
+// matches (case-insensitively) count, and only if not already sent.
+func TestPendingOutboundEchoReturnsOnlyLocalPostsForMatchingNetwork(t *testing.T) {
+	s, users := newTestStore(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	fsxArea, err := s.CreateArea("fsx_gen", "fsxNet General", "", "fsxNet", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea fsx: %v", err)
+	}
+	otherNetArea, err := s.CreateArea("hobby_gen", "HobbyNet General", "", "HobbyNet", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea hobby: %v", err)
+	}
+	localArea, err := s.CreateArea("local", "Local Chat", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea local: %v", err)
+	}
+
+	localPost, err := s.PostMessage(fsxArea.ID, alice.ID, "All", "Hi from alice", "hello fsxNet")
+	if err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, _, err := s.ReceiveEcho(fsxArea.ID, "Someone Remote", "Hi from remote", "hello", "21:3/100 abc", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
+	}
+	if _, err := s.PostMessage(otherNetArea.ID, alice.ID, "All", "Wrong network", "should not appear"); err != nil {
+		t.Fatalf("PostMessage otherNet: %v", err)
+	}
+	if _, err := s.PostMessage(localArea.ID, alice.ID, "All", "Local only", "no network at all"); err != nil {
+		t.Fatalf("PostMessage local: %v", err)
+	}
+
+	// Network matching must be case-insensitive: the config-side label
+	// (a sysop-set BinkpUplink.Network) won't always match the area's
+	// own casing exactly.
+	pending, err := s.PendingOutboundEcho("fsxnet")
+	if err != nil {
+		t.Fatalf("PendingOutboundEcho: %v", err)
+	}
+	if len(pending) != 1 {
+		t.Fatalf("PendingOutboundEcho = %+v, want exactly 1 (the local fsxNet post)", pending)
+	}
+	if pending[0].ID != localPost.ID {
+		t.Fatalf("PendingOutboundEcho returned message %d, want the local post %d", pending[0].ID, localPost.ID)
+	}
+	if pending[0].AreaTag != "fsx_gen" {
+		t.Fatalf("PendingOutboundEcho AreaTag = %q, want %q", pending[0].AreaTag, "fsx_gen")
+	}
+
+	if err := s.MarkSent(pending[0].ID); err != nil {
+		t.Fatalf("MarkSent: %v", err)
+	}
+	pending, err = s.PendingOutboundEcho("fsxnet")
+	if err != nil {
+		t.Fatalf("PendingOutboundEcho after MarkSent: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("PendingOutboundEcho after MarkSent = %+v, want empty", pending)
+	}
+}
+
+func TestPendingOutboundEchoEmptyNetworkMatchesNothing(t *testing.T) {
+	s, users := newTestStore(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.CreateArea("local", "Local Chat", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if _, err := s.PostMessage(area.ID, alice.ID, "All", "Hi", "local only, no network"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	pending, err := s.PendingOutboundEcho("")
+	if err != nil {
+		t.Fatalf("PendingOutboundEcho: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("PendingOutboundEcho(\"\") = %+v, want empty even though the area's own network is also \"\"", pending)
+	}
+}

@@ -1,8 +1,10 @@
 package tosser
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"path/filepath"
@@ -18,6 +20,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/swissmaik/nullmodem/internal/version"
 )
 
 // runFakeUplink starts a goroutine answering exactly one BinkP session
@@ -87,7 +90,7 @@ func TestPollSendsPendingNetmailAndMarksSent(t *testing.T) {
 		},
 	})
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
 	}, nil, netmailStore, messages, users)
@@ -127,14 +130,204 @@ func TestPollSendsPendingNetmailAndMarksSent(t *testing.T) {
 	// Our own address has a point (21:3/194.1), so internal/mail
 	// prepends an FMPT kludge to the body -- see internal/mail's
 	// addressingKludges.
-	if msg.Subject != "Hi remote" || !strings.HasSuffix(msg.Body, "hello there") {
-		t.Fatalf("sent message = %+v, want Subject %q Body ending in %q", msg, "Hi remote", "hello there")
+	if msg.Subject != "Hi remote" || !strings.Contains(msg.Body, "hello there") {
+		t.Fatalf("sent message = %+v, want Subject %q Body containing %q", msg, "Hi remote", "hello there")
 	}
 	if msg.ToName != "Mike Dreier" {
 		t.Fatalf("sent message ToName = %q, want %q", msg.ToName, "Mike Dreier")
 	}
 	if msg.FromName != "alice" {
 		t.Fatalf("sent message FromName = %q, want %q", msg.FromName, "alice")
+	}
+	// appendTearline stamps an FTS-0004 tearline and origin line at
+	// the end of the body, identifying this BBS and the AKA it
+	// presented to this specific uplink (21:3/194.1, since its zone 21
+	// matches the uplink's own zone -- see ourAddressForUplink).
+	wantTearline := "--- " + version.Version
+	if !strings.Contains(msg.Body, wantTearline) {
+		t.Fatalf("sent message body = %q, want it to contain tearline %q", msg.Body, wantTearline)
+	}
+	wantOrigin := "* Origin: Test BBS (21:3/194.1)"
+	if !strings.Contains(msg.Body, wantOrigin) {
+		t.Fatalf("sent message body = %q, want it to contain origin line %q", msg.Body, wantOrigin)
+	}
+}
+
+// TestPollSendsPendingOutboundEchoAndMarksSent locks in outbound
+// echomail support: a locally-posted message in an area whose Network
+// matches the uplink's own configured Network is bundled into the
+// outbound packet with a bare "AREA:tag" first body line and a
+// generated MSGID (see buildPacket), sent, and marked as sent on
+// success -- mirroring TestPollSendsPendingNetmailAndMarksSent for
+// netmail.
+func TestPollSendsPendingOutboundEchoAndMarksSent(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	area, err := messages.CreateArea("fsx_gen", "fsxNet General", "", "fsxNet", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	posted, err := messages.PostMessage(area.ID, alice.ID, "All", "Hi fsxNet", "hello from alice")
+	if err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	var mu sync.Mutex
+	var received []byte
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		ReceiveFile: func(f binkp.InboundFile, r io.Reader) error {
+			data, err := io.ReadAll(r)
+			mu.Lock()
+			received = data
+			mu.Unlock()
+			return err
+		},
+	})
+
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
+		Address: "21:3/194",
+		Host:    addr,
+		Network: "fsxNet",
+	}, nil, netmailStore, messages, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+
+	if res.SentEcho != 1 {
+		t.Fatalf("Result.SentEcho = %d, want 1", res.SentEcho)
+	}
+	if res.Sent != 0 {
+		t.Fatalf("Result.Sent = %d, want 0 -- nothing netmail was queued", res.Sent)
+	}
+
+	pending, err := messages.PendingOutboundEcho("fsxNet")
+	if err != nil {
+		t.Fatalf("PendingOutboundEcho: %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("PendingOutboundEcho after Poll = %+v, want empty (message should be marked sent)", pending)
+	}
+
+	mu.Lock()
+	pkt := received
+	mu.Unlock()
+	if len(pkt) == 0 {
+		t.Fatal("uplink never received the outbound packet")
+	}
+	p, err := mail.ReadPacket(bytes.NewReader(pkt))
+	if err != nil {
+		t.Fatalf("parsing sent packet: %v", err)
+	}
+	if len(p.Messages) != 1 {
+		t.Fatalf("sent packet has %d messages, want 1", len(p.Messages))
+	}
+	msg := p.Messages[0]
+	if msg.ToName != "All" {
+		t.Fatalf("sent echo message ToName = %q, want %q", msg.ToName, "All")
+	}
+	if msg.FromName != "alice" {
+		t.Fatalf("sent echo message FromName = %q, want %q", msg.FromName, "alice")
+	}
+	wantAreaLine := "AREA:fsx_gen"
+	if !strings.HasPrefix(msg.Body, wantAreaLine) {
+		t.Fatalf("sent echo message body = %q, want it to start with %q", msg.Body, wantAreaLine)
+	}
+	wantMsgID := fmt.Sprintf("MSGID: 21:3/194 %08x", posted.ID)
+	if !strings.Contains(msg.Body, wantMsgID) {
+		t.Fatalf("sent echo message body = %q, want it to contain %q", msg.Body, wantMsgID)
+	}
+	if !strings.Contains(msg.Body, "hello from alice") {
+		t.Fatalf("sent echo message body = %q, want it to contain the original text", msg.Body)
+	}
+	wantTearline := "--- " + version.Version
+	if !strings.Contains(msg.Body, wantTearline) {
+		t.Fatalf("sent echo message body = %q, want it to contain tearline %q", msg.Body, wantTearline)
+	}
+	wantOrigin := "* Origin: Test BBS (21:3/194)"
+	if !strings.Contains(msg.Body, wantOrigin) {
+		t.Fatalf("sent echo message body = %q, want it to contain origin line %q", msg.Body, wantOrigin)
+	}
+}
+
+// TestPollStampsOriginWithTheAKAMatchingTheUplinksOwnZone locks in
+// ourAddressForUplink: a system configured with more than one AKA
+// (one per FTN network, e.g. fsxNet and HobbyNet through the same
+// physical hub) must stamp outbound mail for a given uplink with
+// whichever AKA shares that uplink's own configured zone -- not just
+// whichever AKA happens to be listed first -- so the origin line and
+// packet header address are correct for that specific network.
+func TestPollStampsOriginWithTheAKAMatchingTheUplinksOwnZone(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	area, err := messages.CreateArea("hobby_gen", "HobbyNet General", "", "HobbyNet", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if _, err := messages.PostMessage(area.ID, alice.ID, "All", "Hi HobbyNet", "hello from alice"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	var mu sync.Mutex
+	var received []byte
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"954:700/1"},
+		ReceiveFile: func(f binkp.InboundFile, r io.Reader) error {
+			data, err := io.ReadAll(r)
+			mu.Lock()
+			received = data
+			mu.Unlock()
+			return err
+		},
+	})
+
+	// Two AKAs, on two different zones -- the uplink's own zone (954)
+	// doesn't match the first-listed AKA (21:3/194.1), only the
+	// second (954:700/14).
+	res, err := Poll(context.Background(), []string{"21:3/194.1", "954:700/14"}, "Test BBS", config.BinkpUplink{
+		Address: "954:700/1",
+		Host:    addr,
+		Network: "HobbyNet",
+	}, nil, netmailStore, messages, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+	if res.SentEcho != 1 {
+		t.Fatalf("Result.SentEcho = %d, want 1", res.SentEcho)
+	}
+
+	mu.Lock()
+	pkt := received
+	mu.Unlock()
+	p, err := mail.ReadPacket(bytes.NewReader(pkt))
+	if err != nil {
+		t.Fatalf("parsing sent packet: %v", err)
+	}
+	if p.Header.OrigAddr.String() != "954:700/14" {
+		t.Fatalf("packet header OrigAddr = %s, want %s (the AKA sharing the uplink's own zone)", p.Header.OrigAddr, "954:700/14")
+	}
+	if len(p.Messages) != 1 {
+		t.Fatalf("sent packet has %d messages, want 1", len(p.Messages))
+	}
+	wantOrigin := "* Origin: Test BBS (954:700/14)"
+	if !strings.Contains(p.Messages[0].Body, wantOrigin) {
+		t.Fatalf("sent echo message body = %q, want it to contain origin line %q", p.Messages[0].Body, wantOrigin)
+	}
+	wantMsgID := "MSGID: 954:700/14 "
+	if !strings.Contains(p.Messages[0].Body, wantMsgID) {
+		t.Fatalf("sent echo message body = %q, want it to contain %q", p.Messages[0].Body, wantMsgID)
 	}
 }
 
@@ -173,7 +366,7 @@ func TestPollReceivesInboundNetmailForLocalUser(t *testing.T) {
 		},
 	})
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
 	}, nil, netmailStore, messages, users)
@@ -226,7 +419,7 @@ func TestPollStampsPacketPasswordOnOutboundPacket(t *testing.T) {
 		},
 	})
 
-	_, err = Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	_, err = Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "pktpass",
@@ -280,7 +473,7 @@ func TestPollRejectsInboundPacketWithWrongPassword(t *testing.T) {
 		},
 	})
 
-	_, err = Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	_, err = Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "rightpw",
@@ -330,7 +523,7 @@ func TestPollAcceptsInboundPacketWithMatchingPassword(t *testing.T) {
 		},
 	})
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "rightpw",
@@ -389,7 +582,7 @@ func TestPollAcceptsInboundPacketPasswordCaseInsensitively(t *testing.T) {
 		},
 	})
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "rightpw", // mixed/lower case configured, uppercase on the wire
@@ -462,7 +655,7 @@ func TestPollAcceptsInboundPacketPasswordFromASiblingUplinkOnTheSameHost(t *test
 		PacketPassword: "hobbynet",
 	}
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, fsxnetUplink,
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", fsxnetUplink,
 		[]config.BinkpUplink{fsxnetUplink, hobbynetUplink}, netmailStore, messages, users)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
@@ -506,7 +699,7 @@ func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 		},
 	})
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
 	}, nil, netmailStore, messages, users)
@@ -523,14 +716,14 @@ func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 
 func TestPollRejectsInvalidOwnAddress(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
-	if _, err := Poll(context.Background(), []string{"not-an-address"}, config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users); err == nil {
+	if _, err := Poll(context.Background(), []string{"not-an-address"}, "Test BBS", config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users); err == nil {
 		t.Fatal("Poll with an invalid own FTN address: want error, got nil")
 	}
 }
 
 func TestPollRejectsNoOwnAddresses(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
-	if _, err := Poll(context.Background(), nil, config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users); err == nil {
+	if _, err := Poll(context.Background(), nil, "Test BBS", config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users); err == nil {
 		t.Fatal("Poll with no own FTN addresses: want error, got nil")
 	}
 }
@@ -545,7 +738,7 @@ func TestPollPresentsAllConfiguredAKAsToUplink(t *testing.T) {
 	// A point reachable through the same uplink under two different
 	// FTN networks (see the 954:700/14 AKA this feature was built
 	// for) must present both addresses in the same BinkP session.
-	_, err := Poll(context.Background(), []string{"21:3/194.1", "954:700/14"}, config.BinkpUplink{
+	_, err := Poll(context.Background(), []string{"21:3/194.1", "954:700/14"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
 	}, nil, netmailStore, messages, users)
@@ -587,7 +780,7 @@ func TestPollErrorsWhenUplinkUnreachable(t *testing.T) {
 	addr := ln.Addr().String()
 	ln.Close()
 
-	if _, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{Address: "21:3/194", Host: addr}, nil, netmailStore, messages, users); err == nil {
+	if _, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{Address: "21:3/194", Host: addr}, nil, netmailStore, messages, users); err == nil {
 		t.Fatal("Poll against an unreachable uplink: want error, got nil")
 	}
 
@@ -636,7 +829,7 @@ func TestPollTossesEchomailIntoAutoCreatedPendingArea(t *testing.T) {
 		},
 	})
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
 	}, nil, netmailStore, messages, users)
@@ -759,7 +952,7 @@ func TestPollSkipsNonPacketInboundFilesInsteadOfAbortingTheSession(t *testing.T)
 		},
 	})
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
 	}, nil, netmailStore, messages, users)
@@ -787,6 +980,150 @@ func TestPollSkipsNonPacketInboundFilesInsteadOfAbortingTheSession(t *testing.T)
 	}
 	if len(msgs) != 1 {
 		t.Fatalf("ListMessages = %+v, want 1 message from the .pkt file", msgs)
+	}
+}
+
+func TestIsPacketBundleFileRecognizesFTS5005Extensions(t *testing.T) {
+	cases := []struct {
+		name string
+		want bool
+	}{
+		{"a81ab500.mo0", true},  // observed live, a real lovlynet push
+		{"12345678.su9", true},
+		{"abcdef01.THA", true}, // day code and sequence letter both case-insensitive
+		{"12345678.pkt", false},
+		{"a5d42c40.tic", false},
+		{"12345678.mo", false},   // missing the sequence character
+		{"12345678.moxy", false}, // sequence must be exactly one character
+		{"12345678.xx0", false},  // "xx" isn't a day code
+		{"noext", false},
+	}
+	for _, c := range cases {
+		if got := isPacketBundleFile(c.name); got != c.want {
+			t.Errorf("isPacketBundleFile(%q) = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// buildTestZIP packs files (name -> content) into an in-memory ZIP
+// archive, for exercising extractPacketBundle without a fixture file.
+func buildTestZIP(t *testing.T, files map[string][]byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, content := range files {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("zip.Create(%q): %v", name, err)
+		}
+		if _, err := w.Write(content); err != nil {
+			t.Fatalf("zip write %q: %v", name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip.Close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestExtractPacketBundleUnzipsRealZIP(t *testing.T) {
+	data := buildTestZIP(t, map[string][]byte{
+		"12345678.pkt": []byte("first packet contents"),
+		"87654321.pkt": []byte("second packet contents"),
+	})
+
+	packets, err := extractPacketBundle("a81ab500.mo0", data)
+	if err != nil {
+		t.Fatalf("extractPacketBundle: %v", err)
+	}
+	if len(packets) != 2 {
+		t.Fatalf("extractPacketBundle returned %d packets, want 2", len(packets))
+	}
+	got := map[string]string{}
+	for _, p := range packets {
+		got[p.name] = string(p.data)
+	}
+	if got["12345678.pkt"] != "first packet contents" || got["87654321.pkt"] != "second packet contents" {
+		t.Fatalf("extracted packets = %+v, want the two original files' contents", got)
+	}
+}
+
+func TestExtractPacketBundleRejectsUnrecognizedFormat(t *testing.T) {
+	_, err := extractPacketBundle("a81ab500.mo0", []byte("not a zip file at all"))
+	if err == nil {
+		t.Fatal("extractPacketBundle: expected an error for an unrecognized archive format")
+	}
+}
+
+// TestPollExtractsAndTossesPacketsFromArcMailBundle locks in a real
+// production fix: a real lovlynet push included a genuine FTS-5005
+// ArcMail bundle (a .mo0 file) alongside its day-of-week+sequence
+// naming, which fell through to the generic "not a packet" path and
+// got skipped -- silently losing whatever mail it actually contained.
+// A recognized bundle must be unzipped and every packet inside it
+// tossed exactly as a bare .pkt file would be.
+func TestPollExtractsAndTossesPacketsFromArcMailBundle(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	var buf bytes.Buffer
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 195},
+		Created:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{
+		ToName:   "All",
+		FromName: "Someone",
+		Subject:  "Bundled",
+		Body:     "AREA:FSXNET_GENERAL\rhello from inside a bundle\r",
+	}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	bundleData := buildTestZIP(t, map[string][]byte{"12345678.pkt": buf.Bytes()})
+	bundleBuf := bytes.NewBuffer(bundleData)
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "a81ab500.mo0", Size: int64(bundleBuf.Len()), ModTime: time.Now(), Data: bundleBuf},
+		},
+	})
+
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
+		Address: "21:3/194",
+		Host:    addr,
+	}, nil, netmailStore, messages, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+
+	if res.ReceivedEcho != 1 {
+		t.Fatalf("Result.ReceivedEcho = %d, want 1 -- the bundled packet's mail should be tossed", res.ReceivedEcho)
+	}
+	if len(res.SkippedFiles) != 0 {
+		t.Fatalf("Result.SkippedFiles = %v, want empty -- the bundle should be extracted, not skipped", res.SkippedFiles)
+	}
+
+	area, err := messages.AreaByTag("FSXNET_GENERAL")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	msgs, err := messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(msgs) != 1 || msgs[0].Subject != "Bundled" {
+		t.Fatalf("ListMessages = %+v, want 1 message with subject %q", msgs, "Bundled")
 	}
 }
 
@@ -825,7 +1162,7 @@ func TestPollSkipsEchomailAlreadyTossedUnderTheSameMsgID(t *testing.T) {
 				{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
 			},
 		})
-		res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+		res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 			Address: "21:3/194",
 			Host:    addr,
 		}, nil, netmailStore, messages, users)
@@ -897,7 +1234,7 @@ func TestPollTossesEchomailIntoExistingApprovedArea(t *testing.T) {
 		},
 	})
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, config.BinkpUplink{
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
 	}, nil, netmailStore, messages, users)
