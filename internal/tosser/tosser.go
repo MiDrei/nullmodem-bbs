@@ -109,10 +109,12 @@ func Poll(ctx context.Context, ourAddresses []string, uplink config.BinkpUplink,
 		})
 	}
 
+	acceptedPasswords := acceptedPacketPasswords(uplink, allUplinks)
+
 	res := &Result{}
 	var receiveErr error
 	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
-		stats, err := tossInbound(r, uplink.PacketPassword, netmailStore, messages, users)
+		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users)
 		res.Received += stats.netmail
 		res.ReceivedEcho += stats.echo
 		if err != nil {
@@ -196,6 +198,41 @@ func routeOutbound(pending []netmail.Message, target config.BinkpUplink, allUpli
 		}
 	}
 	return routed
+}
+
+// acceptedPacketPasswords returns every distinct, non-empty
+// PacketPassword configured for an uplink sharing primary's Host --
+// primary's own password is always included even if primary isn't (or
+// isn't yet) one of allUplinks, e.g. a manual "Send Now" dial using an
+// address/host typed directly into the web admin rather than a saved
+// config entry. A real hub can serve more than one of our AKAs/
+// networks over what's really one physical link even though our own
+// config models each as a separate uplink entry with its own packet
+// password (see tossInbound's doc comment) -- accepting any of them
+// avoids wrongly rejecting, and aborting the whole session over, a
+// file packed under a sibling network's password.
+func acceptedPacketPasswords(primary config.BinkpUplink, allUplinks []config.BinkpUplink) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(pw string) {
+		if pw == "" {
+			return
+		}
+		key := strings.ToLower(pw)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, pw)
+	}
+
+	add(primary.PacketPassword)
+	for _, u := range allUplinks {
+		if u.Host == primary.Host {
+			add(u.PacketPassword)
+		}
+	}
+	return out
 }
 
 // uplinkForDestination returns the configured uplink whose own
@@ -291,16 +328,23 @@ type inboundStats struct {
 //     so nothing is silently dropped even though there's nowhere
 //     local to put it yet.
 //
-// If expectedPassword is non-empty, the packet's own header password
-// (internal/mail.PacketHeader.Password) must match it case-
-// insensitively -- FTN packet passwords, like most FTN passwords, are
-// conventionally uppercased by tossers regardless of how a sysop
-// typed them, confirmed against a real uplink that stamped its
-// packets in all caps while our configured value used mixed case. A
-// mismatch discards the rest of the packet (see below) before any
-// message in it is stored, since a wrong packet password indicates
-// either a misconfiguration or a forged packet, not partial content
-// to salvage.
+// If expectedPasswords is non-empty, the packet's own header password
+// (internal/mail.PacketHeader.Password) must match at least one of
+// them case-insensitively -- FTN packet passwords, like most FTN
+// passwords, are conventionally uppercased by tossers regardless of
+// how a sysop typed them, confirmed against a real uplink that
+// stamped its packets in all caps while our configured value used
+// mixed case. Accepting any password configured for the host (see
+// Poll's acceptedPacketPasswords), not just the one belonging to the
+// uplink entry actually dialed, matters because a single hub can pack
+// mail for more than one of our AKAs/networks into files sent over
+// the very same BinkP session, each stamped with that network's own
+// packet password -- observed live where one host (n3.z21.bbs.dege.au)
+// identified itself in the handshake as both our fsxNet and HobbyNet
+// uplink. A mismatch against every candidate discards the rest of the
+// packet (see below) before any message in it is stored, since a
+// wrong packet password indicates either a misconfiguration or a
+// forged packet, not partial content to salvage.
 //
 // Whatever the outcome, r is always drained to completion before
 // returning: binkp.Config.ReceiveFile's contract requires reading
@@ -309,7 +353,7 @@ type inboundStats struct {
 // keeps consuming them -- returning early, as an earlier version of
 // this password check did, deadlocks that writer forever instead of
 // cleanly failing the session.
-func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (stats inboundStats, err error) {
+func tossInbound(r io.Reader, expectedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (stats inboundStats, err error) {
 	defer func() {
 		if _, drainErr := io.Copy(io.Discard, r); drainErr != nil && err == nil {
 			err = fmt.Errorf("tosser: draining inbound packet: %w", drainErr)
@@ -320,8 +364,17 @@ func tossInbound(r io.Reader, expectedPassword string, netmailStore *netmail.Sto
 	if err != nil {
 		return stats, fmt.Errorf("tosser: reading inbound packet: %w", err)
 	}
-	if expectedPassword != "" && !strings.EqualFold(pr.Header.Password, expectedPassword) {
-		return stats, fmt.Errorf("tosser: inbound packet password does not match this uplink's configured packet password")
+	if len(expectedPasswords) > 0 {
+		matched := false
+		for _, pw := range expectedPasswords {
+			if strings.EqualFold(pr.Header.Password, pw) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return stats, fmt.Errorf("tosser: inbound packet password does not match any configured packet password for this host")
+		}
 	}
 
 	for {

@@ -405,6 +405,76 @@ func TestPollAcceptsInboundPacketPasswordCaseInsensitively(t *testing.T) {
 	}
 }
 
+// TestPollAcceptsInboundPacketPasswordFromASiblingUplinkOnTheSameHost
+// locks in a real interop fix: a single hub can serve more than one of
+// our AKAs/networks over what our config models as separate uplink
+// entries (one per network, each with its own packet password) but is
+// really one physical link -- observed live where one host identified
+// itself in the handshake as both our fsxNet and HobbyNet uplink. A
+// file packed under the *other* configured uplink's password, as long
+// as it shares the same Host, must still be accepted rather than
+// aborting the whole session.
+func TestPollAcceptsInboundPacketPasswordFromASiblingUplinkOnTheSameHost(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	var buf bytes.Buffer
+	// Both passwords below are kept to 8 characters or fewer:
+	// internal/mail's packet header password field is a fixed 8 bytes
+	// (see passwordField), so anything longer would silently truncate
+	// on the wire and this test would be asserting against a value
+	// that was never actually sent.
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 195},
+		Created:  time.Now(),
+		Password: "hobbynet",
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{
+		ToName:   "All",
+		FromName: "Someone",
+		Subject:  "Hi from the other network",
+		Body:     "AREA:HOBBY_GENERAL\rbody text",
+	}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+		OutboundFiles: []binkp.OutboundFile{
+			{Name: "12345678.pkt", Size: int64(buf.Len()), ModTime: time.Now(), Data: &buf},
+		},
+	})
+
+	fsxnetUplink := config.BinkpUplink{
+		Address:        "21:3/100",
+		Host:           addr,
+		PacketPassword: "fsxnetpw",
+	}
+	hobbynetUplink := config.BinkpUplink{
+		Address:        "954:700/1",
+		Host:           addr,
+		PacketPassword: "hobbynet",
+	}
+
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, fsxnetUplink,
+		[]config.BinkpUplink{fsxnetUplink, hobbynetUplink}, netmailStore, messages, users)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-done; out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+	if res.ReceivedEcho != 1 {
+		t.Fatalf("Result.ReceivedEcho = %d, want 1", res.ReceivedEcho)
+	}
+}
+
 func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
 
