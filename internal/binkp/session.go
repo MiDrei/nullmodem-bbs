@@ -78,9 +78,32 @@ const (
 	roleAnswerer
 )
 
+// closeGracePeriod bounds how long Dial waits, once a session has
+// finished successfully, to see whether the peer closes the
+// connection on its own before this side does. A var rather than a
+// const so tests can shrink it.
+//
+// Modeled on binkterm-php's BinkpSession -- a known-working real-
+// world implementation this project already treats as a reference
+// (see CLAUDE.md) -- which waits (3s, by default) for exactly this
+// reason before self-closing. Closing the instant we consider
+// ourselves done risks a race where the peer -- typically an
+// answerer, like a real hub -- hasn't yet finished reading/
+// processing our trailing M_GOT when our end hangs up: observed
+// live, a real uplink resent the exact same mail on every single
+// poll despite our M_GOT always going out without a write error,
+// consistent with the peer never actually registering it. In
+// practice this costs nothing against a peer that closes its own end
+// promptly (including this package's own Answer side, used
+// throughout this package's tests) -- the read below returns io.EOF
+// almost immediately and the wait ends early; the full period is
+// only ever spent against a peer that lingers.
+var closeGracePeriod = 3 * time.Second
+
 // Dial opens an originating (caller) BinkP session to addr
-// ("host:port"), runs the full handshake and file transfer, and
-// closes the connection before returning.
+// ("host:port"), runs the full handshake and file transfer, gives the
+// peer a brief grace period to close the connection on its own (see
+// closeGracePeriod), and closes the connection before returning.
 func Dial(ctx context.Context, addr string, cfg Config) (*Result, error) {
 	if len(cfg.OurAddresses) == 0 {
 		return nil, fmt.Errorf("binkp: dial %s: no OurAddresses configured", addr)
@@ -91,7 +114,32 @@ func Dial(ctx context.Context, addr string, cfg Config) (*Result, error) {
 		return nil, fmt.Errorf("binkp: dial %s: %w", addr, err)
 	}
 	defer conn.Close()
-	return runSession(ctx, conn, cfg, roleOriginator)
+	result, err := runSession(ctx, conn, cfg, roleOriginator)
+	if err != nil {
+		return nil, err
+	}
+	waitForPeerToCloseFirst(conn)
+	return result, nil
+}
+
+// waitForPeerToCloseFirst gives the peer up to closeGracePeriod to
+// close conn on its own (see closeGracePeriod's doc comment) before
+// Dial's own deferred Close runs. Best-effort and silent: if conn
+// doesn't support read deadlines, or the peer sends more bytes
+// instead of closing, this just returns and lets the caller's Close
+// happen as it would have anyway -- the session itself already
+// finished successfully by the time this runs, so there's nothing
+// left here to interpret or fail on.
+func waitForPeerToCloseFirst(conn net.Conn) {
+	if err := conn.SetReadDeadline(time.Now().Add(closeGracePeriod)); err != nil {
+		return
+	}
+	var buf [256]byte
+	for {
+		if _, err := conn.Read(buf[:]); err != nil {
+			return
+		}
+	}
 }
 
 // Answer runs an answering (callee) BinkP session over an
@@ -533,9 +581,11 @@ func (s *session) receiveOneFile(arg string) error {
 		return fmt.Errorf("malformed M_FILE size in %q: %w", arg, err)
 	}
 	var modTime time.Time
+	var modTimeUnix int64
 	if len(fields) >= 3 {
 		if unixTime, err := strconv.ParseInt(fields[2], 10, 64); err == nil {
 			modTime = time.Unix(unixTime, 0)
+			modTimeUnix = unixTime
 		}
 	}
 
@@ -584,7 +634,20 @@ func (s *session) receiveOneFile(arg string) error {
 	// arrived intact" receipt, not an application-layer "I filed this
 	// away successfully" signal, so acking it before ReceiveFile
 	// returns is correct even if ReceiveFile then fails.
-	if err := s.send(MGOT, fmt.Sprintf("%s %d", name, size)); err != nil {
+	//
+	// M_GOT carries three fields -- name, size, AND the same timestamp
+	// M_FILE announced -- not just name and size: confirmed against
+	// binkd's own source (protocol.c's GOT()/tfile_cmp()), which
+	// requires exactly 3 arguments and matches all three against the
+	// outbound file record, and against binkterm-php's own M_GOT
+	// construction (this project's reference implementation, see
+	// CLAUDE.md). A 2-field M_GOT fails binkd's parse_msg_args
+	// entirely, which replies M_ERR and aborts the session -- a very
+	// plausible explanation for a peer's mail never registering as
+	// delivered and for a connection dying right after we've
+	// acknowledged a file, both observed live against a real uplink
+	// before this fix.
+	if err := s.send(MGOT, fmt.Sprintf("%s %d %d", name, size, modTimeUnix)); err != nil {
 		<-doneCh
 		return err
 	}

@@ -504,6 +504,192 @@ func runQuirkyMNULAfterPWDPeer(ln net.Listener) error {
 	}
 }
 
+// TestDialWaitsForPeerToCloseFirstBeforeItsOwnClose locks in the
+// close-grace-period fix (see closeGracePeriod's doc comment): Dial
+// must not race to close its end the instant the session is done --
+// it should give a peer that lingers a beat to close on its own
+// first. A peer that deliberately delays its close briefly after a
+// clean M_EOB exchange must still result in a successful Dial, with
+// the call actually blocking until that peer closes (not returning
+// before the peer has had its chance).
+func TestDialWaitsForPeerToCloseFirstBeforeItsOwnClose(t *testing.T) {
+	orig := closeGracePeriod
+	closeGracePeriod = 2 * time.Second
+	defer func() { closeGracePeriod = orig }()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	const peerDelay = 300 * time.Millisecond
+	peerErrCh := make(chan error, 1)
+	go func() {
+		peerErrCh <- runDelayedClosePeer(ln, peerDelay)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	res, err := Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := <-peerErrCh; err != nil {
+		t.Fatalf("delayed-close peer: %v", err)
+	}
+	if elapsed < peerDelay {
+		t.Fatalf("Dial returned after %v, want it to have waited at least the peer's %v close delay", elapsed, peerDelay)
+	}
+	if elapsed >= closeGracePeriod {
+		t.Fatalf("Dial took %v, want well under the %v grace period since the peer did close on its own", elapsed, closeGracePeriod)
+	}
+	if res == nil {
+		t.Fatal("Dial returned a nil Result")
+	}
+}
+
+// runDelayedClosePeer accepts one connection, completes a normal
+// empty-transfer handshake (mirroring TestSessionHandshakeAndEmpty
+// TransferNoPassword), waits delay, then closes.
+func runDelayedClosePeer(ln net.Listener, delay time.Duration) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+	if err := writeCommandFrame(conn, MEOB, ""); err != nil {
+		return err
+	}
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame during transfer phase")
+		}
+		if Command(payload[0]) == MEOB {
+			break
+		}
+	}
+
+	time.Sleep(delay)
+	return nil
+}
+
+// TestDialSelfClosesAfterGracePeriodIfPeerNeverDoes locks in the
+// upper bound on closeGracePeriod: a peer that never closes at all
+// must not hang Dial forever -- it gives up and lets its own Close
+// happen once the grace period elapses.
+func TestDialSelfClosesAfterGracePeriodIfPeerNeverDoes(t *testing.T) {
+	orig := closeGracePeriod
+	closeGracePeriod = 200 * time.Millisecond
+	defer func() { closeGracePeriod = orig }()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	peerErrCh := make(chan error, 1)
+	go func() {
+		peerErrCh <- runNeverClosingPeer(ln)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	res, err := Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if elapsed < closeGracePeriod {
+		t.Fatalf("Dial returned after %v, want it to have waited out the %v grace period", elapsed, closeGracePeriod)
+	}
+	if elapsed > closeGracePeriod+2*time.Second {
+		t.Fatalf("Dial took %v, way past the %v grace period", elapsed, closeGracePeriod)
+	}
+	if res == nil {
+		t.Fatal("Dial returned a nil Result")
+	}
+	_ = <-peerErrCh // the peer never returns on its own; conn closing (Dial's defer) unblocks its read
+}
+
+// runNeverClosingPeer accepts one connection, completes a normal
+// empty-transfer handshake, then holds the connection open (reading,
+// which blocks until Dial's side eventually closes it) instead of
+// ever closing its own end.
+func runNeverClosingPeer(ln net.Listener) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+	if err := writeCommandFrame(conn, MEOB, ""); err != nil {
+		return err
+	}
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame during transfer phase")
+		}
+		if Command(payload[0]) == MEOB {
+			break
+		}
+	}
+
+	// Hold the connection open past the test's shrunk grace period --
+	// this read only returns once Dial's own defer conn.Close() fires.
+	_, _, _ = readFrame(conn)
+	return nil
+}
+
 // TestOriginatorToleratesPeerClosingInsteadOfSendingMEOB locks in a
 // real interop fix: a live uplink sent its file, then closed the TCP
 // connection immediately afterward instead of sending a formal M_EOB
@@ -546,6 +732,112 @@ func TestOriginatorToleratesPeerClosingInsteadOfSendingMEOB(t *testing.T) {
 	if len(res.FilesReceived) != 1 || res.FilesReceived[0] != "12345678.pkt" {
 		t.Fatalf("FilesReceived = %v, want [12345678.pkt]", res.FilesReceived)
 	}
+}
+
+// TestReceiveOneFileAcknowledgesWithNameSizeAndTimestamp locks in a
+// real interop fix: M_GOT must echo back all three of M_FILE's fields
+// -- name, size, AND timestamp -- not just name and size. Confirmed
+// against binkd's own source (protocol.c's GOT()/tfile_cmp(), which
+// requires exactly 3 arguments and matches all three against the
+// outbound file record) and against binkterm-php's own M_GOT
+// construction (this project's reference implementation, see
+// CLAUDE.md). A 2-field M_GOT fails binkd's argument parsing outright
+// -- a very plausible reason a real uplink's mail never registered as
+// delivered no matter how quickly or cleanly this side otherwise
+// behaved.
+func TestReceiveOneFileAcknowledgesWithNameSizeAndTimestamp(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	const fileTimestamp = 1700000000 // arbitrary fixed Unix time
+
+	gotArgCh := make(chan string, 1)
+	peerErrCh := make(chan error, 1)
+	go func() {
+		peerErrCh <- runTimestampCheckingPeer(ln, fileTimestamp, gotArgCh)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		ReceiveFile: func(f InboundFile, r io.Reader) error {
+			_, err := io.ReadAll(r)
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := <-peerErrCh; err != nil {
+		t.Fatalf("peer: %v", err)
+	}
+
+	gotArg := <-gotArgCh
+	want := fmt.Sprintf("timestamped.pkt 20 %d", fileTimestamp)
+	if gotArg != want {
+		t.Fatalf("M_GOT argument = %q, want %q (name, size, timestamp)", gotArg, want)
+	}
+}
+
+// runTimestampCheckingPeer sends one file stamped with timestamp,
+// captures the client's M_GOT argument string verbatim onto gotArgCh,
+// then finishes the session normally.
+func runTimestampCheckingPeer(ln net.Listener, timestamp int64, gotArgCh chan<- string) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+
+	isData, payload, err := readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MEOB {
+		return fmt.Errorf("expected the client's M_EOB, got isData=%v payload=%q", isData, payload)
+	}
+
+	data := []byte("12345678901234567890")[:20]
+	if err := writeCommandFrame(conn, MFILE, fmt.Sprintf("timestamped.pkt %d %d 0", len(data), timestamp)); err != nil {
+		return err
+	}
+	if err := writeDataFrame(conn, data); err != nil {
+		return err
+	}
+
+	isData, payload, err = readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MGOT {
+		return fmt.Errorf("expected M_GOT, got isData=%v payload=%q", isData, payload)
+	}
+	gotArgCh <- string(payload[1:])
+
+	// The client already sent its own M_EOB during the handshake
+	// phase (it offers no outbound files); send ours now and close --
+	// nothing more is coming from either side.
+	return writeCommandFrame(conn, MEOB, "")
 }
 
 // runQuirkyNoMEOBPeer accepts one connection and manually plays an
