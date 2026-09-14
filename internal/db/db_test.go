@@ -2,6 +2,7 @@ package db
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -135,5 +136,82 @@ PRAGMA foreign_keys = ON;
 		 VALUES (NULL, 'Mike Dreier', '21:3/194', 1, 'alice', '', 'From remote', 'hi')`,
 	); err != nil {
 		t.Fatalf("insert with NULL from_user_id after migration: %v", err)
+	}
+}
+
+// TestOpenRepairsMessageReadsDanglingForeignKey locks in a real
+// production fix: an earlier version of migrateMessagesFromUserIDNullable
+// renamed messages to messages_old without legacy_alter_table set,
+// which made SQLite silently rewrite message_reads' "REFERENCES
+// messages(id)" to "REFERENCES messages_old(id)" (keeping it pointing
+// at the renamed table) -- then dropped messages_old a few statements
+// later, leaving message_reads permanently referencing a table that
+// no longer exists. Every subsequent "mark read" failed with "no such
+// table: main.messages_old" from then on; this actually happened on
+// the deployed dev database. Open must detect and repair the dangling
+// reference, preserving existing rows.
+func TestOpenRepairsMessageReadsDanglingForeignKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.sqlite")
+
+	sqlDB, err := Open(path)
+	if err != nil {
+		t.Fatalf("initial Open: %v", err)
+	}
+	if _, err := sqlDB.Exec(`INSERT INTO users (id, username, password_hash) VALUES (1, 'alice', 'x')`); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	if _, err := sqlDB.Exec(
+		`INSERT INTO messages (id, area_id, from_name, to_name, subject, body)
+		 SELECT 1, id, 'Someone', 'All', 'Hi', 'body' FROM message_areas LIMIT 1`,
+	); err != nil {
+		t.Fatalf("seed message: %v", err)
+	}
+	// Install the broken CREATE TABLE text directly -- the same shape
+	// SQLite's own FK-rewrite-on-rename left behind for real, matching
+	// how TestOpenRelaxesNetmailFromUserIDToNullable installs an old-
+	// shape table directly rather than trying to reproduce the exact
+	// historical migration sequence that produced it.
+	const installBroken = `
+PRAGMA foreign_keys = OFF;
+DROP TABLE message_reads;
+CREATE TABLE message_reads (
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_id  INTEGER NOT NULL REFERENCES "messages_old"(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, message_id)
+);
+INSERT INTO message_reads (user_id, message_id) VALUES (1, 1);
+PRAGMA foreign_keys = ON;
+`
+	if _, err := sqlDB.Exec(installBroken); err != nil {
+		t.Fatalf("simulate dangling foreign key: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	reopened, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after simulated dangling foreign key: %v", err)
+	}
+	defer reopened.Close()
+
+	var createSQL string
+	if err := reopened.QueryRow(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'message_reads'`).Scan(&createSQL); err != nil {
+		t.Fatalf("inspecting repaired message_reads: %v", err)
+	}
+	if strings.Contains(createSQL, "messages_old") {
+		t.Fatalf("message_reads schema still references messages_old after repair: %s", createSQL)
+	}
+
+	var count int
+	if err := reopened.QueryRow(`SELECT COUNT(*) FROM message_reads WHERE user_id = 1 AND message_id = 1`).Scan(&count); err != nil {
+		t.Fatalf("selecting preserved read row: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("preserved read row count = %d, want 1", count)
+	}
+
+	if _, err := reopened.Exec(`INSERT OR IGNORE INTO message_reads (user_id, message_id) VALUES (?, ?)`, 1, 1); err != nil {
+		t.Fatalf("insert into message_reads after repair: %v", err)
 	}
 }

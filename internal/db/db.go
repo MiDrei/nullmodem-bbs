@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -86,6 +87,10 @@ func Open(path string) (*sql.DB, error) {
 		return nil, err
 	}
 	if err := migrateMessagesFromUserIDNullable(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := repairMessageReadsForeignKey(sqlDB); err != nil {
 		sqlDB.Close()
 		return nil, err
 	}
@@ -262,8 +267,25 @@ func migrateMessagesFromUserIDNullable(db *sql.DB) error {
 		return nil
 	}
 
+	// legacy_alter_table = ON stops SQLite from "helpfully" rewriting
+	// OTHER tables' foreign key clauses when messages gets renamed
+	// below -- its default behavior rewrites message_reads'
+	// "REFERENCES messages(id)" to "REFERENCES messages_old(id)" so it
+	// keeps pointing at the same (renamed) table, which is exactly
+	// wrong here: messages_old is a scratch name that gets dropped a
+	// few statements later, leaving message_reads permanently
+	// referencing a table that no longer exists (every subsequent
+	// INSERT INTO message_reads -- i.e. every "mark read" -- then
+	// fails with "no such table: main.messages_old"). This actually
+	// happened on the deployed dev database; see the one-off repair in
+	// this function's caller's history/commit message for how it was
+	// fixed after the fact. With legacy_alter_table ON, the rename
+	// leaves message_reads' clause untouched (still literally
+	// "messages"), which is correct once CREATE TABLE messages below
+	// recreates that name.
 	const rebuild = `
 PRAGMA foreign_keys = OFF;
+PRAGMA legacy_alter_table = ON;
 
 ALTER TABLE messages RENAME TO messages_old;
 
@@ -286,10 +308,64 @@ DROP TABLE messages_old;
 
 CREATE INDEX IF NOT EXISTS idx_messages_area_posted ON messages(area_id, posted_at);
 
+PRAGMA legacy_alter_table = OFF;
 PRAGMA foreign_keys = ON;
 `
 	if _, err := db.Exec(rebuild); err != nil {
 		return fmt.Errorf("db: migrating messages: %w", err)
+	}
+	return nil
+}
+
+// repairMessageReadsForeignKey fixes message_reads.message_id's
+// foreign key if it was left dangling by an earlier, buggy version of
+// migrateMessagesFromUserIDNullable above -- before that function set
+// legacy_alter_table, renaming messages to messages_old made SQLite
+// silently rewrite message_reads' "REFERENCES messages(id)" to
+// "REFERENCES messages_old(id)" so it kept pointing at the same
+// (renamed) table; messages_old was then dropped a few statements
+// later, leaving message_reads referencing a table that no longer
+// exists. Every subsequent INSERT INTO message_reads -- i.e. every
+// "mark read" -- failed with "no such table: main.messages_old" from
+// then on; this actually happened on the deployed dev database.
+// Detects the dangling reference from message_reads' own stored
+// schema text rather than assuming every deployment hit it, so this
+// is a no-op once repaired (or on a deployment that never had the
+// bug, including a fresh database, which schema.sql already creates
+// correctly).
+func repairMessageReadsForeignKey(db *sql.DB) error {
+	var createSQL sql.NullString
+	err := db.QueryRow(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'message_reads'`).Scan(&createSQL)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("db: inspecting message_reads: %w", err)
+	}
+	if !strings.Contains(createSQL.String, "messages_old") {
+		return nil
+	}
+
+	const rebuild = `
+PRAGMA foreign_keys = OFF;
+
+ALTER TABLE message_reads RENAME TO message_reads_old;
+
+CREATE TABLE message_reads (
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_id  INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, message_id)
+);
+
+INSERT INTO message_reads (user_id, message_id)
+SELECT user_id, message_id FROM message_reads_old;
+
+DROP TABLE message_reads_old;
+
+PRAGMA foreign_keys = ON;
+`
+	if _, err := db.Exec(rebuild); err != nil {
+		return fmt.Errorf("db: repairing message_reads foreign key: %w", err)
 	}
 	return nil
 }
