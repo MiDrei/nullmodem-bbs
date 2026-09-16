@@ -33,6 +33,7 @@
 			packet_password: '',
 			tic_password: '',
 			areafix_password: '',
+			filefix_password: '',
 			network: ''
 		};
 	}
@@ -310,8 +311,22 @@
 							placeholder="(optional)"
 						/>
 						<span class="text-xs text-slate-500">
-							For automated echomail area subscription requests -- stored for when Areafix
-							support is implemented, not used yet.
+							Sent as the first line of every echomail area (un)subscribe request to this uplink's
+							"Areafix" robot -- see the Areafix / Filefix page under System to manage
+							subscriptions.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Filefix Password</span>
+						<input
+							type="password"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.filefix_password}
+							placeholder="(optional)"
+						/>
+						<span class="text-xs text-slate-500">
+							Sent as the first line of every file-echo area (un)subscribe request to this uplink's
+							"Filefix" robot -- commonly a different password from Areafix's.
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">

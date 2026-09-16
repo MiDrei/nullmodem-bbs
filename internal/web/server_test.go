@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
+	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
@@ -77,6 +78,8 @@ func newTestServer(t *testing.T) (*Server, *user.Store, string) {
 		Nodes:         nodes,
 		Logs:          logs,
 		Logger:        applog.NewLogger(logs, "web"),
+		EchoAreafix:   areafix.NewEchoStore(sqlDB),
+		FileAreafix:   areafix.NewFileStore(sqlDB),
 		BBSConfigPath: configPath,
 		JWTSecret:     []byte("test-secret"),
 	}

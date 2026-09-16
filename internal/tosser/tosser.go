@@ -592,6 +592,20 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsNam
 		if m.Crash {
 			attr |= mail.AttrCrash
 		}
+		// A system-composed message (see netmail.Store.SendSystem --
+		// no local user origin, e.g. an Areafix/Filefix subscription
+		// request) is addressed to an automated robot, not a person,
+		// so it skips the tearline/origin: a robot's line-by-line
+		// command parser has no use for it, and one real Areafix
+		// robot (Clearing Houz) was observed live inserting a blank
+		// line before it when quoting the message back -- harmless in
+		// that particular reply, but needless risk for a stricter
+		// parser elsewhere, and not something a human ever asked for
+		// on an automated request in the first place.
+		body := m.Body
+		if m.FromUserID.Valid {
+			body = appendTearline(m.Body, bbsName, origAddr)
+		}
 		if err := w.WriteMessage(mail.Message{
 			OrigAddr: origAddr,
 			DestAddr: destAddr,
@@ -600,7 +614,7 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsNam
 			ToName:   m.ToName,
 			FromName: m.FromName,
 			Subject:  m.Subject,
-			Body:     appendTearline(m.Body, bbsName, origAddr),
+			Body:     body,
 		}); err != nil {
 			return nil, fmt.Errorf("tosser: writing message %d: %w", m.ID, err)
 		}

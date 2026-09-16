@@ -31,10 +31,14 @@ type binkpUplinkDTO struct {
 	PollDisabled        bool   `json:"poll_disabled"`
 	PollIntervalSeconds int    `json:"poll_interval_seconds"`
 	PacketPassword      string `json:"packet_password"`
-	// TICPassword and AreafixPassword are stored and round-tripped
-	// but not used yet -- see config.BinkpUplink's doc comments.
+	// TICPassword is stored and round-tripped but not used yet -- see
+	// config.BinkpUplink's doc comment. AreafixPassword/
+	// FilefixPassword authenticate outbound subscription requests --
+	// see internal/tosser's RequestEchoAreaSubscription/
+	// RequestFileAreaSubscription.
 	TICPassword     string `json:"tic_password"`
 	AreafixPassword string `json:"areafix_password"`
+	FilefixPassword string `json:"filefix_password"`
 	// Network labels which FTN network this uplink carries echomail
 	// for -- see config.BinkpUplink.Network's doc comment.
 	Network string `json:"network"`
@@ -65,6 +69,7 @@ func toDTO(c *config.Config) configDTO {
 			PacketPassword:      u.PacketPassword,
 			TICPassword:         u.TICPassword,
 			AreafixPassword:     u.AreafixPassword,
+			FilefixPassword:     u.FilefixPassword,
 			Network:             u.Network,
 		}
 	}
@@ -142,6 +147,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			PacketPassword:      u.PacketPassword,
 			TICPassword:         u.TICPassword,
 			AreafixPassword:     u.AreafixPassword,
+			FilefixPassword:     u.FilefixPassword,
 			Network:             u.Network,
 		}
 	}

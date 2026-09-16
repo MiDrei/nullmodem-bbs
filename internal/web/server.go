@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
+	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
@@ -25,6 +26,8 @@ type Server struct {
 	Nodes         *session.Store
 	Logs          *applog.Store
 	Logger        *applog.Logger
+	EchoAreafix   *areafix.EchoStore
+	FileAreafix   *areafix.FileStore
 	BBSConfigPath string
 	JWTSecret     []byte
 	StaticDir     string
@@ -53,6 +56,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/config", s.requireAuth(http.HandlerFunc(s.handlePutConfig)))
 	mux.Handle("POST /api/binkp/test-connection", s.requireAuth(http.HandlerFunc(s.handleTestBinkpConnection)))
 	mux.Handle("POST /api/binkp/send-now", s.requireAuth(http.HandlerFunc(s.handleSendNowBinkp)))
+	mux.Handle("POST /api/binkp/areafix/changes", s.requireAuth(http.HandlerFunc(s.handleRequestAreafixChanges)))
+	mux.Handle("POST /api/binkp/areafix/list", s.requireAuth(http.HandlerFunc(s.handleRequestAreafixList)))
+	mux.Handle("GET /api/binkp/areafix/list-reply", s.requireAuth(http.HandlerFunc(s.handleGetAreafixListReply)))
+	mux.Handle("GET /api/binkp/areafix/subscriptions", s.requireAuth(http.HandlerFunc(s.handleListAreafixSubscriptions)))
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))

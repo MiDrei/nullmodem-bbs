@@ -91,6 +91,33 @@ func (s *Store) Send(fromUserID int64, fromAddress string, toUserID int64, toNam
 	return s.MessageByID(id)
 }
 
+// SendSystem queues a system-composed netmail message -- one with no
+// local sender account, like an Areafix/Filefix subscription request
+// (see internal/areafix) -- mirroring how Receive handles a remote
+// sender with no local account, but for a message WE originate rather
+// than one arriving from elsewhere. fromName is stored directly (e.g.
+// "Areafix", so a reply naming us back is recognizable) rather than
+// joined from a users row. crash is meaningless for a local
+// recipient; for a remote one it flags the message for
+// internal/tosser's priority routing (see Message.Crash) -- almost
+// always what a system-composed message wants, since there's no
+// waiting caller and no reason to sit until the next scheduled poll.
+func (s *Store) SendSystem(fromName, fromAddress, toName, toAddress, subject, body string, crash bool) (*Message, error) {
+	res, err := s.db.Exec(
+		`INSERT INTO netmail_messages (from_user_id, from_name, from_address, to_name, to_address, subject, body, crash)
+		 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)`,
+		fromName, fromAddress, toName, toAddress, subject, body, crash,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("netmail: send system: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("netmail: send system: %w", err)
+	}
+	return s.MessageByID(id)
+}
+
 // Receive stores a netmail message that arrived from a remote FTN
 // system via internal/tosser -- Send's counterpart for locally
 // composed mail. There's no local from_user_id for a remote sender,
@@ -205,6 +232,43 @@ func (s *Store) Inbox(userID int64) ([]Message, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("netmail: inbox for user %d: %w", userID, err)
+	}
+	return msgs, nil
+}
+
+// InboxFromAddress returns netmail from fromAddress, most recent
+// first (at most limit messages), regardless of whether its recipient
+// name resolved to a local user -- an inbound reply from an automated
+// robot (e.g. an Areafix/Filefix subscription-list reply, addressed
+// to whatever name we sent as the request's own From) commonly
+// doesn't resolve to any real account, so it would never appear in
+// any user's normal Inbox; this is how internal/web's Areafix UI
+// finds it instead.
+func (s *Store) InboxFromAddress(fromAddress string, limit int) ([]Message, error) {
+	rows, err := s.db.Query(
+		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
+		 WHERE m.from_address = ?
+		 ORDER BY m.posted_at DESC, m.id DESC
+		 LIMIT ?`, fromAddress, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("netmail: inbox from %s: %w", fromAddress, err)
+	}
+	defer rows.Close()
+
+	var msgs []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			return nil, fmt.Errorf("netmail: scan inbox-from-address row: %w", err)
+		}
+		msgs = append(msgs, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("netmail: inbox from %s: %w", fromAddress, err)
 	}
 	return msgs, nil
 }

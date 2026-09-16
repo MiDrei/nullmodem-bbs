@@ -12,8 +12,10 @@ export interface BinkpUplink {
 	packet_password: string;
 	/** Authenticates TIC file-echo announcements from this uplink. Reserved for when file-echo/TIC support is implemented -- stored but not used yet. */
 	tic_password: string;
-	/** Authenticates automated echomail area subscription requests (the "AREAFIX" netmail robot) for this uplink. Reserved for when Areafix support is implemented -- stored but not used yet. */
+	/** Authenticates outbound echomail area subscription requests to this uplink's "Areafix" robot -- see requestAreafixSubscription. */
 	areafix_password: string;
+	/** Authenticates outbound file-echo area subscription requests to this uplink's "Filefix" robot -- see requestAreafixSubscription. */
+	filefix_password: string;
 	/** Which FTN network this uplink carries echomail for (e.g. "fsxNet", "HobbyNet"), matched case-insensitively against a message area's own Network to decide which uplink a locally-posted echo message goes out through. Empty means this uplink never sends locally-originated echomail. */
 	network: string;
 }
@@ -233,6 +235,79 @@ export function testBinkpConnection(
 	return request(
 		'/api/binkp/test-connection',
 		{ method: 'POST', body: JSON.stringify(uplink) },
+		token
+	);
+}
+
+/** "echo" for an Areafix (message-area) request, "file" for a Filefix (file-echo area) request. */
+export type AreafixKind = 'echo' | 'file';
+
+/** One area to add (subscribe: true) or drop (false) in a requestAreafixChanges batch. */
+export interface AreaChange {
+	area_tag: string;
+	subscribe: boolean;
+}
+
+/** Queues a single Crash-priority netmail asking uplink's Areafix (echo) or Filefix (file) robot to add/drop every area in changes -- sent via cmd/mailer's usual crash-trigger, typically within its 5-minute throttle window rather than immediately. */
+export function requestAreafixChanges(
+	token: string,
+	uplink: BinkpUplink,
+	changes: AreaChange[],
+	kind: AreafixKind
+): Promise<{ queued_message_id: number }> {
+	return request(
+		'/api/binkp/areafix/changes',
+		{ method: 'POST', body: JSON.stringify({ uplink, changes, kind }) },
+		token
+	);
+}
+
+/** Queues a "%LIST" request asking uplink's robot to reply with every area it carries. The reply arrives later as ordinary netmail -- poll getAreafixListReply for it. */
+export function requestAreafixList(
+	token: string,
+	uplink: BinkpUplink,
+	kind: AreafixKind
+): Promise<{ queued_message_id: number }> {
+	return request(
+		'/api/binkp/areafix/list',
+		{ method: 'POST', body: JSON.stringify({ uplink, kind }) },
+		token
+	);
+}
+
+/** One area line recovered from a "%LIST" reply -- see requestAreafixList/getAreafixListReply. The parse is best-effort (hub software varies), so always show raw_body alongside it. */
+export interface ParsedArea {
+	Tag: string;
+	Description: string;
+	Subscribed: boolean;
+}
+
+export interface AreafixListReply {
+	found: boolean;
+	posted_at?: string;
+	subject?: string;
+	raw_body?: string;
+	areas?: ParsedArea[];
+}
+
+/** The most recent inbound netmail from uplinkAddress, parsed as a "%LIST" reply -- found is false if nothing has arrived from that address yet. */
+export function getAreafixListReply(token: string, uplinkAddress: string): Promise<AreafixListReply> {
+	return request(
+		`/api/binkp/areafix/list-reply?address=${encodeURIComponent(uplinkAddress)}`,
+		{ method: 'GET' },
+		token
+	);
+}
+
+/** Area tags this system has itself outbound-requested from uplinkHost via requestAreafixChanges, for showing current state next to the subscribe/unsubscribe controls. */
+export function listAreafixSubscriptions(
+	token: string,
+	uplinkHost: string,
+	kind: AreafixKind
+): Promise<{ area_tags: string[] }> {
+	return request(
+		`/api/binkp/areafix/subscriptions?host=${encodeURIComponent(uplinkHost)}&kind=${kind}`,
+		{ method: 'GET' },
 		token
 	);
 }

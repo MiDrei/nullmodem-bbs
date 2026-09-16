@@ -208,3 +208,36 @@ CREATE TABLE IF NOT EXISTS logs (
     level     TEXT NOT NULL,
     message   TEXT NOT NULL
 );
+
+-- Tracks Areafix echomail subscription requests, both directions (see
+-- internal/tosser's areafix.go): 'outbound' is an area WE asked
+-- uplink_host's own Areafix robot for (we're its downlink for that
+-- area); 'inbound' is an area a downlink asked OUR Areafix robot for
+-- (they're our downlink -- see internal/tosser's Answer/hub
+-- forwarding). area_tag is a bare string, not a message_areas FK: the
+-- whole point of an outbound request is often a tag we don't have a
+-- local Area for yet (see message.Area.Pending -- one gets
+-- auto-created once the first echomail actually arrives under that
+-- tag), and an inbound request names whatever tag the downlink typed,
+-- valid or not, which must be recorded either way to reply/act on it.
+-- One row per (uplink, tag, direction); re-requesting the same one
+-- just updates requested_at instead of erroring.
+CREATE TABLE IF NOT EXISTS echo_subscriptions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    uplink_host   TEXT NOT NULL,
+    area_tag      TEXT NOT NULL COLLATE NOCASE,
+    direction     TEXT NOT NULL CHECK (direction IN ('outbound', 'inbound')),
+    requested_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (uplink_host, area_tag, direction)
+);
+
+-- Filefix's exact counterpart to echo_subscriptions above, for
+-- file-echo (TIC) areas instead of message areas.
+CREATE TABLE IF NOT EXISTS file_echo_subscriptions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    uplink_host   TEXT NOT NULL,
+    area_tag      TEXT NOT NULL COLLATE NOCASE,
+    direction     TEXT NOT NULL CHECK (direction IN ('outbound', 'inbound')),
+    requested_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (uplink_host, area_tag, direction)
+);

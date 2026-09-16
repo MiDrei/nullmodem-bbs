@@ -212,6 +212,24 @@
 								BinkP
 							</a>
 							<a
+								href="/areafix"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<rect x="4" y="4" width="16" height="16" rx="2" />
+									<path d="M9 9h6M9 12.5h6M9 16h3" />
+								</svg>
+								Areafix / Filefix
+							</a>
+							<a
 								href="/pending-areas"
 								onclick={closeSystemMenu}
 								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"

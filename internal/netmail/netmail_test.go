@@ -196,3 +196,30 @@ func TestReceiveStoresRemoteSenderWithoutLocalAccount(t *testing.T) {
 		t.Fatalf("bob's inbox = %+v, want one message from Mike Dreier", inbox)
 	}
 }
+
+// TestInboxFromAddressFindsUnresolvedRecipientMessages is a
+// regression-shaped test for a real gap: an inbound reply addressed
+// to a name that doesn't match any local username (e.g. "Areafix",
+// mirroring what we sent as our own request's From name) has no
+// to_user_id and so never appears in any user's Inbox -- InboxFromAddress
+// must still find it by sender address alone.
+func TestInboxFromAddressFindsUnresolvedRecipientMessages(t *testing.T) {
+	s, _ := newTestStore(t)
+
+	written := time.Date(2026, time.September, 13, 12, 0, 0, 0, time.UTC)
+	if _, err := s.Receive("Areafix", "21:3/100", 0, "Areafix", "", "Re: Areas", "area list here", written, false); err != nil {
+		t.Fatalf("Receive: %v", err)
+	}
+	// A message from a different sender must not show up.
+	if _, err := s.Receive("Someone", "21:3/200", 0, "Areafix", "", "unrelated", "body", written, false); err != nil {
+		t.Fatalf("Receive: %v", err)
+	}
+
+	got, err := s.InboxFromAddress("21:3/100", 10)
+	if err != nil {
+		t.Fatalf("InboxFromAddress: %v", err)
+	}
+	if len(got) != 1 || got[0].Subject != "Re: Areas" {
+		t.Fatalf("InboxFromAddress(21:3/100) = %+v, want exactly the one message from that address", got)
+	}
+}

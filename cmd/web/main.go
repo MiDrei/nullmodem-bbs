@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
+	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
@@ -66,6 +67,8 @@ func main() {
 		Nodes:         session.NewStore(sqlDB),
 		Logs:          logs,
 		Logger:        logger,
+		EchoAreafix:   areafix.NewEchoStore(sqlDB),
+		FileAreafix:   areafix.NewFileStore(sqlDB),
 		BBSConfigPath: cfg.BBSConfigPath,
 		JWTSecret:     secret,
 		StaticDir:     cfg.StaticDir,

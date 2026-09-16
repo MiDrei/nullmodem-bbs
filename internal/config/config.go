@@ -115,10 +115,18 @@ type BinkpUplink struct {
 	// in internal/tosser -- stored but not used yet.
 	TICPassword string `yaml:"tic_password"`
 	// AreafixPassword authenticates automated echomail area
-	// subscription requests to/from this uplink's "AREAFIX" netmail
-	// robot. Reserved for when Areafix support is implemented in
-	// internal/tosser -- stored but not used yet.
+	// subscription requests to this uplink's "Areafix" netmail robot
+	// (see internal/tosser's RequestEchoAreaSubscription) -- the first
+	// line of every request's body. Empty sends an empty password
+	// line, which a hub requiring one will reject.
 	AreafixPassword string `yaml:"areafix_password"`
+	// FilefixPassword is AreafixPassword's exact counterpart for
+	// file-echo (TIC) area subscription requests to this uplink's
+	// "Filefix" robot (see internal/tosser's
+	// RequestFileAreaSubscription) -- a real hub commonly runs Filefix
+	// as a distinct robot from Areafix with its own password, so this
+	// is deliberately not just AreafixPassword reused.
+	FilefixPassword string `yaml:"filefix_password"`
 	// Network labels which FTN network this uplink carries echomail
 	// for (e.g. "fsxNet", "HobbyNet"), matched case-insensitively
 	// against a message area's own Network field (set by the sysop
