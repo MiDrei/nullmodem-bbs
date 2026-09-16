@@ -543,6 +543,16 @@ func (s *Store) DeleteFile(id int64) error {
 	return nil
 }
 
+// RecordDownload increments a file's download counter -- called once
+// internal/zmodem's Send has actually finished handing it to a BBS
+// caller.
+func (s *Store) RecordDownload(id int64) error {
+	if _, err := s.db.Exec(`UPDATE files SET download_count = download_count + 1 WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("file: record download of %d: %w", id, err)
+	}
+	return nil
+}
+
 // FileByID loads a single file's metadata, with its uploader's
 // current username joined in as UploadedByName for a local upload, or
 // its stored origin name for one tossed in remotely (see Receive) --

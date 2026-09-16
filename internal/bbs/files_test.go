@@ -279,7 +279,7 @@ func TestFileListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Up/Down] Move   [Enter] View   [Q] Back")
+	renders := strings.Split(out, "[Up/Down] Move   [Enter] View   [D] Download   [Q] Back")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least three file-list redraws, got %d: %q", len(renders)-1, out)
 	}
@@ -325,7 +325,7 @@ func TestFileListLightbarArrowNavigationSelectsSecondFile(t *testing.T) {
 	if !strings.Contains(out, "\x1b[47m\x1b[30mNEW beta.txt") {
 		t.Fatalf("expected beta.txt's row highlighted, got: %q", out)
 	}
-	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [D] Download  [Q] Back to list")
 	if len(readerRenders) < 2 {
 		t.Fatalf("expected the reader to open, got: %q", out)
 	}
@@ -408,7 +408,7 @@ func TestReadFileNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [D] Download  [Q] Back to list")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, next, prev), got %d: %q", len(renders)-1, out)
 	}
@@ -452,7 +452,7 @@ func TestReadFileNextPrevClampAtEnds(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list")
+	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [D] Download  [Q] Back to list")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, after Prev, after Next), got %d: %q", len(renders)-1, out)
 	}

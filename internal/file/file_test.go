@@ -545,3 +545,34 @@ func TestReceiveStripsPathFromFilename(t *testing.T) {
 		t.Fatalf("Filename = %q, want just the base name %q", f.Filename, "passwd")
 	}
 }
+
+func TestRecordDownloadIncrementsCounter(t *testing.T) {
+	s, users := newTestStore(t)
+	u, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	f, err := s.UploadFile(area.ID, u.ID, "notes.txt", "", strings.NewReader("hi"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	if err := s.RecordDownload(f.ID); err != nil {
+		t.Fatalf("RecordDownload: %v", err)
+	}
+	if err := s.RecordDownload(f.ID); err != nil {
+		t.Fatalf("RecordDownload: %v", err)
+	}
+
+	reloaded, err := s.FileByID(f.ID)
+	if err != nil {
+		t.Fatalf("FileByID: %v", err)
+	}
+	if reloaded.DownloadCount != 2 {
+		t.Fatalf("DownloadCount = %d, want 2", reloaded.DownloadCount)
+	}
+}

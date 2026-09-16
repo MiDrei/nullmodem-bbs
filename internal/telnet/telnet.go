@@ -6,6 +6,7 @@ package telnet
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -73,8 +74,32 @@ func (s *Session) WindowSize() (width, height int) {
 // Close closes the underlying connection.
 func (s *Session) Close() error { return s.conn.Close() }
 
-// Write sends raw bytes to the client unmodified.
-func (s *Session) Write(p []byte) (int, error) { return s.conn.Write(p) }
+// Write sends p to the client, doubling any literal IAC (0xFF) byte
+// per RFC 854/856 so the client's own telnet layer doesn't misread it
+// as the start of a command sequence -- required for genuinely 8-bit-
+// clean application data (internal/zmodem's binary file transfers, or
+// in principle a CP437 glyph that happens to be byte 0xFF) to survive
+// a telnet connection intact. Confirmed live: without this, a Zmodem
+// transfer containing a 0xFF byte corrupted the stream the client's
+// own Zmodem receiver saw. Ordinary text/ANSI screen output
+// essentially never contains a raw 0xFF byte, so the IndexByte scan
+// below is a no-op cost for the common case.
+func (s *Session) Write(p []byte) (int, error) {
+	if bytes.IndexByte(p, iac) < 0 {
+		return s.conn.Write(p)
+	}
+	escaped := make([]byte, 0, len(p)+4)
+	for _, b := range p {
+		escaped = append(escaped, b)
+		if b == iac {
+			escaped = append(escaped, iac)
+		}
+	}
+	if _, err := s.conn.Write(escaped); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
 
 // Read returns decoded application data, transparently consuming and
 // acting on any telnet IAC command sequences interleaved in the stream.

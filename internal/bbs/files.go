@@ -3,6 +3,7 @@ package bbs
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/swissmaik/nullmodem/internal/zmodem"
 )
 
 // showFileAreas is the "builtin:files" command: a lightbar over every
@@ -297,6 +299,11 @@ outer:
 					return err
 				}
 				continue outer
+			case key.Type == KeyChar && (key.Rune == 'd' || key.Rune == 'D'):
+				if err := s.downloadFile(term, u, &files[selected]); err != nil {
+					return err
+				}
+				continue outer
 			case key.Type == KeyEscape:
 				return nil
 			case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
@@ -350,7 +357,7 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 		b.WriteString(ansi.Render(tmpl, vars))
 		b.WriteString(ansi.CRLF)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] View   [Q] Back" + ansi.Reset)
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] View   [D] Download   [Q] Back" + ansi.Reset)
 	return term.Print(b.String())
 }
 
@@ -391,6 +398,10 @@ func (s *Server) readFile(term *Terminal, u *user.User, area *file.Area, files [
 		case key.Type == KeyDown || key.Type == KeyRight || key.Type == KeyEnter, key.Type == KeyChar && (key.Rune == 'n' || key.Rune == 'N'):
 			if idx < len(files)-1 {
 				idx++
+			}
+		case key.Type == KeyChar && (key.Rune == 'd' || key.Rune == 'D'):
+			if err := s.downloadFile(term, u, &files[idx]); err != nil {
+				return err
 			}
 		case key.Type == KeyEscape:
 			return nil
@@ -442,8 +453,48 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 	b.WriteString(ansi.Reset + "\r\n")
 	b.WriteString(ansi.Layout(ansi.Render(metaTemplate, vars), term.Width()))
 	b.WriteString(ansi.CRLF)
-	footer := ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [Q] Back to list" + ansi.Reset
+	footer := ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [D] Download  [Q] Back to list" + ansi.Reset
 	return printBody(term, &b, f.Description, footer, term.Width())
+}
+
+// downloadFile sends f to the caller via Zmodem (internal/zmodem),
+// taking the connection's raw byte stream directly for the duration
+// of the transfer (see Terminal.Raw) -- Zmodem is an 8-bit binary
+// protocol, nothing like this Terminal's own line-oriented/ANSI-
+// cooked interaction, so this bypasses it rather than trying to
+// thread binary transfer through it. The caller's own terminal client
+// (SyncTERM, NetRunner, ...) auto-detects the transfer starting from
+// the "rz\r" invite zmodem.Send sends first -- no separate "press a
+// key to start your receiver" step is needed on a modern one.
+func (s *Server) downloadFile(term *Terminal, u *user.User, f *file.File) error {
+	src, err := os.Open(f.StoragePath)
+	if err != nil {
+		s.logWarn("opening %s for download by %s: %v", f.StoragePath, u.Username, err)
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Could not open that file.")
+	}
+	defer src.Close()
+
+	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
+		fmt.Sprintf("Starting Zmodem download of %s (%s) -- your terminal should start receiving automatically.", f.Filename, humanize.Bytes(uint64(f.SizeBytes))) +
+		ansi.Reset + "\r\n"); err != nil {
+		return err
+	}
+
+	sendErr := zmodem.Send(term.Raw(), src, f.Filename, f.SizeBytes, f.UploadedAt)
+	switch {
+	case sendErr == nil:
+		if err := s.Files.RecordDownload(f.ID); err != nil {
+			return err
+		}
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Download complete.")
+	case errors.Is(sendErr, zmodem.ErrCancelled):
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Download cancelled.")
+	case errors.Is(sendErr, zmodem.ErrSkipped):
+		return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "Your terminal already has that file.")
+	default:
+		s.logWarn("zmodem download of %s by %s: %v", f.Filename, u.Username, sendErr)
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Download failed: " + sendErr.Error())
+	}
 }
 
 // sysopCreateFileArea is the "builtin:createfilearea" command: it

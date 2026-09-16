@@ -100,6 +100,18 @@ func (t *Terminal) Println(s string) error {
 	return t.Print(s + "\n")
 }
 
+// Raw returns the underlying connection for a caller that needs to
+// take over the byte stream directly -- internal/zmodem's file
+// transfers, which are an 8-bit binary protocol with nothing to do
+// with this Terminal's own line-oriented/ANSI-cooked interaction, so
+// bypassing it (rather than teaching Terminal to speak Zmodem itself)
+// is the right layering. Safe to call between key reads (a menu
+// hotkey dispatch, e.g. "download this file"): t.pending can only
+// hold a byte pushed back by ReadLine's own CRLF lookahead, never by
+// ReadKey, so it's empty at that point and there's nothing already
+// consumed from the wire left to lose.
+func (t *Terminal) Raw() Conn { return t.conn }
+
 // readByte returns the next input byte, first draining any byte
 // pushed back by a previous CRLF lookahead.
 func (t *Terminal) readByte() (byte, error) {
