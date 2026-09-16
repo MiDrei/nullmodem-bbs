@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -11,6 +12,25 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
+
+// mergeNetmailByPostedAt combines a and b (each already sorted newest-
+// first, matching netmail.Store.Inbox/UnresolvedInbox's own ordering)
+// into one newest-first list.
+func mergeNetmailByPostedAt(a, b []netmail.Message) []netmail.Message {
+	if len(b) == 0 {
+		return a
+	}
+	if len(a) == 0 {
+		return b
+	}
+	merged := make([]netmail.Message, 0, len(a)+len(b))
+	merged = append(merged, a...)
+	merged = append(merged, b...)
+	sort.SliceStable(merged, func(i, j int) bool {
+		return merged[i].PostedAt.After(merged[j].PostedAt)
+	})
+	return merged
+}
 
 // isFTNAddress is a cheap heuristic -- not full FTN validation -- for
 // telling "the caller typed a local username" apart from "the caller
@@ -43,12 +63,25 @@ func isFTNAddress(s string) bool {
 	return true
 }
 
+// unresolvedNetmailLimit bounds how many of the most recent
+// unresolved-recipient messages (see netmail.Store.UnresolvedInbox)
+// get merged into a sysop's own netmail view -- generous, since this
+// is meant to surface robot replies (Areafix/Filefix, ...) promptly,
+// not accumulate an unbounded backlog on screen.
+const unresolvedNetmailLimit = 50
+
 // showNetmail is the "builtin:netmail" command: a lightbar over the
 // caller's own netmail inbox, mirroring messages.go's browseArea --
 // arrow keys move the highlight, Enter opens the reader (marking that
 // message read), C composes a new outgoing message, Q/Escape returns
 // to the main menu. Unlike echo areas there's only ever one inbox per
 // user, so there's no separate area-selection lightbar first.
+//
+// A sysop's own view also merges in unresolved-recipient netmail (see
+// netmail.Store.UnresolvedInbox) -- a reply from an Areafix/Filefix
+// robot, say, addressed back to whatever name this system used as its
+// own request's From, which isn't a real BBS username and so would
+// otherwise never appear in anyone's inbox at all.
 func (s *Server) showNetmail(term *Terminal, u *user.User) error {
 	selected := 0
 outer:
@@ -56,6 +89,13 @@ outer:
 		msgs, err := s.Netmail.Inbox(u.ID)
 		if err != nil {
 			return err
+		}
+		if u.SecurityLevel >= user.SLSysop {
+			unresolved, err := s.Netmail.UnresolvedInbox(unresolvedNetmailLimit)
+			if err != nil {
+				return err
+			}
+			msgs = mergeNetmailByPostedAt(msgs, unresolved)
 		}
 
 		if len(msgs) == 0 {
@@ -92,9 +132,13 @@ outer:
 			}
 			switch {
 			case key.Type == KeyUp:
-				selected = (selected - 1 + len(msgs)) % len(msgs)
+				if selected > 0 {
+					selected--
+				}
 			case key.Type == KeyDown:
-				selected = (selected + 1) % len(msgs)
+				if selected < len(msgs)-1 {
+					selected++
+				}
 			case key.Type == KeyEnter:
 				if err := s.readNetmail(term, u, msgs, selected); err != nil {
 					return err
@@ -102,6 +146,11 @@ outer:
 				continue outer
 			case key.Type == KeyChar && (key.Rune == 'c' || key.Rune == 'C'):
 				if err := s.composeNetmail(term, u); err != nil {
+					return err
+				}
+				continue outer
+			case key.Type == KeyChar && (key.Rune == 'd' || key.Rune == 'D'):
+				if _, err := s.confirmDeleteNetmail(term, &msgs[selected]); err != nil {
 					return err
 				}
 				continue outer
@@ -114,33 +163,58 @@ outer:
 	}
 }
 
+// confirmDeleteNetmail prompts before permanently deleting m (see
+// netmail.Store.Delete) -- an inbox otherwise has no way to clear
+// itself out and just accumulates forever. Reports whether it
+// actually deleted (false on a "no" answer or an empty response), so
+// a caller mid-reader-navigation knows whether to return to the list
+// (msgs no longer includes m) or keep going.
+func (s *Server) confirmDeleteNetmail(term *Terminal, m *netmail.Message) (bool, error) {
+	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Red, true) + fmt.Sprintf("Delete %q? [y/N]: ", m.Subject) + ansi.FG(ansi.Yellow, true)); err != nil {
+		return false, err
+	}
+	answer, err := term.ReadLine(false)
+	if err != nil {
+		return false, err
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	if answer != "y" && answer != "yes" {
+		return false, nil
+	}
+	if err := s.Netmail.Delete(m.ID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // netmailListScreen is the hand-designed banner shown above the
 // netmail inbox -- see messages.go's msgListScreen doc comment for
 // why this clear-screen-then-banner convention matters.
 const netmailListScreen = "netmail.ans"
 
-// printNetmailListHeader shows netmail.ans (with USERNAME filled in),
-// falling back to a plain colored title line on a cleared screen.
-func (s *Server) printNetmailListHeader(term *Terminal, u *user.User) error {
+// renderNetmailListHeader returns netmail.ans (with USERNAME filled
+// in), falling back to a plain colored title line -- mirrors
+// messages.go's renderMessageListHeader, including returning a string
+// (see finishHeaderLine) rather than printing directly so
+// drawNetmailList can count its line count toward the list's scroll
+// viewport budget.
+func (s *Server) renderNetmailListHeader(term *Terminal, u *user.User) string {
 	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, netmailListScreen))
 	if err != nil {
-		return term.Println(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Netmail" + ansi.Reset)
+		return ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Netmail" + ansi.Reset + "\n"
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
 		"USERNAME": u.Username,
 	}
 	rendered := ansi.Render(raw, vars)
-	return term.Println(ansi.Layout(rendered, term.Width()))
+	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
 // drawEmptyNetmailList shows just the header banner and a hint bar
 // for an empty inbox -- see messages.go's drawEmptyMessageList.
 func (s *Server) drawEmptyNetmailList(term *Terminal, u *user.User) error {
-	if err := s.printNetmailListHeader(term, u); err != nil {
-		return err
-	}
-	return term.Print(ansi.Reset + "\n(no netmail yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[C] Compose   [Q] Back" + ansi.Reset)
+	return term.Print(s.renderNetmailListHeader(term, u) + ansi.Reset + "(no netmail yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[C] Compose   [Q] Back" + ansi.Reset)
 }
 
 // Fixed filenames for the hand-designed pieces of the netmail inbox
@@ -163,21 +237,54 @@ var fallbackNetmailListColumns = "    Subject                                 Fr
 // drawNetmailList redraws the header banner plus the Subject/From/
 // Date table, with the row at selected highlighted and any unread
 // message flagged via NEWFLAG -- the netmail inbox's equivalent of
-// messages.go's drawMessageList.
+// messages.go's drawMessageList, scrolling included: the table is
+// windowed to whatever vertical space is left after the header/
+// columns/footer, keeping selected in view, and padded with blank
+// lines when there are fewer messages than fit so the footer always
+// lands on the same row -- see drawMessageList's doc comment for why
+// (a long inbox used to just dump every row in one shot, pushing the
+// header off the top of the screen).
 func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Message, selected int) error {
-	if err := s.printNetmailListHeader(term, u); err != nil {
-		return err
-	}
+	header := s.renderNetmailListHeader(term, u)
 
 	rowTemplate := s.loadOptionalScreen(netmailListRowScreen, fallbackNetmailListRow)
 	rowSelectedTemplate := s.loadOptionalScreen(netmailListRowSelectedScreen, fallbackNetmailListRowSelected)
+	columns := s.loadOptionalScreen(netmailListColumnsScreen, fallbackNetmailListColumns)
 
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(s.loadOptionalScreen(netmailListColumnsScreen, fallbackNetmailListColumns))
+	b.WriteString(header)
+	b.WriteString(ansi.Reset)
+	b.WriteString(columns)
 	b.WriteString(ansi.CRLF)
 
-	for i, m := range msgs {
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	available := term.Height() - used
+	if available < 1 {
+		available = 1
+	}
+
+	// Top-anchored, not centered (unlike drawMessageList): the inbox is
+	// already sorted newest-first (see netmail.Store.Inbox/
+	// UnresolvedInbox), so opening it (selected == 0) should show the
+	// newest mail at the very top of the screen, with the window only
+	// scrolling down far enough to keep selected visible once it's
+	// moved past the bottom edge -- not re-centering the whole
+	// viewport on every keypress the way the message list does, which
+	// would scroll the newest mail out of view almost immediately.
+	scrollOffset := selected - available + 1
+	if scrollOffset > len(msgs)-available {
+		scrollOffset = len(msgs) - available
+	}
+	if scrollOffset < 0 {
+		scrollOffset = 0
+	}
+	end := scrollOffset + available
+	if end > len(msgs) {
+		end = len(msgs)
+	}
+
+	for i := scrollOffset; i < end; i++ {
+		m := msgs[i]
 		tmpl := rowTemplate
 		if i == selected {
 			tmpl = rowSelectedTemplate
@@ -195,15 +302,26 @@ func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Me
 		b.WriteString(ansi.Render(tmpl, vars))
 		b.WriteString(ansi.CRLF)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Read   [C] Compose   [Q] Back" + ansi.Reset)
+	for i := end - scrollOffset; i < available; i++ {
+		b.WriteString(ansi.CRLF)
+	}
+
+	scrollStatus := ""
+	if len(msgs) > available {
+		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(msgs))
+	}
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
+	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Read   [C] Compose   [D] Delete   [Q] Back" + ansi.Reset)
 	return term.Print(b.String())
 }
 
 // Fixed filenames for the hand-designed pieces of the netmail reader,
-// mirroring messages.go's msgread.ans/msgread-meta.ans.
+// mirroring messages.go's msgread.ans/msgread-meta.ans/
+// msgread-footer.ans.
 const (
-	netmailReadScreen     = "netread.ans"
-	netmailReadMetaScreen = "netread-meta.ans"
+	netmailReadScreen       = "netread.ans"
+	netmailReadMetaScreen   = "netread-meta.ans"
+	netmailReadFooterScreen = "netread-footer.ans"
 )
 
 var fallbackNetmailReadMeta = "\x1b[1;35mFrom:    \x1b[1;37m{FROM:-40}\x1b[1;35m Date: \x1b[1;37m{DATE}\r\n" +
@@ -211,17 +329,24 @@ var fallbackNetmailReadMeta = "\x1b[1;35mFrom:    \x1b[1;37m{FROM:-40}\x1b[1;35m
 	"\x1b[1;35mSubject: \x1b[1;37m{SUBJECT}\r\n" +
 	"\x1b[35m" + strings.Repeat("-", 79) + ansi.Reset
 
+var fallbackNetmailReadFooter = ansi.FG(ansi.White, true) + "{SCROLLSTATUS}" + ansi.Reset + "\r\n" +
+	ansi.FG(ansi.White, true) + "{HINT}" + ansi.Reset
+
 // readNetmail is a reader over msgs, starting at idx, that lets the
 // caller page through their inbox with the arrow keys / N,P without
 // returning to the list each time -- mirroring messages.go's
-// readMessage, including clamping at the first/last message instead
-// of wrapping around.
+// readMessage: Up/Down scroll within the current (possibly multi-
+// screen) message, clamped at its edges, while switching messages is
+// only ever explicit (N/P, Left/Right, or Enter) and clamps at the
+// first/last message instead of wrapping around.
 func (s *Server) readNetmail(term *Terminal, u *user.User, msgs []netmail.Message, idx int) error {
+	scrollOffset := 0
 	for {
 		if err := s.Netmail.MarkRead(msgs[idx].ID); err != nil {
 			return err
 		}
-		if err := s.drawNetmailReader(term, msgs, idx); err != nil {
+		maxOffset, err := s.drawNetmailReader(term, msgs, idx, scrollOffset)
+		if err != nil {
 			return err
 		}
 		key, err := term.ReadKey()
@@ -229,17 +354,35 @@ func (s *Server) readNetmail(term *Terminal, u *user.User, msgs []netmail.Messag
 			return err
 		}
 		switch {
-		case key.Type == KeyUp || key.Type == KeyLeft, key.Type == KeyChar && (key.Rune == 'p' || key.Rune == 'P'):
+		case key.Type == KeyUp:
+			if scrollOffset > 0 {
+				scrollOffset--
+			}
+		case key.Type == KeyDown:
+			if scrollOffset < maxOffset {
+				scrollOffset++
+			}
+		case key.Type == KeyLeft, key.Type == KeyChar && (key.Rune == 'p' || key.Rune == 'P'):
 			if idx > 0 {
 				idx--
+				scrollOffset = 0
 			}
-		case key.Type == KeyDown || key.Type == KeyRight || key.Type == KeyEnter, key.Type == KeyChar && (key.Rune == 'n' || key.Rune == 'N'):
+		case key.Type == KeyRight || key.Type == KeyEnter, key.Type == KeyChar && (key.Rune == 'n' || key.Rune == 'N'):
 			if idx < len(msgs)-1 {
 				idx++
+				scrollOffset = 0
 			}
 		case key.Type == KeyChar && (key.Rune == 'r' || key.Rune == 'R'):
 			if err := s.replyToNetmail(term, u, &msgs[idx]); err != nil {
 				return err
+			}
+		case key.Type == KeyChar && (key.Rune == 'd' || key.Rune == 'D'):
+			deleted, err := s.confirmDeleteNetmail(term, &msgs[idx])
+			if err != nil {
+				return err
+			}
+			if deleted {
+				return nil
 			}
 		case key.Type == KeyEscape:
 			return nil
@@ -288,13 +431,16 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Reply sent.")
 }
 
-// printNetmailReaderHeader shows netread.ans (with MSGNUM/MSGCOUNT
-// filled in), falling back to a plain title line -- mirroring
-// messages.go's printMessageReaderHeader.
-func (s *Server) printNetmailReaderHeader(term *Terminal, idx, total int) error {
+// renderNetmailReaderHeader returns netread.ans (with MSGNUM/MSGCOUNT
+// filled in), falling back to a plain title line -- mirrors
+// messages.go's renderMessageReaderHeader, including returning a
+// string (see finishHeaderLine) rather than printing directly so
+// drawNetmailReader can count its line count toward the body's
+// scroll viewport budget.
+func (s *Server) renderNetmailReaderHeader(term *Terminal, idx, total int) string {
 	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, netmailReadScreen))
 	if err != nil {
-		return term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Netmail" + ansi.Reset)
+		return ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Netmail" + ansi.Reset + "\n"
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
@@ -302,18 +448,28 @@ func (s *Server) printNetmailReaderHeader(term *Terminal, idx, total int) error 
 		"MSGCOUNT": strconv.Itoa(total),
 	}
 	rendered := ansi.Render(raw, vars)
-	return term.Println(ansi.Layout(rendered, term.Width()))
+	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
 // drawNetmailReader redraws the full reader screen for msgs[idx]: the
-// header banner, the From/To/Subject/Date metadata block, the word-
-// wrapped body, and a footer hinting at the navigation keys --
-// mirroring messages.go's drawMessageReader.
-func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx int) error {
-	if err := s.printNetmailReaderHeader(term, idx, len(msgs)); err != nil {
-		return err
-	}
+// header banner, the From/To/Subject/Date metadata block, the body --
+// windowed to whatever vertical space is left after the header/meta/
+// footer, starting at scrollOffset lines in, so a long message
+// scrolls within its own area instead of pushing the header off the
+// top of the screen -- and a footer (its own customizable template,
+// scroll status + hotkey hint) padded down to the bottom of the
+// screen when the body is shorter than the viewport. Mirrors
+// messages.go's drawMessageReader in every respect, ANSI-art handling
+// included (see ansi.IsPreformatted/ParseGrid there for why). Returns
+// maxOffset, the largest scrollOffset the caller should still accept
+// for this message (0 once the whole body already fits).
+func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, scrollOffset int) (maxOffset int, err error) {
 	m := &msgs[idx]
+	body := m.Body
+
+	hint := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [D] Delete  [Q] Back to list"
+
+	header := s.renderNetmailReaderHeader(term, idx, len(msgs))
 
 	to := m.ToName
 	if m.ToAddress != "" {
@@ -326,13 +482,65 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx i
 		"SUBJECT": m.Subject,
 		"DATE":    m.PostedAt.Format("2006-01-02 15:04"),
 	}
+	meta := ansi.Layout(ansi.Render(metaTemplate, vars), term.Width())
+	footerTemplate := s.loadOptionalScreen(netmailReadFooterScreen, fallbackNetmailReadFooter)
 
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(ansi.Layout(ansi.Render(metaTemplate, vars), term.Width()))
+	b.WriteString(header)
+	b.WriteString(ansi.Reset)
+	b.WriteString(meta)
 	b.WriteString(ansi.CRLF)
-	footer := ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [R] Reply  [Q] Back to list" + ansi.Reset
-	return printBody(term, &b, m.Body, footer, term.Width())
+
+	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1 + 1
+	available := term.Height() - used
+	if available < 1 {
+		available = 1
+	}
+
+	preformatted := ansi.IsPreformatted(body)
+	var totalLines int
+	var lines []string
+	var grid ansi.Grid
+	if preformatted {
+		grid = ansi.ParseGrid(body, term.Width())
+		totalLines = grid.Height
+	} else {
+		lines = ansi.WrapText(body, term.Width())
+		totalLines = len(lines)
+	}
+
+	maxOffset = totalLines - available
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if scrollOffset > maxOffset {
+		scrollOffset = maxOffset
+	}
+	end := scrollOffset + available
+	if end > totalLines {
+		end = totalLines
+	}
+
+	if preformatted {
+		b.WriteString(grid.EncodeRows(scrollOffset, end))
+		b.WriteString(ansi.CRLF)
+	} else {
+		for _, line := range lines[scrollOffset:end] {
+			b.WriteString(ansi.Reset + line + ansi.CRLF)
+		}
+	}
+	for i := end - scrollOffset; i < available; i++ {
+		b.WriteString(ansi.CRLF)
+	}
+
+	scrollStatus := ""
+	if maxOffset > 0 {
+		scrollStatus = fmt.Sprintf("-- line %d-%d of %d --", scrollOffset+1, end, totalLines)
+	}
+	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
+	b.WriteString(ansi.Reset + "\r\n")
+	b.WriteString(footer)
+	return maxOffset, term.Print(b.String())
 }
 
 // composeNetmail prompts for a recipient (an existing local username,

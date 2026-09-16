@@ -22,6 +22,7 @@ import (
 // message areas.
 func (s *Server) showFileAreas(term *Terminal, u *user.User) error {
 	selected := 0
+	scrollOffset := 0
 outer:
 	for {
 		stats, err := s.Files.ListAreaStats(u.SecurityLevel, u.ID)
@@ -37,7 +38,8 @@ outer:
 		}
 
 		for {
-			if err := s.drawFileAreaLightbar(term, u, stats, selected); err != nil {
+			scrollOffset, err = s.drawFileAreaLightbar(term, u, stats, selected, scrollOffset)
+			if err != nil {
 				return err
 			}
 			key, err := term.ReadKey()
@@ -46,9 +48,13 @@ outer:
 			}
 			switch {
 			case key.Type == KeyUp:
-				selected = (selected - 1 + len(stats)) % len(stats)
+				if selected > 0 {
+					selected--
+				}
 			case key.Type == KeyDown:
-				selected = (selected + 1) % len(stats)
+				if selected < len(stats)-1 {
+					selected++
+				}
 			case key.Type == KeyEnter:
 				area := stats[selected].Area
 				if err := s.browseFileArea(term, u, &area); err != nil {
@@ -115,9 +121,12 @@ func buildFileAreaDisplayRows(stats []file.AreaWithStats, selected int, networkT
 }
 
 // drawFileAreaLightbar mirrors messages.go's drawAreaLightbar
-// exactly, scrolling included -- against the file-area column/row
-// screen files and file.AreaWithStats instead of message.AreaWithStats.
-func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file.AreaWithStats, selected int) error {
+// exactly, scrolling (caller-tracked scrollOffset that only follows
+// the highlight once it reaches the viewport's edge, not recomputed
+// fresh from selected every redraw) included -- against the file-area
+// column/row screen files and file.AreaWithStats instead of
+// message.AreaWithStats.
+func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file.AreaWithStats, selected, scrollOffset int) (int, error) {
 	header := s.renderAreaHeader(term, u, "filareas.ans", "File Areas")
 
 	rowTemplate := s.loadOptionalScreen(fileAreaRowScreen, fallbackFileAreaRow)
@@ -139,7 +148,12 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 		available = 1
 	}
 
-	scrollOffset := selectedRow - available/2
+	if selectedRow < scrollOffset {
+		scrollOffset = selectedRow
+	}
+	if selectedRow >= scrollOffset+available {
+		scrollOffset = selectedRow - available + 1
+	}
 	if scrollOffset > len(rows)-available {
 		scrollOffset = len(rows) - available
 	}
@@ -187,7 +201,7 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 	}
 	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
 	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [Q] Back" + ansi.Reset)
-	return term.Print(b.String())
+	return scrollOffset, term.Print(b.String())
 }
 
 // fileListScreen is the hand-designed banner shown above an area's

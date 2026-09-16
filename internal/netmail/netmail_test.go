@@ -223,3 +223,71 @@ func TestInboxFromAddressFindsUnresolvedRecipientMessages(t *testing.T) {
 		t.Fatalf("InboxFromAddress(21:3/100) = %+v, want exactly the one message from that address", got)
 	}
 }
+
+// TestUnresolvedInboxFindsMessagesWithNoMatchingLocalUser is a
+// regression-shaped test for a real gap: an Areafix/Filefix robot's
+// reply is addressed to whatever name this system used as its own
+// request's From (e.g. "Areafix"), which never resolves to a real
+// local account -- Inbox alone (filtered to one specific recipient)
+// would never surface it to anyone, so UnresolvedInbox must find it
+// by its unresolved state instead.
+func TestUnresolvedInboxFindsMessagesWithNoMatchingLocalUser(t *testing.T) {
+	s, users := newTestStore(t)
+	bob, err := users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+
+	written := time.Date(2026, time.September, 16, 12, 0, 0, 0, time.UTC)
+	if _, err := s.Receive("Areafix", "21:3/100", 0, "Areafix", "", "Re: %LIST", "area list here", written, false); err != nil {
+		t.Fatalf("Receive (unresolved): %v", err)
+	}
+	// A message addressed to a real, resolved local user must not
+	// show up here -- it already has its own place, bob's own Inbox.
+	if _, err := s.Receive("Someone", "21:3/200", bob.ID, "bob", "", "Hello", "hi", written, false); err != nil {
+		t.Fatalf("Receive (resolved): %v", err)
+	}
+
+	got, err := s.UnresolvedInbox(10)
+	if err != nil {
+		t.Fatalf("UnresolvedInbox: %v", err)
+	}
+	if len(got) != 1 || got[0].Subject != "Re: %LIST" {
+		t.Fatalf("UnresolvedInbox = %+v, want exactly the one unresolved message", got)
+	}
+}
+
+func TestDeleteRemovesMessageFromInbox(t *testing.T) {
+	s, users := newTestStore(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	bob, err := users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register bob: %v", err)
+	}
+	msg, err := s.Send(alice.ID, "", bob.ID, "bob", "", "Hi", "hi bob", false)
+	if err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	if err := s.Delete(msg.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+
+	inbox, err := s.Inbox(bob.ID)
+	if err != nil {
+		t.Fatalf("Inbox: %v", err)
+	}
+	if len(inbox) != 0 {
+		t.Fatalf("bob's inbox after Delete = %+v, want empty", inbox)
+	}
+}
+
+func TestDeleteOfAbsentMessageIsNotAnError(t *testing.T) {
+	s, _ := newTestStore(t)
+	if err := s.Delete(999999); err != nil {
+		t.Fatalf("Delete of an absent message: %v, want nil", err)
+	}
+}

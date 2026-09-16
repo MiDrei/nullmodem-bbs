@@ -19,6 +19,7 @@ import (
 // return.
 func (s *Server) showAreas(term *Terminal, u *user.User) error {
 	selected := 0
+	scrollOffset := 0
 outer:
 	for {
 		stats, err := s.Messages.ListAreaStats(u.SecurityLevel, u.ID)
@@ -34,7 +35,8 @@ outer:
 		}
 
 		for {
-			if err := s.drawAreaLightbar(term, u, stats, selected); err != nil {
+			scrollOffset, err = s.drawAreaLightbar(term, u, stats, selected, scrollOffset)
+			if err != nil {
 				return err
 			}
 			key, err := term.ReadKey()
@@ -43,9 +45,13 @@ outer:
 			}
 			switch {
 			case key.Type == KeyUp:
-				selected = (selected - 1 + len(stats)) % len(stats)
+				if selected > 0 {
+					selected--
+				}
 			case key.Type == KeyDown:
-				selected = (selected + 1) % len(stats)
+				if selected < len(stats)-1 {
+					selected++
+				}
 			case key.Type == KeyEnter:
 				area := stats[selected].Area
 				if err := s.browseArea(term, u, &area); err != nil {
@@ -144,13 +150,21 @@ func buildAreaDisplayRows(stats []message.AreaWithStats, selected int, networkTe
 // even though area names vary in length.
 //
 // Like drawMessageList, the table is windowed to whatever vertical
-// space is left after the header/columns/footer, scrolled to keep
-// selected in view -- a long area list (routine now that fsxNet/
-// HobbyNet/lovlynet echomail areas get auto-created as they're
-// tossed in) used to just dump every row in one shot, pushing the
-// header off the top of the screen exactly the way an unpaginated
-// message list once did.
-func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.AreaWithStats, selected int) error {
+// space is left after the header/columns/footer -- a long area list
+// (routine now that fsxNet/HobbyNet/lovlynet echomail areas get
+// auto-created as they're tossed in) used to just dump every row in
+// one shot, pushing the header off the top of the screen exactly the
+// way an unpaginated message list once did.
+//
+// scrollOffset is caller-tracked state (see showAreas), not
+// recomputed fresh from selected every redraw -- see drawMessageList's
+// doc comment for why: a formula centered on selectedRow kept the
+// highlight pinned to a fixed screen row (visually stuck) for most of
+// the list, only letting it move near the very top/bottom. This
+// instead only drags the window along once the highlight reaches its
+// edge, like a normal pager. The returned value is what the caller
+// should pass back in on the next call.
+func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.AreaWithStats, selected, scrollOffset int) (int, error) {
 	header := s.renderAreaHeader(term, u, "msgareas.ans", "Message Areas")
 
 	rowTemplate := s.loadOptionalScreen(msgAreaRowScreen, fallbackAreaRow)
@@ -179,7 +193,12 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 		available = 1
 	}
 
-	scrollOffset := selectedRow - available/2
+	if selectedRow < scrollOffset {
+		scrollOffset = selectedRow
+	}
+	if selectedRow >= scrollOffset+available {
+		scrollOffset = selectedRow - available + 1
+	}
 	if scrollOffset > len(rows)-available {
 		scrollOffset = len(rows) - available
 	}
@@ -227,7 +246,7 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 	}
 	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
 	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [Q] Back" + ansi.Reset)
-	return term.Print(b.String())
+	return scrollOffset, term.Print(b.String())
 }
 
 // msgListScreen is the hand-designed banner shown above an area's
@@ -274,13 +293,48 @@ const (
 
 var fallbackMsgListColumns = "    Subject                                 From                           Date\r\n" + strings.Repeat("-", 79)
 
+// firstUnreadIndex returns the index of the first message (in msgs'
+// own, chronological order) not present in readIDs -- where
+// browseArea starts the lightbar so entering an area jumps straight
+// to catching up, instead of always landing on the oldest message
+// ever posted there. Falls back to the last (newest) message once
+// everything is already read, and 0 for an empty msgs (never actually
+// reached -- browseArea handles the empty area separately -- but keeps
+// this safe to call regardless).
+func firstUnreadIndex(msgs []message.Message, readIDs map[int64]bool) int {
+	for i, m := range msgs {
+		if !readIDs[m.ID] {
+			return i
+		}
+	}
+	if len(msgs) == 0 {
+		return 0
+	}
+	return len(msgs) - 1
+}
+
 // browseArea is a lightbar over an area's messages -- the same
 // interaction as showAreas over areas: arrow keys move the highlight,
 // Enter opens the message reader at that message, P posts a new
 // message (if the caller's SL allows), Q/Escape returns to the area
-// list.
+// list. Up/Down clamp at the first/last message instead of wrapping
+// around. The initial selection lands on the first unread message
+// (see firstUnreadIndex), computed once up front -- rereading it on
+// every trip back from the reader would fight the caller's own
+// navigation, jumping the highlight somewhere new right after they
+// just read something.
+//
+// scrollOffset is tracked alongside selected (not recomputed from
+// scratch each redraw) so the viewport follows the cursor the way a
+// normal pager does: the highlight moves freely within the window
+// until it reaches the top/bottom edge, only then does the window
+// itself scroll, keeping the highlight pinned to that edge -- see
+// drawMessageList. Seeding it to selected's own initial value (rather
+// than 0) is what keeps the "start at the first unread message"
+// placement from the very first draw.
 func (s *Server) browseArea(term *Terminal, u *user.User, area *message.Area) error {
-	selected := 0
+	selected := -1
+	scrollOffset := 0
 outer:
 	for {
 		msgs, err := s.Messages.ListMessages(area.ID)
@@ -313,12 +367,17 @@ outer:
 			}
 			continue
 		}
+		if selected < 0 {
+			selected = firstUnreadIndex(msgs, readIDs)
+			scrollOffset = selected
+		}
 		if selected >= len(msgs) {
 			selected = len(msgs) - 1
 		}
 
 		for {
-			if err := s.drawMessageList(term, u, area, msgs, selected, canWrite, readIDs); err != nil {
+			scrollOffset, err = s.drawMessageList(term, u, area, msgs, selected, scrollOffset, canWrite, readIDs)
+			if err != nil {
 				return err
 			}
 			key, err := term.ReadKey()
@@ -327,9 +386,13 @@ outer:
 			}
 			switch {
 			case key.Type == KeyUp:
-				selected = (selected - 1 + len(msgs)) % len(msgs)
+				if selected > 0 {
+					selected--
+				}
 			case key.Type == KeyDown:
-				selected = (selected + 1) % len(msgs)
+				if selected < len(msgs)-1 {
+					selected++
+				}
 			case key.Type == KeyEnter:
 				if err := s.readMessage(term, u, area, msgs, selected); err != nil {
 					return err
@@ -369,17 +432,28 @@ func (s *Server) drawEmptyMessageList(term *Terminal, area *message.Area, canWri
 // table with macros/.ans files exactly like the area list.
 //
 // Like drawMessageReader, the row table is windowed to whatever
-// vertical space is left after the header/columns/footer, keeping
-// selected in view (scrolled to try to center it, recomputed fresh
-// from selected every redraw rather than tracked as separate state,
-// since Up/Down here always moves the selection by exactly one row
-// unlike the reader's independent body scroll) -- a long list used to
-// just dump every row in one shot, pushing the header off the top of
-// the screen exactly the way an unpaginated message body once did.
-// Fewer rows than fit on screen are padded with blank lines so the
-// footer always lands on the same line regardless of how many
-// messages there are, instead of trailing right after the last one.
-func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, selected int, canWrite bool, readIDs map[int64]bool) error {
+// vertical space is left after the header/columns/footer -- a long
+// list used to just dump every row in one shot, pushing the header
+// off the top of the screen exactly the way an unpaginated message
+// body once did. Fewer rows than fit on screen are padded with blank
+// lines so the footer always lands on the same line regardless of how
+// many messages there are, instead of trailing right after the last
+// one.
+//
+// scrollOffset is caller-tracked state (see browseArea), not
+// recomputed fresh from selected every redraw: it only moves enough
+// to keep selected inside [scrollOffset, scrollOffset+available), the
+// same way a normal pager scrolls -- the highlight moves freely
+// within the window and only drags the window along once it reaches
+// the top/bottom edge. Recomputing it fresh from selected alone (the
+// previous approach) pinned the highlight to a fixed screen row for
+// most of the list and only let it move near the very end, which
+// looked like the cursor "getting stuck" mid-screen while the list
+// scrolled under it. The returned value is what the caller should
+// pass back in on the next call -- it may differ from what was passed
+// in (moved to follow selected, or clamped back into range if the
+// list just got shorter).
+func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, selected, scrollOffset int, canWrite bool, readIDs map[int64]bool) (int, error) {
 	header := s.renderMessageListHeader(term, area)
 
 	rowTemplate := s.loadOptionalScreen(msgListRowScreen, fallbackMsgListRow)
@@ -412,7 +486,12 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 		available = 1
 	}
 
-	scrollOffset := selected - available/2
+	if selected < scrollOffset {
+		scrollOffset = selected
+	}
+	if selected >= scrollOffset+available {
+		scrollOffset = selected - available + 1
+	}
 	if scrollOffset > len(msgs)-available {
 		scrollOffset = len(msgs) - available
 	}
@@ -453,7 +532,7 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 	}
 	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
 	b.WriteString(ansi.FG(ansi.White, true) + hint + ansi.Reset)
-	return term.Print(b.String())
+	return scrollOffset, term.Print(b.String())
 }
 
 // Fixed filenames for the hand-designed pieces of the message reader,

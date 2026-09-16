@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
@@ -112,7 +113,7 @@ func TestMessageAreasLightbarHasNoBlankLineAboveColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAreaStats: %v", err)
 	}
-	if err := s.drawAreaLightbar(term, u, stats, 0); err != nil {
+	if _, err := s.drawAreaLightbar(term, u, stats, 0, 0); err != nil {
 		t.Fatalf("drawAreaLightbar: %v", err)
 	}
 
@@ -162,7 +163,7 @@ func TestMessageAreasLightbarHasNoBlankLineWithRealAnsFileEnding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListAreaStats: %v", err)
 	}
-	if err := s.drawAreaLightbar(term, u, stats, 0); err != nil {
+	if _, err := s.drawAreaLightbar(term, u, stats, 0, 0); err != nil {
 		t.Fatalf("drawAreaLightbar: %v", err)
 	}
 
@@ -205,7 +206,7 @@ func TestMessageAreasLightbarScrollsAndKeepsHeaderAndHintVisible(t *testing.T) {
 	// Select the last area -- if the viewport didn't scroll to follow
 	// it, the earlier (buggy) full-dump behavior would still show it,
 	// but the header/hint would already be well off-screen by then.
-	if err := s.drawAreaLightbar(term, u, stats, len(stats)-1); err != nil {
+	if _, err := s.drawAreaLightbar(term, u, stats, len(stats)-1, 0); err != nil {
 		t.Fatalf("drawAreaLightbar: %v", err)
 	}
 
@@ -247,6 +248,125 @@ func TestMessageAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
 	// browseArea prints the area's own name as a header once entered.
 	if !strings.Contains(conn.out.String(), "\x1b[1;36mSecond Area\x1b[0m") {
 		t.Fatalf("expected to have entered Second Area, got: %q", conn.out.String())
+	}
+}
+
+// TestMessageAreasLightbarArrowKeysClampAtFirstAndLastInsteadOfWrapping
+// is a regression test: Up on the first area used to wrap around to
+// the last one (and Down on the last back to the first) -- the
+// highlight must just stay put at the edge instead, mirroring
+// drawMessageList's identically motivated fix.
+func TestMessageAreasLightbarArrowKeysClampAtFirstAndLastInsteadOfWrapping(t *testing.T) {
+	s := testServer(t)
+	if _, err := s.Messages.CreateArea("second", "Second Area", "", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	// Up at the first area ("General Discussion", sorting first) must
+	// stay put -- an odd number of presses would land on "Second Area"
+	// instead if it were still wrapping around modulo the list length.
+	conn := newFakeConn("M\r\n" + strings.Repeat("\x1b[A", 3) + "\r\nQQQ\r\n")
+	term := NewTerminal(conn)
+	if err := s.runMenu(term, u, 1, "main"); !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn.out.String(), "\x1b[1;36mGeneral Discussion\x1b[0m") {
+		t.Fatalf("expected Up at the first area to stay on it, got: %q", conn.out.String())
+	}
+
+	// Down past the last area ("Second Area") must stay put -- an even
+	// number of presses would land back on "General Discussion" instead
+	// if it were still wrapping around modulo the list length.
+	conn2 := newFakeConn("M\r\n" + strings.Repeat("\x1b[B", 4) + "\r\nQQQ\r\n")
+	term2 := NewTerminal(conn2)
+	if err := s.runMenu(term2, u, 1, "main"); !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	if !strings.Contains(conn2.out.String(), "\x1b[1;36mSecond Area\x1b[0m") {
+		t.Fatalf("expected Down past the last area to stay on it, got: %q", conn2.out.String())
+	}
+}
+
+// TestMessageAreasLightbarCursorFollowsToEdgeBeforeWindowScrolls is a
+// regression test: drawAreaLightbar used to recompute scrollOffset
+// centered on selectedRow every redraw, which mostly pinned the
+// highlight to a fixed screen row instead of letting it move within
+// the window -- see drawMessageList's identically motivated fix,
+// which this mirrors.
+func TestMessageAreasLightbarCursorFollowsToEdgeBeforeWindowScrolls(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	for i := 0; i < 40; i++ {
+		if _, err := s.Messages.CreateArea(fmt.Sprintf("area%02d", i), fmt.Sprintf("Area %02d", i), "", "", 0, 0); err != nil {
+			t.Fatalf("CreateArea: %v", err)
+		}
+	}
+	stats, err := s.Messages.ListAreaStats(u.SecurityLevel, u.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats: %v", err)
+	}
+
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	scrollOffset, err := s.drawAreaLightbar(term, u, stats, 0, 0)
+	if err != nil {
+		t.Fatalf("drawAreaLightbar: %v", err)
+	}
+	if scrollOffset != 0 {
+		t.Fatalf("initial scrollOffset = %d, want 0", scrollOffset)
+	}
+	firstOut := conn.out.String()
+
+	lastVisible := -1
+	for i := 0; i < 40; i++ {
+		if strings.Contains(firstOut, fmt.Sprintf("Area %02d ", i)) {
+			lastVisible = i
+		}
+	}
+	if lastVisible <= 0 || lastVisible >= 39 {
+		t.Fatalf("expected the initial window to show only part of the list, last visible = %d, out: %q", lastVisible, firstOut)
+	}
+
+	// Highlighting the last row still inside the current window must
+	// not scroll it at all -- the highlight moves, the window doesn't.
+	conn2 := newFakeConn("")
+	term2 := NewTerminal(conn2)
+	stillOffset, err := s.drawAreaLightbar(term2, u, stats, lastVisible, scrollOffset)
+	if err != nil {
+		t.Fatalf("drawAreaLightbar: %v", err)
+	}
+	if stillOffset != 0 {
+		t.Fatalf("scrollOffset moved to %d after highlighting the still-visible last row, want unchanged 0", stillOffset)
+	}
+	if !strings.Contains(conn2.out.String(), "Area 00 ") {
+		t.Fatalf("expected Area 00 still visible (window unmoved), got: %q", conn2.out.String())
+	}
+
+	// Moving one row past that edge must scroll the window by exactly
+	// one row, keeping the highlight pinned at the bottom edge instead
+	// of jumping further or leaving the window fixed.
+	conn3 := newFakeConn("")
+	term3 := NewTerminal(conn3)
+	edgeOffset, err := s.drawAreaLightbar(term3, u, stats, lastVisible+1, stillOffset)
+	if err != nil {
+		t.Fatalf("drawAreaLightbar: %v", err)
+	}
+	if edgeOffset != 1 {
+		t.Fatalf("scrollOffset after moving one row past the visible edge = %d, want 1 (window follows by exactly one row)", edgeOffset)
+	}
+	out3 := conn3.out.String()
+	if strings.Contains(out3, "Area 00 ") {
+		t.Fatalf("expected Area 00 to scroll out of view once the highlight passed the bottom edge, got: %q", out3)
+	}
+	if !strings.Contains(out3, "Area 01 ") {
+		t.Fatalf("expected the window to have scrolled by exactly one row (Area 01 now at top), got: %q", out3)
 	}
 }
 
@@ -501,6 +621,140 @@ func TestMessageListScrollsAndKeepsHeaderVisibleWithManyMessages(t *testing.T) {
 	}
 }
 
+func TestFirstUnreadIndexReturnsFirstUnread(t *testing.T) {
+	msgs := []message.Message{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4}}
+	readIDs := map[int64]bool{1: true, 2: true}
+	if got := firstUnreadIndex(msgs, readIDs); got != 2 {
+		t.Fatalf("firstUnreadIndex = %d, want 2 (message ID 3, the first unread)", got)
+	}
+}
+
+func TestFirstUnreadIndexFallsBackToLastWhenAllRead(t *testing.T) {
+	msgs := []message.Message{{ID: 1}, {ID: 2}, {ID: 3}}
+	readIDs := map[int64]bool{1: true, 2: true, 3: true}
+	if got := firstUnreadIndex(msgs, readIDs); got != 2 {
+		t.Fatalf("firstUnreadIndex = %d, want 2 (the last message, everything already read)", got)
+	}
+}
+
+// TestMessageListWindowStartsAtFirstUnreadWhenEnoughNewerMessages
+// locks in a real behavior change: entering an area lands on the
+// first unread message with the window starting exactly there, not
+// showing older already-read messages before it, as long as there
+// are enough newer (unread) ones to fill the screen on their own.
+func TestMessageListWindowStartsAtFirstUnreadWhenEnoughNewerMessages(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	var ids []int64
+	for i := 1; i <= 40; i++ {
+		m, err := s.Messages.PostMessage(general.ID, u.ID, "All", fmt.Sprintf("Subject %d", i), "body")
+		if err != nil {
+			t.Fatalf("PostMessage %d: %v", i, err)
+		}
+		ids = append(ids, m.ID)
+	}
+	for _, id := range ids[:20] {
+		if err := s.Messages.MarkMessageRead(u.ID, id); err != nil {
+			t.Fatalf("MarkMessageRead: %v", err)
+		}
+	}
+
+	msgs, err := s.Messages.ListMessages(general.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	readIDs, err := s.Messages.ReadMessageIDs(u.ID, general.ID)
+	if err != nil {
+		t.Fatalf("ReadMessageIDs: %v", err)
+	}
+	selected := firstUnreadIndex(msgs, readIDs)
+	if selected != 20 {
+		t.Fatalf("firstUnreadIndex = %d, want 20 (Subject 21, the first unread)", selected)
+	}
+
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	if _, err := s.drawMessageList(term, u, general, msgs, selected, selected, true, readIDs); err != nil {
+		t.Fatalf("drawMessageList: %v", err)
+	}
+
+	out := conn.out.String()
+	if !strings.Contains(out, "Subject 21") {
+		t.Fatalf("expected the window to start at the first unread message (Subject 21), got: %q", out)
+	}
+	if strings.Contains(out, "Subject 20 ") {
+		t.Fatalf("expected older, already-read messages before the first unread NOT to be shown when there are enough newer ones to fill the screen, got: %q", out)
+	}
+}
+
+// TestMessageListWindowPullsBackToFillScreenNearEndOfList locks in the
+// other half of the same behavior: when there aren't enough messages
+// after the first unread one to fill the screen on their own, the
+// window pulls backward to include older, already-read messages
+// instead of leaving the rest of the screen blank.
+func TestMessageListWindowPullsBackToFillScreenNearEndOfList(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	var ids []int64
+	for i := 1; i <= 40; i++ {
+		m, err := s.Messages.PostMessage(general.ID, u.ID, "All", fmt.Sprintf("Subject %d", i), "body")
+		if err != nil {
+			t.Fatalf("PostMessage %d: %v", i, err)
+		}
+		ids = append(ids, m.ID)
+	}
+	// Only the last two messages (39, 40) are unread.
+	for _, id := range ids[:38] {
+		if err := s.Messages.MarkMessageRead(u.ID, id); err != nil {
+			t.Fatalf("MarkMessageRead: %v", err)
+		}
+	}
+
+	msgs, err := s.Messages.ListMessages(general.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	readIDs, err := s.Messages.ReadMessageIDs(u.ID, general.ID)
+	if err != nil {
+		t.Fatalf("ReadMessageIDs: %v", err)
+	}
+	selected := firstUnreadIndex(msgs, readIDs)
+	if selected != 38 {
+		t.Fatalf("firstUnreadIndex = %d, want 38 (Subject 39, the first unread)", selected)
+	}
+
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	if _, err := s.drawMessageList(term, u, general, msgs, selected, selected, true, readIDs); err != nil {
+		t.Fatalf("drawMessageList: %v", err)
+	}
+
+	out := conn.out.String()
+	if !strings.Contains(out, "Subject 39") || !strings.Contains(out, "Subject 40") {
+		t.Fatalf("expected both unread messages visible, got: %q", out)
+	}
+	if !strings.Contains(out, "Subject 30") {
+		t.Fatalf("expected the window to pull back and include older, already-read messages to fill the screen instead of leaving it blank, got: %q", out)
+	}
+	if strings.Contains(out, "Subject 1 ") {
+		t.Fatalf("expected the window NOT to pull back all the way to the very first message, got: %q", out)
+	}
+}
+
 // TestMessageListFooterAnchoredRegardlessOfMessageCount locks in a
 // real production fix: the footer hint used to trail right after the
 // last message row, so it landed on a different line depending on how
@@ -588,6 +842,142 @@ func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
 	}
 	if !strings.Contains(readerRenders[0], "Second Subject") {
 		t.Fatalf("expected Down arrow to open the second message, got: %q", readerRenders[0])
+	}
+}
+
+// TestMessageListArrowKeysClampAtFirstAndLastInsteadOfWrapping is a
+// regression test: Up on the first message used to wrap around to the
+// last one (and Down on the last back to the first), which is jarring
+// -- the highlight must just stay put at the edge instead.
+func TestMessageListArrowKeysClampAtFirstAndLastInsteadOfWrapping(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	for _, subj := range []string{"First", "Second", "Third"} {
+		if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", subj, "body"); err != nil {
+			t.Fatalf("PostMessage: %v", err)
+		}
+	}
+	readerFooter := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list"
+
+	// Up at the very first message must stay put, not wrap to the last.
+	conn := newFakeConn("M\r\n\r\n" + strings.Repeat("\x1b[A", 3) + "\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+	if err := s.runMenu(term, u, 1, "main"); !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	renders := strings.Split(conn.out.String(), readerFooter)
+	if len(renders) < 2 {
+		t.Fatalf("expected the reader to open, got: %q", conn.out.String())
+	}
+	if !strings.Contains(renders[0], "First") {
+		t.Fatalf("expected Up at the first message to stay on it (not wrap to the last), got: %q", renders[0])
+	}
+
+	// Down past the last message must stay put, not wrap to the first.
+	conn2 := newFakeConn("M\r\n\r\n" + strings.Repeat("\x1b[B", 5) + "\r\nQQQQ\r\n")
+	term2 := NewTerminal(conn2)
+	if err := s.runMenu(term2, u, 1, "main"); !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	renders2 := strings.Split(conn2.out.String(), readerFooter)
+	if len(renders2) < 2 {
+		t.Fatalf("expected the reader to open, got: %q", conn2.out.String())
+	}
+	if !strings.Contains(renders2[0], "Third") {
+		t.Fatalf("expected Down past the last message to stay on it (not wrap to the first), got: %q", renders2[0])
+	}
+}
+
+// TestMessageListCursorFollowsToEdgeBeforeWindowScrolls is a
+// regression test: drawMessageList used to recompute scrollOffset as
+// exactly selected on every redraw, which pinned the highlight to the
+// window's very first row for the whole list and only let it move
+// near the end -- visually, the cursor looked stuck mid-screen while
+// the list scrolled under it. The window must only start moving once
+// the highlight reaches its bottom edge, the same way a normal pager
+// scrolls -- see drawMessageList/browseArea's doc comments.
+func TestMessageListCursorFollowsToEdgeBeforeWindowScrolls(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	for i := 1; i <= 40; i++ {
+		if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", fmt.Sprintf("Subject %d", i), "body"); err != nil {
+			t.Fatalf("PostMessage %d: %v", i, err)
+		}
+	}
+	msgs, err := s.Messages.ListMessages(general.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	readIDs := map[int64]bool{}
+
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	scrollOffset, err := s.drawMessageList(term, u, general, msgs, 0, 0, true, readIDs)
+	if err != nil {
+		t.Fatalf("drawMessageList: %v", err)
+	}
+	if scrollOffset != 0 {
+		t.Fatalf("initial scrollOffset = %d, want 0", scrollOffset)
+	}
+	firstOut := conn.out.String()
+
+	lastVisible := 0
+	for i := 1; i <= 40; i++ {
+		if strings.Contains(firstOut, fmt.Sprintf("Subject %d ", i)) {
+			lastVisible = i
+		}
+	}
+	if lastVisible == 0 || lastVisible >= 40 {
+		t.Fatalf("expected the initial window to show only part of the list, last visible = %d, out: %q", lastVisible, firstOut)
+	}
+
+	// Highlighting the last row still inside the current window must
+	// not scroll it at all -- the highlight moves, the window doesn't.
+	conn2 := newFakeConn("")
+	term2 := NewTerminal(conn2)
+	stillOffset, err := s.drawMessageList(term2, u, general, msgs, lastVisible-1, scrollOffset, true, readIDs)
+	if err != nil {
+		t.Fatalf("drawMessageList: %v", err)
+	}
+	if stillOffset != 0 {
+		t.Fatalf("scrollOffset moved to %d after highlighting the still-visible last row, want unchanged 0", stillOffset)
+	}
+	if !strings.Contains(conn2.out.String(), "Subject 1 ") {
+		t.Fatalf("expected Subject 1 still visible (window unmoved), got: %q", conn2.out.String())
+	}
+
+	// Moving one row past that edge must scroll the window by exactly
+	// one row, keeping the highlight pinned at the bottom edge instead
+	// of jumping further or leaving the window fixed.
+	conn3 := newFakeConn("")
+	term3 := NewTerminal(conn3)
+	edgeOffset, err := s.drawMessageList(term3, u, general, msgs, lastVisible, stillOffset, true, readIDs)
+	if err != nil {
+		t.Fatalf("drawMessageList: %v", err)
+	}
+	if edgeOffset != 1 {
+		t.Fatalf("scrollOffset after moving one row past the visible edge = %d, want 1 (window follows by exactly one row)", edgeOffset)
+	}
+	out3 := conn3.out.String()
+	if strings.Contains(out3, "Subject 1 ") {
+		t.Fatalf("expected Subject 1 to scroll out of view once the highlight passed the bottom edge, got: %q", out3)
+	}
+	if !strings.Contains(out3, "Subject 2 ") {
+		t.Fatalf("expected the window to have scrolled by exactly one row (Subject 2 now at top), got: %q", out3)
 	}
 }
 

@@ -236,6 +236,45 @@ func (s *Store) Inbox(userID int64) ([]Message, error) {
 	return msgs, nil
 }
 
+// UnresolvedInbox returns inbound netmail whose recipient name never
+// resolved to any local user account, most recent first -- a reply
+// from an Areafix/Filefix robot, for instance, addressed back to
+// whatever name this system used as its own request's From (see
+// internal/tosser's RequestEchoAreaChanges/RequestFileAreaChanges),
+// which isn't a real BBS username. Inbox alone would never surface
+// this to anyone (it's filtered to one specific recipient), so the
+// sysop's own netmail view merges this in too -- otherwise a reply
+// like that is stored (never silently discarded) but effectively
+// invisible in the BBS itself.
+func (s *Store) UnresolvedInbox(limit int) ([]Message, error) {
+	rows, err := s.db.Query(
+		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
+		 WHERE m.to_user_id IS NULL AND m.to_address = ''
+		 ORDER BY m.posted_at DESC, m.id DESC
+		 LIMIT ?`, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("netmail: unresolved inbox: %w", err)
+	}
+	defer rows.Close()
+
+	var msgs []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			return nil, fmt.Errorf("netmail: scan unresolved inbox row: %w", err)
+		}
+		msgs = append(msgs, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("netmail: unresolved inbox: %w", err)
+	}
+	return msgs, nil
+}
+
 // InboxFromAddress returns netmail from fromAddress, most recent
 // first (at most limit messages), regardless of whether its recipient
 // name resolved to a local user -- an inbound reply from an automated
@@ -293,6 +332,19 @@ func (s *Store) MarkRead(messageID int64) error {
 		messageID,
 	); err != nil {
 		return fmt.Errorf("netmail: mark %d read: %w", messageID, err)
+	}
+	return nil
+}
+
+// Delete permanently removes a netmail message -- so an inbox (or a
+// sysop's merged view of unresolved system replies, see
+// UnresolvedInbox) doesn't just accumulate forever with no way to
+// clear it out. Deleting a message that's still pending outbound
+// (queued but not yet sent) simply drops it instead of sending it.
+// Absent is not an error.
+func (s *Store) Delete(messageID int64) error {
+	if _, err := s.db.Exec(`DELETE FROM netmail_messages WHERE id = ?`, messageID); err != nil {
+		return fmt.Errorf("netmail: delete %d: %w", messageID, err)
 	}
 	return nil
 }
