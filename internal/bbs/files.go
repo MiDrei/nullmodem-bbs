@@ -29,10 +29,8 @@ outer:
 			return err
 		}
 		if len(stats) == 0 {
-			if err := s.printAreaHeader(term, u, "filareas.ans", "File Areas"); err != nil {
-				return err
-			}
-			return term.Println(ansi.Reset + "\nNo file areas available.")
+			header := s.renderAreaHeader(term, u, "filareas.ans", "File Areas")
+			return term.Print(header + ansi.Reset + "No file areas available." + ansi.CRLF)
 		}
 		if selected >= len(stats) {
 			selected = len(stats) - 1
@@ -88,38 +86,81 @@ const (
 
 var fallbackFileAreaColumns = "Area                                                           Total    New  Yours\r\n" + strings.Repeat("-", 79)
 
-// drawFileAreaLightbar mirrors messages.go's drawAreaLightbar exactly,
-// against the file-area column/row screen files and file.AreaWithStats
-// instead of message.AreaWithStats.
-func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file.AreaWithStats, selected int) error {
-	if err := s.printAreaHeader(term, u, "filareas.ans", "File Areas"); err != nil {
-		return err
-	}
+// fileAreaDisplayRow mirrors messages.go's areaDisplayRow exactly,
+// against file.AreaWithStats instead of message.AreaWithStats -- see
+// that type's doc comment.
+type fileAreaDisplayRow struct {
+	divider  string
+	statsIdx int
+	isArea   bool
+}
 
-	rowTemplate := s.loadOptionalScreen(fileAreaRowScreen, fallbackFileAreaRow)
-	rowSelectedTemplate := s.loadOptionalScreen(fileAreaRowSelectedScreen, fallbackFileAreaRowSelected)
-	networkTemplate := s.loadOptionalScreen(fileAreaNetworkScreen, fallbackFileAreaNetwork)
-
-	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(s.loadOptionalScreen(fileAreaColumnsScreen, fallbackFileAreaColumns))
-	b.WriteString(ansi.CRLF)
-
-	// stats is sorted network, sort_order, name (see ListAreaStats), so
-	// every area sharing a network is already contiguous -- see
-	// messages.go's drawAreaLightbar, which this mirrors.
+// buildFileAreaDisplayRows mirrors messages.go's
+// buildAreaDisplayRows exactly -- see that function's doc comment.
+func buildFileAreaDisplayRows(stats []file.AreaWithStats, selected int, networkTemplate string, width int) (rows []fileAreaDisplayRow, selectedRow int) {
 	lastNetwork := ""
 	for i, st := range stats {
 		if st.Area.Network != lastNetwork {
 			if st.Area.Network != "" {
-				b.WriteString(ansi.Layout(ansi.Render(networkTemplate, ansi.Vars{"NETWORK": st.Area.Network}), term.Width()))
-				b.WriteString(ansi.CRLF)
+				rows = append(rows, fileAreaDisplayRow{divider: ansi.Layout(ansi.Render(networkTemplate, ansi.Vars{"NETWORK": st.Area.Network}), width)})
 			}
 			lastNetwork = st.Area.Network
 		}
-
-		tmpl := rowTemplate
+		rows = append(rows, fileAreaDisplayRow{statsIdx: i, isArea: true})
 		if i == selected {
+			selectedRow = len(rows) - 1
+		}
+	}
+	return rows, selectedRow
+}
+
+// drawFileAreaLightbar mirrors messages.go's drawAreaLightbar
+// exactly, scrolling included -- against the file-area column/row
+// screen files and file.AreaWithStats instead of message.AreaWithStats.
+func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file.AreaWithStats, selected int) error {
+	header := s.renderAreaHeader(term, u, "filareas.ans", "File Areas")
+
+	rowTemplate := s.loadOptionalScreen(fileAreaRowScreen, fallbackFileAreaRow)
+	rowSelectedTemplate := s.loadOptionalScreen(fileAreaRowSelectedScreen, fallbackFileAreaRowSelected)
+	networkTemplate := s.loadOptionalScreen(fileAreaNetworkScreen, fallbackFileAreaNetwork)
+	columns := s.loadOptionalScreen(fileAreaColumnsScreen, fallbackFileAreaColumns)
+
+	rows, selectedRow := buildFileAreaDisplayRows(stats, selected, networkTemplate, term.Width())
+
+	var b strings.Builder
+	b.WriteString(header)
+	b.WriteString(ansi.Reset)
+	b.WriteString(columns)
+	b.WriteString(ansi.CRLF)
+
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	available := term.Height() - used
+	if available < 1 {
+		available = 1
+	}
+
+	scrollOffset := selectedRow - available/2
+	if scrollOffset > len(rows)-available {
+		scrollOffset = len(rows) - available
+	}
+	if scrollOffset < 0 {
+		scrollOffset = 0
+	}
+	end := scrollOffset + available
+	if end > len(rows) {
+		end = len(rows)
+	}
+
+	for i := scrollOffset; i < end; i++ {
+		row := rows[i]
+		if !row.isArea {
+			b.WriteString(row.divider)
+			b.WriteString(ansi.CRLF)
+			continue
+		}
+		st := stats[row.statsIdx]
+		tmpl := rowTemplate
+		if row.statsIdx == selected {
 			tmpl = rowSelectedTemplate
 		}
 		newFlag := ""
@@ -136,7 +177,16 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 		b.WriteString(ansi.Render(tmpl, vars))
 		b.WriteString(ansi.CRLF)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [Q] Back" + ansi.Reset)
+	for i := end - scrollOffset; i < available; i++ {
+		b.WriteString(ansi.CRLF)
+	}
+
+	scrollStatus := ""
+	if len(rows) > available {
+		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(rows))
+	}
+	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
+	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [Q] Back" + ansi.Reset)
 	return term.Print(b.String())
 }
 

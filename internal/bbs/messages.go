@@ -26,10 +26,8 @@ outer:
 			return err
 		}
 		if len(stats) == 0 {
-			if err := s.printAreaHeader(term, u, "msgareas.ans", "Message Areas"); err != nil {
-				return err
-			}
-			return term.Println(ansi.Reset + "\nNo message areas available.")
+			header := s.renderAreaHeader(term, u, "msgareas.ans", "Message Areas")
+			return term.Print(header + ansi.Reset + "No message areas available." + ansi.CRLF)
 		}
 		if selected >= len(stats) {
 			selected = len(stats) - 1
@@ -64,7 +62,7 @@ outer:
 }
 
 // Fixed filenames for the hand-designed pieces of the area lightbar,
-// beyond the banner (see printAreaHeader): a plain, uncustomized
+// beyond the banner (see renderAreaHeader): a plain, uncustomized
 // fallback covers each one so a missing or deleted file degrades to
 // a working (if plain) table instead of breaking the listing.
 const (
@@ -86,13 +84,55 @@ const (
 var fallbackAreaColumns = "Area                                                           Total    New  Yours\r\n" + strings.Repeat("-", 79)
 
 // loadOptionalScreen returns screenFile's raw content from ScreensDir,
-// or fallback if it doesn't exist / can't be read.
+// or fallback if it doesn't exist / can't be read. Every caller uses
+// this for a composable FRAGMENT (a row/columns/network/meta/footer
+// template meant to be printed right after a full-screen header
+// banner) rather than a standalone screen, so any leading screen-
+// clear the file itself contains -- e.g. left over from being saved
+// in the web ANSI designer, which defaults to one -- is stripped (see
+// ansi.StripLeadingScreenClear): otherwise it would wipe out the
+// header banner drawn just before it.
 func (s *Server) loadOptionalScreen(screenFile, fallback string) string {
 	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, screenFile))
 	if err != nil {
 		return fallback
 	}
-	return raw
+	return ansi.StripLeadingScreenClear(raw)
+}
+
+// areaDisplayRow is one line drawAreaLightbar/drawFileAreaLightbar
+// will actually put on screen: either a network divider or one area's
+// row. Windowing over a list of these (rather than over the area
+// stats directly) is what keeps a divider from silently eating an
+// extra row the viewport budget didn't account for.
+type areaDisplayRow struct {
+	divider  string
+	statsIdx int
+	isArea   bool
+}
+
+// buildAreaDisplayRows turns stats (sorted network, sort_order, name
+// -- see ListAreaStats/file.Store's equivalent, so every area sharing
+// a network is already contiguous) into rows, inserting a divider
+// right before the first area of each new, non-empty network group;
+// local/ungrouped areas (Network == "") never get one. Also returns
+// which row index selected landed on, so the caller can scroll it
+// into view.
+func buildAreaDisplayRows(stats []message.AreaWithStats, selected int, networkTemplate string, width int) (rows []areaDisplayRow, selectedRow int) {
+	lastNetwork := ""
+	for i, st := range stats {
+		if st.Area.Network != lastNetwork {
+			if st.Area.Network != "" {
+				rows = append(rows, areaDisplayRow{divider: ansi.Layout(ansi.Render(networkTemplate, ansi.Vars{"NETWORK": st.Area.Network}), width)})
+			}
+			lastNetwork = st.Area.Network
+		}
+		rows = append(rows, areaDisplayRow{statsIdx: i, isArea: true})
+		if i == selected {
+			selectedRow = len(rows) - 1
+		}
+	}
+	return rows, selectedRow
 }
 
 // drawAreaLightbar redraws the message-area header banner plus the
@@ -102,37 +142,65 @@ func (s *Server) loadOptionalScreen(screenFile, fallback string) string {
 // TOTAL/NEW/YOURS/NEWFLAG placeholders -- see internal/ansi.Render's
 // {NAME:WIDTH} form, which is what keeps the numeric columns aligned
 // even though area names vary in length.
+//
+// Like drawMessageList, the table is windowed to whatever vertical
+// space is left after the header/columns/footer, scrolled to keep
+// selected in view -- a long area list (routine now that fsxNet/
+// HobbyNet/lovlynet echomail areas get auto-created as they're
+// tossed in) used to just dump every row in one shot, pushing the
+// header off the top of the screen exactly the way an unpaginated
+// message list once did.
 func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.AreaWithStats, selected int) error {
-	if err := s.printAreaHeader(term, u, "msgareas.ans", "Message Areas"); err != nil {
-		return err
-	}
+	header := s.renderAreaHeader(term, u, "msgareas.ans", "Message Areas")
 
 	rowTemplate := s.loadOptionalScreen(msgAreaRowScreen, fallbackAreaRow)
 	rowSelectedTemplate := s.loadOptionalScreen(msgAreaRowSelectedScreen, fallbackAreaRowSelected)
 	networkTemplate := s.loadOptionalScreen(msgAreaNetworkScreen, fallbackAreaNetwork)
+	columns := s.loadOptionalScreen(msgAreaColumnsScreen, fallbackAreaColumns)
+
+	rows, selectedRow := buildAreaDisplayRows(stats, selected, networkTemplate, term.Width())
 
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(s.loadOptionalScreen(msgAreaColumnsScreen, fallbackAreaColumns))
+	b.WriteString(header)
+	b.WriteString(ansi.Reset)
+	b.WriteString(columns)
 	b.WriteString(ansi.CRLF)
 
-	// stats is sorted network, sort_order, name (see ListAreaStats), so
-	// every area sharing a network is already contiguous -- a divider
-	// belongs right before the first row of each new, non-empty
-	// network group. Local/ungrouped areas (Network == "") never get
-	// one.
-	lastNetwork := ""
-	for i, st := range stats {
-		if st.Area.Network != lastNetwork {
-			if st.Area.Network != "" {
-				b.WriteString(ansi.Layout(ansi.Render(networkTemplate, ansi.Vars{"NETWORK": st.Area.Network}), term.Width()))
-				b.WriteString(ansi.CRLF)
-			}
-			lastNetwork = st.Area.Network
-		}
+	// Budget the table's viewport the same way drawMessageList does:
+	// header/columns counted from their own rendered text (deployment-
+	// customizable, not a fixed line count; header's own trailing "\n"
+	// -- see finishHeaderLine -- already accounts for its own last
+	// row, with no separator row of ours added on top) plus the
+	// footer's own fixed 3 lines (blank + its own scroll-status line,
+	// always reserved even when blank, plus the hint line).
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	available := term.Height() - used
+	if available < 1 {
+		available = 1
+	}
 
+	scrollOffset := selectedRow - available/2
+	if scrollOffset > len(rows)-available {
+		scrollOffset = len(rows) - available
+	}
+	if scrollOffset < 0 {
+		scrollOffset = 0
+	}
+	end := scrollOffset + available
+	if end > len(rows) {
+		end = len(rows)
+	}
+
+	for i := scrollOffset; i < end; i++ {
+		row := rows[i]
+		if !row.isArea {
+			b.WriteString(row.divider)
+			b.WriteString(ansi.CRLF)
+			continue
+		}
+		st := stats[row.statsIdx]
 		tmpl := rowTemplate
-		if i == selected {
+		if row.statsIdx == selected {
 			tmpl = rowSelectedTemplate
 		}
 		newFlag := ""
@@ -149,13 +217,22 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 		b.WriteString(ansi.Render(tmpl, vars))
 		b.WriteString(ansi.CRLF)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [Q] Back" + ansi.Reset)
+	for i := end - scrollOffset; i < available; i++ {
+		b.WriteString(ansi.CRLF)
+	}
+
+	scrollStatus := ""
+	if len(rows) > available {
+		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(rows))
+	}
+	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
+	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [Q] Back" + ansi.Reset)
 	return term.Print(b.String())
 }
 
 // msgListScreen is the hand-designed banner shown above an area's
 // message list, the same clear-screen-then-banner convention as
-// printAreaHeader/renderMessageReaderHeader -- without it, entering an
+// renderAreaHeader/renderMessageReaderHeader -- without it, entering an
 // area left the previous screen (e.g. the area lightbar's box) on
 // screen with the list appended below it instead of replacing it.
 const msgListScreen = "msglist.ans"
@@ -177,7 +254,7 @@ func (s *Server) renderMessageListHeader(term *Terminal, area *message.Area) str
 		"AREANAME": area.Name,
 	}
 	rendered := ansi.Render(raw, vars)
-	return ansi.Layout(rendered, term.Width()) + "\n"
+	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
 // Fixed filenames for the hand-designed pieces of the message-list
@@ -280,7 +357,7 @@ func (s *Server) drawEmptyMessageList(term *Terminal, area *message.Area, canWri
 	if canWrite {
 		hint = "[P] Post   " + hint
 	}
-	return term.Print(s.renderMessageListHeader(term, area) + ansi.Reset + "\n(no messages yet)\r\n\r\n" + ansi.FG(ansi.White, true) + hint + ansi.Reset)
+	return term.Print(s.renderMessageListHeader(term, area) + ansi.Reset + "(no messages yet)\r\n\r\n" + ansi.FG(ansi.White, true) + hint + ansi.Reset)
 }
 
 // drawMessageList redraws the header banner plus the Subject/From/
@@ -316,18 +393,20 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 
 	var b strings.Builder
 	b.WriteString(header)
-	b.WriteString(ansi.Reset + "\r\n")
+	b.WriteString(ansi.Reset)
 	b.WriteString(columns)
 	b.WriteString(ansi.CRLF)
 
 	// Budget the list's viewport as whatever's left after everything
 	// else on screen: header/columns (counted from their own rendered
 	// text, since msglist.ans/msglist-columns.ans are deployment-
-	// customizable, not a fixed line count) plus the footer's own
-	// fixed 3 lines (blank + its own scroll-status line, always
-	// reserved even when blank -- see drawMessageReader's identically
-	// motivated budget -- plus the hint line).
-	used := strings.Count(header, "\n") + 1 + strings.Count(columns, "\n") + 1 + 3
+	// customizable, not a fixed line count; header's own trailing "\n"
+	// -- see finishHeaderLine -- already accounts for its own last
+	// row, with no separator row of ours added on top) plus the
+	// footer's own fixed 3 lines (blank + its own scroll-status line,
+	// always reserved even when blank -- see drawMessageReader's
+	// identically motivated budget -- plus the hint line).
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -379,17 +458,23 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 
 // Fixed filenames for the hand-designed pieces of the message reader,
 // mirroring the area lightbar's screens: a full-screen header banner
-// (clears the screen itself) plus a small metadata block, each with a
-// plain fallback so a missing/deleted file degrades gracefully.
+// (clears the screen itself), a small metadata block, and the footer
+// bar (scroll status + hotkey hint, filled in via {SCROLLSTATUS}/
+// {HINT} -- see drawMessageReader), each with a plain fallback so a
+// missing/deleted file degrades gracefully.
 const (
-	msgReadScreen     = "msgread.ans"
-	msgReadMetaScreen = "msgread-meta.ans"
+	msgReadScreen       = "msgread.ans"
+	msgReadMetaScreen   = "msgread-meta.ans"
+	msgReadFooterScreen = "msgread-footer.ans"
 )
 
 var fallbackMsgReadMeta = "\x1b[1;36mFrom:    \x1b[1;37m{FROM:-40}\x1b[1;36m Date: \x1b[1;37m{DATE}\r\n" +
 	"\x1b[1;36mTo:      \x1b[1;37m{TO:-40}\r\n" +
 	"\x1b[1;36mSubject: \x1b[1;37m{SUBJECT}\r\n" +
 	"\x1b[36m" + strings.Repeat("-", 79) + ansi.Reset
+
+var fallbackMsgReadFooter = ansi.FG(ansi.White, true) + "{SCROLLSTATUS}" + ansi.Reset + "\r\n" +
+	ansi.FG(ansi.White, true) + "{HINT}" + ansi.Reset
 
 // readMessage is a message reader over msgs, starting at idx, that
 // lets the caller page through every message in the area with the
@@ -450,7 +535,7 @@ func (s *Server) readMessage(term *Terminal, u *user.User, area *message.Area, m
 // renderMessageReaderHeader returns msgread.ans (with AREANAME/MSGNUM/
 // MSGCOUNT filled in), followed by a newline, falling back to a plain
 // colored area-name line -- the same degrade-gracefully convention as
-// printAreaHeader. Returned as a string rather than printed directly
+// renderAreaHeader. Returned as a string rather than printed directly
 // so drawMessageReader can count its line count (customizable per
 // deployment, so not something to hardcode) toward the body's scroll
 // viewport budget.
@@ -466,7 +551,7 @@ func (s *Server) renderMessageReaderHeader(term *Terminal, area *message.Area, i
 		"MSGCOUNT": strconv.Itoa(total),
 	}
 	rendered := ansi.Render(raw, vars)
-	return ansi.Layout(rendered, term.Width()) + "\n"
+	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
 // printBody finishes a reader/description display: it prints
@@ -594,25 +679,27 @@ func (s *Server) drawMessageReader(term *Terminal, u *user.User, area *message.A
 		"DATE":    m.PostedAt.Format("2006-01-02 15:04"),
 	}
 	meta := ansi.Layout(ansi.Render(metaTemplate, vars), term.Width())
+	footerTemplate := s.loadOptionalScreen(msgReadFooterScreen, fallbackMsgReadFooter)
 
 	var b strings.Builder
 	b.WriteString(header)
-	b.WriteString(ansi.Reset + "\r\n")
+	b.WriteString(ansi.Reset)
 	b.WriteString(meta)
 	b.WriteString(ansi.CRLF)
 
 	// Budget the body's viewport as whatever's left after everything
-	// else drawn on screen: header/meta (counted from their own
-	// rendered text, since msgread.ans/msgread-meta.ans are
-	// deployment-customizable, not a fixed line count) plus the
-	// footer's own fixed 3 lines (blank + its own scroll-status line,
-	// always reserved even when blank, so a long line-count doesn't
-	// wrap the hotkey hint onto a second physical row -- that
-	// happened for real once the scroll-status text was appended
-	// directly onto the hint line instead, silently eating one more
-	// row than budgeted and pushing the header off the top -- plus
-	// the hint line itself).
-	used := strings.Count(header, "\n") + 1 + strings.Count(meta, "\n") + 1 + 3
+	// else drawn on screen: header/meta/footer counted from their own
+	// rendered text (msgread.ans/msgread-meta.ans/msgread-footer.ans
+	// are all deployment-customizable, not a fixed line count -- see
+	// finishHeaderLine for why header's own trailing "\n" already
+	// accounts for its own last row with no separator row of ours
+	// added on top) plus one always-reserved blank line ahead of the
+	// footer, so a long line-count doesn't wrap the hotkey hint onto a
+	// second physical row -- that happened for real once the scroll-
+	// status text was appended directly onto the hint line instead,
+	// silently eating one more row than budgeted and pushing the
+	// header off the top.
+	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1 + 1
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -650,12 +737,22 @@ func (s *Server) drawMessageReader(term *Terminal, u *user.User, area *message.A
 			b.WriteString(ansi.Reset + line + ansi.CRLF)
 		}
 	}
+	// Pad with blank lines when the body is shorter than the viewport
+	// -- otherwise the footer trails right after a short message
+	// instead of staying anchored near the bottom of the screen,
+	// mirroring drawMessageList/drawAreaLightbar's identically
+	// motivated padding.
+	for i := end - scrollOffset; i < available; i++ {
+		b.WriteString(ansi.CRLF)
+	}
+
 	scrollStatus := ""
 	if maxOffset > 0 {
 		scrollStatus = fmt.Sprintf("-- line %d-%d of %d --", scrollOffset+1, end, totalLines)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + hint + ansi.Reset)
+	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
+	b.WriteString(ansi.Reset + "\r\n")
+	b.WriteString(footer)
 	return maxOffset, term.Print(b.String())
 }
 

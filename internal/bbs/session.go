@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -433,22 +434,61 @@ func (s *Server) printLogoffScreen(term *Terminal, u *user.User, node int) error
 	return term.Print(ansi.Layout(rendered, term.Width()))
 }
 
-// printAreaHeader shows a hand-designed banner screen (with
-// placeholders filled in, and expected to clear the screen itself
-// the way every other hand-designed screen does) above a message/
-// file area listing when screenFile exists in ScreensDir, falling
-// back to a plain colored title line -- printed inline, with no
-// screen clear -- otherwise.
+// trailingEscapesPattern matches a run of ANSI/CSI escape sequences
+// (no visible characters) anchored to the end of a string -- see
+// finishHeaderLine, which needs to look past a trailing SGR reset to
+// find whether a real line terminator already precedes it.
+var trailingEscapesPattern = regexp.MustCompile(`(?:\x1b\[[0-9;]*[A-Za-z])*$`)
+
+// finishHeaderLine ensures rendered ends with at least one line
+// terminator, appending exactly one "\r\n" if it doesn't already --
+// so a caller that immediately appends its own next section afterward
+// starts on a fresh row, never mid-line. Critically, it never adds a
+// SECOND terminator on top of one rendered already has: every real
+// .ans screen file ends with its own "\r\n" for the last visible row
+// followed by an invisible SGR reset code ("\x1b[0m") with nothing
+// after it, so this looks PAST any such trailing escape run before
+// deciding whether a terminator is already there, rather than just
+// checking the string's literal last bytes (which are always the
+// reset code, never "\r\n", so a naive check would add a redundant
+// one every time). If the file already has one or more of its own
+// trailing blank lines, those are left exactly as authored -- this
+// only ever adds the single terminator needed for proper line
+// termination, never a gap of its own that the sysop didn't ask for.
+func finishHeaderLine(rendered string) string {
+	loc := trailingEscapesPattern.FindStringIndex(rendered)
+	core := rendered
+	if loc != nil {
+		core = rendered[:loc[0]]
+	}
+	if strings.HasSuffix(core, "\n") || strings.HasSuffix(core, "\r") {
+		return rendered
+	}
+	return rendered + "\r\n"
+}
+
+// renderAreaHeader returns a hand-designed banner screen (with
+// placeholders filled in, and expected to clear the screen itself the
+// way every other hand-designed screen does) for display above a
+// message/file area listing when screenFile exists in ScreensDir,
+// falling back to a plain colored title line -- shown inline, with no
+// screen clear -- otherwise. Returned as a string (see
+// finishHeaderLine) rather than printed directly so a caller like
+// drawAreaLightbar can both avoid doubling up the trailing blank line
+// and count the header's own line count (customizable per deployment,
+// so not something to hardcode) toward a scrollable list's viewport
+// budget, the same reason renderMessageListHeader/
+// renderMessageReaderHeader return strings.
 //
 // The builtin command signature (see the builtins map) doesn't carry
 // a node number, so only the node-independent placeholders are
 // available here -- BBSNAME, SYSOP, USERNAME, SL. That covers every
 // placeholder a sensible area-header design would want; NODE/DATE/
 // TIME/VERSION/TOTALCALLS aren't available in this context.
-func (s *Server) printAreaHeader(term *Terminal, u *user.User, screenFile, fallbackTitle string) error {
+func (s *Server) renderAreaHeader(term *Terminal, u *user.User, screenFile, fallbackTitle string) string {
 	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, screenFile))
 	if err != nil {
-		return term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + fallbackTitle + ansi.Reset)
+		return finishHeaderLine(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + fallbackTitle + ansi.Reset)
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
@@ -457,7 +497,7 @@ func (s *Server) printAreaHeader(term *Terminal, u *user.User, screenFile, fallb
 		"SL":       strconv.Itoa(u.SecurityLevel),
 	}
 	rendered := ansi.Render(raw, vars)
-	return term.Println(ansi.Layout(rendered, term.Width()))
+	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
 func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {

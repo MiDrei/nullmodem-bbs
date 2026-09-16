@@ -90,6 +90,138 @@ func TestMessageAreasLightbarShowsCounts(t *testing.T) {
 	}
 }
 
+// TestMessageAreasLightbarHasNoBlankLineAboveColumns is a regression
+// test: drawAreaLightbar used to print the banner (which itself
+// already leaves the cursor on a fresh blank line, either because the
+// .ans file ends in its own "\r\n" or, in the plain-title fallback
+// used here since testServer sets no ScreensDir, because Println
+// added one) and then add another explicit blank-line separator on
+// top, leaving a gap above the Total/New/Yours column header that the
+// sysop never asked for -- if a gap is wanted, it belongs in the
+// .ans template itself, not hardcoded here.
+func TestMessageAreasLightbarHasNoBlankLineAboveColumns(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	conn := newFakeConn("Q\r\nQ\r\n")
+	term := NewTerminal(conn)
+	stats, err := s.Messages.ListAreaStats(u.SecurityLevel, u.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats: %v", err)
+	}
+	if err := s.drawAreaLightbar(term, u, stats, 0); err != nil {
+		t.Fatalf("drawAreaLightbar: %v", err)
+	}
+
+	out := conn.out.String()
+	titleAt := strings.Index(out, "Message Areas")
+	columnsAt := strings.Index(out, "Area ")
+	if titleAt < 0 || columnsAt < 0 {
+		t.Fatalf("area lightbar output missing title or columns row: %q", out)
+	}
+	// Between the end of the title text and the start of the columns
+	// row: just the title's own line terminator (one "\r\n") -- a
+	// second would mean an unwanted gap is back.
+	betweenTitleAndColumns := out[titleAt:columnsAt]
+	if n := strings.Count(betweenTitleAndColumns, "\r\n"); n != 1 {
+		t.Fatalf("area lightbar has %d line breaks between title and columns row, want exactly 1 (no gap): %q", n, out)
+	}
+}
+
+// TestMessageAreasLightbarHasNoBlankLineWithRealAnsFileEnding is a
+// regression test for finishHeaderLine: a real .ans banner file (as
+// opposed to the plain-title fallback the other no-gap test exercises,
+// which testServer falls back to since it sets no ScreensDir) ends
+// its last visible row with "\r\n" and THEN an invisible SGR reset
+// code with nothing after it -- finishHeaderLine's first
+// implementation only checked the string's literal last bytes for a
+// trailing "\r\n", which are always the reset code, never "\r\n", so
+// it always (wrongly) appended a second terminator on top of the
+// file's own.
+func TestMessageAreasLightbarHasNoBlankLineWithRealAnsFileEnding(t *testing.T) {
+	s := testServer(t)
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	// Mirrors a real hand-designed banner's shape: last visible row,
+	// its own "\r\n", then a trailing SGR reset with no newline after
+	// it -- exactly what every screen in configs/screens/ looks like.
+	if err := os.WriteFile(filepath.Join(dir, "msgareas.ans"), []byte("\x1b[1;36mMessage Areas\r\n\x1b[0m"), 0o644); err != nil {
+		t.Fatalf("write msgareas.ans: %v", err)
+	}
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	conn := newFakeConn("Q\r\nQ\r\n")
+	term := NewTerminal(conn)
+	stats, err := s.Messages.ListAreaStats(u.SecurityLevel, u.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats: %v", err)
+	}
+	if err := s.drawAreaLightbar(term, u, stats, 0); err != nil {
+		t.Fatalf("drawAreaLightbar: %v", err)
+	}
+
+	out := conn.out.String()
+	titleAt := strings.Index(out, "Message Areas")
+	columnsAt := strings.Index(out, "Area ")
+	if titleAt < 0 || columnsAt < 0 {
+		t.Fatalf("area lightbar output missing title or columns row: %q", out)
+	}
+	betweenTitleAndColumns := out[titleAt:columnsAt]
+	if n := strings.Count(betweenTitleAndColumns, "\r\n"); n != 1 {
+		t.Fatalf("area lightbar has %d line breaks between title and columns row for a real .ans-style file, want exactly 1 (no gap): %q", n, out)
+	}
+}
+
+// TestMessageAreasLightbarScrollsAndKeepsHeaderAndHintVisible is a
+// regression test: with more areas than fit in the terminal's 24
+// rows, drawAreaLightbar used to just dump every row in one shot,
+// pushing the header (and the [Up/Down]/[Enter]/[Q] hint below the
+// table) off the top/bottom of the screen instead of scrolling within
+// a fixed viewport the way drawMessageList already does.
+func TestMessageAreasLightbarScrollsAndKeepsHeaderAndHintVisible(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	for i := 0; i < 40; i++ {
+		if _, err := s.Messages.CreateArea(fmt.Sprintf("area%02d", i), fmt.Sprintf("Area %02d", i), "", "", 0, 0); err != nil {
+			t.Fatalf("CreateArea: %v", err)
+		}
+	}
+
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	stats, err := s.Messages.ListAreaStats(u.SecurityLevel, u.ID)
+	if err != nil {
+		t.Fatalf("ListAreaStats: %v", err)
+	}
+	// Select the last area -- if the viewport didn't scroll to follow
+	// it, the earlier (buggy) full-dump behavior would still show it,
+	// but the header/hint would already be well off-screen by then.
+	if err := s.drawAreaLightbar(term, u, stats, len(stats)-1); err != nil {
+		t.Fatalf("drawAreaLightbar: %v", err)
+	}
+
+	out := conn.out.String()
+	if !strings.Contains(out, "Message Areas") {
+		t.Fatalf("header scrolled off screen, want it still present: %q", out)
+	}
+	if !strings.Contains(out, "[Up/Down] Move") {
+		t.Fatalf("footer hint scrolled off screen, want it still present: %q", out)
+	}
+	lines := strings.Count(out, "\r\n")
+	if lines > 25 {
+		t.Fatalf("area lightbar printed %d lines, want at most ~24 (the terminal's height): %q", lines, out)
+	}
+}
+
 func TestMessageAreasLightbarArrowNavigationSelectsSecondArea(t *testing.T) {
 	s := testServer(t)
 	if _, err := s.Messages.CreateArea("second", "Second Area", "", "", 0, 0); err != nil {
@@ -1058,6 +1190,146 @@ func TestReadMessageScrollStatusStaysOnItsOwnFooterLine(t *testing.T) {
 	between := out[statusIdx : statusIdx+hintOffset]
 	if !strings.Contains(between, "\r\n") {
 		t.Fatalf("expected the scroll status and the hotkey hint on separate lines, got them joined: %q", between)
+	}
+}
+
+// TestReadMessageFooterPaddedToBottomOfScreen is a regression test:
+// unlike drawMessageList/drawAreaLightbar, drawMessageReader never
+// padded a short body out to the viewport's full height, so the
+// footer (scroll status + hotkey hint) trailed right after a short
+// message instead of staying anchored near the bottom of the screen.
+func TestReadMessageFooterPaddedToBottomOfScreen(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Short", "just one short line"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	msgs, err := s.Messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	if _, err := s.drawMessageReader(term, u, area, msgs, 0, 0); err != nil {
+		t.Fatalf("drawMessageReader: %v", err)
+	}
+
+	out := conn.out.String()
+	total := strings.Count(out, "\r\n")
+	// fakeConn reports a 24-row window (Terminal.Height()'s default
+	// too); with the footer correctly anchored at the bottom, the
+	// whole redraw should occupy close to that many rows even though
+	// the body itself is one line -- before padding was added, it
+	// fell far short (just header+meta+one body line+footer).
+	if total < 20 {
+		t.Fatalf("drawMessageReader printed only %d lines for a short message, want the footer padded down near the terminal's 24-row height: %q", total, out)
+	}
+	if !strings.Contains(out, "[N/Right] Next") {
+		t.Fatalf("expected the hotkey hint in output, got: %q", out)
+	}
+}
+
+// TestReadMessageFooterUsesCustomTemplate locks in msgread-footer.ans
+// as a customizable screen file, mirroring every other piece of the
+// reader/lightbar UI (msgread.ans, msgread-meta.ans, msgareas-*.ans,
+// ...): a sysop who wants a gap, a different layout, or extra
+// decoration around the scroll status/hotkey hint can do so in the
+// template instead of it being hardcoded.
+// TestReadMessageMetaTemplateScreenClearDoesNotWipeHeader is a
+// regression test: a custom msgread-meta.ans authored with its own
+// leading clear-screen+home sequence (e.g. saved via the web ANSI
+// designer, which defaults to one for a standalone screen) used to
+// wipe out the header banner drawn just before it and snap the cursor
+// back to row 1 -- throwing off the viewport's line-count budget
+// along with it (less body fit on screen than should have, and the
+// footer landed short of the real bottom) since the budget still
+// reserved rows for a header that no longer visually appeared.
+func TestReadMessageMetaTemplateScreenClearDoesNotWipeHeader(t *testing.T) {
+	s := testServer(t)
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	if err := os.WriteFile(filepath.Join(dir, "msgread.ans"), []byte("\x1b[2J\x1b[HHEADER BANNER"), 0o644); err != nil {
+		t.Fatalf("write msgread.ans: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "msgread-meta.ans"), []byte("\x1b[2J\x1b[HFrom: {FROM:-40} Date: {DATE}"), 0o644); err != nil {
+		t.Fatalf("write msgread-meta.ans: %v", err)
+	}
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Hi", "hello"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	msgs, err := s.Messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	if _, err := s.drawMessageReader(term, u, area, msgs, 0, 0); err != nil {
+		t.Fatalf("drawMessageReader: %v", err)
+	}
+
+	out := conn.out.String()
+	if !strings.Contains(out, "HEADER BANNER") {
+		t.Fatalf("meta template's own screen-clear wiped out the header banner, want it still present: %q", out)
+	}
+	headerAt := strings.Index(out, "HEADER BANNER")
+	fromAt := strings.Index(out, "From:")
+	if headerAt < 0 || fromAt < 0 || headerAt > fromAt {
+		t.Fatalf("expected the header banner to appear before the meta block, got: %q", out)
+	}
+}
+
+func TestReadMessageFooterUsesCustomTemplate(t *testing.T) {
+	s := testServer(t)
+	dir := t.TempDir()
+	s.ScreensDir = dir
+	if err := os.WriteFile(filepath.Join(dir, "msgread-footer.ans"), []byte("CUSTOM FOOTER {HINT} status={SCROLLSTATUS}"), 0o644); err != nil {
+		t.Fatalf("write msgread-footer.ans: %v", err)
+	}
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Hi", "hello"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	msgs, err := s.Messages.ListMessages(area.ID)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+
+	conn := newFakeConn("")
+	term := NewTerminal(conn)
+	if _, err := s.drawMessageReader(term, u, area, msgs, 0, 0); err != nil {
+		t.Fatalf("drawMessageReader: %v", err)
+	}
+
+	out := conn.out.String()
+	if !strings.Contains(out, "CUSTOM FOOTER") {
+		t.Fatalf("expected the custom msgread-footer.ans template to be used, got: %q", out)
+	}
+	if !strings.Contains(out, "[N/Right] Next") {
+		t.Fatalf("expected {HINT} to be substituted with the hotkey hint, got: %q", out)
 	}
 }
 

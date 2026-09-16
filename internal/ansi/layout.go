@@ -197,6 +197,31 @@ func layoutLine(line string, width int) string {
 	return b.String()
 }
 
+// leadingScreenClearPattern matches one or more clear-screen ("\x1b[2J")
+// or cursor-home ("\x1b[H", or "\x1b[<row>;<col>H") sequences in a row,
+// anchored to the start of the string -- see StripLeadingScreenClear.
+var leadingScreenClearPattern = regexp.MustCompile(`^(?:\x1b\[2J|\x1b\[[0-9]*;?[0-9]*H)+`)
+
+// StripLeadingScreenClear removes any clear-screen/cursor-home
+// sequence(s) (see ClearScreen) from the very start of s. Every
+// composable screen FRAGMENT in internal/bbs -- a row/columns/network/
+// meta/footer template meant to be printed right after a full-screen
+// header banner, never standalone -- is loaded through this, because a
+// fragment that clears the screen itself wipes out whatever the
+// header banner just drew and snaps the cursor back to row 1: a real
+// production bug found live, where a sysop's custom msgread-meta.ans
+// (apparently authored with the web ANSI designer's default full-
+// screen-clear prefix, sensible for a standalone screen but not a
+// fragment appended after msgread.ans) silently erased the reader's
+// header banner every time, throwing off the viewport's line-count
+// budget along with it -- less body fit on screen than should have,
+// and the footer landed short of the real bottom. Only ever strips a
+// LEADING clear/home; one appearing later in the fragment (unusual,
+// but not this bug) is left alone.
+func StripLeadingScreenClear(s string) string {
+	return leadingScreenClearPattern.ReplaceAllString(s, "")
+}
+
 // HasEscapeCodes reports whether s contains a raw ANSI/CSI escape
 // sequence (ESC followed by '[') -- a strong signal it's pre-
 // formatted ANSI art (a BBS ad, ANSImation, etc.) rather than plain
@@ -233,11 +258,54 @@ func HasArtBytes(s string) bool {
 	return false
 }
 
+// alignedSpacingMinRun and alignedSpacingMinLines are
+// HasAlignedSpacing's thresholds -- see its doc comment for how these
+// were picked.
+const (
+	alignedSpacingMinRun   = 3
+	alignedSpacingMinLines = 3
+)
+
+// HasAlignedSpacing reports whether s looks like plain-ASCII art or a
+// hand-aligned table that depends on precise internal spacing for its
+// layout -- a figlet-style logo or a box built from ordinary ASCII
+// punctuation (":", "_", "|", "/", "\", "(", ")", "+", "~", "="...)
+// rather than real CP437 block-drawing glyphs or ANSI escape codes,
+// so HasArtBytes/HasEscapeCodes miss it entirely. Word-wrapping such a
+// body collapses its internal runs of spaces into single spaces,
+// destroying the alignment -- confirmed live against a real fsxNet
+// ASCII-art ad (a "GODS69 BBS" figlet logo) that came out as a
+// diagonal staircase once WrapText got hold of it, each row's leading
+// padding collapsed by a different amount.
+//
+// Real prose occasionally has one accidental run of extra spaces
+// (double-spacing after a period, a stray blank line), so this only
+// fires once at least alignedSpacingMinLines lines each have an
+// INTERNAL run (not counting a line's own leading indentation) of at
+// least alignedSpacingMinRun consecutive spaces. That combination was
+// checked against every message already tossed in on this system's
+// live fsxNet/HobbyNet feeds at the time it was written: it matched
+// every hand-aligned ad/table/report and not one ordinary reply.
+func HasAlignedSpacing(s string) bool {
+	run := strings.Repeat(" ", alignedSpacingMinRun)
+	count := 0
+	for _, line := range strings.Split(s, "\n") {
+		trimmed := strings.TrimLeft(line, " ")
+		if strings.Contains(trimmed, run) {
+			count++
+			if count >= alignedSpacingMinLines {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // IsPreformatted reports whether body should be displayed verbatim
-// (via ParseGrid, not word-wrapped) -- see HasEscapeCodes and
-// HasArtBytes for the two independent signals this checks.
+// (via ParseGrid, not word-wrapped) -- see HasEscapeCodes, HasArtBytes,
+// and HasAlignedSpacing for the independent signals this checks.
 func IsPreformatted(s string) bool {
-	return HasEscapeCodes(s) || HasArtBytes(s)
+	return HasEscapeCodes(s) || HasArtBytes(s) || HasAlignedSpacing(s)
 }
 
 // WrapText word-wraps s to width columns for plain-text display (a

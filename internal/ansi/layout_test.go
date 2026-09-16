@@ -188,6 +188,41 @@ func TestCenterLeavesOverlongStringsUnchanged(t *testing.T) {
 	}
 }
 
+// TestStripLeadingScreenClearRemovesClearAndHome locks in a real
+// production fix: a composable screen fragment (a row/columns/meta/
+// footer template printed right after a full-screen header banner)
+// that itself starts with a clear-screen+home sequence -- e.g. saved
+// via the web ANSI designer, which defaults to one -- wipes out
+// whatever was drawn before it and snaps the cursor back to row 1.
+func TestStripLeadingScreenClearRemovesClearAndHome(t *testing.T) {
+	s := "\x1b[2J\x1b[H\x1b[1;36mFrom: {FROM}"
+	got := StripLeadingScreenClear(s)
+	want := "\x1b[1;36mFrom: {FROM}"
+	if got != want {
+		t.Fatalf("StripLeadingScreenClear(%q) = %q, want %q", s, got, want)
+	}
+}
+
+// TestStripLeadingScreenClearLeavesOrdinaryContentUnchanged confirms a
+// fragment that never clears the screen (the common, correct case) is
+// returned byte-for-byte unchanged.
+func TestStripLeadingScreenClearLeavesOrdinaryContentUnchanged(t *testing.T) {
+	s := "\x1b[1;36mFrom: {FROM}\r\nTo: {TO}"
+	if got := StripLeadingScreenClear(s); got != s {
+		t.Fatalf("StripLeadingScreenClear(%q) = %q, want unchanged", s, got)
+	}
+}
+
+// TestStripLeadingScreenClearOnlyStripsLeading confirms a clear/home
+// sequence appearing after real content -- unusual, and not the bug
+// this guards against -- is left alone.
+func TestStripLeadingScreenClearOnlyStripsLeading(t *testing.T) {
+	s := "Row one\r\n\x1b[2J\x1b[HRow two"
+	if got := StripLeadingScreenClear(s); got != s {
+		t.Fatalf("StripLeadingScreenClear(%q) = %q, want unchanged (clear isn't leading)", s, got)
+	}
+}
+
 func TestHasEscapeCodesTrueForRealANSI(t *testing.T) {
 	s := "\x1b[1;33mHello\x1b[0m"
 	if !HasEscapeCodes(s) {
@@ -236,5 +271,49 @@ func TestIsPreformattedTrueForEitherSignal(t *testing.T) {
 	}
 	if IsPreformatted("just ordinary text") {
 		t.Fatal("IsPreformatted() = true for plain prose, want false")
+	}
+}
+
+// TestHasAlignedSpacingTrueForPlainASCIIFigletArt locks in a real
+// production fix: a figlet-style logo/box built from ordinary ASCII
+// punctuation (no CP437 high bytes, no escape codes at all) still
+// depends on precise internal spacing -- confirmed live against a
+// real fsxNet ad (a "GODS69 BBS" figlet logo) that WrapText turned
+// into a diagonal staircase, each row's leading padding collapsed by
+// a different amount, before this signal existed.
+func TestHasAlignedSpacingTrueForPlainASCIIFigletArt(t *testing.T) {
+	s := ": +   _____ _  __ ___ ____   ____  _____   + :\n" +
+		":    /  ___| |/ // _ \\|  _ \\ |  _ \\ / ___| :\n" +
+		": +                                    + :\n"
+	if !HasAlignedSpacing(s) {
+		t.Fatalf("HasAlignedSpacing(%q) = false, want true", s)
+	}
+	if !IsPreformatted(s) {
+		t.Fatal("IsPreformatted() = false for plain-ASCII figlet art, want true")
+	}
+}
+
+// TestHasAlignedSpacingFalseForOrdinaryProseWithOccasionalDoubleSpace
+// checked this exact threshold against every message already tossed
+// in on this system's live fsxNet/HobbyNet feeds: real replies
+// sometimes have one accidental double-space (after a period, or a
+// stray blank), but essentially never several lines' worth of a
+// three-or-more-space internal run -- this must not treat those as
+// art, or a normal reply would stop being word-wrapped.
+func TestHasAlignedSpacingFalseForOrdinaryProseWithOccasionalDoubleSpace(t *testing.T) {
+	s := "Got you here.  Welcome.\n\nMike Dippel\n\n \n\nThanks for the reply."
+	if HasAlignedSpacing(s) {
+		t.Fatalf("HasAlignedSpacing(%q) = true, want false (ordinary prose)", s)
+	}
+}
+
+// TestHasAlignedSpacingRequiresMultipleLines guards the
+// alignedSpacingMinLines threshold: a single hand-aligned line (e.g.
+// one coincidentally spaced-out heading) shouldn't alone flip an
+// otherwise ordinary message into verbatim/preformatted mode.
+func TestHasAlignedSpacingRequiresMultipleLines(t *testing.T) {
+	s := "Section:    Overview\n\nJust one ordinary paragraph after it."
+	if HasAlignedSpacing(s) {
+		t.Fatalf("HasAlignedSpacing(%q) = true, want false (only one aligned line)", s)
 	}
 }
