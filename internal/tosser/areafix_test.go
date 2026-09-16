@@ -248,7 +248,7 @@ func TestRequestEchoAreaListDoesNotGetATearlineWhenSent(t *testing.T) {
 		t.Fatalf("RequestEchoAreaList: %v", err)
 	}
 
-	if _, err := Poll(context.Background(), []string{"21:3/194"}, "Test BBS", uplink, nil, netmailStore, messages, users); err != nil {
+	if _, err := Poll(context.Background(), []string{"21:3/194"}, "Test BBS", uplink, nil, netmailStore, messages, users, nil, nil); err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
 	if out := <-done; out.err != nil {
@@ -298,7 +298,7 @@ func TestRequestEchoAreaSubscriptionActuallySendsViaPoll(t *testing.T) {
 		t.Fatalf("RequestEchoAreaSubscription: %v", err)
 	}
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", uplink, nil, netmailStore, messages, users)
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", uplink, nil, netmailStore, messages, users, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}

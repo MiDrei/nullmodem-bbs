@@ -256,3 +256,152 @@ func (s *Server) handleListAreafixSubscriptions(w http.ResponseWriter, r *http.R
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"area_tags": tags})
 }
+
+// areaGrantDTO is one local area in the GET /api/binkp/areafix/grants
+// response: its tag/name (for display -- every local area is listed,
+// not just ones this downlink might plausibly want) and whether
+// uplinkHost currently has been granted access to it (see
+// echo_area_grants/file_area_grants' schema comment).
+type areaGrantDTO struct {
+	Tag     string `json:"tag"`
+	Name    string `json:"name"`
+	Granted bool   `json:"granted"`
+}
+
+// handleListAreafixGrants returns every local echo (or, kind=file,
+// file-echo) area alongside whether the downlink named by the "host"
+// query parameter is currently granted access to it -- the web admin
+// UI's source for the per-downlink checkbox list that ultimately
+// governs what handleAreafixRequest (internal/tosser) will accept
+// from that downlink's own Areafix/Filefix requests.
+func (s *Server) handleListAreafixGrants(w http.ResponseWriter, r *http.Request) {
+	host := strings.TrimSpace(r.URL.Query().Get("host"))
+	if host == "" {
+		writeError(w, http.StatusBadRequest, "host query parameter is required")
+		return
+	}
+	if s.EchoAreafix == nil || s.FileAreafix == nil {
+		writeError(w, http.StatusInternalServerError, "areafix is not configured")
+		return
+	}
+
+	var dtos []areaGrantDTO
+	if r.URL.Query().Get("kind") == "file" {
+		if s.Files == nil {
+			writeError(w, http.StatusInternalServerError, "file areas are not configured")
+			return
+		}
+		areas, err := s.Files.AllAreas()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not list file areas")
+			return
+		}
+		granted, err := s.FileAreafix.GrantedTags(host)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not list grants")
+			return
+		}
+		for _, a := range areas {
+			dtos = append(dtos, areaGrantDTO{Tag: a.Tag, Name: a.Name, Granted: granted[strings.ToUpper(a.Tag)]})
+		}
+	} else {
+		if s.Messages == nil {
+			writeError(w, http.StatusInternalServerError, "message areas are not configured")
+			return
+		}
+		areas, err := s.Messages.AllAreas()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not list message areas")
+			return
+		}
+		granted, err := s.EchoAreafix.GrantedTags(host)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not list grants")
+			return
+		}
+		for _, a := range areas {
+			dtos = append(dtos, areaGrantDTO{Tag: a.Tag, Name: a.Name, Granted: granted[strings.ToUpper(a.Tag)]})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"areas": dtos})
+}
+
+// setAreafixGrantsRequestDTO is the request body for PUT
+// /api/binkp/areafix/grants: the complete set of area tags host
+// should be granted for the given kind -- any currently-granted tag
+// missing from this list is revoked, matching a checkbox list's own
+// "save" semantics (the whole state, not an incremental diff the
+// caller would otherwise have to compute against what's already
+// there).
+type setAreafixGrantsRequestDTO struct {
+	Host        string   `json:"host"`
+	Kind        string   `json:"kind"`
+	GrantedTags []string `json:"granted_tags"`
+}
+
+// echoOrFileGrantStore lets handleSetAreafixGrants share one
+// implementation across areafix.EchoStore/FileStore, mirroring
+// internal/tosser's own echoSubscriptionRecorder for the same reason.
+type echoOrFileGrantStore interface {
+	Grant(uplinkHost, areaTag string) error
+	Revoke(uplinkHost, areaTag string) error
+	GrantedTags(uplinkHost string) (map[string]bool, error)
+}
+
+// handleSetAreafixGrants replaces the full set of areas granted to
+// req.Host (see areafix.EchoStore/FileStore's Grant/Revoke) with
+// req.GrantedTags -- see setAreafixGrantsRequestDTO's doc comment for
+// why this is a replace rather than an incremental add/remove.
+func (s *Server) handleSetAreafixGrants(w http.ResponseWriter, r *http.Request) {
+	var req setAreafixGrantsRequestDTO
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	host := strings.TrimSpace(req.Host)
+	if host == "" {
+		writeError(w, http.StatusBadRequest, "host must not be empty")
+		return
+	}
+	if s.EchoAreafix == nil || s.FileAreafix == nil {
+		writeError(w, http.StatusInternalServerError, "areafix is not configured")
+		return
+	}
+
+	var store echoOrFileGrantStore = s.EchoAreafix
+	if req.Kind == "file" {
+		store = s.FileAreafix
+	}
+
+	wanted := make(map[string]bool, len(req.GrantedTags))
+	for _, tag := range req.GrantedTags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		wanted[strings.ToUpper(tag)] = true
+		if err := store.Grant(host, tag); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("could not grant %s: %v", tag, err))
+			return
+		}
+	}
+
+	current, err := store.GrantedTags(host)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list current grants")
+		return
+	}
+	for tag := range current {
+		if !wanted[tag] {
+			if err := store.Revoke(host, tag); err != nil {
+				writeError(w, http.StatusInternalServerError, fmt.Sprintf("could not revoke %s: %v", tag, err))
+				return
+			}
+		}
+	}
+
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s set %d area grant(s) for downlink %s (%s)", claims.Subject, len(wanted), host, req.Kind)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"granted_tags": len(wanted)})
+}

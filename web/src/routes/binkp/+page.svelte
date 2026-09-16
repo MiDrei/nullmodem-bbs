@@ -100,7 +100,7 @@
 		try {
 			const res = await sendNowBinkp(auth.token, uplink);
 			toast.push(
-				`Polled uplink: sent ${res.sent} netmail, ${res.sent_echo} echomail, received ${res.received} netmail, ${res.received_echo} echomail.`,
+				`Polled uplink: sent ${res.sent} netmail, ${res.sent_echo} echomail, forwarded ${res.forwarded_echo} echomail, received ${res.received} netmail, ${res.received_echo} echomail, ${res.received_files} file(s).`,
 				'success'
 			);
 		} catch (err) {
@@ -298,8 +298,8 @@
 							placeholder="(optional)"
 						/>
 						<span class="text-xs text-slate-500">
-							For file-echo (TIC) distribution -- stored for when that's implemented, not used
-							yet.
+							Authenticates inbound TIC file-echo announcements from this uplink -- leave blank if
+							it doesn't set one.
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">

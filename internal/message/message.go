@@ -59,6 +59,17 @@ type Message struct {
 	Subject    string
 	Body       string
 	PostedAt   time.Time
+	// MsgID is this message's permanent, network-wide unique
+	// identifier (FTS-0009's "^AMSGID" kludge value, e.g.
+	// "21:3/100 5f3e2a1b") for a message tossed in from a remote
+	// system -- preserved unchanged through every hop, never
+	// regenerated (see ReceiveEcho/echoMsgID). Empty for a message
+	// posted locally and never yet sent anywhere: internal/tosser
+	// derives one deterministically from this system's own address
+	// and the message's own ID only at send time (see buildPacket),
+	// rather than persisting it here, since it's fully reproducible
+	// from data already on the row.
+	MsgID string
 }
 
 // IsFromRemote reports whether m arrived from a remote FTN system via
@@ -376,11 +387,15 @@ func (s *Store) PostMessage(areaID, fromUserID int64, toName, subject, body stri
 	return s.MessageByID(id)
 }
 
-// PendingEcho is one locally-posted echo message ready to be handed
-// to an uplink, paired with its area's tag (needed for the AREA:
-// kludge line internal/tosser writes ahead of the body) -- returned
-// only by PendingOutboundEcho, kept separate from the general Message
-// API since nothing else needs the tag riding along with the message.
+// PendingEcho is one echo message ready to be handed to a BinkP peer,
+// paired with its area's tag (needed for the AREA: kludge line
+// internal/tosser writes ahead of the body) -- returned by
+// PendingOutboundEcho (this system's own local posts, sent upward to
+// its configured uplink for that network) and by internal/tosser's
+// RoutedOutboundEchoForward (any message in an area a downlink has
+// subscribed to, local or remote origin alike, sent downward via
+// SEEN-BY tracking instead -- see MarkSeenBy), kept separate from the
+// general Message API since nothing else needs the tag riding along.
 type PendingEcho struct {
 	Message
 	AreaTag string
@@ -492,11 +507,11 @@ func (s *Store) ReceiveEcho(areaID int64, fromName, subject, body, msgID string,
 // is used as-is -- see ReceiveEcho).
 func (s *Store) MessageByID(id int64) (*Message, error) {
 	row := s.db.QueryRow(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id WHERE m.id = ?`, id,
 	)
 	var m Message
-	if err := row.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt); err != nil {
+	if err := row.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID); err != nil {
 		return nil, fmt.Errorf("message: load %d: %w", id, err)
 	}
 	return &m, nil
@@ -507,7 +522,7 @@ func (s *Store) MessageByID(id int64) (*Message, error) {
 // remote author's stored FromName is used as-is -- see ReceiveEcho).
 func (s *Store) ListMessages(areaID int64) ([]Message, error) {
 	rows, err := s.db.Query(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.area_id = ? ORDER BY m.posted_at, m.id`, areaID,
 	)
@@ -519,7 +534,7 @@ func (s *Store) ListMessages(areaID int64) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID); err != nil {
 			return nil, fmt.Errorf("message: scan message: %w", err)
 		}
 		messages = append(messages, m)

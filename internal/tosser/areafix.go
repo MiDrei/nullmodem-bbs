@@ -58,7 +58,7 @@ func RequestEchoAreaChanges(netmailStore *netmail.Store, subs *areafix.EchoStore
 	if err != nil {
 		return nil, err
 	}
-	if err := recordChanges(subs, uplink.Host, changes); err != nil {
+	if err := recordChanges(subs, uplink.Host, changes, areafix.Outbound); err != nil {
 		return msg, fmt.Errorf("tosser: queued the request but failed to record it: %w", err)
 	}
 	return msg, nil
@@ -89,7 +89,7 @@ func RequestFileAreaChanges(netmailStore *netmail.Store, subs *areafix.FileStore
 	if err != nil {
 		return nil, err
 	}
-	if err := recordChanges(subs, uplink.Host, changes); err != nil {
+	if err := recordChanges(subs, uplink.Host, changes, areafix.Outbound); err != nil {
 		return msg, fmt.Errorf("tosser: queued the request but failed to record it: %w", err)
 	}
 	return msg, nil
@@ -123,13 +123,13 @@ type echoSubscriptionRecorder interface {
 	Withdraw(uplinkHost, areaTag string, direction areafix.Direction) error
 }
 
-func recordChanges(subs echoSubscriptionRecorder, uplinkHost string, changes []AreaChange) error {
+func recordChanges(subs echoSubscriptionRecorder, uplinkHost string, changes []AreaChange, direction areafix.Direction) error {
 	for _, c := range changes {
 		var err error
 		if c.Subscribe {
-			err = subs.Request(uplinkHost, c.Tag, areafix.Outbound)
+			err = subs.Request(uplinkHost, c.Tag, direction)
 		} else {
-			err = subs.Withdraw(uplinkHost, c.Tag, areafix.Outbound)
+			err = subs.Withdraw(uplinkHost, c.Tag, direction)
 		}
 		if err != nil {
 			return err

@@ -47,10 +47,10 @@ type Area struct {
 	MinSLUpload   int
 	SortOrder     int
 	CreatedAt     time.Time
-	// Pending mirrors message.Area.Pending -- reserved for when
-	// TIC/file-echo tossing auto-creates a file area the same way
-	// internal/tosser's echomail toss does for message areas (see
-	// EnsureArea); nothing sets this yet.
+	// Pending mirrors message.Area.Pending: set when internal/tosser's
+	// TIC/file-echo toss auto-creates this area for a tag it hadn't
+	// seen before (see EnsureArea), the same way its echomail toss
+	// does for message areas.
 	Pending bool
 }
 
@@ -64,17 +64,26 @@ func (a Area) CanUpload(securityLevel int) bool { return securityLevel >= a.MinS
 
 // File is one file's metadata within an Area.
 type File struct {
-	ID             int64
-	AreaID         int64
-	Filename       string
-	Description    string
-	SizeBytes      int64
-	StoragePath    string
-	UploadedBy     int64
-	UploadedByName string // joined from users.username for display
+	ID          int64
+	AreaID      int64
+	Filename    string
+	Description string
+	SizeBytes   int64
+	StoragePath string
+	// UploadedBy is unset (Valid false) for a file internal/tosser
+	// tossed in from a remote FTN system via TIC/file-echo, which has
+	// no local uploader account -- mirrors message.Message.FromUserID
+	// exactly (see IsFromRemote and file.Store.Receive).
+	UploadedBy     sql.NullInt64
+	UploadedByName string // joined from users.username for a local uploader, or the stored origin name for a remote one (see Receive)
 	UploadedAt     time.Time
 	DownloadCount  int
 }
+
+// IsFromRemote reports whether f arrived from a remote FTN system via
+// internal/tosser's TIC/file-echo toss rather than being uploaded
+// locally -- mirrors message.Message.IsFromRemote exactly.
+func (f *File) IsFromRemote() bool { return !f.UploadedBy.Valid }
 
 // Store persists file Areas and their Files in the shared SQLite
 // database, and manages the on-disk directory files are copied into.
@@ -397,7 +406,7 @@ func (s *Store) ImportFile(areaID, uploadedBy int64, sourcePath, description str
 	}
 	defer in.Close()
 
-	return s.storeFile(area, filepath.Base(sourcePath), uploadedBy, description, in)
+	return s.storeFile(area, filepath.Base(sourcePath), sql.NullInt64{Int64: uploadedBy, Valid: true}, "", description, in)
 }
 
 // UploadFile stores a file uploaded directly through the web admin
@@ -412,13 +421,60 @@ func (s *Store) UploadFile(areaID, uploadedBy int64, filename, description strin
 	// filepath.Base guards against a client sending a path (e.g.
 	// "../../etc/passwd") as the filename; only the base name is ever
 	// trusted for the on-disk path.
-	return s.storeFile(area, filepath.Base(filename), uploadedBy, description, src)
+	return s.storeFile(area, filepath.Base(filename), sql.NullInt64{Int64: uploadedBy, Valid: true}, "", description, src)
+}
+
+// Receive stores a file tossed in from a remote FTN system via
+// TIC/file-echo (internal/tosser) -- ImportFile/UploadFile's
+// counterpart for content with no local uploader account, attributing
+// it to originName (the file-echo's own reported origin) instead,
+// exactly like message.Store.ReceiveEcho's from_user_id NULL/from_name
+// convention (see File.UploadedBy/UploadedByName). Not an error if
+// areaID already has a file by this name (see ErrDuplicateFilename):
+// created is false and the existing File is returned, treating a hub
+// resending a file it never saw our BinkP ack for the same way
+// tossEcho treats a resent MSGID rather than failing the whole toss.
+func (s *Store) Receive(areaID int64, originName, filename, description string, src io.Reader) (f *File, created bool, err error) {
+	area, err := s.AreaByID(areaID)
+	if err != nil {
+		return nil, false, err
+	}
+	name := filepath.Base(filename)
+	f, err = s.storeFile(area, name, sql.NullInt64{}, originName, description, src)
+	if err != nil {
+		if errors.Is(err, ErrDuplicateFilename) {
+			existing, ferr := s.fileByAreaAndName(areaID, name)
+			if ferr != nil {
+				return nil, false, ferr
+			}
+			return existing, false, nil
+		}
+		return nil, false, err
+	}
+	return f, true, nil
+}
+
+// fileByAreaAndName loads one area's file by its exact stored
+// filename -- Receive's way of returning the existing File when
+// storeFile reports a duplicate rather than just the bare error.
+func (s *Store) fileByAreaAndName(areaID int64, filename string) (*File, error) {
+	var id int64
+	if err := s.db.QueryRow(`SELECT id FROM files WHERE area_id = ? AND filename = ?`, areaID, filename).Scan(&id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrFileNotFound
+		}
+		return nil, fmt.Errorf("file: locating %s in area %d: %w", filename, areaID, err)
+	}
+	return s.FileByID(id)
 }
 
 // storeFile writes src's contents into area's managed storage
 // directory under filename and records the resulting metadata. It is
-// the shared tail end of ImportFile and UploadFile.
-func (s *Store) storeFile(area *Area, filename string, uploadedBy int64, description string, src io.Reader) (*File, error) {
+// the shared tail end of ImportFile, UploadFile, and Receive.
+// uploadedByName is only ever set (and uploadedBy left unset) for a
+// remote-origin file via Receive; a local upload leaves it empty and
+// always sets uploadedBy instead (see File.UploadedBy's doc comment).
+func (s *Store) storeFile(area *Area, filename string, uploadedBy sql.NullInt64, uploadedByName, description string, src io.Reader) (*File, error) {
 	destDir := filepath.Join(s.filesDir, area.Tag)
 	destPath := filepath.Join(destDir, filename)
 
@@ -448,8 +504,8 @@ func (s *Store) storeFile(area *Area, filename string, uploadedBy int64, descrip
 	}
 
 	res, err := s.db.Exec(
-		`INSERT INTO files (area_id, filename, description, size_bytes, storage_path, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)`,
-		area.ID, filename, description, size, destPath, uploadedBy,
+		`INSERT INTO files (area_id, filename, description, size_bytes, storage_path, uploaded_by, uploaded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		area.ID, filename, description, size, destPath, uploadedBy, uploadedByName,
 	)
 	if err != nil {
 		os.Remove(destPath)
@@ -481,12 +537,15 @@ func (s *Store) DeleteFile(id int64) error {
 }
 
 // FileByID loads a single file's metadata, with its uploader's
-// current username joined in as UploadedByName.
+// current username joined in as UploadedByName for a local upload, or
+// its stored origin name for one tossed in remotely (see Receive) --
+// LEFT JOIN and COALESCE mirror message.Store.MessageByID exactly,
+// necessary since uploaded_by is NULL for the latter.
 func (s *Store) FileByID(id int64) (*File, error) {
 	row := s.db.QueryRow(
 		`SELECT f.id, f.area_id, f.filename, f.description, f.size_bytes, f.storage_path,
-		        f.uploaded_by, u.username, f.uploaded_at, f.download_count
-		 FROM files f JOIN users u ON u.id = f.uploaded_by WHERE f.id = ?`, id,
+		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count
+		 FROM files f LEFT JOIN users u ON u.id = f.uploaded_by WHERE f.id = ?`, id,
 	)
 	var f File
 	if err := row.Scan(&f.ID, &f.AreaID, &f.Filename, &f.Description, &f.SizeBytes, &f.StoragePath,
@@ -500,12 +559,13 @@ func (s *Store) FileByID(id int64) (*File, error) {
 }
 
 // ListFiles returns every file in an area, oldest first, with each
-// uploader's current username joined in as UploadedByName.
+// uploader's current username (or, for one tossed in remotely, its
+// stored origin name -- see FileByID) joined in as UploadedByName.
 func (s *Store) ListFiles(areaID int64) ([]File, error) {
 	rows, err := s.db.Query(
 		`SELECT f.id, f.area_id, f.filename, f.description, f.size_bytes, f.storage_path,
-		        f.uploaded_by, u.username, f.uploaded_at, f.download_count
-		 FROM files f JOIN users u ON u.id = f.uploaded_by
+		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count
+		 FROM files f LEFT JOIN users u ON u.id = f.uploaded_by
 		 WHERE f.area_id = ? ORDER BY f.uploaded_at, f.id`, areaID,
 	)
 	if err != nil {

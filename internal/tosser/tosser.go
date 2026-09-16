@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/mail"
@@ -49,6 +50,13 @@ type Result struct {
 	// message.Store.PendingOutboundEcho) were bundled, handed off, and
 	// acknowledged (M_GOT) by the uplink, in the same packet as Sent.
 	SentEcho int
+	// ForwardedEcho is how many echomail messages -- local or remote
+	// origin alike -- were bundled, handed off, and acknowledged
+	// (M_GOT) by uplink as a downlink's hub distribution (see
+	// RoutedOutboundEchoForward), in the same packet as SentEcho.
+	// Always 0 when RobotConfig is nil or has no EchoStore (hub
+	// forwarding disabled).
+	ForwardedEcho int
 	// Received is how many netmail messages were filed away (or
 	// queued locally, if the recipient didn't resolve to a local
 	// user) out of whatever the uplink sent back in the same session.
@@ -61,17 +69,28 @@ type Result struct {
 	// never saw our M_GOT for -- is recognized as a duplicate and not
 	// counted here.
 	ReceivedEcho int
+	// ReceivedFiles is how many files were newly tossed into a
+	// file-echo area via TIC (see ticSession.toss), whether or not the
+	// area already existed, out of whatever the uplink sent back. A
+	// file already stored under the same name in that area -- the
+	// uplink resending one it never saw our BinkP ack for -- is
+	// recognized as a duplicate and not counted here (see
+	// file.Store.Receive). Always 0 when TICConfig is nil (TIC
+	// handling disabled).
+	ReceivedFiles int
 	// RemoteAddresses are the FTN addresses the uplink identified
 	// itself as, straight from binkp.Result.
 	RemoteAddresses []string
 	// SkippedFiles are inbound files the uplink sent that weren't FTS-
-	// 0001 mail packets (see isPacketFile) -- e.g. a .tic file-echo
-	// announcement, observed live bundled into the very same session
-	// as ordinary mail. This system doesn't toss file-echo content
-	// yet, so these are drained and acknowledged (M_GOT) rather than
-	// dropped or, worse, fed to the packet parser (which fails hard on
-	// them and used to abort the whole session, including mail already
-	// successfully tossed earlier in it).
+	// 0001 mail packets and couldn't be tossed as a TIC/file-echo
+	// pair either -- a genuinely unsupported file, a malformed .tic
+	// descriptor, one that failed its password/size/CRC-32 check, or
+	// either half of a .tic/file pair whose other half never arrived
+	// in the same session (see ticSession.flushUnmatched). Drained and
+	// acknowledged (M_GOT) rather than dropped or, worse, fed to the
+	// packet parser (which fails hard on them and used to abort the
+	// whole session, including mail already successfully tossed
+	// earlier in it).
 	SkippedFiles []string
 }
 
@@ -97,7 +116,7 @@ type Result struct {
 // uplink need not be poll-disabled just because it's being dialed
 // here (that flag only governs cmd/mailer's own scheduled loop, not a
 // manual or crash-triggered dial).
-func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (*Result, error) {
+func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig) (*Result, error) {
 	if len(ourAddresses) == 0 {
 		return nil, fmt.Errorf("tosser: no FTN addresses configured for this system")
 	}
@@ -113,16 +132,24 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	if err != nil {
 		return nil, err
 	}
+	var forwardedEcho []message.PendingEcho
+	if robot != nil && robot.EchoStore != nil {
+		forwardedEcho, err = RoutedOutboundEchoForward(messages, robot.EchoStore, uplink)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	var outFiles []binkp.OutboundFile
 	var packetName string
-	if len(routed) > 0 || len(routedEcho) > 0 {
-		uplinkAddr, err := mail.ParseAddress(uplink.Address)
+	var uplinkAddr mail.Address
+	if len(routed) > 0 || len(routedEcho) > 0 || len(forwardedEcho) > 0 {
+		uplinkAddr, err = mail.ParseAddress(uplink.Address)
 		if err != nil {
 			return nil, fmt.Errorf("tosser: uplink address %q: %w", uplink.Address, err)
 		}
 		ourAddr := ourAddressForUplink(ourAddresses, uplinkAddr)
-		buf, err := buildPacket(ourAddr, uplinkAddr, uplink.PacketPassword, bbsName, routed, routedEcho)
+		buf, err := buildPacket(ourAddr, uplinkAddr, uplink.PacketPassword, bbsName, routed, routedEcho, forwardedEcho)
 		if err != nil {
 			return nil, err
 		}
@@ -136,11 +163,15 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	}
 
 	acceptedPasswords := acceptedPacketPasswords(uplink, allUplinks)
+	var ticSess *ticSession
+	if tic != nil {
+		ticSess = newTICSession(tic.Files, acceptedTICPasswords(uplink, allUplinks))
+	}
 
 	res := &Result{}
 	var receiveErr error
 	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
-		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, res)
+		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, robot, ticSess, res)
 		if err != nil {
 			receiveErr = err
 		}
@@ -160,6 +191,9 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 		return nil, fmt.Errorf("tosser: polling %s: %w", uplink.Host, err)
 	}
 	res.RemoteAddresses = sessionResult.RemoteAddresses
+	if ticSess != nil {
+		ticSess.flushUnmatched(res)
+	}
 
 	if packetName != "" && containsString(sessionResult.FilesSent, packetName) {
 		for _, m := range routed {
@@ -173,6 +207,15 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 				return res, fmt.Errorf("tosser: marking echo message %d sent: %w", m.ID, err)
 			}
 			res.SentEcho++
+		}
+		if len(forwardedEcho) > 0 {
+			targetNetNode := message.NetNode(uplinkAddr.Net, uplinkAddr.Node)
+			for _, m := range forwardedEcho {
+				if err := messages.MarkSeenBy(m.ID, targetNetNode); err != nil {
+					return res, fmt.Errorf("tosser: marking echo message %d seen-by %s: %w", m.ID, targetNetNode, err)
+				}
+				res.ForwardedEcho++
+			}
 		}
 	}
 
@@ -191,9 +234,10 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 // hand the caller this system's own queued outbound mail in the same
 // session; an inbound call only ever receives, and sending stays with
 // the regular scheduled/crash Poll flow.
-func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, uplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (*Result, error) {
+func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, uplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig) (*Result, error) {
 	var matchedUplink config.BinkpUplink
 	var matched bool
+	var ticSess *ticSession
 
 	res := &Result{}
 	var receiveErr error
@@ -206,7 +250,15 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, uplinks [
 			_, err := io.Copy(io.Discard, r)
 			return err
 		}
-		err := handleInboundFile(f, r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users, res)
+		// matchedUplink is only known once authentication completes,
+		// so ticSess (which must persist across every file in this
+		// session, unlike the stateless acceptedPacketPasswords call
+		// recomputed below) is created lazily here, once, on the
+		// first file received.
+		if tic != nil && ticSess == nil {
+			ticSess = newTICSession(tic.Files, acceptedTICPasswords(matchedUplink, uplinks))
+		}
+		err := handleInboundFile(f, r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users, robot, ticSess, res)
 		if err != nil {
 			receiveErr = err
 		}
@@ -229,6 +281,9 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, uplinks [
 		return nil, fmt.Errorf("tosser: answering inbound session: %w", err)
 	}
 	res.RemoteAddresses = sessionResult.RemoteAddresses
+	if ticSess != nil {
+		ticSess.flushUnmatched(res)
+	}
 	return res, receiveErr
 }
 
@@ -291,6 +346,53 @@ func RoutedOutboundEcho(messages *message.Store, target config.BinkpUplink) ([]m
 		return nil, fmt.Errorf("tosser: loading pending outbound echomail: %w", err)
 	}
 	return pending, nil
+}
+
+// RoutedOutboundEchoForward is RoutedOutboundEcho's "hub" counterpart:
+// instead of this system's own local posts going upward to its
+// configured uplink for a network, it returns every message -- local
+// or remote origin alike -- in an area target has an active inbound
+// Areafix subscription to (see areafix.EchoStore, Direction Inbound,
+// recorded by handleAreafixRequest once granted -- see
+// echo_area_grants) that target's own address doesn't already carry
+// in that message's SEEN-BY (message.SeenByNetNodes -- see
+// message.Store.MarkSeenBy, called once Poll confirms a forwarded
+// message was actually delivered). A subscription naming a tag with
+// no matching local area (deleted since, say) is silently skipped
+// rather than erroring the whole poll over it.
+func RoutedOutboundEchoForward(messages *message.Store, echoGrants *areafix.EchoStore, target config.BinkpUplink) ([]message.PendingEcho, error) {
+	targetAddr, err := mail.ParseAddress(target.Address)
+	if err != nil {
+		return nil, fmt.Errorf("tosser: downlink address %q: %w", target.Address, err)
+	}
+	targetNetNode := message.NetNode(targetAddr.Net, targetAddr.Node)
+
+	subs, err := echoGrants.ListForUplink(target.Host, areafix.Inbound)
+	if err != nil {
+		return nil, fmt.Errorf("tosser: loading inbound subscriptions for %s: %w", target.Host, err)
+	}
+
+	var out []message.PendingEcho
+	for _, sub := range subs {
+		area, err := messages.AreaByTag(sub.AreaTag)
+		if err != nil {
+			if errors.Is(err, message.ErrAreaNotFound) {
+				continue
+			}
+			return nil, fmt.Errorf("tosser: resolving subscribed area %q: %w", sub.AreaTag, err)
+		}
+		areaMsgs, err := messages.ListMessages(area.ID)
+		if err != nil {
+			return nil, fmt.Errorf("tosser: loading messages for area %q: %w", sub.AreaTag, err)
+		}
+		for _, m := range areaMsgs {
+			if message.SeenByNetNodes(m.Body)[targetNetNode] {
+				continue
+			}
+			out = append(out, message.PendingEcho{Message: m, AreaTag: sub.AreaTag})
+		}
+	}
+	return out, nil
 }
 
 func routeOutbound(pending []netmail.Message, target config.BinkpUplink, allUplinks []config.BinkpUplink) []netmail.Message {
@@ -429,10 +531,10 @@ func extractPacketBundle(name string, data []byte) ([]namedPacket, error) {
 // anything else is drained and reported in res.SkippedFiles rather
 // than dropped silently or fed to the packet parser (which fails hard
 // on it -- see isPacketFile's doc comment).
-func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, res *Result) error {
+func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, ticSess *ticSession, res *Result) error {
 	switch {
 	case isPacketFile(f.Name):
-		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users)
+		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users, robot)
 		res.Received += stats.netmail
 		res.ReceivedEcho += stats.echo
 		return err
@@ -448,7 +550,7 @@ func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []str
 			return nil
 		}
 		for _, p := range packets {
-			stats, err := tossInbound(bytes.NewReader(p.data), acceptedPasswords, netmailStore, messages, users)
+			stats, err := tossInbound(bytes.NewReader(p.data), acceptedPasswords, netmailStore, messages, users, robot)
 			res.Received += stats.netmail
 			res.ReceivedEcho += stats.echo
 			if err != nil {
@@ -458,6 +560,13 @@ func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []str
 		return nil
 
 	default:
+		// Neither a packet nor a bundle -- could be a TIC/file-echo
+		// descriptor or payload (see ticSession), tried first since a
+		// payload's own name gives no hint either way; anything left
+		// over is genuinely unsupported.
+		if ticSess != nil {
+			return ticSess.receive(f.Name, r, res)
+		}
 		if _, err := io.Copy(io.Discard, r); err != nil {
 			return fmt.Errorf("tosser: draining unsupported inbound file %s: %w", f.Name, err)
 		}
@@ -565,7 +674,7 @@ func appendTearline(body, bbsName string, origAddr mail.Address) string {
 // ever returns mail relayed in from elsewhere), so appendTearline is
 // always safe to add: there's no pre-existing tearline/origin from an
 // upstream system to preserve or duplicate.
-func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsName string, pendingNetmail []netmail.Message, pendingEcho []message.PendingEcho) (*bytes.Buffer, error) {
+func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsName string, pendingNetmail []netmail.Message, pendingEcho []message.PendingEcho, forwardedEcho []message.PendingEcho) (*bytes.Buffer, error) {
 	var buf bytes.Buffer
 	w, err := mail.NewWriter(&buf, mail.PacketHeader{
 		OrigAddr: ourAddr,
@@ -645,6 +754,40 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsNam
 		}
 	}
 
+	// forwardedEcho is the "hub" half of echomail distribution (see
+	// RoutedOutboundEchoForward): any message in an area uplinkAddr
+	// has an inbound Areafix subscription to, local or remote origin
+	// alike, that it hasn't already received (tracked via SEEN-BY,
+	// not the Sent flag pendingEcho above uses -- the same message can
+	// go to more than one downlink over time). A locally-originated
+	// message gets the same deterministic MSGID/tearline treatment as
+	// pendingEcho above (computed fresh each time, never persisted --
+	// see that loop's ordinary "first send upward" case); a message
+	// received from elsewhere keeps its own preserved MsgID and body
+	// completely unchanged (it already carries its original author's
+	// tearline/origin from whoever first composed it, and appending
+	// another here would nest a second one on top).
+	for _, m := range forwardedEcho {
+		msgID := m.MsgID
+		body := m.Body
+		if m.FromUserID.Valid {
+			msgID = fmt.Sprintf("%s %08x", echoOrigAddr.String(), m.ID)
+			body = appendTearline(m.Body, bbsName, echoOrigAddr)
+		}
+		wrapped := fmt.Sprintf("AREA:%s\r\x01MSGID: %s\r%s", m.AreaTag, msgID, body)
+		if err := w.WriteMessage(mail.Message{
+			OrigAddr: echoOrigAddr,
+			DestAddr: uplinkAddr,
+			Written:  m.PostedAt,
+			ToName:   "All",
+			FromName: m.FromName,
+			Subject:  m.Subject,
+			Body:     wrapped,
+		}); err != nil {
+			return nil, fmt.Errorf("tosser: writing forwarded echo message %d: %w", m.ID, err)
+		}
+	}
+
 	if err := w.Close(); err != nil {
 		return nil, fmt.Errorf("tosser: closing outbound packet: %w", err)
 	}
@@ -666,6 +809,13 @@ type inboundStats struct {
 //     that tag, auto-creating it as Pending if this is the first
 //     message ever seen for it (see message.Store.EnsureArea) --
 //     invisible to callers until the sysop reviews and approves it.
+//   - Netmail (no AREA kludge) addressed to "Areafix"/"Filefix" from a
+//     sender matching one of robot's configured Uplinks with that
+//     robot's password set is instead handled as an inbound area-
+//     subscription request and never stored (see
+//     handleAreafixRequest) -- robot may be nil to disable this
+//     entirely, in which case such netmail falls through to the case
+//     below like anything else.
 //   - Netmail (no AREA kludge) is delivered straight to a user's
 //     inbox if ToName resolves to a local account (case-insensitive,
 //     matching internal/bbs's own recipient lookup), or kept queued
@@ -698,7 +848,7 @@ type inboundStats struct {
 // keeps consuming them -- returning early, as an earlier version of
 // this password check did, deadlocks that writer forever instead of
 // cleanly failing the session.
-func tossInbound(r io.Reader, expectedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store) (stats inboundStats, err error) {
+func tossInbound(r io.Reader, expectedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig) (stats inboundStats, err error) {
 	defer func() {
 		if _, drainErr := io.Copy(io.Discard, r); drainErr != nil && err == nil {
 			err = fmt.Errorf("tosser: draining inbound packet: %w", drainErr)
@@ -739,6 +889,12 @@ func tossInbound(r io.Reader, expectedPasswords []string, netmailStore *netmail.
 			if created {
 				stats.echo++
 			}
+			continue
+		}
+
+		if handled, err := handleAreafixRequest(msg, robot, messages, netmailStore); err != nil {
+			return stats, fmt.Errorf("tosser: handling inbound Areafix/Filefix request %d: %w", stats.netmail+stats.echo+1, err)
+		} else if handled {
 			continue
 		}
 

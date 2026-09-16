@@ -440,3 +440,108 @@ func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 		t.Fatalf("bob's stats = %+v, want New=3 (never visited) Yours=2", gotBob)
 	}
 }
+
+// TestReceiveStoresFileWithNoLocalUploader is a regression-shaped
+// test for internal/tosser's TIC/file-echo toss: a file with no local
+// uploader account must still be stored and readable, attributed by
+// name (not a real account) the same way message.Store.ReceiveEcho
+// attributes a remote echomail author.
+func TestReceiveStoresFileWithNoLocalUploader(t *testing.T) {
+	s, _ := newTestStore(t)
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+
+	f, created, err := s.Receive(area.ID, "21:3/100", "package.zip", "tossed in via TIC", strings.NewReader("file-echo content"))
+	if err != nil {
+		t.Fatalf("Receive: %v", err)
+	}
+	if !created {
+		t.Fatal("created = false on the first toss, want true")
+	}
+	if f.UploadedBy.Valid {
+		t.Fatalf("UploadedBy = %+v, want unset (no local account) for a tossed file", f.UploadedBy)
+	}
+	if f.IsFromRemote() != true {
+		t.Fatal("IsFromRemote() = false, want true for a tossed file")
+	}
+	if f.UploadedByName != "21:3/100" {
+		t.Fatalf("UploadedByName = %q, want the origin %q", f.UploadedByName, "21:3/100")
+	}
+
+	// FileByID/ListFiles must still find it (LEFT JOIN, not an INNER
+	// JOIN that would silently exclude a NULL uploaded_by row).
+	loaded, err := s.FileByID(f.ID)
+	if err != nil {
+		t.Fatalf("FileByID: %v", err)
+	}
+	if loaded.UploadedByName != "21:3/100" {
+		t.Fatalf("FileByID UploadedByName = %q, want %q", loaded.UploadedByName, "21:3/100")
+	}
+	files, err := s.ListFiles(area.ID)
+	if err != nil {
+		t.Fatalf("ListFiles: %v", err)
+	}
+	if len(files) != 1 || files[0].UploadedByName != "21:3/100" {
+		t.Fatalf("ListFiles = %+v, want exactly the one tossed file with UploadedByName 21:3/100", files)
+	}
+}
+
+// TestReceiveOfAlreadyStoredFilenameReturnsExistingWithoutError
+// mirrors tossEcho's MSGID-based dedup: a hub resending a file it
+// never saw our BinkP ack for must not fail the toss, just report
+// created=false and hand back what's already stored.
+func TestReceiveOfAlreadyStoredFilenameReturnsExistingWithoutError(t *testing.T) {
+	s, _ := newTestStore(t)
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+
+	first, created, err := s.Receive(area.ID, "21:3/100", "package.zip", "first", strings.NewReader("original content"))
+	if err != nil {
+		t.Fatalf("first Receive: %v", err)
+	}
+	if !created {
+		t.Fatal("created = false on the first toss, want true")
+	}
+
+	again, created, err := s.Receive(area.ID, "21:3/100", "package.zip", "resend", strings.NewReader("resent content"))
+	if err != nil {
+		t.Fatalf("second Receive: %v", err)
+	}
+	if created {
+		t.Fatal("created = true on a resend of the same filename, want false")
+	}
+	if again.ID != first.ID {
+		t.Fatalf("second Receive returned file %d, want the existing file %d", again.ID, first.ID)
+	}
+
+	files, err := s.ListFiles(area.ID)
+	if err != nil {
+		t.Fatalf("ListFiles: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("ListFiles = %+v, want still exactly one file (no duplicate row)", files)
+	}
+}
+
+// TestReceiveStripsPathFromFilename mirrors
+// TestUploadFileStripsPathFromFilename -- a TIC's own File: value
+// should never be trusted as a raw path either.
+func TestReceiveStripsPathFromFilename(t *testing.T) {
+	s, _ := newTestStore(t)
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+
+	f, _, err := s.Receive(area.ID, "21:3/100", "../../etc/passwd", "", strings.NewReader("x"))
+	if err != nil {
+		t.Fatalf("Receive: %v", err)
+	}
+	if f.Filename != "passwd" {
+		t.Fatalf("Filename = %q, want just the base name %q", f.Filename, "passwd")
+	}
+}

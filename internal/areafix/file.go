@@ -3,6 +3,7 @@ package areafix
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // FileStore mirrors EchoStore exactly -- see its doc comment -- for
@@ -40,6 +41,71 @@ func (s *FileStore) Withdraw(uplinkHost, areaTag string, direction Direction) er
 		return fmt.Errorf("areafix: withdraw file-echo subscription: %w", err)
 	}
 	return nil
+}
+
+// Grant mirrors EchoStore.Grant -- see its doc comment.
+func (s *FileStore) Grant(uplinkHost, areaTag string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO file_area_grants (uplink_host, area_tag, granted_at)
+		 VALUES (?, ?, CURRENT_TIMESTAMP)
+		 ON CONFLICT (uplink_host, area_tag)
+		 DO UPDATE SET granted_at = CURRENT_TIMESTAMP`,
+		uplinkHost, areaTag,
+	)
+	if err != nil {
+		return fmt.Errorf("areafix: grant file area: %w", err)
+	}
+	return nil
+}
+
+// Revoke mirrors EchoStore.Revoke -- see its doc comment.
+func (s *FileStore) Revoke(uplinkHost, areaTag string) error {
+	_, err := s.db.Exec(
+		`DELETE FROM file_area_grants WHERE uplink_host = ? AND area_tag = ?`,
+		uplinkHost, areaTag,
+	)
+	if err != nil {
+		return fmt.Errorf("areafix: revoke file area grant: %w", err)
+	}
+	return nil
+}
+
+// IsGranted mirrors EchoStore.IsGranted -- see its doc comment.
+func (s *FileStore) IsGranted(uplinkHost, areaTag string) (bool, error) {
+	var exists int
+	err := s.db.QueryRow(
+		`SELECT 1 FROM file_area_grants WHERE uplink_host = ? AND area_tag = ?`,
+		uplinkHost, areaTag,
+	).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("areafix: check file area grant: %w", err)
+	}
+	return true, nil
+}
+
+// GrantedTags mirrors EchoStore.GrantedTags -- see its doc comment.
+func (s *FileStore) GrantedTags(uplinkHost string) (map[string]bool, error) {
+	rows, err := s.db.Query(`SELECT area_tag FROM file_area_grants WHERE uplink_host = ?`, uplinkHost)
+	if err != nil {
+		return nil, fmt.Errorf("areafix: list file area grants: %w", err)
+	}
+	defer rows.Close()
+
+	out := map[string]bool{}
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("areafix: scan file area grant: %w", err)
+		}
+		out[strings.ToUpper(tag)] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("areafix: list file area grants: %w", err)
+	}
+	return out, nil
 }
 
 // ListForUplink mirrors EchoStore.ListForUplink -- see its doc

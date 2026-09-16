@@ -60,6 +60,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/binkp/areafix/list", s.requireAuth(http.HandlerFunc(s.handleRequestAreafixList)))
 	mux.Handle("GET /api/binkp/areafix/list-reply", s.requireAuth(http.HandlerFunc(s.handleGetAreafixListReply)))
 	mux.Handle("GET /api/binkp/areafix/subscriptions", s.requireAuth(http.HandlerFunc(s.handleListAreafixSubscriptions)))
+	mux.Handle("GET /api/binkp/areafix/grants", s.requireAuth(http.HandlerFunc(s.handleListAreafixGrants)))
+	mux.Handle("PUT /api/binkp/areafix/grants", s.requireAuth(http.HandlerFunc(s.handleSetAreafixGrants)))
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))

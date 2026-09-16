@@ -110,6 +110,18 @@ CREATE TABLE IF NOT EXISTS file_areas (
 INSERT OR IGNORE INTO file_areas (tag, name, description, min_sl_download, min_sl_upload, sort_order)
 VALUES ('general', 'General Files', 'General file library for all callers', 0, 0, 0);
 
+-- uploaded_by is nullable for the same reason netmail_messages.
+-- from_user_id and messages.from_user_id are (see db.go's
+-- migrateNetmailFromUserIDNullable/migrateMessagesFromUserIDNullable,
+-- which this mirrors): a file internal/tosser tosses in from a remote
+-- FTN system via TIC/file-echo (see file.Store.Receive) has no local
+-- uploader account, only the file-echo's own reported origin name --
+-- stored in uploaded_by_name instead, exactly like messages.from_name
+-- for a remote-origin echomail message. A locally uploaded file (see
+-- ImportFile/UploadFile) leaves uploaded_by_name empty and always has
+-- uploaded_by set; FileByID/ListFiles join in the current username
+-- when it's set, falling back to uploaded_by_name (COALESCE) when
+-- it's NULL.
 CREATE TABLE IF NOT EXISTS files (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     area_id          INTEGER NOT NULL REFERENCES file_areas(id) ON DELETE CASCADE,
@@ -117,7 +129,8 @@ CREATE TABLE IF NOT EXISTS files (
     description      TEXT NOT NULL DEFAULT '',
     size_bytes       INTEGER NOT NULL,
     storage_path     TEXT NOT NULL,
-    uploaded_by      INTEGER NOT NULL REFERENCES users(id),
+    uploaded_by      INTEGER REFERENCES users(id),
+    uploaded_by_name TEXT NOT NULL DEFAULT '',
     uploaded_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     download_count   INTEGER NOT NULL DEFAULT 0,
     UNIQUE (area_id, filename)
@@ -240,4 +253,36 @@ CREATE TABLE IF NOT EXISTS file_echo_subscriptions (
     direction     TEXT NOT NULL CHECK (direction IN ('outbound', 'inbound')),
     requested_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (uplink_host, area_tag, direction)
+);
+
+-- Which local areas a downlink (uplink_host -- the same
+-- config.Binkp.Uplinks entry that authenticates its inbound Areafix/
+-- Filefix requests, see internal/tosser's handleAreafixRequest) is
+-- actually permitted to request. Deliberately separate from
+-- echo_subscriptions' 'inbound' rows above, which only record what a
+-- downlink HAS requested -- this instead gates what it's ALLOWED to
+-- request in the first place: a downlink with no rows here can
+-- request nothing at all, even with the correct password, until the
+-- sysop explicitly grants specific areas via the web admin UI. Unlike
+-- echo_subscriptions' area_tag, this one IS meant to reference a real
+-- local area (there's nothing to grant access to otherwise), but
+-- still isn't a message_areas FK: an area can be deleted out from
+-- under a stale grant without a foreign-key error, left as a harmless
+-- orphan row.
+CREATE TABLE IF NOT EXISTS echo_area_grants (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    uplink_host   TEXT NOT NULL,
+    area_tag      TEXT NOT NULL COLLATE NOCASE,
+    granted_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (uplink_host, area_tag)
+);
+
+-- file_area_grants is echo_area_grants' exact counterpart for
+-- file-echo (TIC) areas, gating Filefix requests instead of Areafix.
+CREATE TABLE IF NOT EXISTS file_area_grants (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    uplink_host   TEXT NOT NULL,
+    area_tag      TEXT NOT NULL COLLATE NOCASE,
+    granted_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (uplink_host, area_tag)
 );

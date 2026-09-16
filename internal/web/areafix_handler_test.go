@@ -237,3 +237,116 @@ func TestListAreafixSubscriptionsReturnsRecordedTags(t *testing.T) {
 		t.Fatalf("area_tags = %v, want [FSX_GEN]", resp.AreaTags)
 	}
 }
+
+func TestListAreafixGrantsShowsAllLocalAreasWithGrantedState(t *testing.T) {
+	srv, token := setupAreafixTest(t)
+	if _, err := srv.Messages.CreateArea("FSX_GEN", "fsxNet General", "", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if _, err := srv.Messages.CreateArea("FSX_ADS", "fsxNet Ads", "", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if err := srv.EchoAreafix.Grant("downlink.example.com:24554", "FSX_GEN"); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+
+	h := srv.Routes()
+	rec := doJSON(t, h, http.MethodGet, "/api/binkp/areafix/grants?host=downlink.example.com:24554&kind=echo", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Areas []areaGrantDTO `json:"areas"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	byTag := map[string]areaGrantDTO{}
+	for _, a := range resp.Areas {
+		byTag[a.Tag] = a
+	}
+	if !byTag["FSX_GEN"].Granted {
+		t.Fatalf("FSX_GEN = %+v, want Granted true", byTag["FSX_GEN"])
+	}
+	if byTag["FSX_ADS"].Granted {
+		t.Fatalf("FSX_ADS = %+v, want Granted false (never granted)", byTag["FSX_ADS"])
+	}
+	// The seeded default "general" area must also be listed -- every
+	// local area is shown, not just ones already granted.
+	if _, ok := byTag["general"]; !ok {
+		t.Fatalf("areas = %+v, want the seeded default area included too", resp.Areas)
+	}
+}
+
+func TestSetAreafixGrantsReplacesTheFullGrantedSet(t *testing.T) {
+	srv, token := setupAreafixTest(t)
+	if _, err := srv.Messages.CreateArea("FSX_GEN", "fsxNet General", "", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if _, err := srv.Messages.CreateArea("FSX_ADS", "fsxNet Ads", "", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	// Pre-existing grant for an area that's about to be left out of
+	// the new set -- must end up revoked.
+	if err := srv.EchoAreafix.Grant("downlink.example.com:24554", "FSX_ADS"); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+
+	h := srv.Routes()
+	rec := doJSON(t, h, http.MethodPut, "/api/binkp/areafix/grants", setAreafixGrantsRequestDTO{
+		Host:        "downlink.example.com:24554",
+		Kind:        "echo",
+		GrantedTags: []string{"FSX_GEN"},
+	}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+
+	granted, err := srv.EchoAreafix.IsGranted("downlink.example.com:24554", "FSX_GEN")
+	if err != nil {
+		t.Fatalf("IsGranted FSX_GEN: %v", err)
+	}
+	if !granted {
+		t.Fatal("FSX_GEN not granted after PUT, want it granted")
+	}
+	granted, err = srv.EchoAreafix.IsGranted("downlink.example.com:24554", "FSX_ADS")
+	if err != nil {
+		t.Fatalf("IsGranted FSX_ADS: %v", err)
+	}
+	if granted {
+		t.Fatal("FSX_ADS still granted after PUT, want it revoked (left out of the new set)")
+	}
+}
+
+func TestSetAreafixGrantsFileKindUsesFilefixStore(t *testing.T) {
+	srv, token := setupAreafixTest(t)
+	if _, err := srv.Files.CreateArea("FSX_FILES", "fsxNet Files", "", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	h := srv.Routes()
+	rec := doJSON(t, h, http.MethodPut, "/api/binkp/areafix/grants", setAreafixGrantsRequestDTO{
+		Host:        "downlink.example.com:24554",
+		Kind:        "file",
+		GrantedTags: []string{"FSX_FILES"},
+	}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+
+	granted, err := srv.FileAreafix.IsGranted("downlink.example.com:24554", "FSX_FILES")
+	if err != nil {
+		t.Fatalf("IsGranted: %v", err)
+	}
+	if !granted {
+		t.Fatal("FSX_FILES not granted after PUT via the file kind")
+	}
+	// Must not have touched the echo grant store.
+	granted, err = srv.EchoAreafix.IsGranted("downlink.example.com:24554", "FSX_FILES")
+	if err != nil {
+		t.Fatalf("IsGranted (echo store): %v", err)
+	}
+	if granted {
+		t.Fatal("FSX_FILES granted in the echo store too, want the file kind to only touch FileAreafix")
+	}
+}

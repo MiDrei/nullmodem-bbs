@@ -49,3 +49,40 @@ func TestFileStoreMirrorsEchoStoreBehavior(t *testing.T) {
 		t.Fatalf("got %d subscriptions after Withdraw, want 0", len(subs))
 	}
 }
+
+// TestFileStoreGrantMirrorsEchoStoreBehavior spot-checks the Grant/
+// Revoke/IsGranted/GrantedTags side too -- see echo_test.go's Grant
+// tests for the in-depth coverage this mirrors.
+func TestFileStoreGrantMirrorsEchoStoreBehavior(t *testing.T) {
+	s := newTestFileStore(t)
+
+	granted, err := s.IsGranted("downlink.example.com:24554", "FSX_FILES")
+	if err != nil {
+		t.Fatalf("IsGranted: %v", err)
+	}
+	if granted {
+		t.Fatal("IsGranted = true before any Grant, want false (default-deny)")
+	}
+
+	if err := s.Grant("downlink.example.com:24554", "FSX_FILES"); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+	granted, err = s.IsGranted("downlink.example.com:24554", "FSX_FILES")
+	if err != nil {
+		t.Fatalf("IsGranted after Grant: %v", err)
+	}
+	if !granted {
+		t.Fatal("IsGranted = false after Grant, want true")
+	}
+
+	if err := s.Revoke("downlink.example.com:24554", "FSX_FILES"); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	granted, err = s.IsGranted("downlink.example.com:24554", "FSX_FILES")
+	if err != nil {
+		t.Fatalf("IsGranted after Revoke: %v", err)
+	}
+	if granted {
+		t.Fatal("IsGranted = true after Revoke, want false")
+	}
+}

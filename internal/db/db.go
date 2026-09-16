@@ -106,6 +106,14 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := migrateFilesUploadedByNullable(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := ensureColumn(sqlDB, "files", "uploaded_by_name", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	// Created here rather than in schema.sql: on an already-existing
 	// database, schema.sql runs (see above) before the ensureColumn
 	// call just above adds the msgid column, so an index referencing
@@ -370,6 +378,86 @@ PRAGMA foreign_keys = ON;
 `
 	if _, err := db.Exec(rebuild); err != nil {
 		return fmt.Errorf("db: repairing message_reads foreign key: %w", err)
+	}
+	return nil
+}
+
+// migrateFilesUploadedByNullable relaxes files.uploaded_by from NOT
+// NULL to nullable, needed so a file internal/tosser tosses in from a
+// remote FTN system via TIC/file-echo (no local uploader account --
+// see file.Store.Receive) can be stored, mirroring
+// migrateMessagesFromUserIDNullable exactly -- including
+// legacy_alter_table: file_reads.file_id references files(id) the
+// same way message_reads.message_id references messages(id), and
+// migrateMessagesFromUserIDNullable's own doc comment/history is
+// exactly why that pragma is set here from the start rather than
+// needing a repairMessageReadsForeignKey-style follow-up fix later.
+// See that function's doc comment for why a full table rebuild is
+// necessary and why a fresh database needs none of this.
+func migrateFilesUploadedByNullable(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(files)`)
+	if err != nil {
+		return fmt.Errorf("db: inspect files: %w", err)
+	}
+	needsRebuild := false
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			colType    string
+			notNull    int
+			dfltValue  sql.NullString
+			primaryKey int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &primaryKey); err != nil {
+			rows.Close()
+			return fmt.Errorf("db: inspect files: %w", err)
+		}
+		if name == "uploaded_by" && notNull == 1 {
+			needsRebuild = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("db: inspect files: %w", err)
+	}
+	rows.Close()
+	if !needsRebuild {
+		return nil
+	}
+
+	const rebuild = `
+PRAGMA foreign_keys = OFF;
+PRAGMA legacy_alter_table = ON;
+
+ALTER TABLE files RENAME TO files_old;
+
+CREATE TABLE files (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    area_id          INTEGER NOT NULL REFERENCES file_areas(id) ON DELETE CASCADE,
+    filename         TEXT NOT NULL,
+    description      TEXT NOT NULL DEFAULT '',
+    size_bytes       INTEGER NOT NULL,
+    storage_path     TEXT NOT NULL,
+    uploaded_by      INTEGER REFERENCES users(id),
+    uploaded_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    download_count   INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (area_id, filename)
+);
+
+INSERT INTO files (id, area_id, filename, description, size_bytes, storage_path, uploaded_by, uploaded_at, download_count)
+SELECT id, area_id, filename, description, size_bytes, storage_path, uploaded_by, uploaded_at, download_count
+FROM files_old;
+
+DROP TABLE files_old;
+
+CREATE INDEX IF NOT EXISTS idx_files_area_uploaded ON files(area_id, uploaded_at);
+
+PRAGMA legacy_alter_table = OFF;
+PRAGMA foreign_keys = ON;
+`
+	if _, err := db.Exec(rebuild); err != nil {
+		return fmt.Errorf("db: migrating files: %w", err)
 	}
 	return nil
 }

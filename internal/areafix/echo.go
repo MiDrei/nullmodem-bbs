@@ -15,6 +15,7 @@ package areafix
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -85,6 +86,81 @@ func (s *EchoStore) Withdraw(uplinkHost, areaTag string, direction Direction) er
 		return fmt.Errorf("areafix: withdraw echo subscription: %w", err)
 	}
 	return nil
+}
+
+// Grant records that uplinkHost (a downlink) is permitted to request
+// areaTag via the inbound Areafix robot (internal/tosser's
+// handleAreafixRequest) -- see echo_area_grants' schema comment for
+// why this exists separately from Request/the 'inbound' Direction: a
+// downlink with no grants can request nothing at all, even with the
+// correct password, until the sysop grants specific areas here. An
+// upsert, so granting an already-granted area just refreshes
+// GrantedAt instead of erroring on the table's UNIQUE constraint.
+func (s *EchoStore) Grant(uplinkHost, areaTag string) error {
+	_, err := s.db.Exec(
+		`INSERT INTO echo_area_grants (uplink_host, area_tag, granted_at)
+		 VALUES (?, ?, CURRENT_TIMESTAMP)
+		 ON CONFLICT (uplink_host, area_tag)
+		 DO UPDATE SET granted_at = CURRENT_TIMESTAMP`,
+		uplinkHost, areaTag,
+	)
+	if err != nil {
+		return fmt.Errorf("areafix: grant echo area: %w", err)
+	}
+	return nil
+}
+
+// Revoke removes a previously granted area -- not being present isn't
+// an error.
+func (s *EchoStore) Revoke(uplinkHost, areaTag string) error {
+	_, err := s.db.Exec(
+		`DELETE FROM echo_area_grants WHERE uplink_host = ? AND area_tag = ?`,
+		uplinkHost, areaTag,
+	)
+	if err != nil {
+		return fmt.Errorf("areafix: revoke echo area grant: %w", err)
+	}
+	return nil
+}
+
+// IsGranted reports whether uplinkHost has been granted areaTag.
+func (s *EchoStore) IsGranted(uplinkHost, areaTag string) (bool, error) {
+	var exists int
+	err := s.db.QueryRow(
+		`SELECT 1 FROM echo_area_grants WHERE uplink_host = ? AND area_tag = ?`,
+		uplinkHost, areaTag,
+	).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("areafix: check echo area grant: %w", err)
+	}
+	return true, nil
+}
+
+// GrantedTags returns every area tag granted to uplinkHost, for
+// filtering a %LIST catalog down to only what a downlink is actually
+// permitted to see/request (see internal/tosser's areaCatalog).
+func (s *EchoStore) GrantedTags(uplinkHost string) (map[string]bool, error) {
+	rows, err := s.db.Query(`SELECT area_tag FROM echo_area_grants WHERE uplink_host = ?`, uplinkHost)
+	if err != nil {
+		return nil, fmt.Errorf("areafix: list echo area grants: %w", err)
+	}
+	defer rows.Close()
+
+	out := map[string]bool{}
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, fmt.Errorf("areafix: scan echo area grant: %w", err)
+		}
+		out[strings.ToUpper(tag)] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("areafix: list echo area grants: %w", err)
+	}
+	return out, nil
 }
 
 // ListForUplink returns every subscription recorded for uplinkHost in

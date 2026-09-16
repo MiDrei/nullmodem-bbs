@@ -103,3 +103,98 @@ func TestEchoStoreListForUplinkFiltersByDirection(t *testing.T) {
 		t.Fatalf("got %d outbound, %d inbound, want 1 and 1 (same tag/host, different direction, both kept)", len(out), len(in))
 	}
 }
+
+func TestEchoStoreIsGrantedDefaultsToFalse(t *testing.T) {
+	s := newTestEchoStore(t)
+	granted, err := s.IsGranted("downlink.example.com:24554", "FSX_GEN")
+	if err != nil {
+		t.Fatalf("IsGranted: %v", err)
+	}
+	if granted {
+		t.Fatal("IsGranted = true for an area never granted, want false (default-deny)")
+	}
+}
+
+func TestEchoStoreGrantThenIsGranted(t *testing.T) {
+	s := newTestEchoStore(t)
+	if err := s.Grant("downlink.example.com:24554", "FSX_GEN"); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+	granted, err := s.IsGranted("downlink.example.com:24554", "FSX_GEN")
+	if err != nil {
+		t.Fatalf("IsGranted: %v", err)
+	}
+	if !granted {
+		t.Fatal("IsGranted = false after Grant, want true")
+	}
+	// A different downlink must not inherit the grant.
+	granted, err = s.IsGranted("other.example.com:24554", "FSX_GEN")
+	if err != nil {
+		t.Fatalf("IsGranted (other host): %v", err)
+	}
+	if granted {
+		t.Fatal("IsGranted = true for a different downlink, want false -- grants are per-downlink")
+	}
+}
+
+func TestEchoStoreGrantIsUpsertNotDuplicate(t *testing.T) {
+	s := newTestEchoStore(t)
+	if err := s.Grant("downlink.example.com:24554", "FSX_GEN"); err != nil {
+		t.Fatalf("first Grant: %v", err)
+	}
+	if err := s.Grant("downlink.example.com:24554", "FSX_GEN"); err != nil {
+		t.Fatalf("second Grant: %v", err)
+	}
+	tags, err := s.GrantedTags("downlink.example.com:24554")
+	if err != nil {
+		t.Fatalf("GrantedTags: %v", err)
+	}
+	if len(tags) != 1 {
+		t.Fatalf("GrantedTags = %v, want exactly one entry after re-granting the same area", tags)
+	}
+}
+
+func TestEchoStoreRevokeRemovesGrant(t *testing.T) {
+	s := newTestEchoStore(t)
+	if err := s.Grant("downlink.example.com:24554", "FSX_GEN"); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+	if err := s.Revoke("downlink.example.com:24554", "FSX_GEN"); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	granted, err := s.IsGranted("downlink.example.com:24554", "FSX_GEN")
+	if err != nil {
+		t.Fatalf("IsGranted: %v", err)
+	}
+	if granted {
+		t.Fatal("IsGranted = true after Revoke, want false")
+	}
+}
+
+func TestEchoStoreRevokeOfAbsentGrantIsNotAnError(t *testing.T) {
+	s := newTestEchoStore(t)
+	if err := s.Revoke("downlink.example.com:24554", "NEVER_GRANTED"); err != nil {
+		t.Fatalf("Revoke of an absent grant: %v, want nil", err)
+	}
+}
+
+func TestEchoStoreGrantedTagsIsCaseInsensitive(t *testing.T) {
+	s := newTestEchoStore(t)
+	if err := s.Grant("downlink.example.com:24554", "fsx_gen"); err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+	granted, err := s.IsGranted("downlink.example.com:24554", "FSX_GEN")
+	if err != nil {
+		t.Fatalf("IsGranted: %v", err)
+	}
+	if !granted {
+		t.Fatal("IsGranted = false for a differently-cased tag, want true (area tags are case-insensitive)")
+	}
+	tags, err := s.GrantedTags("downlink.example.com:24554")
+	if err != nil {
+		t.Fatalf("GrantedTags: %v", err)
+	}
+	if !tags["FSX_GEN"] {
+		t.Fatalf("GrantedTags = %v, want an upper-cased FSX_GEN key", tags)
+	}
+}

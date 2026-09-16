@@ -111,8 +111,11 @@ type BinkpUplink struct {
 	PacketPassword string `yaml:"packet_password"`
 	// TICPassword authenticates TIC file-echo announcements from this
 	// uplink (the "type 2" file-distribution protocol layered over
-	// BinkP). Reserved for when TIC/file-echo support is implemented
-	// in internal/tosser -- stored but not used yet.
+	// BinkP, see internal/tic and internal/tosser's ticSession):
+	// accepted the same way PacketPassword is -- any password
+	// configured for this uplink's own host, not just this specific
+	// entry's (see acceptedTICPasswords). Empty means no password is
+	// expected/checked for file-echo from this uplink.
 	TICPassword string `yaml:"tic_password"`
 	// AreafixPassword authenticates automated echomail area
 	// subscription requests to this uplink's "Areafix" netmail robot

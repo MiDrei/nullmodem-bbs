@@ -215,3 +215,92 @@ PRAGMA foreign_keys = ON;
 		t.Fatalf("insert into message_reads after repair: %v", err)
 	}
 }
+
+// TestOpenRelaxesFilesUploadedByToNullable mirrors
+// TestOpenRelaxesNetmailFromUserIDToNullable for
+// migrateFilesUploadedByNullable -- including, unlike that one, a
+// file_reads row (files(id) has a referencing table the same way
+// messages(id) does via message_reads) to confirm the rebuild uses
+// legacy_alter_table correctly from the start rather than needing a
+// TestOpenRepairsMessageReadsDanglingForeignKey-style follow-up fix.
+func TestOpenRelaxesFilesUploadedByToNullable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.sqlite")
+
+	sqlDB, err := Open(path)
+	if err != nil {
+		t.Fatalf("initial Open: %v", err)
+	}
+	if _, err := sqlDB.Exec(`INSERT INTO users (id, username, password_hash) VALUES (1, 'alice', 'x')`); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	var areaID int64
+	if err := sqlDB.QueryRow(`SELECT id FROM file_areas WHERE tag = 'general'`).Scan(&areaID); err != nil {
+		t.Fatalf("locate seeded file area: %v", err)
+	}
+	const oldShape = `
+PRAGMA foreign_keys = OFF;
+DROP TABLE files;
+CREATE TABLE files (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    area_id          INTEGER NOT NULL REFERENCES file_areas(id) ON DELETE CASCADE,
+    filename         TEXT NOT NULL,
+    description      TEXT NOT NULL DEFAULT '',
+    size_bytes       INTEGER NOT NULL,
+    storage_path     TEXT NOT NULL,
+    uploaded_by      INTEGER NOT NULL REFERENCES users(id),
+    uploaded_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    download_count   INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (area_id, filename)
+);
+`
+	if _, err := sqlDB.Exec(oldShape); err != nil {
+		t.Fatalf("simulate pre-migration schema: %v", err)
+	}
+	if _, err := sqlDB.Exec(
+		`INSERT INTO files (id, area_id, filename, description, size_bytes, storage_path, uploaded_by) VALUES (1, ?, 'old.zip', '', 100, '/tmp/old.zip', 1)`,
+		areaID,
+	); err != nil {
+		t.Fatalf("seed old-shape file: %v", err)
+	}
+	if _, err := sqlDB.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		t.Fatalf("re-enable foreign_keys: %v", err)
+	}
+	if _, err := sqlDB.Exec(`INSERT INTO file_reads (user_id, file_id) VALUES (1, 1)`); err != nil {
+		t.Fatalf("seed file_reads: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	reopened, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open after simulated pre-migration schema: %v", err)
+	}
+	defer reopened.Close()
+
+	var filename string
+	if err := reopened.QueryRow(`SELECT filename FROM files WHERE id = 1`).Scan(&filename); err != nil {
+		t.Fatalf("select preserved row after reopen: %v", err)
+	}
+	if filename != "old.zip" {
+		t.Fatalf("preserved row filename = %q, want %q", filename, "old.zip")
+	}
+
+	var readCount int
+	if err := reopened.QueryRow(`SELECT COUNT(*) FROM file_reads WHERE user_id = 1 AND file_id = 1`).Scan(&readCount); err != nil {
+		t.Fatalf("selecting preserved file_reads row: %v", err)
+	}
+	if readCount != 1 {
+		t.Fatalf("preserved file_reads row count = %d, want 1", readCount)
+	}
+
+	if _, err := reopened.Exec(
+		`INSERT INTO files (area_id, filename, description, size_bytes, storage_path, uploaded_by, uploaded_by_name) VALUES (?, 'new.zip', '', 5, '/tmp/new.zip', NULL, 'Remote Origin')`,
+		areaID,
+	); err != nil {
+		t.Fatalf("insert with NULL uploaded_by after migration: %v", err)
+	}
+	if _, err := reopened.Exec(`INSERT INTO file_reads (user_id, file_id) SELECT 1, id FROM files WHERE filename = 'new.zip'`); err != nil {
+		t.Fatalf("insert into file_reads after migration: %v (want it to still reference the live files table)", err)
+	}
+}

@@ -10,7 +10,7 @@ export interface BinkpUplink {
 	poll_interval_seconds: number;
 	/** Authenticates the FTS-0001 packet itself (max 8 characters -- the wire format's packet header field), distinct from the BinkP session password above. Stamped on every outbound packet for this uplink; an inbound packet with a different password is rejected. */
 	packet_password: string;
-	/** Authenticates TIC file-echo announcements from this uplink. Reserved for when file-echo/TIC support is implemented -- stored but not used yet. */
+	/** Authenticates inbound TIC file-echo announcements from this uplink. */
 	tic_password: string;
 	/** Authenticates outbound echomail area subscription requests to this uplink's "Areafix" robot -- see requestAreafixSubscription. */
 	areafix_password: string;
@@ -101,7 +101,7 @@ export interface FileArea {
 	min_sl_download: number;
 	min_sl_upload: number;
 	sort_order: number;
-	/** Mirrors MessageArea.pending -- reserved for when TIC/file-echo tossing exists; nothing sets this yet. */
+	/** Mirrors MessageArea.pending -- set when a TIC/file-echo toss auto-created this area for a tag not seen before (see /pending-areas). */
 	pending: boolean;
 }
 
@@ -312,14 +312,50 @@ export function listAreafixSubscriptions(
 	);
 }
 
+/** One local area in a listAreafixGrants response: whether uplinkHost is currently allowed to subscribe to it via the inbound Areafix/Filefix robot. */
+export interface AreaGrant {
+	tag: string;
+	name: string;
+	granted: boolean;
+}
+
+/** Every local echo (or file) area, alongside whether uplinkHost (a downlink) is currently granted access to it -- the source for the per-downlink checkbox list that governs what its own Areafix/Filefix requests to us will accept. */
+export function listAreafixGrants(
+	token: string,
+	uplinkHost: string,
+	kind: AreafixKind
+): Promise<{ areas: AreaGrant[] }> {
+	return request(
+		`/api/binkp/areafix/grants?host=${encodeURIComponent(uplinkHost)}&kind=${kind}`,
+		{ method: 'GET' },
+		token
+	);
+}
+
+/** Replaces the full set of areas uplinkHost (a downlink) is granted access to -- any currently-granted area missing from grantedTags is revoked, matching a checkbox list's own "save" semantics. */
+export function setAreafixGrants(
+	token: string,
+	uplinkHost: string,
+	kind: AreafixKind,
+	grantedTags: string[]
+): Promise<{ granted_tags: number }> {
+	return request(
+		'/api/binkp/areafix/grants',
+		{ method: 'PUT', body: JSON.stringify({ host: uplinkHost, kind, granted_tags: grantedTags }) },
+		token
+	);
+}
+
 export function sendNowBinkp(
 	token: string,
 	uplink: BinkpUplink
 ): Promise<{
 	sent: number;
 	sent_echo: number;
+	forwarded_echo: number;
 	received: number;
 	received_echo: number;
+	received_files: number;
 	remote_addresses: string[];
 }> {
 	return request(
