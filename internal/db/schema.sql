@@ -133,6 +133,14 @@ CREATE TABLE IF NOT EXISTS files (
     uploaded_by_name TEXT NOT NULL DEFAULT '',
     uploaded_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     download_count   INTEGER NOT NULL DEFAULT 0,
+    -- seen_by mirrors messages' own SEEN-BY tracking (see
+    -- internal/message/seenby.go) but as its own column rather than
+    -- embedded in text, since a file has no body to embed it in: the
+    -- net/node pairs (space-separated, zone/point dropped -- see
+    -- file.NetNode) of every downlink internal/tosser has already
+    -- forwarded this file to (file.Store.MarkSeenBy), so a later
+    -- routing decision doesn't send it to the same downlink twice.
+    seen_by          TEXT NOT NULL DEFAULT '',
     UNIQUE (area_id, filename)
 );
 

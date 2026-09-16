@@ -100,7 +100,7 @@
 		try {
 			const res = await sendNowBinkp(auth.token, uplink);
 			toast.push(
-				`Polled uplink: sent ${res.sent} netmail, ${res.sent_echo} echomail, forwarded ${res.forwarded_echo} echomail, received ${res.received} netmail, ${res.received_echo} echomail, ${res.received_files} file(s).`,
+				`Polled uplink: sent ${res.sent} netmail, ${res.sent_echo} echomail, forwarded ${res.forwarded_echo} echomail, ${res.forwarded_files} file(s), received ${res.received} netmail, ${res.received_echo} echomail, ${res.received_files} file(s).`,
 				'success'
 			);
 		} catch (err) {

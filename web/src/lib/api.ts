@@ -353,6 +353,7 @@ export function sendNowBinkp(
 	sent: number;
 	sent_echo: number;
 	forwarded_echo: number;
+	forwarded_files: number;
 	received: number;
 	received_echo: number;
 	received_files: number;

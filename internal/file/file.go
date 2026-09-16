@@ -78,6 +78,13 @@ type File struct {
 	UploadedByName string // joined from users.username for a local uploader, or the stored origin name for a remote one (see Receive)
 	UploadedAt     time.Time
 	DownloadCount  int
+	// SeenBy is the raw seen_by column: every downlink (net/node pair,
+	// space-separated) internal/tosser has already forwarded this file
+	// to -- see SeenByNetNodes/MarkSeenBy, and message.Message's
+	// identically motivated SEEN-BY tracking for echomail (that one
+	// embedded in Body instead, since this system has nowhere else to
+	// put it for a file).
+	SeenBy string
 }
 
 // IsFromRemote reports whether f arrived from a remote FTN system via
@@ -544,12 +551,12 @@ func (s *Store) DeleteFile(id int64) error {
 func (s *Store) FileByID(id int64) (*File, error) {
 	row := s.db.QueryRow(
 		`SELECT f.id, f.area_id, f.filename, f.description, f.size_bytes, f.storage_path,
-		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count
+		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count, f.seen_by
 		 FROM files f LEFT JOIN users u ON u.id = f.uploaded_by WHERE f.id = ?`, id,
 	)
 	var f File
 	if err := row.Scan(&f.ID, &f.AreaID, &f.Filename, &f.Description, &f.SizeBytes, &f.StoragePath,
-		&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount); err != nil {
+		&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount, &f.SeenBy); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrFileNotFound
 		}
@@ -564,7 +571,7 @@ func (s *Store) FileByID(id int64) (*File, error) {
 func (s *Store) ListFiles(areaID int64) ([]File, error) {
 	rows, err := s.db.Query(
 		`SELECT f.id, f.area_id, f.filename, f.description, f.size_bytes, f.storage_path,
-		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count
+		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count, f.seen_by
 		 FROM files f LEFT JOIN users u ON u.id = f.uploaded_by
 		 WHERE f.area_id = ? ORDER BY f.uploaded_at, f.id`, areaID,
 	)
@@ -577,7 +584,7 @@ func (s *Store) ListFiles(areaID int64) ([]File, error) {
 	for rows.Next() {
 		var f File
 		if err := rows.Scan(&f.ID, &f.AreaID, &f.Filename, &f.Description, &f.SizeBytes, &f.StoragePath,
-			&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount); err != nil {
+			&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount, &f.SeenBy); err != nil {
 			return nil, fmt.Errorf("file: scan file: %w", err)
 		}
 		files = append(files, f)

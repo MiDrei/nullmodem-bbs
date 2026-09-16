@@ -31,6 +31,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
+	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/mail"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
@@ -78,6 +79,13 @@ type Result struct {
 	// file.Store.Receive). Always 0 when TICConfig is nil (TIC
 	// handling disabled).
 	ReceivedFiles int
+	// ForwardedFiles is how many files -- via a freshly generated TIC
+	// descriptor (see RoutedOutboundFileForward/encodeTIC) -- were
+	// handed off and acknowledged (M_GOT on both the TIC and the
+	// payload) by uplink as a downlink's file-echo hub distribution.
+	// Always 0 when RobotConfig is nil or has no FileStore/Files (hub
+	// forwarding disabled).
+	ForwardedFiles int
 	// RemoteAddresses are the FTN addresses the uplink identified
 	// itself as, straight from binkp.Result.
 	RemoteAddresses []string
@@ -123,6 +131,11 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	if _, err := mail.ParseAddress(ourAddresses[0]); err != nil {
 		return nil, fmt.Errorf("tosser: this system's FTN address %q: %w", ourAddresses[0], err)
 	}
+	uplinkAddr, err := mail.ParseAddress(uplink.Address)
+	if err != nil {
+		return nil, fmt.Errorf("tosser: uplink address %q: %w", uplink.Address, err)
+	}
+	ourAddr := ourAddressForUplink(ourAddresses, uplinkAddr)
 
 	routed, err := RoutedOutbound(netmailStore, uplink, allUplinks)
 	if err != nil {
@@ -133,22 +146,25 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 		return nil, err
 	}
 	var forwardedEcho []message.PendingEcho
-	if robot != nil && robot.EchoStore != nil {
-		forwardedEcho, err = RoutedOutboundEchoForward(messages, robot.EchoStore, uplink)
-		if err != nil {
-			return nil, err
+	var forwardedFiles []PendingFileForward
+	if robot != nil {
+		if robot.EchoStore != nil {
+			forwardedEcho, err = RoutedOutboundEchoForward(messages, robot.EchoStore, uplink)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if robot.FileStore != nil && robot.Files != nil {
+			forwardedFiles, err = RoutedOutboundFileForward(robot.Files, robot.FileStore, uplink)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	var outFiles []binkp.OutboundFile
 	var packetName string
-	var uplinkAddr mail.Address
 	if len(routed) > 0 || len(routedEcho) > 0 || len(forwardedEcho) > 0 {
-		uplinkAddr, err = mail.ParseAddress(uplink.Address)
-		if err != nil {
-			return nil, fmt.Errorf("tosser: uplink address %q: %w", uplink.Address, err)
-		}
-		ourAddr := ourAddressForUplink(ourAddresses, uplinkAddr)
 		buf, err := buildPacket(ourAddr, uplinkAddr, uplink.PacketPassword, bbsName, routed, routedEcho, forwardedEcho)
 		if err != nil {
 			return nil, err
@@ -160,6 +176,24 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 			ModTime: time.Now(),
 			Data:    buf,
 		})
+	}
+
+	// Each forwarded file goes out as two separate BinkP file
+	// transfers alongside (or instead of) the .pkt above -- a freshly
+	// generated TIC descriptor (see encodeTIC) plus the file's own
+	// bytes under its real filename, exactly how a real hub sends
+	// file-echo: never bundled into the packet itself.
+	for _, pf := range forwardedFiles {
+		data, crc, err := readFileForForwarding(pf)
+		if err != nil {
+			return nil, err
+		}
+		ticBytes := encodeTIC(pf, ourAddr, uplink.TICPassword, int64(len(data)), crc)
+		now := time.Now()
+		outFiles = append(outFiles,
+			binkp.OutboundFile{Name: ticOutboundName(pf.ID), Size: int64(len(ticBytes)), ModTime: now, Data: bytes.NewReader(ticBytes)},
+			binkp.OutboundFile{Name: pf.Filename, Size: int64(len(data)), ModTime: now, Data: bytes.NewReader(data)},
+		)
 	}
 
 	acceptedPasswords := acceptedPacketPasswords(uplink, allUplinks)
@@ -216,6 +250,25 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 				}
 				res.ForwardedEcho++
 			}
+		}
+	}
+
+	// Each forwarded file's delivery is confirmed independently of the
+	// .pkt above (it's never part of it -- see the OutboundFile loop
+	// building outFiles) via its own uniquely-named TIC descriptor;
+	// the payload's own filename isn't used for this check since two
+	// different forwarded files could plausibly share a filename
+	// across different areas, unlike the TIC name (keyed by file ID).
+	if len(forwardedFiles) > 0 {
+		targetNetNode := file.NetNode(uplinkAddr.Net, uplinkAddr.Node)
+		for _, pf := range forwardedFiles {
+			if !containsString(sessionResult.FilesSent, ticOutboundName(pf.ID)) {
+				continue
+			}
+			if err := robot.Files.MarkSeenBy(pf.ID, targetNetNode); err != nil {
+				return res, fmt.Errorf("tosser: marking file %d seen-by %s: %w", pf.ID, targetNetNode, err)
+			}
+			res.ForwardedFiles++
 		}
 	}
 

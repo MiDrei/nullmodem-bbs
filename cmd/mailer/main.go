@@ -264,7 +264,7 @@ func pollIfDue(ctx context.Context, cfg *config.Config, uplink config.BinkpUplin
 		logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
 		return true
 	}
-	logger.Info("polled %s (%s): sent %d netmail, %d echomail, forwarded %d echomail, received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
+	logger.Info("polled %s (%s): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
 	return true
 }
 
@@ -303,14 +303,24 @@ func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config
 		return false
 	}
 	var forwardedEcho []message.PendingEcho
-	if robot != nil && robot.EchoStore != nil {
-		forwardedEcho, err = tosser.RoutedOutboundEchoForward(messages, robot.EchoStore, uplink)
-		if err != nil {
-			logger.Warn("checking forwarded echomail for %s (%s): %v", uplink.Address, uplink.Host, err)
-			return false
+	var forwardedFiles []tosser.PendingFileForward
+	if robot != nil {
+		if robot.EchoStore != nil {
+			forwardedEcho, err = tosser.RoutedOutboundEchoForward(messages, robot.EchoStore, uplink)
+			if err != nil {
+				logger.Warn("checking forwarded echomail for %s (%s): %v", uplink.Address, uplink.Host, err)
+				return false
+			}
+		}
+		if robot.FileStore != nil && robot.Files != nil {
+			forwardedFiles, err = tosser.RoutedOutboundFileForward(robot.Files, robot.FileStore, uplink)
+			if err != nil {
+				logger.Warn("checking forwarded files for %s (%s): %v", uplink.Address, uplink.Host, err)
+				return false
+			}
 		}
 	}
-	if len(routedNetmail) == 0 && len(routedEcho) == 0 && len(forwardedEcho) == 0 {
+	if len(routedNetmail) == 0 && len(routedEcho) == 0 && len(forwardedEcho) == 0 && len(forwardedFiles) == 0 {
 		return false
 	}
 	if err := pollStore.RecordAttempt(uplink.Host); err != nil {
@@ -322,6 +332,6 @@ func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config
 		logger.Warn("crash-dialing %s (%s) for pending mail: %v", uplink.Address, uplink.Host, err)
 		return true
 	}
-	logger.Info("crash-dialed %s (%s) for pending mail: sent %d netmail, %d echomail, forwarded %d echomail, received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
+	logger.Info("crash-dialed %s (%s) for pending mail: sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
 	return true
 }
