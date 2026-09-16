@@ -479,3 +479,168 @@ func TestPacketBareCRLineEndingsOnWire(t *testing.T) {
 		t.Errorf("wire bytes should use bare CR line endings, got %q", buf.Bytes())
 	}
 }
+
+// TestFromFTNLineEndingsCollapsesCRLFInsteadOfDoublingIt is a
+// regression test for a real production bug: a message body wasn't
+// guaranteed to strictly follow FTS-0001's bare-CR-only convention --
+// a real fsxNet ANSI-art ad (converted from a raw .ANS file with its
+// own CRLF line endings, embedded unchanged by a less careful ad-
+// distribution tool) had genuine "\r\n" pairs inside its body. A naive
+// blind "\r"->"\n" replacement converts the CR and the LF of that pair
+// SEPARATELY, turning every one of its line breaks into two ("\n\n"),
+// i.e. an extra blank line after every single row -- confirmed live,
+// where it rendered as a diagonal mess of scattered blocks with every
+// other row blank.
+func TestFromFTNLineEndingsCollapsesCRLFInsteadOfDoublingIt(t *testing.T) {
+	got := fromFTNLineEndings("line1\r\nline2\r\nline3")
+	want := "line1\nline2\nline3"
+	if got != want {
+		t.Fatalf("fromFTNLineEndings(%q) = %q, want %q", "line1\\r\\nline2\\r\\nline3", got, want)
+	}
+}
+
+// TestFromFTNLineEndingsStillHandlesBareCR confirms the common,
+// FTS-0001-conformant case (bare CR only, no LF at all) still works
+// after fixing the CRLF-doubling bug above.
+func TestFromFTNLineEndingsStillHandlesBareCR(t *testing.T) {
+	got := fromFTNLineEndings("line1\rline2\rline3")
+	want := "line1\nline2\nline3"
+	if got != want {
+		t.Fatalf("fromFTNLineEndings(%q) = %q, want %q", "line1\\rline2\\rline3", got, want)
+	}
+}
+
+// TestPacketReadCollapsesCRLFBodyInsteadOfDoublingIt is the same
+// regression as TestFromFTNLineEndingsCollapsesCRLFInsteadOfDoublingIt,
+// exercised end-to-end through ReadPacket the way tosser.tossInbound
+// actually uses it, in case some other layer re-introduces the bug.
+func TestPacketReadCollapsesCRLFBodyInsteadOfDoublingIt(t *testing.T) {
+	header := PacketHeader{
+		OrigAddr: Address{Zone: 1, Net: 1, Node: 1},
+		DestAddr: Address{Zone: 1, Net: 1, Node: 2},
+		Created:  time.Now().UTC(),
+	}
+	var buf bytes.Buffer
+	pw, err := NewWriter(&buf, header)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	// Bypasses WriteMessage's own toFTNLineEndings (which would
+	// correctly collapse this) to simulate a real non-conformant
+	// packer embedding a raw CRLF-terminated body as-is.
+	raw := Message{ToName: "A", FromName: "B", Subject: "C", Body: "line1\rline2\rline3"}
+	if err := pw.WriteMessage(raw); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := pw.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	wire := buf.Bytes()
+	if !bytes.Contains(wire, []byte("line1\rline2\rline3")) {
+		t.Fatalf("test setup: expected bare-CR body on the wire, got %q", wire)
+	}
+	wire = bytes.Replace(wire, []byte("line1\rline2\rline3"), []byte("line1\r\nline2\r\nline3"), 1)
+
+	pkt, err := ReadPacket(bytes.NewReader(wire))
+	if err != nil {
+		t.Fatalf("ReadPacket: %v", err)
+	}
+	if len(pkt.Messages) != 1 {
+		t.Fatalf("got %d messages, want 1", len(pkt.Messages))
+	}
+	if got, want := pkt.Messages[0].Body, "line1\nline2\nline3"; got != want {
+		t.Fatalf("parsed body = %q, want %q (no doubled blank lines)", got, want)
+	}
+}
+
+// TestTranscodeUTF8ToCP437ConvertsUnicodeArt is a regression test for
+// a real production bug: a body sent as UTF-8 (a modern tool exporting
+// Unicode block-art characters, or just an umlaut in UTF-8-authored
+// prose) went straight through byte-for-byte -- every consumer past
+// this point treats a message body as one CP437 byte per glyph, so
+// each multi-byte UTF-8 sequence got torn apart and rendered as
+// unrelated CP437 glyphs. Confirmed live against a real fsxNet ad
+// built entirely from Unicode block elements (U+2580-U+25AA) that
+// came out as scrambled mojibake.
+func TestTranscodeUTF8ToCP437ConvertsUnicodeArt(t *testing.T) {
+	s := "█▄▌ block art" // █▄▌ block art
+	got := transcodeUTF8ToCP437(s)
+	want := "\xdb\xdc\xdd block art"
+	if got != want {
+		t.Fatalf("transcodeUTF8ToCP437(%q) = %q, want %q", s, got, want)
+	}
+}
+
+// TestTranscodeUTF8ToCP437LeavesPlainASCIIUnchanged confirms pure
+// ASCII (which trivially validates as UTF-8 without being UTF-8-
+// *encoded* in any meaningful sense) is never touched -- the vast
+// majority of real messages, which must not pay any conversion cost
+// or risk any corruption from this fix.
+func TestTranscodeUTF8ToCP437LeavesPlainASCIIUnchanged(t *testing.T) {
+	s := "just an ordinary ASCII message\nwith more than one line"
+	if got := transcodeUTF8ToCP437(s); got != s {
+		t.Fatalf("transcodeUTF8ToCP437(%q) = %q, want unchanged", s, got)
+	}
+}
+
+// TestTranscodeUTF8ToCP437LeavesRawCP437Unchanged confirms genuine
+// raw CP437 bytes (which essentially never validate as UTF-8) pass
+// through untouched rather than being mangled by a false-positive
+// UTF-8 decode.
+func TestTranscodeUTF8ToCP437LeavesRawCP437Unchanged(t *testing.T) {
+	s := "block art: \xdb\xdb\xdb and a line: \xc4\xc4\xc4"
+	if got := transcodeUTF8ToCP437(s); got != s {
+		t.Fatalf("transcodeUTF8ToCP437(%q) = %q, want unchanged (already raw CP437)", s, got)
+	}
+}
+
+// TestPacketReadTranscodesUTF8FieldsToCP437 exercises the fix end-to-
+// end through ReadPacket, across all four text fields (To/From/
+// Subject/Body) -- a sender's own name or a subject line can carry
+// UTF-8 just as easily as a message body (e.g. a curly quote).
+func TestPacketReadTranscodesUTF8FieldsToCP437(t *testing.T) {
+	header := PacketHeader{
+		OrigAddr: Address{Zone: 1, Net: 1, Node: 1},
+		DestAddr: Address{Zone: 1, Net: 1, Node: 2},
+		Created:  time.Now().UTC(),
+	}
+	var buf bytes.Buffer
+	pw, err := NewWriter(&buf, header)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	msg := Message{
+		ToName:   "All",
+		FromName: "Café Owner", // "Café Owner" -- é is UTF-8-encoded here
+		Subject:  "NSA’s Supercomputer",
+		Body:     "block art: ██",
+	}
+	if err := pw.WriteMessage(msg); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := pw.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	pkt, err := ReadPacket(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("ReadPacket: %v", err)
+	}
+	if len(pkt.Messages) != 1 {
+		t.Fatalf("got %d messages, want 1", len(pkt.Messages))
+	}
+	got := pkt.Messages[0]
+	if got.FromName != "Caf\x82 Owner" { // CP437 0x82 is é
+		t.Fatalf("FromName = %q, want CP437-transcoded", got.FromName)
+	}
+	// CP437 has no curly-quote glyph, so EncodeCP437 falls back to '?'
+	// -- what matters here is that it's ASCII '?', not the original
+	// multi-byte UTF-8 sequence still sitting there uncorrupted-looking
+	// but rendering as mojibake on a CP437 terminal.
+	if got.Subject != "NSA?s Supercomputer" {
+		t.Fatalf("Subject = %q, want %q", got.Subject, "NSA?s Supercomputer")
+	}
+	if got.Body != "block art: \xdb\xdb" {
+		t.Fatalf("Body = %q, want CP437-transcoded", got.Body)
+	}
+}

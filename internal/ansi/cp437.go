@@ -53,10 +53,22 @@ func init() {
 }
 
 // DecodeCP437 converts a raw CP437 byte stream (e.g. the contents of a
-// classic .ANS art file) into a UTF-8 Go string.
+// classic .ANS art file) into a UTF-8 Go string. Bytes 0x00-0x1F and
+// 0x7F are passed through as the literal ASCII control character they
+// already are (CR, LF, ESC, ...) rather than cp437ToRune's decorative
+// "control picture" glyph for that byte (☺, ♪, ⌂, ...) -- real,
+// meaningful control bytes (a CRLF line break, an ESC starting an
+// ANSI sequence) vastly outnumber a deliberate decorative use of one
+// of those pictures in real content, and treating them as their
+// glyphs here would make round-tripping through EncodeCP437 corrupt
+// every line break and escape sequence into "?" instead.
 func DecodeCP437(b []byte) string {
 	runes := make([]rune, len(b))
 	for i, c := range b {
+		if c < 0x20 || c == 0x7f {
+			runes[i] = rune(c)
+			continue
+		}
 		runes[i] = cp437ToRune[c]
 	}
 	return string(runes)
@@ -64,10 +76,18 @@ func DecodeCP437(b []byte) string {
 
 // EncodeCP437 converts a UTF-8 string into CP437 bytes suitable for
 // sending to a legacy DOS-style terminal. Runes with no CP437
-// equivalent are replaced with '?'.
+// equivalent are replaced with '?'. ASCII control characters (below
+// 0x20, plus DEL) pass through as themselves -- see DecodeCP437's doc
+// comment for why; every other ASCII byte (0x20-0x7E) already has an
+// identical CP437 code point, so it round-trips through the table
+// unchanged regardless.
 func EncodeCP437(s string) []byte {
 	out := make([]byte, 0, len(s))
 	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			out = append(out, byte(r))
+			continue
+		}
 		if b, ok := runeToCP437[r]; ok {
 			out = append(out, b)
 		} else {

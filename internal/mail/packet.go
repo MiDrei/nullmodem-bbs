@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
 )
 
 // capValidWord and capWordValue are FSC-0039's way of letting a
@@ -392,6 +395,14 @@ func readMessage(r io.Reader, header PacketHeader) (*Message, error) {
 	orig := Address{Zone: header.OrigAddr.Zone, Net: int(origNet), Node: int(origNode)}
 	dest := Address{Zone: header.DestAddr.Zone, Net: int(destNet), Node: int(destNode)}
 	body = fromFTNLineEndings(body)
+	body = transcodeUTF8ToCP437(body)
+	// To/From/Subject are ordinarily ASCII, but not guaranteed to be --
+	// a sender's own name/a subject line can carry a real accented
+	// character or punctuation (an em dash, a curly quote) sent as
+	// UTF-8 rather than CP437 just as easily as a message body can.
+	toName = transcodeUTF8ToCP437(toName)
+	fromName = transcodeUTF8ToCP437(fromName)
+	subject = transcodeUTF8ToCP437(subject)
 	orig, dest = scanAddressingKludges(body, orig, dest)
 
 	return &Message{
@@ -450,8 +461,55 @@ func toFTNLineEndings(s string) string {
 }
 
 // fromFTNLineEndings converts FTN's bare "\r" line breaks back to "\n".
+// Collapses "\r\n" first, mirroring toFTNLineEndings' own order: FTS-
+// 0001 requires bare CR only inside a packed message's body, but not
+// every real-world packer honors that -- a raw .ANS file with its own
+// CRLF line endings, embedded unchanged into a packet by a less
+// careful ad-distribution tool, was found live turning every single
+// line break into a spurious blank line: a naive blind "\r"->"\n"
+// replacement converts the CR of an original "\r\n" pair separately
+// from the LF right after it, doubling every line break into two.
 func fromFTNLineEndings(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
 	return strings.ReplaceAll(s, "\r", "\n")
+}
+
+// transcodeUTF8ToCP437 converts s to CP437 bytes (see
+// ansi.EncodeCP437) if it looks like it was sent as UTF-8 rather than
+// the raw CP437 bytes FTS-0001 assumes -- every byte-oriented piece of
+// this codebase (WrapText, VisibleWidth, ansi.ParseGrid, HasArtBytes,
+// ...) treats a message body as one CP437 byte per on-screen glyph, so
+// UTF-8's multi-byte encoding of anything outside plain ASCII (a
+// block/box-drawing character sent by a modern tool exporting Unicode
+// ANSI art, or even just an umlaut in genuinely UTF-8-authored prose)
+// gets torn apart one raw byte at a time and rendered as unrelated
+// CP437 glyphs -- confirmed live against a real fsxNet ad (a "Cyber
+// Sword BBS" ad built entirely from Unicode block elements, U+2580-
+// U+25AA) that came out as scrambled mojibake.
+//
+// A field actually IS UTF-8 only when it both validates as UTF-8 (raw
+// CP437 high bytes essentially never do, since CP437's 0x80-0xFF
+// range doesn't follow UTF-8's continuation-byte structure by
+// coincidence) and contains at least one non-ASCII byte -- checking
+// validity alone would misfire on pure-ASCII content, which trivially
+// validates as UTF-8 without being UTF-8-*encoded* in any meaningful
+// sense, and must be left untouched.
+func transcodeUTF8ToCP437(s string) string {
+	if !hasNonASCIIByte(s) || !utf8.ValidString(s) {
+		return s
+	}
+	return string(ansi.EncodeCP437(s))
+}
+
+// hasNonASCIIByte reports whether s contains any byte outside the
+// 7-bit ASCII range.
+func hasNonASCIIByte(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return true
+		}
+	}
+	return false
 }
 
 // binWriter accumulates the first write error across a whole header
