@@ -2,8 +2,10 @@ package bbs
 
 import (
 	"bytes"
+	"io"
 	"net"
 	"testing"
+	"time"
 )
 
 // fakeConn is a minimal in-memory Conn for exercising Terminal without
@@ -48,6 +50,59 @@ func TestReadLineCRLFDoesNotLeakIntoNextLine(t *testing.T) {
 	}
 	if got != "second" {
 		t.Fatalf("second ReadLine = %q, want %q (leaked CRLF byte?)", got, "second")
+	}
+}
+
+// TestReadLineReturnsImmediatelyOnBareCRWithoutWaitingForACompanionByte
+// is a regression test: an earlier version of ReadLine, right after a
+// line-terminating CR, blocked reading one more byte specifically to
+// check whether it was a companion LF/NUL. That went unnoticed against
+// fakeConn's non-blocking bytes.Reader (immediate EOF or next byte,
+// never a genuine stall), but a real client (SyncTERM) sends a bare CR
+// for Enter with no companion byte at all, so that blocking peek
+// stalled until the *next* keypress happened to arrive -- confirmed
+// live: it took two presses of Enter to submit one line, the first to
+// reach the peek and the second to satisfy it. Here the peer sends a
+// bare CR and then genuinely nothing else (a real net.Pipe, so a
+// blocking peek would hang for real, not just return EOF); ReadLine
+// must still return promptly.
+func TestReadLineReturnsImmediatelyOnBareCRWithoutWaitingForACompanionByte(t *testing.T) {
+	server, client := net.Pipe()
+	defer server.Close()
+	defer client.Close()
+	term := NewTerminal(pipeConn{server})
+
+	// ReadLine echoes every typed character (plus a final CRLF) back
+	// over the same connection; drain it so those blocking writes on
+	// this synchronous pipe don't stall ReadLine itself.
+	go io.Copy(io.Discard, client)
+
+	go func() {
+		if _, err := client.Write([]byte("hello\r")); err != nil {
+			t.Errorf("client Write: %v", err)
+		}
+	}()
+
+	type result struct {
+		line string
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		line, err := term.ReadLine(false)
+		done <- result{line, err}
+	}()
+
+	select {
+	case res := <-done:
+		if res.err != nil {
+			t.Fatalf("ReadLine: %v", res.err)
+		}
+		if res.line != "hello" {
+			t.Fatalf("ReadLine = %q, want %q", res.line, "hello")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("ReadLine blocked waiting for a companion LF/NUL that a real client never sends")
 	}
 }
 

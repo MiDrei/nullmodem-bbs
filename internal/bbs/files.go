@@ -457,22 +457,22 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 	return printBody(term, &b, f.Description, footer, term.Width())
 }
 
-// downloadFile sends f to the caller via Zmodem (internal/zmodem),
-// taking the connection's raw byte stream directly for the duration
-// of the transfer (see Terminal.Raw) -- Zmodem is an 8-bit binary
-// protocol, nothing like this Terminal's own line-oriented/ANSI-
-// cooked interaction, so this bypasses it rather than trying to
-// thread binary transfer through it. The caller's own terminal client
-// (SyncTERM, NetRunner, ...) auto-detects the transfer starting from
-// the "rz\r" invite zmodem.Send sends first -- no separate "press a
-// key to start your receiver" step is needed on a modern one.
+// downloadFile sends f to the caller via Zmodem (internal/zmodem,
+// which shells out to the real "sz" binary -- see its package doc
+// comment for why), taking the connection's raw byte stream directly
+// for the duration of the transfer (see Terminal.Raw) -- Zmodem is an
+// 8-bit binary protocol, nothing like this Terminal's own line-
+// oriented/ANSI-cooked interaction, so this bypasses it rather than
+// trying to thread binary transfer through it. The caller's own
+// terminal client (SyncTERM, NetRunner, ...) auto-detects the
+// transfer starting from the "rz\r" invite sz sends first -- no
+// separate "press a key to start your receiver" step is needed on a
+// modern one.
 func (s *Server) downloadFile(term *Terminal, u *user.User, f *file.File) error {
-	src, err := os.Open(f.StoragePath)
-	if err != nil {
-		s.logWarn("opening %s for download by %s: %v", f.StoragePath, u.Username, err)
+	if _, err := os.Stat(f.StoragePath); err != nil {
+		s.logWarn("stat %s for download by %s: %v", f.StoragePath, u.Username, err)
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Could not open that file.")
 	}
-	defer src.Close()
 
 	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
 		fmt.Sprintf("Starting Zmodem download of %s (%s) -- your terminal should start receiving automatically.", f.Filename, humanize.Bytes(uint64(f.SizeBytes))) +
@@ -480,20 +480,19 @@ func (s *Server) downloadFile(term *Terminal, u *user.User, f *file.File) error 
 		return err
 	}
 
-	sendErr := zmodem.Send(term.Raw(), src, f.Filename, f.SizeBytes, f.UploadedAt)
+	leftover, sendErr := zmodem.Send(term.Raw(), f.StoragePath)
+	if len(leftover) > 0 {
+		term.PushBack(leftover)
+	}
 	switch {
 	case sendErr == nil:
 		if err := s.Files.RecordDownload(f.ID); err != nil {
 			return err
 		}
 		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Download complete.")
-	case errors.Is(sendErr, zmodem.ErrCancelled):
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Download cancelled.")
-	case errors.Is(sendErr, zmodem.ErrSkipped):
-		return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "Your terminal already has that file.")
 	default:
 		s.logWarn("zmodem download of %s by %s: %v", f.Filename, u.Username, sendErr)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Download failed: " + sendErr.Error())
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Download failed or was cancelled.")
 	}
 }
 

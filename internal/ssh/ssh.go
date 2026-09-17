@@ -98,6 +98,15 @@ func (srv *Server) ListenAndServe() error {
 		if err != nil {
 			return fmt.Errorf("ssh: accept: %w", err)
 		}
+		if tc, ok := nConn.(*net.TCPConn); ok {
+			// See internal/telnet's identical call for why: every reply
+			// riding on this connection (including internal/zmodem's
+			// download traffic) is a short, latency-sensitive message,
+			// not a bulk stream Nagle's algorithm's coalescing would
+			// help -- confirmed to matter live on a higher-latency
+			// (VPN) link.
+			_ = tc.SetNoDelay(true)
+		}
 		go srv.handleConn(nConn, config)
 	}
 }

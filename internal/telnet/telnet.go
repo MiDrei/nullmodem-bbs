@@ -11,7 +11,25 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
+
+// A note on RFC 856 TRANSMIT-BINARY: an earlier version of this
+// package tried negotiating it (first for the whole session, then
+// scoped to just a Zmodem transfer) so Write/Read could skip IAC
+// escaping/interpretation entirely for that 8-bit binary data. Real
+// testing against a real client (SyncTERM) showed it doesn't actually
+// help: SyncTERM offers WILL/DO BINARY completely unprompted at
+// connect time regardless of what we do, but its own Zmodem receiver
+// still runs incoming bytes through ordinary telnet IAC processing
+// anyway -- confirmed by capturing it replying "IAC DONT <byte>" mid-
+// transfer, which only happens if it's still interpreting a stray
+// literal 0xFF in the file data (ZIP compression produces those
+// often) as the start of a command. So this package doesn't attempt
+// BINARY negotiation or a raw bypass mode at all: Write always doubles
+// a literal IAC and Read always expects doubling, unconditionally,
+// which is what a real client's own Zmodem receiver actually expects
+// in practice.
 
 // Telnet protocol bytes (RFC 854 / RFC 1091 / RFC 1073).
 const (
@@ -23,6 +41,7 @@ const (
 	sb   = 250
 	se   = 240
 
+	optBinary   = 0
 	optEcho     = 1
 	optSGA      = 3
 	optTType    = 24
@@ -74,16 +93,17 @@ func (s *Session) WindowSize() (width, height int) {
 // Close closes the underlying connection.
 func (s *Session) Close() error { return s.conn.Close() }
 
+// SetReadDeadline delegates to the underlying net.Conn, letting a
+// caller (internal/zmodem.Send, once its own subprocess has exited)
+// interrupt a Read call already blocked waiting for the next byte,
+// rather than having no way to reclaim that goroutine short of
+// waiting for one to actually arrive.
+func (s *Session) SetReadDeadline(t time.Time) error { return s.conn.SetReadDeadline(t) }
+
 // Write sends p to the client, doubling any literal IAC (0xFF) byte
-// per RFC 854/856 so the client's own telnet layer doesn't misread it
-// as the start of a command sequence -- required for genuinely 8-bit-
-// clean application data (internal/zmodem's binary file transfers, or
-// in principle a CP437 glyph that happens to be byte 0xFF) to survive
-// a telnet connection intact. Confirmed live: without this, a Zmodem
-// transfer containing a 0xFF byte corrupted the stream the client's
-// own Zmodem receiver saw. Ordinary text/ANSI screen output
-// essentially never contains a raw 0xFF byte, so the IndexByte scan
-// below is a no-op cost for the common case.
+// per RFC 854 -- unconditionally; see this file's note on TRANSMIT-
+// BINARY for why no bypass is attempted for Zmodem's binary data
+// either.
 func (s *Session) Write(p []byte) (int, error) {
 	if bytes.IndexByte(p, iac) < 0 {
 		return s.conn.Write(p)
@@ -102,7 +122,24 @@ func (s *Session) Write(p []byte) (int, error) {
 }
 
 // Read returns decoded application data, transparently consuming and
-// acting on any telnet IAC command sequences interleaved in the stream.
+// acting on any telnet IAC command sequences interleaved in the
+// stream and unescaping a doubled IAC (IAC IAC) back into the single
+// literal 0xFF data byte it represents.
+//
+// Read returns as soon as it has at least one application byte and
+// nothing more is immediately available (s.r.Buffered() == 0),
+// instead of blocking until p is completely full. This matters
+// because a caller like bufio.Reader routinely asks for a large
+// buffer's worth (4096 bytes); a real client's reply to one protocol
+// frame is typically much shorter and is then followed by the client
+// waiting for our own next frame rather than sending anything else --
+// insisting on filling the whole buffer first blocked here for the
+// full duration of that wait, confirmed live against a real Zmodem
+// download: SyncTERM's prompt ZRINIT reply sat unread until our own
+// unrelated 20-second header timeout elapsed and forced a retry,
+// which SyncTERM (already past its own init, waiting for ZFILE)
+// received as a bewildering stray ZRQINIT and reacted to with a burst
+// of confused ZRINIT/ZABORT frames before giving up.
 func (s *Session) Read(p []byte) (int, error) {
 	n := 0
 	for n < len(p) {
@@ -116,9 +153,27 @@ func (s *Session) Read(p []byte) (int, error) {
 		if b != iac {
 			p[n] = b
 			n++
+			if s.r.Buffered() == 0 {
+				return n, nil
+			}
 			continue
 		}
-		if err := s.handleCommand(); err != nil {
+		cmd, err := s.r.ReadByte()
+		if err != nil {
+			return n, err
+		}
+		if cmd == iac {
+			// Doubled IAC: one literal 0xFF data byte, not a command.
+			// An earlier version of this dispatch discarded it here
+			// silently instead of ever delivering it to the caller.
+			p[n] = iac
+			n++
+			if s.r.Buffered() == 0 {
+				return n, nil
+			}
+			continue
+		}
+		if err := s.handleCommand(cmd); err != nil {
 			return n, err
 		}
 		if n > 0 {
@@ -130,18 +185,12 @@ func (s *Session) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// handleCommand processes the telnet command following an IAC byte
-// already consumed from the stream.
-func (s *Session) handleCommand() error {
-	cmd, err := s.r.ReadByte()
-	if err != nil {
-		return err
-	}
+// handleCommand processes the telnet command byte following an IAC
+// already consumed from the stream (a doubled IAC, meaning literal
+// data rather than a command, is handled by Read itself before this
+// is ever called).
+func (s *Session) handleCommand(cmd byte) error {
 	switch cmd {
-	case iac:
-		// Escaped 0xFF data byte; nothing further to do here since the
-		// caller only invokes handleCommand for genuine IAC sequences.
-		return nil
 	case do, dont, will, wont:
 		opt, err := s.r.ReadByte()
 		if err != nil {
@@ -246,7 +295,11 @@ func (s *Session) readSubnegotiation() error {
 
 // negotiateInitial kicks off the option negotiation handshake expected
 // by most telnet clients: server will suppress-go-ahead and echo, and
-// asks the client to report window size and terminal type.
+// asks the client to report window size and terminal type. Does not
+// request TRANSMIT-BINARY (see this file's note on it up top) -- a
+// client that offers it unprompted (SyncTERM does) gets it politely
+// declined by negotiate's default case instead, since this package
+// doesn't do anything differently based on it either way.
 func (s *Session) negotiateInitial() error {
 	seq := []byte{
 		iac, will, optSGA,
@@ -278,6 +331,19 @@ func (srv *Server) ListenAndServe() error {
 		conn, err := ln.Accept()
 		if err != nil {
 			return fmt.Errorf("telnet: accept: %w", err)
+		}
+		if tc, ok := conn.(*net.TCPConn); ok {
+			// Every reply this package (and internal/zmodem, riding on
+			// top of it during a download) sends is a short, latency-
+			// sensitive protocol message -- a telnet negotiation
+			// response, a keystroke echo, a Zmodem header/ACK -- not a
+			// bulk stream Nagle's algorithm's coalescing would help.
+			// Left at Go's default, a real download over a real
+			// higher-latency link (a VPN, confirmed live) needed many
+			// such small round trips and gave a receiver with its own
+			// tight per-block timeout (SyncTERM) more chances to give
+			// up waiting than strictly necessary.
+			_ = tc.SetNoDelay(true)
 		}
 		sess := newSession(conn)
 		go func() {

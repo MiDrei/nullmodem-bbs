@@ -1,251 +1,214 @@
+// Package zmodem sends a file to a BBS caller by shelling out to the
+// real "sz" binary (part of the lrzsz package) rather than
+// reimplementing the Zmodem protocol from scratch.
+//
+// An earlier version of this package did reimplement it natively in
+// Go, extensively verified against real lrzsz rz (byte-for-byte,
+// including every 8-bit value, forced retries, and CRC checks by
+// hand against captured wire bytes). It still kept failing against a
+// real terminal client (SyncTERM) over a real, non-trivial network
+// path (a WireGuard VPN in the testing that finally tracked this
+// down) with a string of different real bugs found and fixed one at
+// a time -- a blocking telnet Read that starved a receiver's short
+// replies, missing IAC-escaping for Zmodem's own binary data, no
+// reaction to a mid-transfer ZRPOS resend request, a receiver-
+// specific block-size limit, needing per-block flow control instead
+// of raw streaming, an unclosed frame confusing the receiver after a
+// resend -- and after all of those, still hit a real CRC error
+// streaming to that same client that a byte-identical stream to rz
+// never showed, with no further local reproduction available to keep
+// chasing it. Every other BBS server this project could find
+// (Synchronet, ENiGMA½) does not reimplement Zmodem either -- they
+// shell out to sz/rz (or Synchronet's own sexyz) for exactly this
+// reason: those binaries are what real terminal clients' own Zmodem
+// receivers are actually tested against, decades of real-world
+// interop this package has no way to replicate from scratch.
 package zmodem
 
 import (
-	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"os/exec"
+	"strings"
 	"time"
 )
 
-// ErrCancelled is returned by Send when the receiver aborts the
-// transfer (Zmodem's CAN sequence -- e.g. the caller hit their
-// terminal's own cancel key).
-var ErrCancelled = errors.New("zmodem: transfer cancelled by receiver")
-
-// ErrSkipped is returned by Send when the receiver declines the file
-// outright (Zmodem's ZSKIP -- e.g. it already has a file by that name
-// and wasn't asked to overwrite).
-var ErrSkipped = errors.New("zmodem: receiver skipped the file")
-
-// blockSize is how many bytes of file content go into each data
-// subpacket -- generous compared to Zmodem's historical 1024-byte
-// default, which was sized for noisy serial lines; every telnet/SSH
-// session here is already a fast, reliable TCP-backed link with
-// nothing like that constraint.
-const blockSize = 8192
-
-// headerTimeout bounds how long Send waits for the receiver's next
-// expected response before giving up or retrying (see
-// sender.readHeaderTimeout).
-const headerTimeout = 20 * time.Second
-
-// handshakeRetries bounds how many times Send re-sends a handshake
-// frame (ZRQINIT, ZFILE) while waiting for the matching response --
-// generous enough to cover an auto-detecting terminal client needing
-// a moment to start its own Zmodem receiver after seeing the "rz\r"
-// invite.
-const handshakeRetries = 5
-
-// Send transmits r (size bytes, reported as filename with mtime) to
-// conn using the Zmodem sender ("sz") protocol -- what a BBS caller's
-// own terminal client auto-detects and receives when downloading a
-// file (see this package's doc comment for how the wire format was
-// derived and verified). conn should be the connection's raw byte
-// stream for the duration of the call, with any line-oriented/ANSI-
-// cooking layer the rest of the BBS session normally applies bypassed
-// -- Zmodem is an 8-bit binary protocol, not text.
-func Send(conn io.ReadWriter, r io.Reader, filename string, size int64, mtime time.Time) error {
-	s := &sender{w: conn, r: bufio.NewReader(conn)}
-	return s.run(r, filename, size, mtime)
+// deadliner is implemented by a conn that can have a pending Read
+// call interrupted on demand (telnet.Session, wrapping a real
+// net.Conn) -- see Send's use of it for why.
+type deadliner interface {
+	SetReadDeadline(t time.Time) error
 }
 
-type sender struct {
-	w io.Writer
-	r *bufio.Reader
+// leftoverWait bounds how long Send will wait for its "conn -> sz
+// stdin" copy to notice sz is done and stop, on a conn that can't be
+// interrupted on demand (see Send). A var so this package's own tests
+// can shrink it.
+var leftoverWait = 3 * time.Second
+
+// ErrFailed is returned by Send when sz exits reporting the transfer
+// did not complete -- the receiver cancelled it, declined the file,
+// or the connection dropped partway through. sz's own exit status
+// doesn't reliably distinguish which (confirmed empirically: a
+// receiver-cancelled transfer and a genuine I/O failure both exit 128
+// with no differentiating detail on stderr), so this package doesn't
+// try to either; Detail carries whatever diagnostic text sz did
+// produce, for logging.
+type ErrFailed struct {
+	Detail string
 }
 
-func (s *sender) run(r io.Reader, filename string, size int64, mtime time.Time) error {
-	if _, err := s.w.Write([]byte("rz\r")); err != nil {
-		return fmt.Errorf("zmodem: sending invite: %w", err)
+func (e *ErrFailed) Error() string {
+	if e.Detail == "" {
+		return "zmodem: transfer did not complete"
 	}
-	if err := s.handshake(); err != nil {
-		return err
-	}
-	startAt, err := s.sendFileHeader(filename, size, mtime)
+	return "zmodem: transfer did not complete: " + e.Detail
+}
+
+// Send transmits the file at path to conn using sz, piping sz's
+// stdin/stdout directly through conn for the duration of the
+// transfer. conn should be the connection's raw byte stream (see
+// Terminal.Raw) with any line-oriented/ANSI-cooking layer the rest of
+// the BBS session normally applies bypassed -- Zmodem is an 8-bit
+// binary protocol, not text -- and, for a telnet connection
+// specifically, must still be doing its own IAC-escaping in both
+// directions (telnet.Session does): sz has no awareness of telnet
+// framing at all, the same as any other external protocol handler
+// (rz doesn't either; a BBS piping either through a raw telnet
+// connection is responsible for that layer, not the zmodem binary).
+//
+// sz reports the file's name to the receiver as path's base name, so
+// the caller is responsible for path actually being named the way it
+// should appear on the receiving end (true of this project's own
+// file storage: internal/file.Store lays files out under their
+// original filename already).
+//
+// The returned leftover bytes, if any, must be fed back to whatever
+// reads conn next (Terminal.Raw's caller pushes them into the
+// Terminal's own pending buffer) rather than discarded -- see the
+// unexported copyUntilClosed's doc comment for why they can exist at
+// all: without handing them back, this cost the caller's own first
+// keystroke or two right after every transfer, confirmed live.
+func Send(conn io.ReadWriter, path string) ([]byte, error) {
+	cmd := exec.Command("sz", "--binary", "--escape", "--quiet", path)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	// Deliberately not the simpler cmd.Stdin = conn / cmd.Stdout = conn
+	// (which is how this package's own tests still wire up the *other*
+	// side, a subprocess with nothing else to do once it exits): for
+	// any Stdin that isn't an *os.File, exec.Cmd copies it to the
+	// child's stdin pipe on a goroutine of its own, and Wait() blocks
+	// until that goroutine sees EOF or an error on conn, not just
+	// until the child process exits. conn is a live telnet/SSH
+	// session that stays open for the rest of the caller's BBS
+	// session -- it was never going to produce that EOF, so Wait()
+	// (and so Send, and so the BBS's whole download command) would
+	// have hung forever after every single transfer, success or not.
+	// Managing the pipes directly keeps that wait scoped to what it
+	// should be: the sz process actually exiting.
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("zmodem: creating sz stdin pipe: %w", err)
 	}
-	if err := s.sendData(r, startAt, size); err != nil {
-		return err
-	}
-	return s.finish()
-}
-
-// handshake sends ZRQINIT and waits for the receiver's ZRINIT,
-// re-sending up to handshakeRetries times in case the client's own
-// Zmodem receiver hasn't started listening yet.
-func (s *sender) handshake() error {
-	for i := 0; i < handshakeRetries; i++ {
-		if _, err := s.w.Write(encodeHexHeader(zrqinit, [4]byte{})); err != nil {
-			return fmt.Errorf("zmodem: sending ZRQINIT: %w", err)
-		}
-		typ, _, err := s.readHeaderTimeout()
-		if err != nil {
-			continue
-		}
-		switch typ {
-		case zrinit:
-			return nil
-		case zcan:
-			return ErrCancelled
-		}
-		// An unexpected frame (a stray retransmit, say) -- loop
-		// around and try again within budget.
-	}
-	return fmt.Errorf("zmodem: no ZRINIT received after %d attempts", handshakeRetries)
-}
-
-// sendFileHeader sends the ZFILE header naming filename/size/mtime
-// and waits for the receiver's ZRPOS, re-sending on a timeout.
-// Returns the byte offset ZRPOS asked to start from -- ordinarily 0,
-// but honored as a genuine resume-from-offset request if not (see
-// sendData).
-func (s *sender) sendFileHeader(filename string, size int64, mtime time.Time) (startAt int64, err error) {
-	info := fmt.Sprintf("%s\x00%d %o %o 0 %d %d\x00", filename, size, mtime.Unix(), 0o100644, 1, size)
-	send := func() error {
-		if _, err := s.w.Write(encodeBin32Header(zfile, [4]byte{})); err != nil {
-			return fmt.Errorf("zmodem: sending ZFILE header: %w", err)
-		}
-		if _, err := s.w.Write(encodeDataSubpacket([]byte(info), zcrcw)); err != nil {
-			return fmt.Errorf("zmodem: sending ZFILE info: %w", err)
-		}
-		return nil
-	}
-	if err := send(); err != nil {
-		return 0, err
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("zmodem: creating sz stdout pipe: %w", err)
 	}
 
-	for i := 0; i < handshakeRetries; i++ {
-		typ, pos, err := s.readHeaderTimeout()
-		if err != nil {
-			if i == handshakeRetries-1 {
-				return 0, fmt.Errorf("zmodem: waiting for ZRPOS: %w", err)
-			}
-			if err := send(); err != nil {
-				return 0, err
-			}
-			continue
-		}
-		switch typ {
-		case zrpos:
-			return int64(leUint32(pos)), nil
-		case zskip:
-			return 0, ErrSkipped
-		case zcan:
-			return 0, ErrCancelled
-		}
-		// A duplicate ZRINIT (observed live from real rz) or anything
-		// else not the response we're waiting for -- keep waiting.
-	}
-	return 0, fmt.Errorf("zmodem: no ZRPOS received after %d attempts", handshakeRetries)
-}
-
-// sendData streams r's content (skipping the first startAt bytes,
-// already on the receiver's side per its own ZRPOS) as consecutive
-// ZDATA subpackets, unacknowledged (zcrcg) except the very last one
-// of the file (zcrce, immediately followed by ZEOF) -- deliberately
-// not waiting for a mid-file ACK the way a noisy serial link would
-// need to: this system runs strictly over already-reliable TCP-backed
-// telnet/SSH, which has nothing for that flow control to protect
-// against.
-func (s *sender) sendData(r io.Reader, startAt, size int64) error {
-	if startAt > 0 {
-		if seeker, ok := r.(io.Seeker); ok {
-			if _, err := seeker.Seek(startAt, io.SeekStart); err != nil {
-				return fmt.Errorf("zmodem: seeking to resume offset %d: %w", startAt, err)
-			}
-		} else if _, err := io.CopyN(io.Discard, r, startAt); err != nil {
-			return fmt.Errorf("zmodem: discarding %d already-received bytes: %w", startAt, err)
-		}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("zmodem: starting sz: %w", err)
 	}
 
-	if _, err := s.w.Write(encodeBin32Header(zdata, posOf(startAt))); err != nil {
-		return fmt.Errorf("zmodem: sending ZDATA header: %w", err)
-	}
-
-	buf := make([]byte, blockSize)
-	sent := startAt
-	if sent >= size {
-		// Nothing to send (a zero-length file, or a resume that
-		// starts exactly at EOF) -- real sz still sends one empty
-		// subpacket ending the frame, confirmed against a real
-		// captured zero-length-file session; a ZDATA header with no
-		// subpacket at all before ZEOF left rz hanging indefinitely
-		// in testing.
-		if _, err := s.w.Write(encodeDataSubpacket(nil, zcrce)); err != nil {
-			return fmt.Errorf("zmodem: sending empty terminating subpacket: %w", err)
-		}
-	}
-	for sent < size {
-		n, err := io.ReadFull(r, buf)
-		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-			return fmt.Errorf("zmodem: reading file content: %w", err)
-		}
-		if n == 0 {
-			break
-		}
-		sent += int64(n)
-		endType := byte(zcrcg)
-		if sent >= size {
-			endType = zcrce
-		}
-		if _, err := s.w.Write(encodeDataSubpacket(buf[:n], endType)); err != nil {
-			return fmt.Errorf("zmodem: sending data: %w", err)
-		}
-	}
-
-	if _, err := s.w.Write(encodeBin32Header(zeof, posOf(size))); err != nil {
-		return fmt.Errorf("zmodem: sending ZEOF: %w", err)
-	}
-	return nil
-}
-
-// finish drains the receiver's post-ZEOF reply (a fresh ZRINIT,
-// asking whether there's another file -- this package always sends
-// exactly one) and its ZFIN echo, both best-effort: sending our own
-// ZFIN and the closing "OO" proceeds regardless of what actually came
-// back, or even a timeout, since both are required to end the session
-// either way.
-func (s *sender) finish() error {
-	_, _, _ = s.readHeaderTimeout()
-
-	if _, err := s.w.Write(encodeHexHeader(zfin, [4]byte{})); err != nil {
-		return fmt.Errorf("zmodem: sending ZFIN: %w", err)
-	}
-	_, _, _ = s.readHeaderTimeout()
-
-	if _, err := s.w.Write([]byte("OO")); err != nil {
-		return fmt.Errorf("zmodem: sending OO: %w", err)
-	}
-	return nil
-}
-
-// readHeaderTimeout reads one header frame, bounded by headerTimeout.
-// On timeout the underlying readHeader call is abandoned mid-read (it
-// keeps running in its own goroutine until the connection eventually
-// closes, at which point it exits on its own) -- an accepted trade-
-// off for not threading read-deadline support through every possible
-// connection type Send might be handed.
-func (s *sender) readHeaderTimeout() (typ byte, pos [4]byte, err error) {
-	type result struct {
-		typ byte
-		pos [4]byte
-		err error
-	}
-	ch := make(chan result, 1)
+	stdoutDone := make(chan struct{})
 	go func() {
-		typ, pos, err := readHeader(s.r)
-		ch <- result{typ, pos, err}
+		defer close(stdoutDone)
+		io.Copy(conn, stdout)
 	}()
-	select {
-	case res := <-ch:
-		return res.typ, res.pos, res.err
-	case <-time.After(headerTimeout):
-		return 0, pos, fmt.Errorf("zmodem: timed out waiting for a response")
+	leftoverCh := make(chan []byte, 1)
+	go func() { leftoverCh <- copyUntilClosed(stdin, conn) }()
+
+	waitErr := cmd.Wait()
+
+	// Both goroutines above must be done touching conn before Send
+	// returns: the caller resumes reading conn for ordinary keystrokes
+	// right afterward, and a still-running reader here would race it
+	// for whatever the caller types first (see copyUntilClosed for the
+	// mechanics; the fix that first surfaced this exact race is why
+	// Send doesn't use the simpler cmd.Stdin/cmd.Stdout assignment
+	// above at all). stdout's side finishes on its own the moment sz's
+	// stdout pipe closes, which Wait() having already returned
+	// guarantees already happened or is about to.
+	<-stdoutDone
+
+	// conn's copy only finishes once it next reads *something* -- if
+	// conn supports interrupting a pending Read on demand (telnet.
+	// Session does, wrapping a real net.Conn), force that now rather
+	// than actually waiting for the caller's next keystroke to arrive
+	// on its own, then clear the deadline again so it doesn't affect
+	// this same conn's later, ordinary reads.
+	if dl, ok := conn.(deadliner); ok {
+		dl.SetReadDeadline(time.Now())
+		defer dl.SetReadDeadline(time.Time{})
 	}
+
+	// Without that capability (e.g. an SSH channel, which has no
+	// concept of a read deadline), fall back to bounding the wait
+	// instead: block hoping the caller's next keystroke shows up
+	// within leftoverWait (confirmed live: it usually arrives almost
+	// immediately, since it's normally a reaction to the "Download
+	// complete" message Send's caller just printed) so the common case
+	// still hands it back correctly, but give up and return rather
+	// than hang the whole download command -- and so the caller's
+	// whole BBS session -- indefinitely if the caller simply hasn't
+	// typed anything yet. copyUntilClosed keeps running in the
+	// background past that point on this fallback path; a keystroke
+	// that arrives after the bound is a rare, accepted residual risk
+	// here, not eliminated the way it is above.
+	var leftover []byte
+	select {
+	case leftover = <-leftoverCh:
+	case <-time.After(leftoverWait):
+	}
+
+	if waitErr != nil {
+		var exitErr *exec.ExitError
+		if errors.As(waitErr, &exitErr) {
+			return leftover, &ErrFailed{Detail: strings.TrimSpace(stderr.String())}
+		}
+		return leftover, fmt.Errorf("zmodem: running sz: %w", waitErr)
+	}
+	return leftover, nil
 }
 
-func posOf(n int64) [4]byte {
-	return [4]byte{byte(n), byte(n >> 8), byte(n >> 16), byte(n >> 24)}
+// copyUntilClosed copies from src to dst until dst refuses a write
+// (sz's stdin pipe, auto-closed once cmd.Wait sees the process exit)
+// or src errors, returning whatever bytes it had already read from
+// src but could no longer deliver to dst. That's the one case this
+// can happen: src (conn) blocks waiting for the next byte right as sz
+// exits, and the very next byte to arrive -- typically the caller's
+// own first post-transfer keystroke, not anything meant for sz at all
+// -- fails to write once dst has closed underneath it. Plain io.Copy
+// would just drop that byte on the floor; the caller needs it back.
+func copyUntilClosed(dst io.WriteCloser, src io.Reader) []byte {
+	buf := make([]byte, 4096)
+	for {
+		n, rerr := src.Read(buf)
+		if n > 0 {
+			written, werr := dst.Write(buf[:n])
+			if werr != nil {
+				return append([]byte(nil), buf[written:n]...)
+			}
+		}
+		if rerr != nil {
+			// src (conn) is done -- no more input is ever coming, so
+			// close dst (sz's stdin) to tell it the same rather than
+			// leaving it to wait out its own timeout for a handshake
+			// reply that was never going to arrive.
+			dst.Close()
+			return nil
+		}
+	}
 }

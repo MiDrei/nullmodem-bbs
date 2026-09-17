@@ -15,8 +15,23 @@ const (
 // both the telnet and SSH transports require once local client echo is
 // suppressed.
 type Terminal struct {
-	conn    Conn
-	pending []byte // at most one byte pushed back by CRLF lookahead
+	conn Conn
+	// pending holds at most one byte pushed back by ReadKey's escape-
+	// sequence lookahead (an 0x1b not followed by '[').
+	pending []byte
+	// expectLFOrNUL is set right after a line-terminating CR is
+	// consumed (see readByte/ReadLine) and checked on the very next
+	// byte read, wherever that ends up happening -- swallowing it
+	// silently if it turns out to be the LF or NUL some clients pair
+	// with CR (RFC 854's "CR LF"/"CR NUL"), without ever blocking to
+	// wait for one. An earlier version blocked reading one more byte
+	// right after every CR specifically to check for this, live-tested
+	// against a real client (SyncTERM) whose Enter key sends a bare CR
+	// with no companion byte at all: that peek then blocked until the
+	// *next* keypress arrived, needing Enter pressed twice (the first
+	// press to reach the peek and the second to finally satisfy it)
+	// with a long visible stall in between the two.
+	expectLFOrNUL bool
 }
 
 // NewTerminal wraps conn for line-based interaction.
@@ -106,18 +121,37 @@ func (t *Terminal) Println(s string) error {
 // with this Terminal's own line-oriented/ANSI-cooked interaction, so
 // bypassing it (rather than teaching Terminal to speak Zmodem itself)
 // is the right layering. Safe to call between key reads (a menu
-// hotkey dispatch, e.g. "download this file"): t.pending can only
-// hold a byte pushed back by ReadLine's own CRLF lookahead, never by
-// ReadKey, so it's empty at that point and there's nothing already
-// consumed from the wire left to lose.
+// hotkey dispatch, e.g. "download this file"): t.pending can only hold
+// a byte pushed back by ReadKey's own escape-sequence lookahead, and
+// t.expectLFOrNUL only ever causes a byte already sitting on the wire
+// to be silently dropped rather than holding one back, so there's
+// nothing already consumed left to lose. See PushBack for handing
+// bytes the raw caller itself consumed but couldn't use back to this
+// Terminal once it's done.
 func (t *Terminal) Raw() Conn { return t.conn }
 
-// readByte returns the next input byte, first draining any byte
-// pushed back by a previous CRLF lookahead.
+// PushBack makes b the next bytes readByte (and so ReadKey/ReadLine)
+// returns, ahead of anything still unread on the wire. For a Raw
+// caller (internal/zmodem's downloadFile) that ends up reading a byte
+// off the connection it can't actually use for itself -- e.g. the
+// caller's own next keystroke, arriving the instant an external sz
+// subprocess exits and stops wanting input -- so it isn't silently
+// lost. Appends to, rather than replacing, whatever's already
+// pending, though in practice this is only ever called with pending
+// empty (Raw's own doc comment explains why).
+func (t *Terminal) PushBack(b []byte) {
+	t.pending = append(t.pending, b...)
+}
+
+// readByte returns the next input byte: first draining any bytes
+// pushed back (see PushBack; also used by ReadKey's own escape-
+// sequence lookahead), then honoring a pending expectLFOrNUL by
+// silently dropping exactly one LF or NUL (see its doc comment)
+// before returning the byte after it.
 func (t *Terminal) readByte() (byte, error) {
 	if len(t.pending) > 0 {
 		b := t.pending[0]
-		t.pending = nil
+		t.pending = t.pending[1:]
 		return b, nil
 	}
 	buf := make([]byte, 1)
@@ -126,9 +160,17 @@ func (t *Terminal) readByte() (byte, error) {
 		if err != nil {
 			return 0, err
 		}
-		if n > 0 {
-			return buf[0], nil
+		if n == 0 {
+			continue
 		}
+		b := buf[0]
+		if t.expectLFOrNUL {
+			t.expectLFOrNUL = false
+			if b == charLF || b == 0 {
+				continue
+			}
+		}
+		return b, nil
 	}
 }
 
@@ -169,9 +211,7 @@ func (t *Terminal) ReadKey() (Key, error) {
 	switch {
 	case c == charCR || c == charLF:
 		if c == charCR {
-			if next, err := t.readByte(); err == nil && next != charLF {
-				t.pending = []byte{next}
-			}
+			t.expectLFOrNUL = true
 		}
 		return Key{Type: KeyEnter}, nil
 
@@ -217,9 +257,10 @@ func (t *Terminal) ReadKey() (Key, error) {
 // ReadLine reads one line of input, echoing typed characters (masked
 // as '*' when mask is true) and honoring backspace/delete for editing.
 // It returns the line without its trailing CR/LF. Both bare LF and
-// CRLF line endings are accepted; when a line ends in CR, a following
-// LF is consumed as part of the same terminator rather than leaking
-// into the next ReadLine call as a spurious blank line.
+// CRLF line endings are accepted; a line-ending CR returns immediately
+// (see expectLFOrNUL) rather than blocking to check whether a
+// companion LF/NUL follows -- a following one, whenever it does
+// arrive, is silently dropped instead.
 func (t *Terminal) ReadLine(mask bool) (string, error) {
 	var line []byte
 
@@ -232,9 +273,7 @@ func (t *Terminal) ReadLine(mask bool) (string, error) {
 		switch {
 		case c == charCR || c == charLF:
 			if c == charCR {
-				if next, err := t.readByte(); err == nil && next != charLF {
-					t.pending = []byte{next}
-				}
+				t.expectLFOrNUL = true
 			}
 			if _, err := t.conn.Write([]byte(ansi.CRLF)); err != nil {
 				return "", err
