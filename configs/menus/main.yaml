@@ -18,6 +18,10 @@ items:
     label: "Who's online"
     action: "builtin:who"
     min_sl: 0
+  - key: D
+    label: "Doors"
+    action: "builtin:doors"
+    min_sl: 0
   - key: Y
     label: "Your stats (SL {SL})"
     action: "builtin:stats"

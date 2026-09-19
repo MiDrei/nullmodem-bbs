@@ -30,6 +30,11 @@ type Config struct {
 		FTNAddresses []string `yaml:"ftn_addresses"`
 	} `yaml:"bbs"`
 
+	// Doors are external door programs callers can launch from the
+	// BBS menu (see internal/doors) -- each one an already-installed
+	// executable on this host, not managed by this project itself.
+	Doors []DoorConfig `yaml:"doors"`
+
 	Database struct {
 		Path string `yaml:"path"`
 	} `yaml:"database"`
@@ -139,6 +144,25 @@ type BinkpUplink struct {
 	// originated echomail (fine for a network we only read, never
 	// post to).
 	Network string `yaml:"network"`
+}
+
+// DoorConfig is one entry in Config.Doors -- see internal/doors.Door,
+// which this maps directly onto (kept as a separate type, like
+// BinkpUplink, so config stays decoupled from other internal
+// packages' own types).
+type DoorConfig struct {
+	// Name identifies this door in the in-BBS doors menu and in logs.
+	Name string `yaml:"name"`
+	// Exe is the path to the door's executable.
+	Exe string `yaml:"exe"`
+	// Dir is the working directory to run Exe from -- almost always
+	// the door's own install directory.
+	Dir string `yaml:"dir"`
+	// Args are extra arguments passed before the dropfile path
+	// argument internal/doors.Run appends itself.
+	Args []string `yaml:"args"`
+	// MinSL is the minimum security level required to play.
+	MinSL int `yaml:"min_sl"`
 }
 
 // PrimaryFTNAddress returns c's first configured FTN address, or "" if

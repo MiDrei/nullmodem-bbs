@@ -11,6 +11,7 @@ import (
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
+	"git.maik.ch/swissmaik/nullmodem/internal/doors"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
@@ -40,6 +41,7 @@ type Server struct {
 	Messages      *message.Store
 	Files         *file.Store
 	Netmail       *netmail.Store
+	Doors         []doors.Door
 	Logger        *applog.Logger
 	SysopName     string
 	BBSName       string
@@ -61,6 +63,7 @@ type Options struct {
 	Messages      *message.Store
 	Files         *file.Store
 	Netmail       *netmail.Store
+	Doors         []doors.Door
 	Nodes         *session.Store
 	Logger        *applog.Logger
 	NewUserSL     int
@@ -77,6 +80,7 @@ func NewServer(opts Options) *Server {
 		Messages:      opts.Messages,
 		Files:         opts.Files,
 		Netmail:       opts.Netmail,
+		Doors:         opts.Doors,
 		Logger:        opts.Logger,
 		BBSName:       opts.BBSName,
 		SysopName:     opts.SysopName,
@@ -328,6 +332,7 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"createfilearea": (*Server).sysopCreateFileArea,
 	"importfile":     (*Server).sysopImportFile,
 	"netmail":        (*Server).showNetmail,
+	"doors":          (*Server).showDoors,
 }
 
 // runMenu displays the named menu and dispatches choices until the

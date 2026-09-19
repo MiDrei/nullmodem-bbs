@@ -13,6 +13,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/bbs"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
+	"git.maik.ch/swissmaik/nullmodem/internal/doors"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/hostkey"
 	"git.maik.ch/swissmaik/nullmodem/internal/menu"
@@ -66,6 +67,17 @@ func main() {
 		logger.Fatal("loading welcome screen: %v", err)
 	}
 
+	var doorList []doors.Door
+	for _, d := range cfg.Doors {
+		doorList = append(doorList, doors.Door{
+			Name:  d.Name,
+			Exe:   d.Exe,
+			Dir:   d.Dir,
+			Args:  d.Args,
+			MinSL: d.MinSL,
+		})
+	}
+
 	srv := bbs.NewServer(bbs.Options{
 		BBSName:       cfg.BBS.Name,
 		SysopName:     cfg.BBS.Sysop,
@@ -75,6 +87,7 @@ func main() {
 		Messages:      messages,
 		Files:         files,
 		Netmail:       netmailStore,
+		Doors:         doorList,
 		Nodes:         nodes,
 		NewUserSL:     cfg.BBS.NewUserSL,
 		WelcomeScreen: welcomeScreen,
