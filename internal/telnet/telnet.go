@@ -14,22 +14,40 @@ import (
 	"time"
 )
 
-// A note on RFC 856 TRANSMIT-BINARY: an earlier version of this
-// package tried negotiating it (first for the whole session, then
-// scoped to just a Zmodem transfer) so Write/Read could skip IAC
-// escaping/interpretation entirely for that 8-bit binary data. Real
-// testing against a real client (SyncTERM) showed it doesn't actually
-// help: SyncTERM offers WILL/DO BINARY completely unprompted at
-// connect time regardless of what we do, but its own Zmodem receiver
-// still runs incoming bytes through ordinary telnet IAC processing
-// anyway -- confirmed by capturing it replying "IAC DONT <byte>" mid-
-// transfer, which only happens if it's still interpreting a stray
-// literal 0xFF in the file data (ZIP compression produces those
-// often) as the start of a command. So this package doesn't attempt
-// BINARY negotiation or a raw bypass mode at all: Write always doubles
-// a literal IAC and Read always expects doubling, unconditionally,
-// which is what a real client's own Zmodem receiver actually expects
-// in practice.
+// A note on RFC 856 TRANSMIT-BINARY, real clients simply not
+// implementing it, and where this package's Zmodem support ended up:
+// an earlier version tried negotiating BINARY (first for the whole
+// session, then scoped to just a transfer) hoping Write/Read could
+// skip IAC handling entirely for 8-bit data, gave up when a real
+// client (SyncTERM) still needed IAC escaped regardless (confirmed by
+// capturing it replying "IAC DONT <byte>" for a stray literal 0xFF in
+// downloaded file data), dropped BINARY as apparently pointless, then
+// re-added just the server->client half after finding it silently
+// fixed a *different* bug (rz's CR-terminated headers, sent during an
+// upload, arriving mangled -- NVT's rule that CR needs LF or NUL next,
+// which BINARY relaxes). Accepting the OTHER direction too then
+// uncovered a worse one: a raw byte capture proved SyncTERM's Zmodem
+// *sender* never IAC-escapes its own outgoing bytes at all, regardless
+// of what's negotiated, so ordinary Read was eating literal file-data
+// 0xFF bytes as bogus commands, corrupting every upload past the first
+// few hundred bytes.
+//
+// The eventual fix wasn't more negotiation -- it was accepting that
+// this package's own IAC handling and a real client's Zmodem sender
+// were never going to agree, and getting out of the way entirely for
+// that stretch. This package shelled out to lrzsz (sz/rz) at first,
+// managing IAC itself around it (Write escaping unconditionally,
+// Read's SetRaw suspending interpretation only for the client's
+// unescaped uploads) -- proven correct, but lrzsz's own assumption of
+// a real serial line underneath caused a separate run of pty-handling
+// bugs. Switching internal/zmodem to Synchronet's sexyz instead, run
+// with -telnet, moved IAC handling into the external binary on BOTH
+// sides of the wire: sexyz escapes/unescapes the raw stream itself,
+// so this package's own handling would double-escape what it now
+// already gets right. SetRaw therefore suspends Write's escaping too,
+// not just Read's -- internal/zmodem (via the rawSwitcher interface)
+// switches it on for sexyz's whole run and never needs BINARY
+// negotiated for any of this to work.
 
 // Telnet protocol bytes (RFC 854 / RFC 1091 / RFC 1073).
 const (
@@ -59,6 +77,7 @@ type Session struct {
 	width  int
 	height int
 	term   string
+	raw    bool
 }
 
 func newSession(conn net.Conn) *Session {
@@ -100,12 +119,37 @@ func (s *Session) Close() error { return s.conn.Close() }
 // waiting for one to actually arrive.
 func (s *Session) SetReadDeadline(t time.Time) error { return s.conn.SetReadDeadline(t) }
 
+// SetRaw switches both Read and Write between their normal IAC-
+// handling mode (raw=false, the default) and a raw passthrough that
+// hands back/sends whatever bytes it's given completely unexamined,
+// including any literal 0xFF -- see this file's top-of-file note for
+// why: internal/zmodem's Send/Receive (via the rawSwitcher interface)
+// call this for the duration of a Zmodem transfer run through sexyz
+// with -telnet, which does its own IAC escaping/unescaping on both
+// directions of the raw byte stream -- this package's own handling
+// would otherwise double-escape (Write) or corrupt (Read, exactly as
+// seen live: a real client's own Zmodem sender doesn't IAC-escape its
+// outgoing bytes, which non-raw Read's command dispatch was silently
+// eating as bogus commands) the exact same data sexyz is already
+// escaping itself. Toggling mid-stream is safe -- any bytes already
+// sitting in s.r's internal buffer from before the switch are still
+// delivered via s.r itself either way, nothing is dropped or
+// duplicated at the boundary.
+func (s *Session) SetRaw(raw bool) {
+	s.mu.Lock()
+	s.raw = raw
+	s.mu.Unlock()
+}
+
 // Write sends p to the client, doubling any literal IAC (0xFF) byte
-// per RFC 854 -- unconditionally; see this file's note on TRANSMIT-
-// BINARY for why no bypass is attempted for Zmodem's binary data
-// either.
+// per RFC 854 -- unless SetRaw(true) is currently in effect, in which
+// case p goes out completely unexamined (see SetRaw's doc comment for
+// why a caller needs that).
 func (s *Session) Write(p []byte) (int, error) {
-	if bytes.IndexByte(p, iac) < 0 {
+	s.mu.Lock()
+	raw := s.raw
+	s.mu.Unlock()
+	if raw || bytes.IndexByte(p, iac) < 0 {
 		return s.conn.Write(p)
 	}
 	escaped := make([]byte, 0, len(p)+4)
@@ -124,7 +168,10 @@ func (s *Session) Write(p []byte) (int, error) {
 // Read returns decoded application data, transparently consuming and
 // acting on any telnet IAC command sequences interleaved in the
 // stream and unescaping a doubled IAC (IAC IAC) back into the single
-// literal 0xFF data byte it represents.
+// literal 0xFF data byte it represents -- unless SetRaw(true) is
+// currently in effect, in which case none of that happens and Read
+// simply hands back whatever bytes are on the wire (see SetRaw's
+// doc comment for why a caller needs that).
 //
 // Read returns as soon as it has at least one application byte and
 // nothing more is immediately available (s.r.Buffered() == 0),
@@ -141,6 +188,12 @@ func (s *Session) Write(p []byte) (int, error) {
 // received as a bewildering stray ZRQINIT and reacted to with a burst
 // of confused ZRINIT/ZABORT frames before giving up.
 func (s *Session) Read(p []byte) (int, error) {
+	s.mu.Lock()
+	raw := s.raw
+	s.mu.Unlock()
+	if raw {
+		return s.r.Read(p)
+	}
 	n := 0
 	for n < len(p) {
 		b, err := s.r.ReadByte()
@@ -207,6 +260,29 @@ func (s *Session) handleCommand(cmd byte) error {
 
 func (s *Session) negotiate(cmd, opt byte) error {
 	switch opt {
+	case optBinary:
+		// Deliberately asymmetric -- see this file's top-of-file note
+		// for the full story. Short version: accepting BINARY in the
+		// server->client direction (client's "do" to our own "will")
+		// fixed a real bug (rz's CR-terminated hex headers arriving
+		// mangled), so that half stays accepted. But accepting it in
+		// the OTHER direction too (replying "do" to the client's own
+		// "will") caused a worse regression, confirmed live: a client
+		// that also stops IAC-doubling ITS OWN outgoing bytes once
+		// binary is active (RFC856 doesn't actually permit that, but a
+		// real client did it anyway) fed literal, undoubled 0xFF file
+		// bytes straight into Read's still-unconditional IAC handling,
+		// which ate them as bogus command sequences -- silent data
+		// corruption during a Zmodem upload, surfacing as repeated
+		// ZRPOS retries and CRC errors. So the client's own "will" is
+		// still declined ("dont"), keeping it escaping IAC exactly as
+		// Read already requires.
+		if cmd == will {
+			return s.send(dont, opt)
+		}
+		if cmd == do {
+			return s.send(will, opt)
+		}
 	case optNAWS:
 		if cmd == will {
 			return s.send(do, optNAWS)
@@ -295,17 +371,19 @@ func (s *Session) readSubnegotiation() error {
 
 // negotiateInitial kicks off the option negotiation handshake expected
 // by most telnet clients: server will suppress-go-ahead and echo, and
-// asks the client to report window size and terminal type. Does not
-// request TRANSMIT-BINARY (see this file's note on it up top) -- a
-// client that offers it unprompted (SyncTERM does) gets it politely
-// declined by negotiate's default case instead, since this package
-// doesn't do anything differently based on it either way.
+// asks the client to report window size and terminal type. Also
+// offers WILL TRANSMIT-BINARY for our own server->client direction
+// only (see this file's top-of-file note on why, and negotiate's
+// optBinary case for why the other direction is deliberately never
+// requested) -- a client that ignores the offer just keeps negotiating
+// NVT ASCII as before, so this is safe to send unconditionally.
 func (s *Session) negotiateInitial() error {
 	seq := []byte{
 		iac, will, optSGA,
 		iac, will, optEcho,
 		iac, do, optNAWS,
 		iac, do, optTType,
+		iac, will, optBinary,
 	}
 	_, err := s.conn.Write(seq)
 	return err

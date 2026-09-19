@@ -279,7 +279,7 @@ func TestFileListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Up/Down] Move   [Enter] View   [D] Download   [Q] Back")
+	renders := strings.Split(out, "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least three file-list redraws, got %d: %q", len(renders)-1, out)
 	}

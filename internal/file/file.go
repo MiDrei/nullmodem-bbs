@@ -2,10 +2,13 @@
 // libraries), each SL-gated for download and upload, holding metadata
 // for files a sysop has imported into managed on-disk storage.
 //
-// This is catalog/metadata only for now -- no in-session transfer
-// protocol (Zmodem etc.) is implemented, so files are imported from a
-// path the sysop has already placed on the server (e.g. via SCP)
-// rather than uploaded through a telnet/SSH session. See ImportFile.
+// This package is catalog/storage only -- it has no notion of any
+// wire transfer protocol itself. A sysop can still place a file on
+// the server directly (e.g. via SCP) and import it by path (see
+// ImportFile); UploadFile stores one streamed in some other way
+// instead, used both by the web admin's HTTP upload endpoint and by
+// internal/bbs's own Zmodem upload command (internal/zmodem.Receive
+// handles that wire protocol, entirely outside this package).
 package file
 
 import (

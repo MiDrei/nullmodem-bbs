@@ -74,10 +74,14 @@ func TestWriteLeavesOrdinaryDataUnmodified(t *testing.T) {
 	}
 }
 
-// TestNegotiateInitialDoesNotRequestBinary confirms negotiateInitial
-// never asks for TRANSMIT-BINARY -- see this package's file-level note
-// on why it isn't used at all.
-func TestNegotiateInitialDoesNotRequestBinary(t *testing.T) {
+// TestNegotiateInitialOffersBinaryOnlyForOurOwnDirection confirms
+// negotiateInitial asks for TRANSMIT-BINARY only in the server->client
+// direction (WILL), never inviting the client's own outgoing bytes to
+// go binary too (DO) -- see this package's file-level note for why
+// that asymmetry is deliberate (accepting the other direction caused a
+// worse regression: a real client that stops IAC-doubling once binary
+// is active corrupted Zmodem upload data).
+func TestNegotiateInitialOffersBinaryOnlyForOurOwnDirection(t *testing.T) {
 	server, client := net.Pipe()
 	defer server.Close()
 	defer client.Close()
@@ -91,14 +95,17 @@ func TestNegotiateInitialDoesNotRequestBinary(t *testing.T) {
 		}
 	}()
 
-	got := make([]byte, 12)
+	got := make([]byte, 15)
 	if _, err := io.ReadFull(client, got); err != nil {
 		t.Fatalf("reading negotiation bytes: %v", err)
 	}
 	<-done
 
-	if bytes.Contains(got, []byte{iac, will, optBinary}) || bytes.Contains(got, []byte{iac, do, optBinary}) {
-		t.Fatalf("negotiateInitial bytes = % x, want no BINARY request for the whole session", got)
+	if !bytes.Contains(got, []byte{iac, will, optBinary}) {
+		t.Fatalf("negotiateInitial bytes = % x, want IAC WILL BINARY", got)
+	}
+	if bytes.Contains(got, []byte{iac, do, optBinary}) {
+		t.Fatalf("negotiateInitial bytes = % x, want no IAC DO BINARY", got)
 	}
 }
 
@@ -112,9 +119,12 @@ func TestNegotiateInitialDoesNotRequestBinary(t *testing.T) {
 // literal application data instead. Confirmed live: this rendered as
 // garbled characters and delayed/missed Enter keys at the very first
 // "Enter your handle" prompt, before any Zmodem transfer had started.
-// This package no longer treats TRANSMIT-BINARY specially at all (see
-// its file-level note), so this now also doubles as confirmation that
-// an unprompted offer is simply, harmlessly declined.
+// negotiate's optBinary case declines the client's own "will" (see
+// this package's file-level note on why: accepting it let a real
+// client stop IAC-doubling its own outgoing bytes, corrupting a
+// Zmodem upload) while still accepting its "do", so this also doubles
+// as confirmation that the decline half doesn't reintroduce the
+// original bug this test is named for.
 func TestClientVolunteeredBinaryOfferDoesNotDisruptOrdinaryInput(t *testing.T) {
 	server, client := net.Pipe()
 	defer server.Close()
@@ -130,17 +140,18 @@ func TestClientVolunteeredBinaryOfferDoesNotDisruptOrdinaryInput(t *testing.T) {
 			t.Errorf("client Write: %v", err)
 			return
 		}
-		// Drain Session's own two decline replies (IAC DONT BINARY, IAC
-		// WONT BINARY) -- negotiate's send() blocks on this synchronous
-		// pipe until something reads them, same as a real client would.
+		// Drain Session's own two replies (IAC DONT BINARY declining
+		// the client's own "will", IAC WILL BINARY confirming its "do")
+		// -- negotiate's send() blocks on this synchronous pipe until
+		// something reads them, same as a real client would.
 		ack := make([]byte, 6)
 		if _, err := io.ReadFull(client, ack); err != nil {
-			t.Errorf("draining decline replies: %v", err)
+			t.Errorf("draining replies: %v", err)
 			return
 		}
-		want := []byte{iac, dont, optBinary, iac, wont, optBinary}
+		want := []byte{iac, dont, optBinary, iac, will, optBinary}
 		if !bytes.Equal(ack, want) {
-			t.Errorf("decline replies = % x, want % x", ack, want)
+			t.Errorf("replies = % x, want % x", ack, want)
 		}
 	}()
 
@@ -243,5 +254,73 @@ func TestReadReturnsAvailableDataWithoutWaitingToFillTheBuffer(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Read blocked waiting to fill its buffer instead of returning the data already available")
+	}
+}
+
+// TestSetRawBypassesIACInterpretation is a regression test for a
+// real bug found live: a raw byte capture of an actual Zmodem upload
+// proved a real terminal client's Zmodem sender never IAC-escapes its
+// own outgoing bytes at all, so a literal, un-doubled 0xFF turning up
+// in ordinary file data (common in binary/compressed content) was
+// being consumed by Read's normal command dispatch as the start of a
+// bogus telnet command -- silently corrupting the upload. With
+// SetRaw(true) in effect, an unescaped IAC byte must come through
+// completely unexamined on Read, like any other byte.
+func TestSetRawBypassesIACInterpretation(t *testing.T) {
+	server, client := net.Pipe()
+	defer server.Close()
+	defer client.Close()
+	sess := newSession(server)
+	sess.SetRaw(true)
+
+	// A raw IAC followed by a byte that would, in normal mode, be
+	// dispatched as a (nonsensical) telnet command -- here it must
+	// simply pass through as two ordinary data bytes.
+	payload := []byte{0x01, iac, 0xD8, 0x02}
+	go func() {
+		if _, err := client.Write(payload); err != nil {
+			t.Errorf("client Write: %v", err)
+		}
+	}()
+
+	got := make([]byte, len(payload))
+	if _, err := io.ReadFull(sess, got); err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("Read = % x, want %x unchanged (raw mode must not interpret IAC at all)", got, payload)
+	}
+}
+
+// TestSetRawAlsoBypassesWriteEscaping confirms SetRaw(true) suspends
+// Write's own IAC doubling too, not just Read's interpretation --
+// needed now that internal/zmodem runs sexyz with -telnet, which does
+// its own escaping on both directions of the raw stream; doubling on
+// top of that would corrupt it just as surely as not escaping at all
+// would have with the previous (lrzsz-based) approach.
+func TestSetRawAlsoBypassesWriteEscaping(t *testing.T) {
+	server, client := net.Pipe()
+	defer server.Close()
+	defer client.Close()
+	sess := newSession(server)
+	sess.SetRaw(true)
+
+	payload := []byte{0x01, iac, 0x02, iac, iac}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if _, err := sess.Write(payload); err != nil {
+			t.Errorf("Write: %v", err)
+		}
+	}()
+
+	got := make([]byte, len(payload))
+	if _, err := io.ReadFull(client, got); err != nil {
+		t.Fatalf("reading from client side: %v", err)
+	}
+	<-done
+
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("wire bytes = % x, want %x unchanged (raw mode must not double IAC)", got, payload)
 	}
 }

@@ -272,7 +272,13 @@ outer:
 			if err != nil {
 				return err
 			}
-			if key.Type == KeyEscape || (key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q')) {
+			switch {
+			case key.Type == KeyChar && (key.Rune == 'u' || key.Rune == 'U'):
+				if err := s.uploadFile(term, u, area); err != nil {
+					return err
+				}
+				continue outer
+			case key.Type == KeyEscape, key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
 				return nil
 			}
 			continue
@@ -304,6 +310,11 @@ outer:
 					return err
 				}
 				continue outer
+			case key.Type == KeyChar && (key.Rune == 'u' || key.Rune == 'U'):
+				if err := s.uploadFile(term, u, area); err != nil {
+					return err
+				}
+				continue outer
 			case key.Type == KeyEscape:
 				return nil
 			case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
@@ -319,7 +330,7 @@ func (s *Server) drawEmptyFileList(term *Terminal, area *file.Area) error {
 	if err := s.printFileListHeader(term, area); err != nil {
 		return err
 	}
-	return term.Print(ansi.Reset + "\n(no files yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[Q] Back" + ansi.Reset)
+	return term.Print(ansi.Reset + "\n(no files yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[U] Upload   [Q] Back" + ansi.Reset)
 }
 
 // drawFileList redraws the header banner plus the Filename/By/Size/
@@ -357,7 +368,7 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 		b.WriteString(ansi.Render(tmpl, vars))
 		b.WriteString(ansi.CRLF)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] View   [D] Download   [Q] Back" + ansi.Reset)
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back" + ansi.Reset)
 	return term.Print(b.String())
 }
 
@@ -496,6 +507,97 @@ func (s *Server) downloadFile(term *Terminal, u *user.User, f *file.File) error 
 	}
 }
 
+// uploadFile is the "[U]pload" command from within a file area: it
+// receives one or more files from the caller via Zmodem (internal/
+// zmodem.Receive, which shells out to the real "rz" binary the same
+// way downloadFile's Send shells out to "sz") into a scratch
+// directory, then imports whatever actually arrived into area's
+// managed storage via internal/file.Store.UploadFile -- the same call
+// the web admin's HTTP upload endpoint uses, so a file uploaded
+// through either path ends up identical (metadata, on-disk layout,
+// duplicate-name handling).
+//
+// A Zmodem batch can legitimately land more than one file (a caller
+// selecting several files at once in their terminal client's own
+// upload dialog), and can also legitimately end partway through (the
+// caller cancels, or the connection drops) after some files already
+// transferred successfully -- so this always imports whatever
+// Receive reports actually landed in the scratch directory, even when
+// Receive itself also returns an error, rather than discarding
+// everything on any failure.
+func (s *Server) uploadFile(term *Terminal, u *user.User, area *file.Area) error {
+	if !area.CanUpload(u.SecurityLevel) {
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "You don't have access to upload here.")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "nullmodem-upload-*")
+	if err != nil {
+		return fmt.Errorf("upload: creating scratch dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
+		"Ready to receive your file(s) via Zmodem -- start the upload in your terminal now." +
+		ansi.Reset + "\r\n"); err != nil {
+		return err
+	}
+
+	names, leftover, recvErr := zmodem.Receive(term.Raw(), tmpDir)
+	if len(leftover) > 0 {
+		term.PushBack(leftover)
+	}
+
+	var imported, duplicates, failed []string
+	for _, name := range names {
+		path := filepath.Join(tmpDir, name)
+		in, openErr := os.Open(path)
+		if openErr != nil {
+			s.logWarn("opening received upload %s from %s: %v", name, u.Username, openErr)
+			failed = append(failed, name)
+			continue
+		}
+		f, importErr := s.Files.UploadFile(area.ID, u.ID, name, "", in)
+		in.Close()
+		switch {
+		case importErr == nil:
+			imported = append(imported, f.Filename)
+		case errors.Is(importErr, file.ErrDuplicateFilename):
+			duplicates = append(duplicates, name)
+		default:
+			s.logWarn("importing upload %s from %s into area %d: %v", name, u.Username, area.ID, importErr)
+			failed = append(failed, name)
+		}
+	}
+	if len(imported) > 0 {
+		s.logInfo("%s uploaded %s to file area %d", u.Username, strings.Join(imported, ", "), area.ID)
+	}
+
+	var b strings.Builder
+	b.WriteString(ansi.Reset + "\r\n")
+	switch {
+	case len(imported) > 0:
+		b.WriteString(ansi.FG(ansi.Green, true) + "Received: " + strings.Join(imported, ", ") + ansi.Reset + "\r\n")
+	case recvErr == nil:
+		b.WriteString(ansi.FG(ansi.Red, true) + "No files were received." + ansi.Reset + "\r\n")
+	}
+	if len(duplicates) > 0 {
+		b.WriteString(ansi.FG(ansi.Yellow, true) + "Skipped (already exists): " + strings.Join(duplicates, ", ") + ansi.Reset + "\r\n")
+	}
+	if len(failed) > 0 {
+		b.WriteString(ansi.FG(ansi.Red, true) + "Failed to store: " + strings.Join(failed, ", ") + ansi.Reset + "\r\n")
+	}
+	if recvErr != nil {
+		if len(imported) == 0 && len(duplicates) == 0 {
+			s.logWarn("zmodem upload into file area %d by %s: %v", area.ID, u.Username, recvErr)
+			b.WriteString(ansi.FG(ansi.Red, true) + "Upload failed or was cancelled." + ansi.Reset + "\r\n")
+		} else {
+			s.logWarn("zmodem upload into file area %d by %s ended early: %v", area.ID, u.Username, recvErr)
+			b.WriteString(ansi.FG(ansi.Yellow, true) + "Transfer ended early; the files above did make it through." + ansi.Reset + "\r\n")
+		}
+	}
+	return term.Print(b.String())
+}
+
 // sysopCreateFileArea is the "builtin:createfilearea" command: it
 // prompts for a new area's tag, name, description, and SL gates.
 func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
@@ -567,10 +669,11 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Area %q created.", area.Name))
 }
 
-// sysopImportFile is the "builtin:importfile" command. There is no
-// in-session upload protocol (see internal/file's package doc), so it
-// imports a file the sysop has already placed on the server's
-// filesystem (e.g. via SCP) into a chosen area's managed storage.
+// sysopImportFile is the "builtin:importfile" command: an alternative
+// to a regular caller's own [U]pload (see uploadFile) for a sysop who
+// has already placed a file on the server's filesystem directly (e.g.
+// via SCP) and wants to bring it into a chosen area's managed storage
+// without transferring it again over Zmodem.
 func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 	areas, err := s.Files.AllAreas()
 	if err != nil {
