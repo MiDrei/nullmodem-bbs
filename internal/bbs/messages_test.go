@@ -1795,69 +1795,6 @@ func TestSysopCreateMessageArea(t *testing.T) {
 	}
 }
 
-// TestPrintBodyResolvesANSICursorPositioningViaGrid locks in a real
-// production fix: a message/description body containing real ANSI
-// escape sequences (a BBS ad tossed into an ANSI-tagged area, an
-// ANSImation, etc.) came out scrambled three times over -- first
-// because ansi.WrapText treated every escape-sequence byte as an
-// ordinary character to word-wrap; then, even sending its bytes
-// through completely untouched still corrupted it, because Print's
-// automatic bare-LF-to-CRLF translation inserted a \r real ANSI art
-// didn't expect; and even bypassing that, real ANSI art's absolute/
-// relative cursor positioning assumes it's drawing on a blank screen
-// starting at row 1 col 1, which is false once other content (a
-// header banner) has already been printed above it. The fix resolves
-// the art against a virtual canvas first (ansi.ParseGrid, the same
-// mechanism the web ANSI designer uses to load a .ans file) and
-// prints the result, which no longer depends on where on the real
-// screen it starts: "Positioned" here is written after a save/
-// newline/restore, so it must land on the very same row "Colorful"
-// was on, not two rows down where a naively-interpreted bare newline
-// would put it.
-func TestPrintBodyResolvesANSICursorPositioningViaGrid(t *testing.T) {
-	conn := newFakeConn("")
-	term := NewTerminal(conn)
-	body := "\x1b[1;33mColorful\x1b[0m\n\x1b[s\n\x1b[uPositioned"
-
-	var b strings.Builder
-	b.WriteString("header\r\n")
-	if err := printBody(term, &b, body, "footer", 80); err != nil {
-		t.Fatalf("printBody: %v", err)
-	}
-
-	got := conn.out.String()
-	colorfulIdx := strings.Index(got, "Colorful")
-	positionedIdx := strings.Index(got, "Positioned")
-	if colorfulIdx < 0 || positionedIdx < 0 {
-		t.Fatalf("expected both %q and %q to appear in the output, got: %q", "Colorful", "Positioned", got)
-	}
-	between := got[colorfulIdx:positionedIdx]
-	if strings.Count(between, "\r\n") != 1 {
-		t.Fatalf("expected exactly one line break between Colorful and Positioned (cursor save/restore resolved onto the same row), got %d in %q", strings.Count(between, "\r\n"), between)
-	}
-	if !strings.Contains(got, "footer") {
-		t.Fatalf("expected the footer to still be printed after the resolved art, got: %q", got)
-	}
-}
-
-// TestPrintBodyWordWrapsPlainText confirms ordinary prose still gets
-// the normal word-wrap treatment (printBody isn't a blanket bypass).
-func TestPrintBodyWordWrapsPlainText(t *testing.T) {
-	conn := newFakeConn("")
-	term := NewTerminal(conn)
-	body := "this is a perfectly ordinary message with no ANSI codes in it at all"
-
-	var b strings.Builder
-	if err := printBody(term, &b, body, "footer", 20); err != nil {
-		t.Fatalf("printBody: %v", err)
-	}
-
-	got := conn.out.String()
-	if strings.Count(got, "\r\n") < 2 {
-		t.Fatalf("printBody output = %q, want it word-wrapped across multiple lines at width 20", got)
-	}
-}
-
 func TestStripSeenByAndPathForDisplayRemovesTrailingRoutingLinesButKeepsFooter(t *testing.T) {
 	body := "the actual message text\n" +
 		"\n" +

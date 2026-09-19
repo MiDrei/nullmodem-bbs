@@ -2,11 +2,13 @@ package bbs
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
@@ -325,7 +327,7 @@ func TestFileListLightbarArrowNavigationSelectsSecondFile(t *testing.T) {
 	if !strings.Contains(out, "\x1b[47m\x1b[30mNEW beta.txt") {
 		t.Fatalf("expected beta.txt's row highlighted, got: %q", out)
 	}
-	readerRenders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [D] Download  [Q] Back to list")
+	readerRenders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list")
 	if len(readerRenders) < 2 {
 		t.Fatalf("expected the reader to open, got: %q", out)
 	}
@@ -397,10 +399,12 @@ func TestReadFileNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 	}
 
 	// F -> areas lightbar, Enter -> General Files, Enter again on the
-	// file-list lightbar's first row -> read alpha.txt, Down arrow ->
-	// Next (beta.txt) without returning to the list, Up arrow -> Prev
+	// file-list lightbar's first row -> read alpha.txt, Right arrow ->
+	// Next (beta.txt) without returning to the list, Left arrow -> Prev
 	// (alpha.txt) again, then Q/Q/Q/Q to unwind back to a logoff.
-	conn := newFakeConn("F\r\n\r\n\r\n\x1b[B\x1b[AQQQQ\r\n")
+	// (Up/Down are body-scroll now, not file switching -- see
+	// TestReadFileArrowsScrollDescriptionInsteadOfSwitchingFiles.)
+	conn := newFakeConn("F\r\n\r\n\r\n\x1b[C\x1b[DQQQQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, u, 1, "main")
@@ -408,7 +412,7 @@ func TestReadFileNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [D] Download  [Q] Back to list")
+	renders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, next, prev), got %d: %q", len(renders)-1, out)
 	}
@@ -416,10 +420,10 @@ func TestReadFileNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 		t.Fatalf("expected alpha.txt shown initially, got: %q", renders[0])
 	}
 	if !strings.Contains(renders[1], "beta.txt") {
-		t.Fatalf("expected Down arrow to advance to beta.txt, got: %q", renders[1])
+		t.Fatalf("expected Right arrow to advance to beta.txt, got: %q", renders[1])
 	}
 	if !strings.Contains(renders[2], "alpha.txt") {
-		t.Fatalf("expected Up arrow to return to alpha.txt, got: %q", renders[2])
+		t.Fatalf("expected Left arrow to return to alpha.txt, got: %q", renders[2])
 	}
 }
 
@@ -444,7 +448,7 @@ func TestReadFileNextPrevClampAtEnds(t *testing.T) {
 	// stay on alpha.txt instead of wrapping to beta.txt. Then advance
 	// to the last file and press Next/Right again -- it must stay
 	// there instead of wrapping back to alpha.txt.
-	conn := newFakeConn("F\r\n\r\n\r\n\x1b[A\x1b[C\x1b[CQQQQ\r\n")
+	conn := newFakeConn("F\r\n\r\n\r\n\x1b[D\x1b[C\x1b[CQQQQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, u, 1, "main")
@@ -452,7 +456,7 @@ func TestReadFileNextPrevClampAtEnds(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Enter/Dn/Right] Next  [Up/Left] Prev  [D] Download  [Q] Back to list")
+	renders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, after Prev, after Next), got %d: %q", len(renders)-1, out)
 	}
@@ -467,6 +471,272 @@ func TestReadFileNextPrevClampAtEnds(t *testing.T) {
 	}
 	if !strings.Contains(renders[3], "beta.txt") {
 		t.Fatalf("expected Next at the last file to stay put instead of wrapping, got: %q", renders[3])
+	}
+}
+
+func TestFirstUnreadFileIndexReturnsFirstUnread(t *testing.T) {
+	files := []file.File{{ID: 1}, {ID: 2}, {ID: 3}, {ID: 4}}
+	readIDs := map[int64]bool{1: true, 2: true}
+	if got := firstUnreadFileIndex(files, readIDs); got != 2 {
+		t.Fatalf("firstUnreadFileIndex = %d, want 2 (file ID 3, the first unread)", got)
+	}
+}
+
+func TestFirstUnreadFileIndexFallsBackToLastWhenAllRead(t *testing.T) {
+	files := []file.File{{ID: 1}, {ID: 2}, {ID: 3}}
+	readIDs := map[int64]bool{1: true, 2: true, 3: true}
+	if got := firstUnreadFileIndex(files, readIDs); got != 2 {
+		t.Fatalf("firstUnreadFileIndex = %d, want 2 (the last file, everything already read)", got)
+	}
+}
+
+// TestFileListScrollsAndKeepsHeaderVisibleWithManyFiles mirrors
+// messages.go's TestMessageListScrollsAndKeepsHeaderVisibleWithManyMessages:
+// a long file list used to just dump every row in one shot, pushing
+// the header off the top of the screen exactly the way an unpaginated
+// message list once did.
+func TestFileListScrollsAndKeepsHeaderVisibleWithManyFiles(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Files.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	for i := 1; i <= 40; i++ {
+		name := fmt.Sprintf("file%02d.txt", i)
+		if _, err := s.Files.UploadFile(general.ID, u.ID, name, "", strings.NewReader("x")); err != nil {
+			t.Fatalf("UploadFile %d: %v", i, err)
+		}
+	}
+
+	conn := newFakeConn("F\r\n\r\nQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	renders := strings.Split(out, "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back")
+	if len(renders) < 2 {
+		t.Fatalf("expected at least one file-list redraw, got: %q", out)
+	}
+	firstRender := renders[0]
+	if !strings.Contains(firstRender, "General Files") {
+		t.Fatalf("expected the header (area name) to stay visible with 40 files, got: %q", firstRender)
+	}
+	if !strings.Contains(firstRender, "file01.txt") {
+		t.Fatalf("expected the first file to appear in the initial view, got: %q", firstRender)
+	}
+	if strings.Contains(firstRender, "file40.txt") {
+		t.Fatalf("expected the last file NOT to be visible in the initial (unscrolled) view, got: %q", firstRender)
+	}
+	if !strings.Contains(firstRender, "-- 1-") {
+		t.Fatalf("expected a scroll-position indicator since the list doesn't fit one screen, got: %q", firstRender)
+	}
+}
+
+// TestFileListArrowKeysClampAtFirstAndLastInsteadOfWrapping mirrors
+// messages.go's TestMessageListArrowKeysClampAtFirstAndLastInsteadOfWrapping:
+// the file list used to wrap the highlight around with the modulo
+// operator instead of clamping at the edges like every other lightbar
+// in this project.
+func TestFileListArrowKeysClampAtFirstAndLastInsteadOfWrapping(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Files.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	for _, name := range []string{"first.txt", "second.txt", "third.txt"} {
+		if _, err := s.Files.UploadFile(general.ID, u.ID, name, "", strings.NewReader("x")); err != nil {
+			t.Fatalf("UploadFile: %v", err)
+		}
+	}
+	readerFooter := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list"
+
+	// Up at the very first file must stay put, not wrap to the last.
+	conn := newFakeConn("F\r\n\r\n" + strings.Repeat("\x1b[A", 3) + "\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+	if err := s.runMenu(term, u, 1, "main"); !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	renders := strings.Split(conn.out.String(), readerFooter)
+	if len(renders) < 2 {
+		t.Fatalf("expected the reader to open, got: %q", conn.out.String())
+	}
+	if !strings.Contains(renders[0], "first.txt") {
+		t.Fatalf("expected Up at the first file to stay on it (not wrap to the last), got: %q", renders[0])
+	}
+
+	// Down past the last file must stay put, not wrap to the first.
+	conn2 := newFakeConn("F\r\n\r\n" + strings.Repeat("\x1b[B", 5) + "\r\nQQQQ\r\n")
+	term2 := NewTerminal(conn2)
+	if err := s.runMenu(term2, u, 1, "main"); !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	renders2 := strings.Split(conn2.out.String(), readerFooter)
+	if len(renders2) < 2 {
+		t.Fatalf("expected the reader to open, got: %q", conn2.out.String())
+	}
+	if !strings.Contains(renders2[0], "third.txt") {
+		t.Fatalf("expected Down past the last file to stay on it (not wrap to the first), got: %q", renders2[0])
+	}
+}
+
+// TestFileListFooterAnchoredRegardlessOfFileCount mirrors messages.go's
+// TestMessageListFooterAnchoredRegardlessOfMessageCount: the footer
+// hint used to trail right after the last file row, so it landed on a
+// different line depending on how many files happened to be in the
+// area. It must always land on the same line -- short lists are
+// padded with blank rows so the footer stays anchored at a consistent
+// position.
+func TestFileListFooterAnchoredRegardlessOfFileCount(t *testing.T) {
+	renderWithNFiles := func(t *testing.T, n int) string {
+		t.Helper()
+		s := testServer(t)
+		u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+		if err != nil {
+			t.Fatalf("Register: %v", err)
+		}
+		general, err := s.Files.AreaByTag("general")
+		if err != nil {
+			t.Fatalf("AreaByTag: %v", err)
+		}
+		for i := 1; i <= n; i++ {
+			name := fmt.Sprintf("file%02d.txt", i)
+			if _, err := s.Files.UploadFile(general.ID, u.ID, name, "", strings.NewReader("x")); err != nil {
+				t.Fatalf("UploadFile %d: %v", i, err)
+			}
+		}
+
+		conn := newFakeConn("F\r\n\r\nQQQ\r\n")
+		term := NewTerminal(conn)
+		if err := s.runMenu(term, u, 1, "main"); !errors.Is(err, errLogoff) {
+			t.Fatalf("runMenu error = %v, want errLogoff", err)
+		}
+		out := conn.out.String()
+		colIdx := strings.Index(out, "Filename")
+		hintIdx := strings.Index(out, "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back")
+		if colIdx < 0 || hintIdx < 0 || hintIdx < colIdx {
+			t.Fatalf("expected both the column header and the hint line to appear in order, got: %q", out)
+		}
+		return out[colIdx:hintIdx]
+	}
+
+	between1 := renderWithNFiles(t, 1)
+	between3 := renderWithNFiles(t, 3)
+
+	lines1 := strings.Count(between1, "\r\n")
+	lines3 := strings.Count(between3, "\r\n")
+	if lines1 != lines3 {
+		t.Fatalf("lines between column header and footer hint = %d (1 file) vs %d (3 files), want equal -- the footer should be anchored, not trailing right after the last row", lines1, lines3)
+	}
+}
+
+// TestReadFileArrowsScrollDescriptionInsteadOfSwitchingFiles mirrors
+// messages.go's TestReadMessageArrowsScrollBodyInsteadOfSwitchingMessages:
+// a long description that doesn't fit the screen used to have no way
+// to scroll at all (readFile only supported switching files). Up/Down
+// must now scroll within the current file's description -- clamped at
+// the top/bottom, never switching to a different file on their own,
+// since only N/P/Left/Right/Enter are supposed to do that.
+func TestReadFileArrowsScrollDescriptionInsteadOfSwitchingFiles(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Files.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	// Comfortably more lines than a 24-row terminal's reader viewport
+	// (header + meta + footer eat a chunk of it too) can show at once.
+	var descLines []string
+	for i := 1; i <= 40; i++ {
+		descLines = append(descLines, fmt.Sprintf("desc line %d", i))
+	}
+	description := strings.Join(descLines, "\n")
+	if _, err := s.Files.UploadFile(general.ID, u.ID, "long.txt", description, strings.NewReader("x")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	// Open the reader on the only file, scroll down twice, then back up
+	// twice, then quit out without ever pressing N/P/arrow-left/arrow-right.
+	conn := newFakeConn("F\r\n\r\n\r\n\x1b[B\x1b[B\x1b[A\x1b[AQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+
+	if !strings.Contains(out, "desc line 1\r\n") {
+		t.Fatalf("expected the description's first line to appear in the initial view, got: %q", out)
+	}
+	if !strings.Contains(out, "line 1-") {
+		t.Fatalf("expected a scroll-position hint since the description doesn't fit one screen, got: %q", out)
+	}
+	if strings.Contains(out, "desc line 40") {
+		t.Fatalf("expected the last line NOT to be visible yet (only scrolled down twice), got: %q", out)
+	}
+
+	renders := strings.Split(out, "[Up/Dn] Scroll  [D] Download  [Q] Back to list")
+	if len(renders) < 6 {
+		t.Fatalf("expected at least 5 reader redraws (initial + 2 down + 2 up), got %d: %q", len(renders)-1, out)
+	}
+	for i, r := range renders[:5] {
+		if !strings.Contains(r, "long.txt") {
+			t.Fatalf("redraw %d left the reader (or switched files) unexpectedly, got: %q", i, r)
+		}
+	}
+}
+
+// TestReadFileResolvesANSICursorPositioningViaGrid mirrors messages.go's
+// TestReadMessageResolvesANSICursorPositioningViaGrid: a description
+// containing real ANSI escape sequences (someone pasting ANSI art into
+// a file's description) must be resolved against a virtual canvas
+// (ansi.ParseGrid) rather than word-wrapped, which would corrupt the
+// color codes and cursor positioning alike.
+func TestReadFileResolvesANSICursorPositioningViaGrid(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Files.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	description := "\x1b[1;33mColorful\x1b[0m\n\x1b[s\n\x1b[uPositioned"
+	if _, err := s.Files.UploadFile(general.ID, u.ID, "ansi.txt", description, strings.NewReader("x")); err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	conn := newFakeConn("F\r\n\r\n\r\nQQQQ\r\n")
+	term := NewTerminal(conn)
+
+	err = s.runMenu(term, u, 1, "main")
+	if !errors.Is(err, errLogoff) {
+		t.Fatalf("runMenu error = %v, want errLogoff", err)
+	}
+	out := conn.out.String()
+	colorfulIdx := strings.Index(out, "Colorful")
+	positionedIdx := strings.Index(out, "Positioned")
+	if colorfulIdx < 0 || positionedIdx < 0 {
+		t.Fatalf("expected both %q and %q to appear in the reader output, got: %q", "Colorful", "Positioned", out)
+	}
+	between := out[colorfulIdx:positionedIdx]
+	if strings.Count(between, "\r\n") != 1 {
+		t.Fatalf("expected exactly one line break between Colorful and Positioned (cursor save/restore resolved onto the same row), got %d in %q", strings.Count(between, "\r\n"), between)
 	}
 }
 

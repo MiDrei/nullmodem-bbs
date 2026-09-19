@@ -633,52 +633,6 @@ func (s *Server) renderMessageReaderHeader(term *Terminal, area *message.Area, i
 	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
-// printBody finishes a reader/description display: it prints
-// everything already accumulated in b (header/meta), then the body,
-// then footer. Used for message/netmail bodies and file descriptions
-// alike, so an ANSI-tagged ad area (or a file description someone
-// pasted ANSI art into) displays correctly wherever it shows up, not
-// just in one of them.
-//
-// Ordinary prose is word-wrapped to width and joins b/footer in one
-// combined Print call, same as before.
-//
-// Pre-formatted content (see ansi.IsPreformatted -- real ANSI escape
-// codes, or plain CP437 block/line-drawing art with none at all)
-// takes a completely different path: b is discarded (not an oversight
-// -- see below) and body is run through ansi.ParseGrid/Grid.Encode,
-// the same off-screen-canvas resolution the web ANSI designer uses to
-// load a .ans file, before being printed. Three independent things go
-// wrong otherwise, all confirmed live against real fsxNet ads:
-// reflowing it via WrapText treats every escape-sequence byte as an
-// ordinary character (corrupting the color codes) and collapses
-// deliberate runs of spaces in plain block art with no color codes at
-// all; even sending its bytes through completely untouched (which
-// avoids the first problem) still comes out scrambled, because real
-// ANSI art positions itself with absolute/relative cursor moves that
-// assume they're starting at a blank screen's row 1 col 1 -- exactly
-// what b (already printed above the body) makes false. ParseGrid
-// resolves every position (and cursor save/restore) against a
-// virtual canvas at parse time; Encode then serializes the result as
-// a plain top-to-bottom character+color stream with no positioning
-// codes left to misinterpret, and its own leading clear+home is what
-// makes discarding b correct -- the art already intends to own the
-// whole screen, exactly like a real BBS reader's full-screen ANSI ad.
-func printBody(term *Terminal, b *strings.Builder, body, footer string, width int) error {
-	if ansi.IsPreformatted(body) {
-		grid := ansi.ParseGrid(body, width)
-		if err := term.PrintRaw(grid.Encode()); err != nil {
-			return err
-		}
-		return term.Print(ansi.CRLF + footer)
-	}
-	for _, line := range ansi.WrapText(body, width) {
-		b.WriteString(ansi.Reset + line + ansi.CRLF)
-	}
-	b.WriteString(footer)
-	return term.Print(b.String())
-}
-
 // stripSeenByAndPathForDisplay hides trailing SEEN-BY and PATH lines
 // (FTS-0004 echomail routing/dupe-detection metadata that every
 // tosser along the way appends -- a real message can carry a dozen or
@@ -732,13 +686,23 @@ func stripSeenByAndPathForDisplay(body string) string {
 // codes, or plain CP437 block/line-drawing art with none at all) is
 // resolved against a virtual canvas first (ansi.ParseGrid/Grid.
 // EncodeRows, the same mechanism the web ANSI designer uses to load a
-// .ans file) instead of being word-wrapped -- see printBody's doc
-// comment for why that corrupts it. A resolved grid's rows can then
-// be windowed exactly like ordinary text's lines for scrolling, and
-// -- unlike the art's own original bytes -- no longer depend on where
-// on the real screen they land, so the header/meta banner drawn above
-// them no longer misaligns anything, and scrolling works the same
-// way it does for plain text.
+// .ans file) instead of being word-wrapped. Three independent things
+// go wrong otherwise, all confirmed live against real fsxNet ads:
+// reflowing it via WrapText treats every escape-sequence byte as an
+// ordinary character (corrupting the color codes) and collapses
+// deliberate runs of spaces in plain block art with no color codes at
+// all; even sending its bytes through completely untouched (which
+// avoids the first problem) still comes out scrambled, because real
+// ANSI art positions itself with absolute/relative cursor moves that
+// assume they're starting at a blank screen's row 1 col 1 -- not true
+// once a header/meta banner has already been printed above it.
+// ParseGrid resolves every position (and cursor save/restore) against
+// a virtual canvas at parse time; the resulting rows can then be
+// windowed exactly like ordinary text's lines for scrolling, and --
+// unlike the art's own original bytes -- no longer depend on where on
+// the real screen they land, so the header/meta banner drawn above
+// them no longer misaligns anything, and scrolling works the same way
+// it does for plain text.
 func (s *Server) drawMessageReader(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, idx, scrollOffset int) (maxOffset int, err error) {
 	m := &msgs[idx]
 	body := stripSeenByAndPathForDisplay(m.Body)

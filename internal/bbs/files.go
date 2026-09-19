@@ -213,19 +213,23 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 // before.
 const fileListScreen = "fillist.ans"
 
-// printFileListHeader shows fillist.ans (with AREANAME filled in),
-// falling back to a plain colored area-name line on a cleared screen.
-func (s *Server) printFileListHeader(term *Terminal, area *file.Area) error {
+// renderFileListHeader returns fillist.ans (with AREANAME filled in),
+// falling back to a plain colored area-name line on a cleared screen
+// -- mirrors messages.go's renderMessageListHeader, including
+// returning a string (see finishHeaderLine) rather than printing
+// directly so drawFileList can count its line count toward the list's
+// scroll viewport budget.
+func (s *Server) renderFileListHeader(term *Terminal, area *file.Area) string {
 	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, fileListScreen))
 	if err != nil {
-		return term.Println(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset)
+		return ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset + "\n"
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
 		"AREANAME": area.Name,
 	}
 	rendered := ansi.Render(raw, vars)
-	return term.Println(ansi.Layout(rendered, term.Width()))
+	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
 // Fixed filenames for the hand-designed pieces of the file-list
@@ -245,14 +249,35 @@ const (
 
 var fallbackFileListColumns = "    Filename                       By                     Size             Date\r\n" + strings.Repeat("-", 79)
 
+// firstUnreadFileIndex mirrors messages.go's firstUnreadIndex exactly,
+// against a file area's per-file read state instead of a message
+// area's -- see that function's doc comment for the full rationale.
+func firstUnreadFileIndex(files []file.File, readIDs map[int64]bool) int {
+	for i, f := range files {
+		if !readIDs[f.ID] {
+			return i
+		}
+	}
+	if len(files) == 0 {
+		return 0
+	}
+	return len(files) - 1
+}
+
 // browseFileArea is a lightbar over an area's files -- the same
 // interaction as messages.go's browseArea over messages: arrow keys
-// move the highlight, Enter opens the file reader at that file, Q/
-// Escape returns to the area list. Uploading isn't part of this loop
-// (see sysopImportFile's doc comment), so there's no equivalent to
-// browseArea's P handling here.
+// move the highlight (clamped at the first/last file, not wrapping
+// around), Enter opens the file reader at that file, U uploads, D
+// downloads the highlighted file directly, Q/Escape returns to the
+// area list. The initial selection lands on the first unread file
+// (see firstUnreadFileIndex), computed once up front -- rereading it
+// on every trip back from the reader would fight the caller's own
+// navigation, jumping the highlight somewhere new right after they
+// just viewed something. scrollOffset is tracked alongside selected
+// the same way -- see drawFileList's doc comment.
 func (s *Server) browseFileArea(term *Terminal, u *user.User, area *file.Area) error {
-	selected := 0
+	selected := -1
+	scrollOffset := 0
 outer:
 	for {
 		files, err := s.Files.ListFiles(area.ID)
@@ -283,12 +308,17 @@ outer:
 			}
 			continue
 		}
+		if selected < 0 {
+			selected = firstUnreadFileIndex(files, readIDs)
+			scrollOffset = selected
+		}
 		if selected >= len(files) {
 			selected = len(files) - 1
 		}
 
 		for {
-			if err := s.drawFileList(term, area, files, selected, readIDs); err != nil {
+			scrollOffset, err = s.drawFileList(term, area, files, selected, scrollOffset, readIDs)
+			if err != nil {
 				return err
 			}
 			key, err := term.ReadKey()
@@ -297,9 +327,13 @@ outer:
 			}
 			switch {
 			case key.Type == KeyUp:
-				selected = (selected - 1 + len(files)) % len(files)
+				if selected > 0 {
+					selected--
+				}
 			case key.Type == KeyDown:
-				selected = (selected + 1) % len(files)
+				if selected < len(files)-1 {
+					selected++
+				}
 			case key.Type == KeyEnter:
 				if err := s.readFile(term, u, area, files, selected); err != nil {
 					return err
@@ -327,29 +361,73 @@ outer:
 // drawEmptyFileList shows just the header banner and a hint bar for
 // an area with no files yet -- see messages.go's drawEmptyMessageList.
 func (s *Server) drawEmptyFileList(term *Terminal, area *file.Area) error {
-	if err := s.printFileListHeader(term, area); err != nil {
-		return err
-	}
-	return term.Print(ansi.Reset + "\n(no files yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[U] Upload   [Q] Back" + ansi.Reset)
+	return term.Print(s.renderFileListHeader(term, area) + ansi.Reset + "(no files yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[U] Upload   [Q] Back" + ansi.Reset)
 }
 
 // drawFileList redraws the header banner plus the Filename/By/Size/
-// Date table, with the row at selected highlighted -- the file list's
-// equivalent of messages.go's drawMessageList.
-func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File, selected int, readIDs map[int64]bool) error {
-	if err := s.printFileListHeader(term, area); err != nil {
-		return err
-	}
+// Date table, with the row at selected highlighted and any file the
+// caller hasn't actually opened in the reader yet flagged via
+// NEWFLAG -- the file list's equivalent of messages.go's
+// drawMessageList, scrolling included: the table is windowed to
+// whatever vertical space is left after the header/columns/footer
+// (a long list used to just dump every row in one shot, pushing the
+// header off the top of the screen exactly the way an unpaginated
+// message list once did), and padded with blank lines when there are
+// fewer files than fit so the footer always lands on the same row
+// instead of trailing right after the last one.
+//
+// scrollOffset is caller-tracked state (see browseFileArea), not
+// recomputed fresh from selected every redraw -- see drawMessageList's
+// identically motivated doc comment for why: the viewport only
+// follows the highlight once it reaches the top/bottom edge, like a
+// normal pager, instead of pinning it to a fixed screen row. The
+// returned value is what the caller should pass back in on the next
+// call.
+func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File, selected, scrollOffset int, readIDs map[int64]bool) (int, error) {
+	header := s.renderFileListHeader(term, area)
 
 	rowTemplate := s.loadOptionalScreen(fileListRowScreen, fallbackFileListRow)
 	rowSelectedTemplate := s.loadOptionalScreen(fileListRowSelectedScreen, fallbackFileListRowSelected)
+	columns := s.loadOptionalScreen(fileListColumnsScreen, fallbackFileListColumns)
 
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(s.loadOptionalScreen(fileListColumnsScreen, fallbackFileListColumns))
+	b.WriteString(header)
+	b.WriteString(ansi.Reset)
+	b.WriteString(columns)
 	b.WriteString(ansi.CRLF)
 
-	for i, f := range files {
+	// Budget the list's viewport the same way drawMessageList does:
+	// header/columns counted from their own rendered text (deployment-
+	// customizable, not a fixed line count; header's own trailing "\n"
+	// -- see finishHeaderLine -- already accounts for its own last
+	// row, with no separator row of ours added on top) plus the
+	// footer's own fixed 3 lines (blank + its own scroll-status line,
+	// always reserved even when blank, plus the hint line).
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	available := term.Height() - used
+	if available < 1 {
+		available = 1
+	}
+
+	if selected < scrollOffset {
+		scrollOffset = selected
+	}
+	if selected >= scrollOffset+available {
+		scrollOffset = selected - available + 1
+	}
+	if scrollOffset > len(files)-available {
+		scrollOffset = len(files) - available
+	}
+	if scrollOffset < 0 {
+		scrollOffset = 0
+	}
+	end := scrollOffset + available
+	if end > len(files) {
+		end = len(files)
+	}
+
+	for i := scrollOffset; i < end; i++ {
+		f := files[i]
 		tmpl := rowTemplate
 		if i == selected {
 			tmpl = rowSelectedTemplate
@@ -368,15 +446,29 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 		b.WriteString(ansi.Render(tmpl, vars))
 		b.WriteString(ansi.CRLF)
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back" + ansi.Reset)
-	return term.Print(b.String())
+	for i := end - scrollOffset; i < available; i++ {
+		b.WriteString(ansi.CRLF)
+	}
+
+	scrollStatus := ""
+	if len(files) > available {
+		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(files))
+	}
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
+	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back" + ansi.Reset)
+	return scrollOffset, term.Print(b.String())
 }
 
 // Fixed filenames for the hand-designed pieces of the file reader,
-// mirroring messages.go's msgread.ans/msgread-meta.ans.
+// mirroring messages.go's msgread.ans/msgread-meta.ans/
+// msgread-footer.ans: a full-screen header banner, a small metadata
+// block, and the footer bar (scroll status + hotkey hint, filled in
+// via {SCROLLSTATUS}/{HINT} -- see drawFileReader), each with a plain
+// fallback so a missing/deleted file degrades gracefully.
 const (
-	fileReadScreen     = "filread.ans"
-	fileReadMetaScreen = "filread-meta.ans"
+	fileReadScreen       = "filread.ans"
+	fileReadMetaScreen   = "filread-meta.ans"
+	fileReadFooterScreen = "filread-footer.ans"
 )
 
 var fallbackFileReadMeta = "\x1b[1;32mFilename:  \x1b[1;37m{FILENAME:-40}\x1b[1;32m Size: \x1b[1;37m{SIZE}\r\n" +
@@ -384,17 +476,29 @@ var fallbackFileReadMeta = "\x1b[1;32mFilename:  \x1b[1;37m{FILENAME:-40}\x1b[1;
 	"\x1b[1;32mDownloads: \x1b[1;37m{DOWNLOADS}\r\n" +
 	"\x1b[32m" + strings.Repeat("-", 79) + ansi.Reset
 
+var fallbackFileReadFooter = ansi.FG(ansi.White, true) + "{SCROLLSTATUS}" + ansi.Reset + "\r\n" +
+	ansi.FG(ansi.White, true) + "{HINT}" + ansi.Reset
+
 // readFile is a file-details reader over files, starting at idx, that
-// lets the caller page through every file in the area with the arrow
-// keys / N,P without returning to the list each time -- mirroring
-// messages.go's readMessage, including clamping at the first/last
-// file instead of wrapping around.
+// lets the caller page through every file in the area without
+// returning to the list each time -- mirrors messages.go's
+// readMessage exactly: Up/Down scroll within the current (possibly
+// multi-screen) description, clamped at its edges, while switching
+// files is only ever explicit (N/P, Left/Right, or Enter) and clamps
+// at the first/last file instead of wrapping around.
 func (s *Server) readFile(term *Terminal, u *user.User, area *file.Area, files []file.File, idx int) error {
+	// scrollOffset is how far into the current file's (possibly multi-
+	// screen) description the visible window starts -- reset to 0
+	// whenever idx changes, since a newly opened file always starts at
+	// its own top. See readMessage's identical field for why switching
+	// files never happens as a side effect of scrolling past an edge.
+	scrollOffset := 0
 	for {
 		if err := s.Files.MarkFileRead(u.ID, files[idx].ID); err != nil {
 			return err
 		}
-		if err := s.drawFileReader(term, area, files, idx); err != nil {
+		maxOffset, err := s.drawFileReader(term, area, files, idx, scrollOffset)
+		if err != nil {
 			return err
 		}
 		key, err := term.ReadKey()
@@ -402,13 +506,23 @@ func (s *Server) readFile(term *Terminal, u *user.User, area *file.Area, files [
 			return err
 		}
 		switch {
-		case key.Type == KeyUp || key.Type == KeyLeft, key.Type == KeyChar && (key.Rune == 'p' || key.Rune == 'P'):
+		case key.Type == KeyUp:
+			if scrollOffset > 0 {
+				scrollOffset--
+			}
+		case key.Type == KeyDown:
+			if scrollOffset < maxOffset {
+				scrollOffset++
+			}
+		case key.Type == KeyLeft, key.Type == KeyChar && (key.Rune == 'p' || key.Rune == 'P'):
 			if idx > 0 {
 				idx--
+				scrollOffset = 0
 			}
-		case key.Type == KeyDown || key.Type == KeyRight || key.Type == KeyEnter, key.Type == KeyChar && (key.Rune == 'n' || key.Rune == 'N'):
+		case key.Type == KeyRight || key.Type == KeyEnter, key.Type == KeyChar && (key.Rune == 'n' || key.Rune == 'N'):
 			if idx < len(files)-1 {
 				idx++
+				scrollOffset = 0
 			}
 		case key.Type == KeyChar && (key.Rune == 'd' || key.Rune == 'D'):
 			if err := s.downloadFile(term, u, &files[idx]); err != nil {
@@ -422,13 +536,16 @@ func (s *Server) readFile(term *Terminal, u *user.User, area *file.Area, files [
 	}
 }
 
-// printFileReaderHeader shows filread.ans (with AREANAME/FILENUM/
-// FILECOUNT filled in), falling back to a plain colored area-name
-// line -- mirroring messages.go's printMessageReaderHeader.
-func (s *Server) printFileReaderHeader(term *Terminal, area *file.Area, idx, total int) error {
+// renderFileReaderHeader returns filread.ans (with AREANAME/FILENUM/
+// FILECOUNT filled in), followed by a newline, falling back to a
+// plain colored area-name line -- mirrors messages.go's
+// renderMessageReaderHeader, including returning a string rather than
+// printing directly so drawFileReader can count its line count toward
+// the description's scroll viewport budget.
+func (s *Server) renderFileReaderHeader(term *Terminal, area *file.Area, idx, total int) string {
 	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, fileReadScreen))
 	if err != nil {
-		return term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset)
+		return ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset + "\n"
 	}
 	vars := ansi.Vars{
 		"BBSNAME":   s.BBSName,
@@ -437,19 +554,30 @@ func (s *Server) printFileReaderHeader(term *Terminal, area *file.Area, idx, tot
 		"FILECOUNT": strconv.Itoa(total),
 	}
 	rendered := ansi.Render(raw, vars)
-	return term.Println(ansi.Layout(rendered, term.Width()))
+	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
 // drawFileReader redraws the full reader screen for files[idx]: the
 // header banner, the Filename/Size/Uploaded/Downloads metadata block
-// (its own customizable screen file), the word-wrapped description,
-// and a footer hinting at the navigation keys -- mirroring
-// messages.go's drawMessageReader.
-func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.File, idx int) error {
-	if err := s.printFileReaderHeader(term, area, idx, len(files)); err != nil {
-		return err
-	}
+// (its own customizable screen file), the description -- windowed to
+// whatever vertical space is left after the header/meta/footer,
+// starting at scrollOffset lines in, so a long description scrolls
+// within its own area instead of pushing the header off the top of
+// the screen -- and a footer (its own customizable template, scroll
+// status + hotkey hint) padded down to the bottom of the screen when
+// the description is shorter than the viewport. Mirrors messages.go's
+// drawMessageReader in every respect, ANSI-art handling included (see
+// ansi.IsPreformatted/ParseGrid there for why a file description
+// someone pasted ANSI art into can't just be word-wrapped). Returns
+// maxOffset, the largest scrollOffset the caller should still accept
+// for this file (0 once the whole description already fits).
+func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.File, idx, scrollOffset int) (maxOffset int, err error) {
 	f := &files[idx]
+	body := f.Description
+
+	hint := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list"
+
+	header := s.renderFileReaderHeader(term, area, idx, len(files))
 
 	metaTemplate := s.loadOptionalScreen(fileReadMetaScreen, fallbackFileReadMeta)
 	vars := ansi.Vars{
@@ -459,13 +587,75 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 		"BY":        f.UploadedByName,
 		"DOWNLOADS": strconv.Itoa(f.DownloadCount),
 	}
+	meta := ansi.Layout(ansi.Render(metaTemplate, vars), term.Width())
+	footerTemplate := s.loadOptionalScreen(fileReadFooterScreen, fallbackFileReadFooter)
 
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(ansi.Layout(ansi.Render(metaTemplate, vars), term.Width()))
+	b.WriteString(header)
+	b.WriteString(ansi.Reset)
+	b.WriteString(meta)
 	b.WriteString(ansi.CRLF)
-	footer := ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + "[Enter/Dn/Right] Next  [Up/Left] Prev  [D] Download  [Q] Back to list" + ansi.Reset
-	return printBody(term, &b, f.Description, footer, term.Width())
+
+	// Budget the description's viewport the same way drawMessageReader
+	// does: header/meta/footer counted from their own rendered text
+	// (deployment-customizable, not a fixed line count) plus one
+	// always-reserved blank line ahead of the footer, so a long line
+	// count doesn't wrap the hotkey hint onto a second physical row.
+	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1 + 1
+	available := term.Height() - used
+	if available < 1 {
+		available = 1
+	}
+
+	preformatted := ansi.IsPreformatted(body)
+	var totalLines int
+	var lines []string
+	var grid ansi.Grid
+	if preformatted {
+		grid = ansi.ParseGrid(body, term.Width())
+		totalLines = grid.Height
+	} else {
+		lines = ansi.WrapText(body, term.Width())
+		totalLines = len(lines)
+	}
+
+	maxOffset = totalLines - available
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if scrollOffset > maxOffset {
+		scrollOffset = maxOffset
+	}
+	end := scrollOffset + available
+	if end > totalLines {
+		end = totalLines
+	}
+
+	if preformatted {
+		b.WriteString(grid.EncodeRows(scrollOffset, end))
+		b.WriteString(ansi.CRLF)
+	} else {
+		for _, line := range lines[scrollOffset:end] {
+			b.WriteString(ansi.Reset + line + ansi.CRLF)
+		}
+	}
+	// Pad with blank lines when the description is shorter than the
+	// viewport -- otherwise the footer trails right after a short one
+	// instead of staying anchored near the bottom of the screen,
+	// mirroring drawFileList/drawMessageReader's identically motivated
+	// padding.
+	for i := end - scrollOffset; i < available; i++ {
+		b.WriteString(ansi.CRLF)
+	}
+
+	scrollStatus := ""
+	if maxOffset > 0 {
+		scrollStatus = fmt.Sprintf("-- line %d-%d of %d --", scrollOffset+1, end, totalLines)
+	}
+	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
+	b.WriteString(ansi.Reset + "\r\n")
+	b.WriteString(footer)
+	return maxOffset, term.Print(b.String())
 }
 
 // downloadFile sends f to the caller via Zmodem (internal/zmodem,
