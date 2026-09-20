@@ -4,6 +4,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -157,6 +159,62 @@ func TestRunReturnsCleanlyWhenTheDoorExitsOnItsOwn(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run did not return after the door exited on its own")
+	}
+}
+
+// TestBuildDOSBoxCmdSubstitutesDropfileDirAndMounts locks in the
+// generated per-session DOSBox-X config's shape: door.DOSBoxDir
+// mounted as C:, the scratch node dir mounted as D:, and the
+// "{dropfile_dir}" placeholder in DOSBoxLaunchCmd resolved to that
+// same D: mount -- see buildDOSBoxCmd's doc comment for why (most
+// classic doors take their drop file's directory via a command-line
+// switch, e.g. DOORWAY's "/s:", rather than a fixed convention).
+func TestBuildDOSBoxCmdSubstitutesDropfileDirAndMounts(t *testing.T) {
+	nodeDir := t.TempDir()
+	door := Door{
+		Name:            "doorway",
+		Kind:            "dosbox",
+		DOSBoxDir:       "/opt/doors/doorway",
+		DOSBoxLaunchCmd: `DOORWAY\DOORWAYU SYS /s:{dropfile_dir} /c:dos`,
+	}
+	sess := Session{RealName: "Test User", AccessLevel: 10, TimeLeftMinutes: 30, Node: 1}
+
+	cmd, err := buildDOSBoxCmd(nodeDir, door, sess)
+	if err != nil {
+		t.Fatalf("buildDOSBoxCmd: %v", err)
+	}
+	if cmd.Path != "dosbox-x" && !strings.HasSuffix(cmd.Path, "/dosbox-x") {
+		t.Fatalf("cmd.Path = %q, want dosbox-x", cmd.Path)
+	}
+
+	confPath := filepath.Join(nodeDir, "dosbox.conf")
+	data, err := os.ReadFile(confPath)
+	if err != nil {
+		t.Fatalf("reading generated config: %v", err)
+	}
+	conf := string(data)
+
+	if !strings.Contains(conf, "MOUNT C /opt/doors/doorway") {
+		t.Fatalf("config missing door install dir mount, got:\n%s", conf)
+	}
+	if !strings.Contains(conf, "MOUNT D "+nodeDir) {
+		t.Fatalf("config missing drop file dir mount, got:\n%s", conf)
+	}
+	if !strings.Contains(conf, `DOORWAY\DOORWAYU SYS /s:D:\ /c:dos`) {
+		t.Fatalf("launch command's {dropfile_dir} placeholder wasn't substituted, got:\n%s", conf)
+	}
+	if !strings.Contains(conf, "inhsocket:1") {
+		t.Fatalf("config missing inhsocket:1, got:\n%s", conf)
+	}
+
+	dropfile, err := os.ReadFile(filepath.Join(nodeDir, "DOOR.SYS"))
+	if err != nil {
+		t.Fatalf("reading DOOR.SYS: %v", err)
+	}
+	for _, want := range []string{"COM1:\n", "Test User\n", "10\n"} {
+		if !strings.Contains(string(dropfile), want) {
+			t.Fatalf("DOOR.SYS missing expected field %q, got: %q", want, dropfile)
+		}
 	}
 }
 

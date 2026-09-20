@@ -70,11 +70,14 @@ func main() {
 	var doorList []doors.Door
 	for _, d := range cfg.Doors {
 		doorList = append(doorList, doors.Door{
-			Name:  d.Name,
-			Exe:   d.Exe,
-			Dir:   d.Dir,
-			Args:  d.Args,
-			MinSL: d.MinSL,
+			Name:            d.Name,
+			Kind:            d.Kind,
+			MinSL:           d.MinSL,
+			Exe:             d.Exe,
+			Dir:             d.Dir,
+			Args:            d.Args,
+			DOSBoxDir:       d.DOSBoxDir,
+			DOSBoxLaunchCmd: d.DOSBoxLaunchCmd,
 		})
 	}
 

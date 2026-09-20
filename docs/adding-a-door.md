@@ -7,23 +7,31 @@ project's own line-oriented/ANSI-cooked `Terminal`.
 
 ## How it works
 
-This package writes a [DOOR32.SYS](https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt)
-dropfile (the modern, Linux/Windows-native successor to the classic
-DOS `DOOR.SYS`/`DORINFOx.DEF` formats) naming comm type 2 (Telnet) and
-socket handle 3, then hands the door process an already-connected
-`AF_UNIX` socket at exactly that file descriptor via Go's
-`exec.Cmd.ExtraFiles` -- the door reads/writes that socket directly
-(`recv()`/`send()`), the same way it would an inherited descriptor
-under Mystic or ENiGMA½ on Linux. This works for **any door with a
-native Linux/Windows port that reads DOOR32.SYS's socket-handle field
-as a raw inherited file descriptor** -- that's what the format was
-invented for. A classic DOS-only door would need a DOS emulator
-(DOSBox-X, DOSEMU2) and a FOSSIL driver bridging its own serial port
-to this same socket instead -- not implemented here yet.
+Two kinds of door are supported (`Door.Kind` / `configs/bbs.yaml`'s
+`kind:`), both ultimately handing the door process an already-
+connected `AF_UNIX` socket at fd 3 via Go's `exec.Cmd.ExtraFiles` --
+the door reads/writes that socket directly, the same way it would an
+inherited descriptor under Mystic or ENiGMA½ on Linux (their own docs
+call this exact trick something Node.js *can't* do without an
+external bridge process; Go does it natively):
+
+- **`native`** (the default): a door with its own native Linux/
+  Windows port that reads a [DOOR32.SYS](https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt)
+  dropfile's socket-handle field as a raw inherited file descriptor --
+  that's what the format was invented for. Usurper's Linux port (see
+  below) is the reference example.
+- **`dosbox`**: a classic real-mode DOS door, run under DOSBox-X.
+  DOSBox-X's own nullmodem serial backend takes the *same* inherited
+  fd via its `-socket N` command-line flag plus `inhsocket:1` in its
+  `[serial]` config, and bridges it straight to the DOS guest's COM1 --
+  the DOS door itself never knows its "modem" is actually a Unix
+  socket this process created. See "Classic DOS doors via DOSBox-X"
+  below for why this specific mechanism, not DOSBox-X's plain TCP-based
+  nullmodem modes, is what actually works.
 
 ## Configuring a door
 
-Add an entry to `configs/bbs.yaml`:
+### `native` kind
 
 ```yaml
 doors:
@@ -39,6 +47,28 @@ own working directory, `dir`, is applied -- a plain relative `exe`
 combined with `dir` set to the same directory would otherwise have
 the child looking for its own executable doubled up under itself,
 e.g. `.../usurper/usurper/USURPER.EXE`).
+
+### `dosbox` kind
+
+```yaml
+doors:
+    - name: DOS Shell (Doorway)
+      kind: dosbox
+      dosbox_dir: /absolute/or/relative/path/to/the/doors/own/install/dir
+      dosbox_launch_cmd: DOORWAY\DOORWAYU SYS /g:on /a:on /m:100 /v:d^U /s:{dropfile_dir} /c:dos
+      min_sl: 200  # this one drops callers into a real DOS shell -- see below
+```
+
+`dosbox_dir` is mounted as `C:` in the DOSBox-X guest and
+`dosbox_launch_cmd` is run from it, exactly as a sysop would type it
+at the DOS prompt (`CALL START.BAT` for a door with its own batch
+file, or a direct EXE invocation with whatever switches it needs).
+Internal/doors writes a classic 21-line `DOOR.SYS` dropfile into a
+fresh per-session scratch directory and mounts *that* as `D:` --
+the literal placeholder `{dropfile_dir}` in `dosbox_launch_cmd` is
+replaced with that mount's DOS path (`D:\`) before launch, since most
+classic doors take their drop file's directory via a command-line
+switch (DOORWAY's `/s:` above) rather than a fixed convention.
 
 Doors don't ship in this repo (their assets are 5+ MB DOS-era binaries
 and game data, and one of them -- Usurper -- needs building from
@@ -115,6 +145,133 @@ EOF
 
 That's the whole install -- `internal/doors.Run` handles the dropfile
 and socket per session from here.
+
+## Classic DOS doors via DOSBox-X
+
+### DOSBox-X's plain TCP-based nullmodem is broken on Linux -- don't use it
+
+`serial1=nullmodem server:1 port:N` (DOSBox-X as the TCP listener) was
+found to hang DOSBox-X's entire boot sequence indefinitely on this
+platform (DOSBox-X 2025.02.01, Debian 13) -- confirmed via `strace`-
+free black-box testing (repeated, from-clean-state hangs at exactly
+the same point in its own boot log, with no listening socket ever
+created) and matches a real, long-open upstream bug
+([joncampbell123/dosbox-x#2368](https://github.com/joncampbell123/dosbox-x/issues/2368)).
+`server:host port:N` (DOSBox-X as the TCP *client*, dialing out) does
+work reliably -- confirmed both standalone and as the documented,
+currently-in-production approach a real, much larger sysop-facing PHP
+BBS project ([binkterm-php](https://github.com/awehttam/binkterm-php),
+see its `docs/DOSDoors.md`) uses today. **This package uses neither**: `inhsocket:1` (below) sidesteps
+DOSBox-X's TCP code entirely, which is both simpler (no port
+allocation, no listen/connect race at all) and avoids depending on a
+code path with a known open bug in the *other* mode of the same
+feature.
+
+### The mechanism this package actually uses: `-socket N` + `inhsocket:1`
+
+DOSBox-X's nullmodem backend has a command-line flag, `-socket N`,
+that stashes a raw file descriptor number in a global (`src/gui/
+sdlmain.cpp`), and a `[serial]` parameter, `inhsocket:1`, that -- only
+when combined with `-socket N` -- wraps that exact fd directly as its
+serial backend's socket (`src/hardware/serialport/nullmodem.cpp`,
+confirmed by reading the actual source, not assuming from the sparse
+`serial1=` help text). Since Go's `exec.Cmd.ExtraFiles` always numbers
+a spawned child's extra descriptors starting at fd 3 (right after
+inherited stdin/stdout/stderr), `internal/doors.Run` passes `-socket 3`
+and always passes the *same* socketpair end used for `native`-kind
+doors -- from DOSBox-X's perspective this is indistinguishable from any
+other inherited fd, so all the same lifecycle guarantees (SOCK_CLOEXEC,
+the explicit process-exit/connection-failure race with a `Kill()`
+fallback -- see this package's own doc comments) carry over unchanged.
+
+`SDL_VIDEODRIVER=dummy` (fully headless, no X server, no Xvfb) works
+fine with this specific mechanism -- confirmed live. This is *not* true
+of DOSBox-X's TCP-based nullmodem modes in general (binkterm-php's own
+`docs/DOSBox_Headless_Mode.md` reports needing a real, off-screen SDL
+window on Windows for those to work at all); `-socket`/`inhsocket`
+was not something they tried.
+
+### DOSBox-X's own built-in FOSSIL emulation -- don't load BNU.COM/X00.SYS on top of it
+
+`serial1_fossil=true` gives every DOS door FOSSIL support with no TSR
+at all. Loading a real FOSSIL driver (BNU.COM) *in addition* was
+confirmed live to hang some doors' own COM-port probing at startup
+(silently -- no error, no output, indefinitely) where skipping it and
+relying on DOSBox-X's native FOSSIL worked immediately. If a specific
+door still needs a real FOSSIL TSR for some reason, `serial2=dummy`
+plus loading the driver only on COM2 avoids the conflict; this
+package's own template doesn't do that since it hasn't been needed.
+
+### DOSBox-X's own `telnet:1` serial option is deliberately not used
+
+`internal/doors`'s `[serial]` line omits `telnet:1` on purpose: with it
+off, DOSBox-X's bridge is plain transparent passthrough with no telnet
+awareness of its own, so this project's own telnet layer keeps doing
+its ordinary IAC escaping/interpretation for a `dosbox` door exactly as
+it would for normal `Terminal` output (`internal/doors.Run` only
+switches that layer to raw mode for a `native` door, whose comm layer
+handles IAC itself instead). Turning both on at once would double-
+escape every `0xFF` byte in the door's own 8-bit CP437 output.
+
+### `/c:dos` means "drop the caller into a real interactive DOS shell" -- gate this door's SL accordingly
+
+Doorway's `/c:dos` switch is not a bug surface, it's the entire point
+of this particular test door: after its splash screen it prints
+"Enter EXIT to return" and hands the caller a live, fully interactive
+`C:\>` prompt bridged straight through to their connection -- typed
+DOS commands get real DOS responses. That's expected, and is in fact
+proof the whole bridge works end-to-end in both directions. It also
+means this specific door is a raw shell with no restrictions of its
+own: `configs/bbs.yaml`'s `min_sl` is this project's *only* gate on
+who gets it, so a "DOS Shell" door like this one belongs behind a high
+`min_sl` (this repo's sample config uses `200`, the same threshold
+`configs/menus/main.yaml` uses for the Sysop Menu) -- exactly how
+binkterm-php itself restricts the equivalent door to admin accounts
+only. A `dosbox_launch_cmd` that goes straight into an actual *game*
+instead of a shell doesn't have this concern.
+
+### Known quirk: `EXIT` in the autoexec doesn't always fire
+
+`internal/doors`'s generated DOSBox-X config ends the autoexec with a
+bare `EXIT` line specifically so the DOSBox-X *process* itself
+terminates the moment the door's own process returns (this is what
+actually drives `Run`'s "door exited on its own" path -- without it, a
+caller who quits a door lands in an idle, fully interactive local DOS
+prompt still bridged to their connection instead of back at this BBS's
+menu, confirmed live). This works for any door that behaves like a
+normal DOS program: it runs, it exits, `COMMAND.COM` moves on to the
+next line. It does **not** reliably fire for a door built around a
+loop-and-reinvoke batch pattern instead (Doorway/DWHost's own
+documented `HOST.BAT`, for example, deliberately re-invokes itself
+after each call rather than ever falling through to a next line) --
+confirmed live with the unregistered `DOORWAYU.EXE` this package was
+validated against (see below): typing `exit` inside it lands at a bare
+`C:\>` prompt, not back at the EXIT line, and the session only actually
+ends once the caller disconnects (triggering `Run`'s connection-failure
+`Kill()` fallback, which still cleans up correctly either way). For an
+admin-facing raw-DOS-shell door this is arguably fine as-is; a game
+door with a normal single-process lifecycle won't hit this at all.
+
+### Reference test binary: DOORWAY (unregistered, shareware)
+
+[DOORWAY (DOORWAY to Unlimited Doors)](http://pcmicro.com/doorway/) by
+Marshall Dudley is what this package's `dosbox`-kind support was built
+and validated against -- a small (30 KB), single-EXE, no-overlay-file
+DOS door that drops a caller straight into a real DOS shell, making it
+an easy way to confirm the whole DOSBox-X bridge actually works with
+zero game-specific setup. The unregistered copy has a 10-minute
+session limit and is bundled and redistributed as-is by binkterm-php
+(`dosbox-bridge/dos/DOORS/ADMIN/DOORWAY/DOORWAYU.EXE` in their repo) as
+their own admin-only "DOSDoor DOS shell" maintenance door -- fetched
+from there rather than an unknown source. A different classic DOS door
+(Usurper's own original 1993/2009 DOS release, `v0.20e`, from the GPL
+`ORIGINAL ARCHIVES/usurp020e.zip` in
+[rickparrish/Usurper](https://github.com/rickparrish/Usurper)) was
+tried first and hangs at its very first screen under this DOSBox-X
+version with zero output, on every FOSSIL/comm configuration tried,
+and without any CPU exception or trap logged -- a binary-specific
+incompatibility unrelated to this package's own bridge mechanism
+(DOORWAY, tested through the exact same code path, works immediately).
 
 ### Known limitation: telnet-negotiation preamble on non-telnet conns
 

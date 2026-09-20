@@ -153,16 +153,27 @@ type BinkpUplink struct {
 type DoorConfig struct {
 	// Name identifies this door in the in-BBS doors menu and in logs.
 	Name string `yaml:"name"`
-	// Exe is the path to the door's executable.
-	Exe string `yaml:"exe"`
-	// Dir is the working directory to run Exe from -- almost always
-	// the door's own install directory.
-	Dir string `yaml:"dir"`
-	// Args are extra arguments passed before the dropfile path
-	// argument internal/doors.Run appends itself.
-	Args []string `yaml:"args"`
+	// Kind selects how the door is launched: "native" (default, the
+	// zero value) or "dosbox" -- see internal/doors.Door.Kind.
+	Kind string `yaml:"kind"`
 	// MinSL is the minimum security level required to play.
 	MinSL int `yaml:"min_sl"`
+
+	// Exe is the path to the door's executable. Kind "native" only.
+	Exe string `yaml:"exe"`
+	// Dir is the working directory to run Exe from -- almost always
+	// the door's own install directory. Kind "native" only.
+	Dir string `yaml:"dir"`
+	// Args are extra arguments passed before the dropfile path
+	// argument internal/doors.Run appends itself. Kind "native" only.
+	Args []string `yaml:"args"`
+
+	// DOSBoxDir is the door's own install directory, mounted as C: in
+	// the DOSBox-X guest. Kind "dosbox" only.
+	DOSBoxDir string `yaml:"dosbox_dir"`
+	// DOSBoxLaunchCmd is the DOS command line that starts the door --
+	// see internal/doors.Door.DOSBoxLaunchCmd. Kind "dosbox" only.
+	DOSBoxLaunchCmd string `yaml:"dosbox_launch_cmd"`
 }
 
 // PrimaryFTNAddress returns c's first configured FTN address, or "" if

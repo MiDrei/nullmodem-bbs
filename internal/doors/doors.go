@@ -4,26 +4,40 @@
 // cooked Terminal (see internal/bbs.Terminal.Raw, the same bypass
 // internal/zmodem uses for file transfers).
 //
-// A door talks to its caller over whatever channel its BBS dropfile
-// says to use. This package always writes a DOOR32.SYS dropfile (the
-// modern, Linux/Windows-native successor to the classic DOS DOOR.SYS/
-// DORINFOx.DEF formats -- see http://bbsfiles.com and any current door
-// engine's own docs) naming comm type 2 (Telnet) and handle 3, and
-// hands the door process an already-connected AF_UNIX socket at
-// exactly that file descriptor via os/exec's ExtraFiles -- the door
-// reads/writes that socket directly (recv()/send()), the same way it
-// would an inherited descriptor under Mystic or ENiGMA½ on Linux (see
-// ENiGMA½'s own docs on DOOR32.SYS socket descriptor sharing, which
-// call this out as something Node.js *can't* do without an external
-// bridge process; Go can, via ExtraFiles, with no bridge needed).
+// Two kinds of door are supported (Door.Kind), both ultimately handing
+// the door process an already-connected AF_UNIX socket at fd 3 via
+// os/exec's ExtraFiles -- the door reads/writes that socket directly,
+// the same way it would an inherited descriptor under Mystic or
+// ENiGMA½ on Linux (see ENiGMA½'s own docs on DOOR32.SYS socket
+// descriptor sharing, which call this out as something Node.js *can't*
+// do without an external bridge process; Go can, via ExtraFiles, with
+// no bridge needed):
 //
-// This only works for a door whose own comm layer expects a raw
-// socket in this way -- true of every actively maintained door with a
-// native Linux/Windows port (that's what DOOR32.SYS was invented for).
-// A classic DOS-only door needs a DOS emulator (DOSBox-X, DOSEMU2) and
-// a FOSSIL driver bridging its own serial port to this same socket
-// instead -- not implemented here yet; see docs/adding-a-door.md for
-// the current, socket-native path this package actually supports.
+//   - "native" (the default): a door with its own native Linux/
+//     Windows port that reads DOOR32.SYS's socket-handle field as a
+//     raw inherited fd (that field is what DOOR32.SYS was invented
+//     for) and talks to it directly -- no emulator involved. Usurper's
+//     Linux port (see docs/adding-a-door.md) is this package's
+//     reference example.
+//   - "dosbox": a classic real-mode DOS door, run under DOSBox-X.
+//     DOSBox-X's own nullmodem serial backend takes the *same*
+//     inherited fd via its "-socket N" flag plus "inhsocket:1" in its
+//     [serial] config, and bridges it to the guest's COM1 -- so the
+//     DOS door itself is none the wiser that its "modem" is actually a
+//     Unix socket this process created. This sidesteps DOSBox-X's own
+//     TCP-based nullmodem listen/connect code, which was found to hang
+//     indefinitely under Linux (a real, open upstream bug -- see
+//     docs/adding-a-door.md) -- fd inheritance never goes through that
+//     code path at all. DOSBox-X's own "telnet:1" serial option is
+//     deliberately *not* used, even over a real telnet conn: with it
+//     off, DOSBox-X's bridge is plain transparent passthrough with no
+//     telnet awareness of its own, so Run leaves this project's own
+//     telnet layer doing its ordinary IAC escaping/interpretation for
+//     a "dosbox" door exactly as it would for normal Terminal output,
+//     instead of switching to raw mode the way "native" doors need
+//     (those handle IAC themselves -- see isTelnetConn below). Turning
+//     on both at once would double-escape every 0xFF byte in the
+//     door's own 8-bit CP437 output.
 package doors
 
 import (
@@ -45,18 +59,39 @@ import (
 type Door struct {
 	// Name identifies this door in menus and logs.
 	Name string
-	// Exe is the path to the door's executable.
+	// Kind selects how Run launches this door: "native" (default, the
+	// zero value) for a door with its own native Linux/Windows port
+	// (see Exe/Dir/Args below), or "dosbox" for a classic real-mode
+	// DOS door run under DOSBox-X (see DOSBoxDir/DOSBoxLaunchCmd
+	// below). See this package's doc comment for the full story.
+	Kind string
+	// MinSL is the minimum security level required to play.
+	MinSL int
+
+	// Exe is the path to the door's executable. Kind "native" only.
 	Exe string
 	// Dir is the working directory to run Exe from -- almost always
 	// the door's own install directory, since doors commonly locate
 	// their own data files (art, saved games) relative to cwd rather
-	// than relative to the dropfile path.
+	// than relative to the dropfile path. Kind "native" only.
 	Dir string
 	// Args are extra arguments passed before the dropfile path
-	// argument this package appends itself (see Run).
+	// argument this package appends itself (see Run). Kind "native"
+	// only.
 	Args []string
-	// MinSL is the minimum security level required to play.
-	MinSL int
+
+	// DOSBoxDir is the door's own install directory, mounted as C: in
+	// the DOSBox-X guest. Kind "dosbox" only.
+	DOSBoxDir string
+	// DOSBoxLaunchCmd is the DOS command line that starts the door,
+	// run from C: once mounted -- typically "CALL START.BAT" or a
+	// direct EXE invocation, exactly as a sysop would type it at the
+	// DOS prompt. The literal placeholder "{dropfile_dir}" is replaced
+	// with the DOS path of the per-session drop file's own directory
+	// (mounted as D:, i.e. "D:\") -- most classic doors take this via
+	// a command-line switch (e.g. DOORWAY's "/s:") rather than a fixed
+	// convention. Kind "dosbox" only.
+	DOSBoxLaunchCmd string
 }
 
 // Session carries the caller-specific fields Run writes into the
@@ -113,11 +148,24 @@ func (e *ErrFailed) Error() string {
 // nothing to do with this Terminal's line-oriented/ANSI-cooked
 // interaction.
 func Run(conn io.ReadWriter, door Door, sess Session) error {
+	// Only a "native" door talks raw telnet-flavored bytes on the wire
+	// itself (see isTelnetConn's doc comment) and so needs this
+	// project's own telnet layer to step out of the way. A "dosbox"
+	// door's DOSBox-X bridge deliberately runs without its own
+	// "telnet:1" option (see dosboxConfigTemplate's doc comment), so
+	// it's plain transparent passthrough with no telnet awareness of
+	// its own -- this project's own telnet layer needs to keep doing
+	// its normal IAC escaping/interpretation exactly as it would for
+	// ordinary line-oriented Terminal output, or 8-bit CP437 door
+	// output would reach a real telnet connection completely
+	// unescaped.
 	isTelnet := false
-	if rs, ok := conn.(isTelnetConn); ok {
-		rs.SetRaw(true)
-		isTelnet = true
-		defer rs.SetRaw(false)
+	if door.Kind != "dosbox" {
+		if rs, ok := conn.(isTelnetConn); ok {
+			rs.SetRaw(true)
+			isTelnet = true
+			defer rs.SetRaw(false)
+		}
 	}
 
 	nodeDir, err := os.MkdirTemp("", "nullmodem-door-*")
@@ -125,10 +173,6 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 		return fmt.Errorf("doors: creating scratch node dir: %w", err)
 	}
 	defer os.RemoveAll(nodeDir)
-
-	if err := writeDoor32Sys(filepath.Join(nodeDir, "DOOR32.SYS"), sess); err != nil {
-		return err
-	}
 
 	// SOCK_CLOEXEC keeps the door process from also inheriting *our*
 	// end (parent) alongside the one it's actually meant to use --
@@ -144,20 +188,17 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 	child := os.NewFile(uintptr(fds[1]), door.Name+"-child")
 	defer parent.Close()
 
-	// A relative door.Exe must be resolved to an absolute path before
-	// cmd.Dir is set to door.Dir -- confirmed live: exec.Cmd resolves
-	// a relative Path against Dir (the *child's* working directory),
-	// not this process's own, so "data/doors/foo/FOO.EXE" run with
-	// Dir "data/doors/foo" fails looking for a doubled-up
-	// ".../data/doors/foo/data/doors/foo/FOO.EXE" that doesn't exist.
-	exe, err := filepath.Abs(door.Exe)
-	if err != nil {
-		return fmt.Errorf("doors: resolving %s's executable path: %w", door.Name, err)
+	var cmd *exec.Cmd
+	switch door.Kind {
+	case "dosbox":
+		cmd, err = buildDOSBoxCmd(nodeDir, door, sess)
+	default:
+		cmd, err = buildNativeCmd(nodeDir, door, sess)
 	}
-
-	args := append(append([]string{}, door.Args...), "/P"+nodeDir+"/")
-	cmd := exec.Command(exe, args...)
-	cmd.Dir = door.Dir
+	if err != nil {
+		child.Close()
+		return err
+	}
 	cmd.ExtraFiles = []*os.File{child}
 	cmd.Stdin = nil
 	var stderr bytes.Buffer
@@ -261,6 +302,109 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 	return nil
 }
 
+// buildNativeCmd prepares a Kind "native" door's process: a DOOR32.SYS
+// dropfile and a direct invocation of the door's own executable (see
+// this package's doc comment).
+func buildNativeCmd(nodeDir string, door Door, sess Session) (*exec.Cmd, error) {
+	if err := writeDoor32Sys(filepath.Join(nodeDir, "DOOR32.SYS"), sess); err != nil {
+		return nil, err
+	}
+
+	// A relative door.Exe must be resolved to an absolute path before
+	// cmd.Dir is set to door.Dir -- confirmed live: exec.Cmd resolves
+	// a relative Path against Dir (the *child's* working directory),
+	// not this process's own, so "data/doors/foo/FOO.EXE" run with
+	// Dir "data/doors/foo" fails looking for a doubled-up
+	// ".../data/doors/foo/data/doors/foo/FOO.EXE" that doesn't exist.
+	exe, err := filepath.Abs(door.Exe)
+	if err != nil {
+		return nil, fmt.Errorf("doors: resolving %s's executable path: %w", door.Name, err)
+	}
+
+	args := append(append([]string{}, door.Args...), "/P"+nodeDir+"/")
+	cmd := exec.Command(exe, args...)
+	cmd.Dir = door.Dir
+	return cmd, nil
+}
+
+// dosboxConfigTemplate is a DOSBox-X config good enough to run any
+// classic DOS door headlessly: enough CPU speed and XMS/EMS for a
+// typical early-90s door, DOSBox-X's own built-in FOSSIL emulation
+// (serial1_fossil=true -- no BNU.COM/X00.SYS TSR needed, and loading
+// one anyway was confirmed live to sometimes hang a door's own COM
+// port probing instead of helping), and MS-DOS 6.22 emulation
+// (ver=6.22) specifically to keep long-filename support OFF -- a
+// mounted Linux directory is otherwise case-sensitive in a way DOS
+// itself never is, so two directories a sysop created as e.g. "Lord"
+// and "LORD" from Linux would look like two different, wrong
+// directories to the door once LFN is active.
+//
+// The trailing EXIT is not optional: a door exiting back to its own
+// DOS prompt (e.g. typing "exit" out of a redirected shell door) does
+// not end the DOSBox-X *process* on its own -- confirmed live, a
+// caller who does this lands in an idle, fully interactive local DOS
+// prompt still bridged to their connection, not back at this BBS's
+// own menu, until they eventually hang up. EXIT right after the
+// launch command ends DOSBox-X the moment the door itself returns,
+// which is what actually drives Run's "door exited on its own" path.
+const dosboxConfigTemplate = `[dosbox]
+machine=svga_s3
+memsize=4
+
+[cpu]
+core=auto
+cputype=auto
+cycles=10000
+
+[serial]
+serial1=nullmodem inhsocket:1 transparent:1
+serial1_fossil=true
+
+[dos]
+xms=true
+ems=true
+ver=6.22
+
+[autoexec]
+MOUNT C %s
+MOUNT D %s
+C:
+%s
+EXIT
+`
+
+// buildDOSBoxCmd prepares a Kind "dosbox" door's process: a classic
+// DOOR.SYS dropfile in its own per-session directory (mounted as D:),
+// a generated per-session DOSBox-X config (door.DOSBoxDir mounted as
+// C:, door.DOSBoxLaunchCmd run from it), and dosbox-x itself invoked
+// with "-socket 3" so its [serial] "inhsocket:1" nullmodem backend
+// picks up the fd Run hands it via ExtraFiles directly -- see this
+// package's doc comment for why this sidesteps DOSBox-X's own
+// TCP-based nullmodem entirely.
+func buildDOSBoxCmd(nodeDir string, door Door, sess Session) (*exec.Cmd, error) {
+	if err := writeDoorSys(filepath.Join(nodeDir, "DOOR.SYS"), sess); err != nil {
+		return nil, err
+	}
+
+	dosboxDir, err := filepath.Abs(door.DOSBoxDir)
+	if err != nil {
+		return nil, fmt.Errorf("doors: resolving %s's DOSBoxDir: %w", door.Name, err)
+	}
+	launchCmd := strings.ReplaceAll(door.DOSBoxLaunchCmd, "{dropfile_dir}", `D:\`)
+	conf := fmt.Sprintf(dosboxConfigTemplate, dosboxDir, nodeDir, launchCmd)
+	confPath := filepath.Join(nodeDir, "dosbox.conf")
+	if err := os.WriteFile(confPath, []byte(conf), 0o644); err != nil {
+		return nil, fmt.Errorf("doors: writing %s's DOSBox-X config: %w", door.Name, err)
+	}
+
+	cmd := exec.Command("dosbox-x", "-conf", confPath, "-socket", "3")
+	// SDL never needs a real display for this -- confirmed live
+	// against DOSBox-X's own -socket/inhsocket path, unlike its
+	// TCP-based nullmodem modes (see this package's doc comment).
+	cmd.Env = append(os.Environ(), "SDL_VIDEODRIVER=dummy")
+	return cmd, nil
+}
+
 // deadliner is implemented by a conn that can have a pending Read
 // call interrupted on demand -- see internal/zmodem's identically
 // named, identically motivated interface.
@@ -330,6 +474,42 @@ func writeDoor32Sys(path string, sess Session) error {
 	b.WriteString(strconv.Itoa(sess.Node) + "\n")            // Current Node Number
 	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
 		return fmt.Errorf("doors: writing DOOR32.SYS: %w", err)
+	}
+	return nil
+}
+
+// writeDoorSys writes the classic 21-line DOOR.SYS dropfile format
+// (the "GAP"/Wildcat! standard virtually every real-mode DOS door
+// understands) at path -- see e.g. https://en.wikipedia.org/wiki/DOOR.SYS
+// or any DOS door's own docs for the full field-by-field spec. The
+// comm port is always "COM1:", matching COM1's fixed base address
+// (3F8h/IRQ4) DOSBox-X assigns its own serial1 -- see
+// dosboxConfigTemplate.
+func writeDoorSys(path string, sess Session) error {
+	var b strings.Builder
+	b.WriteString("COM1:\n")                                    // Comm port
+	b.WriteString("38400\n")                                    // Baud rate
+	b.WriteString("8\n")                                        // Data bits
+	b.WriteString(strconv.Itoa(sess.Node) + "\n")               // Node number
+	b.WriteString("38400\n")                                    // Actual/locked baud rate
+	b.WriteString("Y\n")                                        // Screen display
+	b.WriteString("N\n")                                        // Printer toggle
+	b.WriteString("N\n")                                        // Page bell
+	b.WriteString("N\n")                                        // Caller alarm
+	b.WriteString(sess.RealName + "\n")                         // User's full name
+	b.WriteString("City, ST\n")                                 // City/state
+	b.WriteString("000-000-0000\n")                             // Home phone
+	b.WriteString("000-000-0000\n")                             // Work/data phone
+	b.WriteString("PASSWORD\n")                                 // Password (unused -- BBS already authenticated)
+	b.WriteString(strconv.Itoa(sess.AccessLevel) + "\n")        // Security level
+	b.WriteString("1\n")                                        // Total times on
+	b.WriteString("01/01/26\n")                                 // Last date called
+	b.WriteString(strconv.Itoa(sess.TimeLeftMinutes*60) + "\n") // Seconds remaining this call
+	b.WriteString(strconv.Itoa(sess.TimeLeftMinutes) + "\n")    // Minutes remaining this call
+	b.WriteString("GR\n")                                       // Graphics mode: GR=ANSI
+	b.WriteString("24\n")                                       // Screen length (rows)
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		return fmt.Errorf("doors: writing DOOR.SYS: %w", err)
 	}
 	return nil
 }
