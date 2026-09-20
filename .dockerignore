@@ -1,0 +1,10 @@
+.git
+bin/
+data/
+configs/bbs.yaml
+web/node_modules
+web/build
+web/.svelte-kit
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

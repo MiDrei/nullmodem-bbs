@@ -27,6 +27,22 @@ ssh:
     enabled: true
     addr: :2222
     host_key_path: data/ssh_host_key
+doors: []
+    # External door games (see docs/adding-a-door.md) -- none are
+    # configured by default; install one under data/doors/<name>/ and
+    # add an entry here. "native" (the default kind, e.g. Usurper's
+    # own Linux port) or "dosbox" (a classic DOS door run under
+    # DOSBox-X, e.g. the Doorway DOS shell):
+    # doors:
+    #     - name: Usurper
+    #       exe: data/doors/usurper/USURPER.EXE
+    #       dir: data/doors/usurper
+    #       min_sl: 0
+    #     - name: DOS Shell (Doorway)
+    #       kind: dosbox
+    #       dosbox_dir: data/doors/doorway-dos
+    #       dosbox_launch_cmd: DOORWAY\DOORWAYU SYS /g:on /a:on /m:100 /v:d^U /s:{dropfile_dir} /c:dos
+    #       min_sl: 200   # drops the caller into a real DOS shell -- keep this sysop-only
 binkp:
     uplinks: []
     # Each uplink (also settable via the web Settings page, including
