@@ -6,26 +6,20 @@ name: nullmodem
 # want running need to be started (e.g. skip mailer if this system
 # isn't on FidoNet/fsxNet).
 #
-# Only bbs.yaml/web.yaml are bind-mounted, as individual files, not
-# the whole configs/ directory: they're real per-deployment runtime
-# state (bbs.yaml is gitignored -- the web admin Settings page can
-# write a live BinkP uplink password into it), unlike configs/menus
-# and configs/screens, which are versioned code assets baked into the
-# image by the Dockerfile. Bind-mounting the whole directory used to
-# shadow the image's own menus/screens with whatever was on the host
-# from an earlier deploy, silently undoing any screen/menu change a
-# new image shipped -- exactly the kind of drift versioned image tags
-# (see docs/docker.md) are meant to prevent.
-#
-# data/ is a bind mount, not a named volume, so a sysop can manage its
-# contents directly from the host -- installing a door (see
-# docs/adding-a-door.md) is just copying files into ./data/doors/,
-# no `docker cp`/`docker exec` needed. The container runs as root by
-# default (see Dockerfile), so PUID/PGID below make it write those
-# files as your own host user instead of root -- set them in a .env
-# file next to this one, or export before `docker compose up`:
-#   echo "PUID=$(id -u)" >> .env
-#   echo "PGID=$(id -g)" >> .env
+# bbs.yaml/web.yaml are bind-mounted as individual files: real
+# per-deployment runtime state (bbs.yaml is gitignored -- the web
+# admin Settings page can write a live BinkP uplink password into it).
+# configs/menus and configs/screens are bind-mounted as whole
+# directories instead: they ship with defaults baked into the image,
+# but are also runtime-editable (the web admin's ANSI Designer writes
+# .ans files straight back into configs/screens -- see
+# internal/web/screens_handler.go), so a sysop's customizations need
+# to survive a container recreate/image update the same way data/
+# does. docker-entrypoint.sh seeds these two directories from the
+# image's own defaults on startup without ever overwriting a file
+# that's already there, so an empty/fresh bind mount still gets a
+# working set on first run, and a later image adding a new default
+# screen doesn't clobber one a sysop already customized.
 services:
   bbs:
     build: .
@@ -37,6 +31,8 @@ services:
       - "2222:2222" # ssh
     volumes:
       - ./configs/bbs.yaml:/app/configs/bbs.yaml
+      - ./configs/menus:/app/configs/menus
+      - ./configs/screens:/app/configs/screens
       - ./data:/app/data
     restart: unless-stopped
 
@@ -60,5 +56,18 @@ services:
     volumes:
       - ./configs/bbs.yaml:/app/configs/bbs.yaml
       - ./configs/web.yaml:/app/configs/web.yaml
+      - ./configs/menus:/app/configs/menus
+      - ./configs/screens:/app/configs/screens
       - ./data:/app/data
     restart: unless-stopped
+
+# data/ is a bind mount, not a named volume, so a sysop can manage its
+# contents directly from the host -- installing a door (see
+# docs/adding-a-door.md) is just copying files into ./data/doors/,
+# no `docker cp`/`docker exec` needed. The container runs as root by
+# default (see Dockerfile), so PUID/PGID above make it write those
+# files (and seeded configs/menus, configs/screens) as your own host
+# user instead of root -- set them in a .env file next to this one, or
+# export before `docker compose up`:
+#   echo "PUID=$(id -u)" >> .env
+#   echo "PGID=$(id -g)" >> .env

@@ -49,17 +49,29 @@ RUN apt-get update && \
 WORKDIR /app
 COPY --from=go-build /out/bbs /out/mailer /out/web ./bin/
 COPY --from=web-build /src/web/build ./web/build
-COPY configs/menus ./configs/menus
-COPY configs/screens ./configs/screens
+COPY docker-entrypoint.sh ./
+
+# configs/menus and configs/screens are versioned code but also
+# runtime-editable: the web admin's ANSI Designer (see
+# internal/web/screens_handler.go) writes .ans files straight back
+# into configs/screens, and a sysop can hand-edit configs/menus too --
+# both need to survive a container recreate the same way data/ does,
+# so docker-compose.yml bind-mounts them as directories. They're
+# baked in here only as a reference copy under configs-defaults/, and
+# docker-entrypoint.sh seeds the real (bind-mounted) configs/menus and
+# configs/screens from it on startup without ever overwriting a file
+# that's already there -- see that script's own doc comment for why.
+COPY configs/menus ./configs-defaults/menus
+COPY configs/screens ./configs-defaults/screens
 
 # configs/bbs.yaml and configs/web.yaml are gitignored (real secrets --
 # BinkP uplink passwords, JWT signing key path) and so aren't baked
-# into the image; bind-mount a configs/ directory over this one (see
-# docker-compose.yml, and configs/bbs.yaml.example to start from) or
-# every daemon below falls back to its own built-in defaults. data/ is
-# a volume for the same reason -- SQLite database, SSH host key,
-# uploaded files, and door installs (see docs/adding-a-door.md) all
-# need to survive a container recreate.
+# into the image; bind-mount them individually (see docker-compose.yml,
+# and configs/bbs.yaml.example to start from) or every daemon below
+# falls back to its own built-in defaults. data/ is a volume for the
+# same reason -- SQLite database, SSH host key, uploaded files, and
+# door installs (see docs/adding-a-door.md) all need to survive a
+# container recreate.
 VOLUME ["/app/data"]
 
 # Doors run under DOSBox-X headlessly (SDL_VIDEODRIVER=dummy) -- see
@@ -70,8 +82,10 @@ ENV SDL_VIDEODRIVER=dummy
 
 EXPOSE 2323 2222 8090 24554
 
-# No single ENTRYPOINT: cmd/bbs, cmd/mailer, and cmd/web are three
-# independent daemons meant to run as separate containers/services
-# sharing this same image (see cmd/mailer/main.go's own doc comment,
-# and docker-compose.yml) -- pick one per service with `command:`.
+# ENTRYPOINT only runs the seed step above and then execs whatever
+# command was given -- cmd/bbs, cmd/mailer, and cmd/web are still
+# three independent daemons meant to run as separate containers/
+# services sharing this same image (see cmd/mailer/main.go's own doc
+# comment, and docker-compose.yml), picked with `command:` per service.
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["./bin/bbs"]

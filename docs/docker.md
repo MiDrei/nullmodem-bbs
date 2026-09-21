@@ -25,17 +25,32 @@ them as three separate OS processes on bare metal.
 `configs/bbs.yaml` is gitignored (the web admin Settings page can
 write a live BinkP uplink password into it) and so isn't baked into
 the image; `configs/web.yaml` is tracked but still deployment-
-specific. `docker-compose.yml` bind-mounts just these two files
-individually (`./configs/bbs.yaml`, `./configs/web.yaml`), not the
-whole `configs/` directory -- `configs/menus` and `configs/screens`
-are versioned code assets the Dockerfile bakes into the image, and
-bind-mounting the whole directory would shadow them with whatever
-happened to be on the host, silently undoing a menu/screen change a
-newer image shipped. Without a real `bbs.yaml` there, every daemon
-just falls back to its own built-in defaults (same as running the
-binaries directly) -- copy `configs/bbs.yaml.example` to get started,
-and note a *file* bind mount needs the source file to already exist,
-or Docker creates an empty directory there instead.
+specific. `docker-compose.yml` bind-mounts each individually
+(`./configs/bbs.yaml`, `./configs/web.yaml`) -- without a real
+`bbs.yaml` there, every daemon just falls back to its own built-in
+defaults (same as running the binaries directly). Copy
+`configs/bbs.yaml.example` to get started, and note a *file* bind
+mount needs the source file to already exist, or Docker creates an
+empty directory there instead.
+
+`configs/menus` and `configs/screens` are bind-mounted too, but as
+whole directories, and for a different reason than bbs.yaml: they
+ship with working defaults baked into the image (`configs-defaults/`
+inside the container), but the web admin's ANSI Designer writes .ans
+files straight back into `configs/screens` at runtime (see
+`internal/web/screens_handler.go`), and a sysop can hand-edit
+`configs/menus` too -- both need to survive a container recreate or
+image update the same way `data/` does, or a redeploy would silently
+wipe a sysop's customizations back to stock. `docker-entrypoint.sh`
+reconciles this on every startup: it copies each default file into
+the bind-mounted directory *only if a file by that name isn't already
+there* (`cp -rn`), so a first-ever run (empty bind mount) gets the
+full default set, a later image that adds a new default screen adds
+just that one file, and anything a sysop already customized is never
+touched. A fresh checkout's `configs/menus`/`configs/screens` (used
+for local, non-Docker runs) are the same files this seeding starts
+from -- see `internal/bbs`'s own doc comments for how the plain
+binaries load them.
 
 `data/` (SQLite database, SSH host key, JWT signing key, uploaded
 files, and any door installs -- see `docs/adding-a-door.md`) is also
@@ -102,11 +117,13 @@ docker buildx build --platform linux/amd64,linux/arm64 -t nullmodem-bbs:latest .
 
 ```sh
 docker build -t nullmodem-bbs .
-mkdir -p data
+mkdir -p data configs/menus configs/screens
 docker run -d --name nullmodem-bbs \
     -p 2323:2323 -p 2222:2222 \
     --user "$(id -u):$(id -g)" \
     -v "$PWD/configs/bbs.yaml:/app/configs/bbs.yaml" \
+    -v "$PWD/configs/menus:/app/configs/menus" \
+    -v "$PWD/configs/screens:/app/configs/screens" \
     -v "$PWD/data:/app/data" \
     nullmodem-bbs ./bin/bbs
 ```
@@ -114,7 +131,9 @@ docker run -d --name nullmodem-bbs \
 Swap the last line's `./bin/bbs` for `./bin/mailer` or `./bin/web`
 (with that service's own ports, and `web` also needs
 `-v "$PWD/configs/web.yaml:/app/configs/web.yaml"`) to run the other
-two daemons the same way.
+two daemons the same way; `mailer` doesn't serve the BBS UI or
+Designer, so it doesn't need the `configs/menus`/`configs/screens`
+mounts at all.
 
 ## Versioned image tags
 
