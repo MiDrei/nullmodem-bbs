@@ -75,9 +75,19 @@ func ToHTML(raw string) string {
 
 	openSpan := func() {
 		fg, bg := state.colors()
-		styles := []string{
-			"color:" + dosPalette[fg],
-			"background-color:" + dosPalette[bg],
+		styles := []string{"color:" + dosPalette[fg]}
+		// bg 0 (black) is the CP437 terminal default -- omitted rather
+		// than styled explicitly so a caller's own background shows
+		// through (matches a real terminal, which paints black by
+		// simply not drawing anything). Emitting it unconditionally
+		// looked fine only by coincidence for callers whose container
+		// already happens to be pure black (the screens designer
+		// preview's bg-black box); rendered inside anything else --
+		// confirmed live for the BBS portal reader's prose view, a
+		// translucent slate panel -- every span showed as a visibly
+		// mismatched black rectangle behind the text.
+		if bg != 0 {
+			styles = append(styles, "background-color:"+dosPalette[bg])
 		}
 		if state.underline {
 			styles = append(styles, "text-decoration:underline")

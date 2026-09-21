@@ -70,6 +70,7 @@ func main() {
 		EchoAreafix:   areafix.NewEchoStore(sqlDB),
 		FileAreafix:   areafix.NewFileStore(sqlDB),
 		BBSConfigPath: cfg.BBSConfigPath,
+		FTNAddress:    bbsCfg.PrimaryFTNAddress(),
 		JWTSecret:     secret,
 		StaticDir:     cfg.StaticDir,
 	}

@@ -1,6 +1,11 @@
-// Package web implements the BBS admin REST API: JWT-authenticated
-// sysop login and BBS configuration editing, plus serving the built
-// SvelteKit admin UI.
+// Package web implements two REST APIs sharing one daemon and one
+// built SvelteKit SPA (see web/src/routes/admin and
+// web/src/routes/(portal)): a JWT-authenticated sysop admin API
+// (BBS configuration editing, area/user management, the ANSI screen
+// designer) under /api/..., and a JWT-authenticated BBS user portal
+// API (reading/posting echomail, netmail, file browsing/download)
+// under /api/bbs/..., open to any registered account rather than
+// sysop-only (see requireAuth vs requireBBSUser in auth.go).
 package web
 
 import (
@@ -29,8 +34,16 @@ type Server struct {
 	EchoAreafix   *areafix.EchoStore
 	FileAreafix   *areafix.FileStore
 	BBSConfigPath string
-	JWTSecret     []byte
-	StaticDir     string
+	// FTNAddress is this system's own primary FTN address (see
+	// config.Config.PrimaryFTNAddress), stamped on netmail the BBS
+	// portal's caller composes -- same one internal/bbs's own Server
+	// uses, cached at startup the same way (a config change via the
+	// admin Settings page needs a daemon restart to take effect here,
+	// consistent with how the rest of this project already treats
+	// config reloading).
+	FTNAddress string
+	JWTSecret  []byte
+	StaticDir  string
 }
 
 // logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
@@ -96,6 +109,24 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/menus/{name}/items/{key}", s.requireAuth(http.HandlerFunc(s.handleSetMenuItemSL)))
 
 	mux.Handle("GET /api/logs", s.requireAuth(http.HandlerFunc(s.handleListLogs)))
+
+	// BBS user portal: open to any registered account, gated per
+	// endpoint/area (see requireBBSUser's own doc comment), not just
+	// sysop-level ones.
+	mux.HandleFunc("POST /api/bbs/auth/login", s.handleBBSLogin)
+	mux.Handle("GET /api/bbs/message-areas", s.requireBBSUser(http.HandlerFunc(s.handleListBBSMessageAreas)))
+	mux.Handle("GET /api/bbs/message-areas/{id}/messages", s.requireBBSUser(http.HandlerFunc(s.handleListBBSMessages)))
+	mux.Handle("POST /api/bbs/message-areas/{id}/messages", s.requireBBSUser(http.HandlerFunc(s.handlePostBBSMessage)))
+	mux.Handle("GET /api/bbs/message-areas/{id}/first-unread", s.requireBBSUser(http.HandlerFunc(s.handleFirstUnreadMessagePosition)))
+	mux.Handle("GET /api/bbs/messages/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSMessage)))
+	mux.Handle("GET /api/bbs/netmail", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmail)))
+	mux.Handle("POST /api/bbs/netmail", s.requireBBSUser(http.HandlerFunc(s.handleSendBBSNetmail)))
+	mux.Handle("GET /api/bbs/netmail/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSNetmail)))
+	mux.Handle("DELETE /api/bbs/netmail/{id}", s.requireBBSUser(http.HandlerFunc(s.handleDeleteBBSNetmail)))
+	mux.Handle("GET /api/bbs/file-areas", s.requireBBSUser(http.HandlerFunc(s.handleListBBSFileAreas)))
+	mux.Handle("GET /api/bbs/file-areas/{id}/files", s.requireBBSUser(http.HandlerFunc(s.handleListBBSAreaFiles)))
+	mux.Handle("POST /api/bbs/file-areas/{id}/files", s.requireBBSUser(http.HandlerFunc(s.handleUploadBBSAreaFile)))
+	mux.Handle("GET /api/bbs/files/{id}/download", s.requireBBSUser(http.HandlerFunc(s.handleDownloadBBSFile)))
 
 	if s.StaticDir != "" {
 		if _, err := os.Stat(s.StaticDir); err == nil {

@@ -734,3 +734,143 @@ func TestPendingOutboundEchoEmptyNetworkMatchesNothing(t *testing.T) {
 		t.Fatalf("PendingOutboundEcho(\"\") = %+v, want empty even though the area's own network is also \"\"", pending)
 	}
 }
+
+func TestNeighborsWalksAreaInPostedOrder(t *testing.T) {
+	s, users := newTestStore(t)
+	u, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+
+	var ids []int64
+	for i := 0; i < 3; i++ {
+		m, err := s.PostMessage(area.ID, u.ID, "All", "subject", "body")
+		if err != nil {
+			t.Fatalf("PostMessage: %v", err)
+		}
+		ids = append(ids, m.ID)
+	}
+
+	// First message: no before, next is the second.
+	first, err := s.MessageByID(ids[0])
+	if err != nil {
+		t.Fatalf("MessageByID: %v", err)
+	}
+	before, after, err := s.Neighbors(area.ID, first.ID)
+	if err != nil {
+		t.Fatalf("Neighbors: %v", err)
+	}
+	if before != nil {
+		t.Fatalf("before first message = %v, want nil", *before)
+	}
+	if after == nil || *after != ids[1] {
+		t.Fatalf("after first message = %v, want %d", after, ids[1])
+	}
+
+	// Middle message: before is the first, after is the third.
+	mid, err := s.MessageByID(ids[1])
+	if err != nil {
+		t.Fatalf("MessageByID: %v", err)
+	}
+	before, after, err = s.Neighbors(area.ID, mid.ID)
+	if err != nil {
+		t.Fatalf("Neighbors: %v", err)
+	}
+	if before == nil || *before != ids[0] {
+		t.Fatalf("before middle message = %v, want %d", before, ids[0])
+	}
+	if after == nil || *after != ids[2] {
+		t.Fatalf("after middle message = %v, want %d", after, ids[2])
+	}
+
+	// Last message: before is the second, no after.
+	last, err := s.MessageByID(ids[2])
+	if err != nil {
+		t.Fatalf("MessageByID: %v", err)
+	}
+	before, after, err = s.Neighbors(area.ID, last.ID)
+	if err != nil {
+		t.Fatalf("Neighbors: %v", err)
+	}
+	if before == nil || *before != ids[1] {
+		t.Fatalf("before last message = %v, want %d", before, ids[1])
+	}
+	if after != nil {
+		t.Fatalf("after last message = %v, want nil", *after)
+	}
+}
+
+func TestFirstUnreadPosition(t *testing.T) {
+	s, users := newTestStore(t)
+	author, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	reader, err := users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := s.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+
+	// Empty area: position 0.
+	pos, err := s.FirstUnreadPosition(area.ID, reader.ID)
+	if err != nil {
+		t.Fatalf("FirstUnreadPosition (empty): %v", err)
+	}
+	if pos != 0 {
+		t.Fatalf("empty area position = %d, want 0", pos)
+	}
+
+	var ids []int64
+	for i := 0; i < 5; i++ {
+		m, err := s.PostMessage(area.ID, author.ID, "All", "subject", "body")
+		if err != nil {
+			t.Fatalf("PostMessage: %v", err)
+		}
+		ids = append(ids, m.ID)
+	}
+
+	// Nothing read yet: first unread is the very first message (position 0).
+	pos, err = s.FirstUnreadPosition(area.ID, reader.ID)
+	if err != nil {
+		t.Fatalf("FirstUnreadPosition: %v", err)
+	}
+	if pos != 0 {
+		t.Fatalf("position with nothing read = %d, want 0", pos)
+	}
+
+	// Read the first three -- first unread is now the 4th message (position 3).
+	for _, id := range ids[:3] {
+		if err := s.MarkMessageRead(reader.ID, id); err != nil {
+			t.Fatalf("MarkMessageRead: %v", err)
+		}
+	}
+	pos, err = s.FirstUnreadPosition(area.ID, reader.ID)
+	if err != nil {
+		t.Fatalf("FirstUnreadPosition: %v", err)
+	}
+	if pos != 3 {
+		t.Fatalf("position after reading first 3 = %d, want 3", pos)
+	}
+
+	// Read everything: falls back to the last message (position 4).
+	for _, id := range ids[3:] {
+		if err := s.MarkMessageRead(reader.ID, id); err != nil {
+			t.Fatalf("MarkMessageRead: %v", err)
+		}
+	}
+	pos, err = s.FirstUnreadPosition(area.ID, reader.ID)
+	if err != nil {
+		t.Fatalf("FirstUnreadPosition: %v", err)
+	}
+	if pos != 4 {
+		t.Fatalf("position with everything read = %d, want 4 (last message)", pos)
+	}
+}

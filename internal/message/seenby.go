@@ -7,6 +7,46 @@ import (
 	"strings"
 )
 
+// StripSeenByAndPathForDisplay hides trailing SEEN-BY and PATH lines
+// (FTS-0004 echomail routing/dupe-detection metadata that every
+// tosser along the way appends -- a real message can carry a dozen or
+// more SEEN-BY lines) from a reader. Unlike those, the tearline
+// ("--- ...") and origin line ("* Origin: ...") directly above them
+// are left alone: real BBS software shows those as the message's
+// visible attribution footer, only SEEN-BY/PATH are meant for
+// tossers, never readers. Also absorbs any blank line left dangling
+// between that footer and the hidden block. A body with neither is
+// returned unchanged. Shared by internal/bbs's own Telnet/SSH reader
+// and internal/web's BBS portal equivalent, so the two don't drift.
+//
+// This only affects display -- internal/tosser stores the full body,
+// SEEN-BY/PATH included, so a sysop tracing a routing/dupe problem
+// can still get at it (e.g. straight from the database) rather than
+// it being destroyed the moment a message is tossed.
+func StripSeenByAndPathForDisplay(body string) string {
+	lines := strings.Split(body, "\n")
+	end := len(lines)
+	for end > 0 {
+		line := strings.TrimSpace(lines[end-1])
+		if line == "" {
+			end--
+			continue
+		}
+		// PATH is commonly \x01-kludged even though SEEN-BY isn't --
+		// strip that leading control byte before matching the prefix,
+		// or it never matches and the whole block (SEEN-BY lines
+		// included, since the scan works backward and stops at PATH)
+		// is left showing.
+		upper := strings.ToUpper(strings.TrimPrefix(line, "\x01"))
+		if strings.HasPrefix(upper, "SEEN-BY:") || strings.HasPrefix(upper, "PATH:") {
+			end--
+			continue
+		}
+		break
+	}
+	return strings.Join(lines[:end], "\n")
+}
+
 // NetNode formats an FTN net/node pair the way FTS-0004's SEEN-BY
 // lines conventionally write one -- zone and point are deliberately
 // dropped: SEEN-BY entries are assumed to share the message's own

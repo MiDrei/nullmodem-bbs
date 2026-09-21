@@ -32,36 +32,9 @@ func mergeNetmailByPostedAt(a, b []netmail.Message) []netmail.Message {
 	return merged
 }
 
-// isFTNAddress is a cheap heuristic -- not full FTN validation -- for
-// telling "the caller typed a local username" apart from "the caller
-// typed a FidoNet routing address" (zone:net/node[.point], e.g.
-// "1:234/56" or "1:234/56.1") when resolving a netmail recipient.
-func isFTNAddress(s string) bool {
-	zoneRest := strings.SplitN(s, ":", 2)
-	if len(zoneRest) != 2 {
-		return false
-	}
-	if _, err := strconv.Atoi(zoneRest[0]); err != nil {
-		return false
-	}
-	netNode := strings.SplitN(zoneRest[1], "/", 2)
-	if len(netNode) != 2 {
-		return false
-	}
-	if _, err := strconv.Atoi(netNode[0]); err != nil {
-		return false
-	}
-	nodePoint := strings.SplitN(netNode[1], ".", 2)
-	if _, err := strconv.Atoi(nodePoint[0]); err != nil {
-		return false
-	}
-	if len(nodePoint) == 2 {
-		if _, err := strconv.Atoi(nodePoint[1]); err != nil {
-			return false
-		}
-	}
-	return true
-}
+// isFTNAddress is internal/netmail.IsFTNAddress under the name this
+// file's other code already uses.
+var isFTNAddress = netmail.IsFTNAddress
 
 // unresolvedNetmailLimit bounds how many of the most recent
 // unresolved-recipient messages (see netmail.Store.UnresolvedInbox)

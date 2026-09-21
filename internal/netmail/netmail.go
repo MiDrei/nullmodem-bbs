@@ -14,7 +14,10 @@ package netmail
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -347,4 +350,76 @@ func (s *Store) Delete(messageID int64) error {
 		return fmt.Errorf("netmail: delete %d: %w", messageID, err)
 	}
 	return nil
+}
+
+// Neighbors returns the IDs of the messages immediately before and
+// after id within userID's own inbox, in the same newest-first order
+// Inbox uses -- see message.Store.Neighbors, which this mirrors (for
+// the web BBS portal reader's Prev/Next navigation) including why the
+// (posted_at, id) comparisons run entirely in SQL against id's own
+// stored row rather than a Go-side time.Time parameter, just with
+// Inbox's reversed sort direction: "before" in list order here means
+// newer (larger posted_at/id), "after" means older.
+func (s *Store) Neighbors(userID, id int64) (before, after *int64, err error) {
+	var b int64
+	switch err := s.db.QueryRow(
+		`SELECT id FROM netmail_messages WHERE to_user_id = ?
+		 AND (posted_at, id) > (SELECT posted_at, id FROM netmail_messages WHERE id = ?)
+		 ORDER BY posted_at ASC, id ASC LIMIT 1`,
+		userID, id,
+	).Scan(&b); {
+	case err == nil:
+		before = &b
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return nil, nil, fmt.Errorf("netmail: neighbors before %d: %w", id, err)
+	}
+
+	var a int64
+	switch err := s.db.QueryRow(
+		`SELECT id FROM netmail_messages WHERE to_user_id = ?
+		 AND (posted_at, id) < (SELECT posted_at, id FROM netmail_messages WHERE id = ?)
+		 ORDER BY posted_at DESC, id DESC LIMIT 1`,
+		userID, id,
+	).Scan(&a); {
+	case err == nil:
+		after = &a
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return nil, nil, fmt.Errorf("netmail: neighbors after %d: %w", id, err)
+	}
+	return before, after, nil
+}
+
+// IsFTNAddress is a cheap heuristic -- not full FTN validation -- for
+// telling "the caller typed a local username" apart from "the caller
+// typed a FidoNet routing address" (zone:net/node[.point], e.g.
+// "1:234/56" or "1:234/56.1") when resolving a netmail recipient.
+// Shared by internal/bbs's own Netmail compose flow and internal/web's
+// BBS-portal equivalent, so the two don't drift.
+func IsFTNAddress(s string) bool {
+	zoneRest := strings.SplitN(s, ":", 2)
+	if len(zoneRest) != 2 {
+		return false
+	}
+	if _, err := strconv.Atoi(zoneRest[0]); err != nil {
+		return false
+	}
+	netNode := strings.SplitN(zoneRest[1], "/", 2)
+	if len(netNode) != 2 {
+		return false
+	}
+	if _, err := strconv.Atoi(netNode[0]); err != nil {
+		return false
+	}
+	nodePoint := strings.SplitN(netNode[1], ".", 2)
+	if _, err := strconv.Atoi(nodePoint[0]); err != nil {
+		return false
+	}
+	if len(nodePoint) == 2 {
+		if _, err := strconv.Atoi(nodePoint[1]); err != nil {
+			return false
+		}
+	}
+	return true
 }

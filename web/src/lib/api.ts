@@ -120,6 +120,8 @@ export interface BBSFile {
 	uploaded_by: string;
 	uploaded_at: string;
 	download_count: number;
+	/** Only present from the BBS portal's file listing (see listBBSAreaFiles), not the sysop admin one. */
+	unread?: boolean;
 }
 
 export interface MenuItem {
@@ -552,4 +554,222 @@ export function listLogs(token: string, afterId?: number, limit = 200): Promise<
 	if (afterId !== undefined) params.set('after_id', String(afterId));
 	else params.set('limit', String(limit));
 	return request<LogEntry[]>(`/api/logs?${params}`, { method: 'GET' }, token);
+}
+
+// ---------------------------------------------------------------------
+// BBS user portal (routes/(portal)/*) -- separate login/endpoints from
+// the sysop admin API above (see internal/web/auth.go's
+// handleBBSLogin/requireBBSUser), open to any registered account.
+// ---------------------------------------------------------------------
+
+export interface BBSMessageArea {
+	id: number;
+	tag: string;
+	name: string;
+	network: string;
+	min_sl_read: number;
+	min_sl_write: number;
+	total: number;
+	new: number;
+	yours: number;
+}
+
+export interface BBSMessageSummary {
+	id: number;
+	from_name: string;
+	to_name: string;
+	subject: string;
+	posted_at: string;
+	unread: boolean;
+}
+
+export interface BBSMessagePage {
+	messages: BBSMessageSummary[];
+	total: number;
+	limit: number;
+	offset: number;
+}
+
+export interface BBSMessage {
+	id: number;
+	area_id: number;
+	from_name: string;
+	to_name: string;
+	subject: string;
+	body: string;
+	body_html: string;
+	/** Real ANSI art or aligned block art -- render grid via AnsiArt.svelte instead of body_html (see its own doc comment for why); an ordinary message reads better as normal prose instead. */
+	preformatted: boolean;
+	/** Only set when preformatted is true. */
+	grid?: Grid;
+	posted_at: string;
+	/** The message immediately before/after this one in the area's own reading order, for Prev/Next reader navigation -- absent at the first/last message. */
+	prev_id?: number;
+	next_id?: number;
+}
+
+export interface BBSNetmailSummary {
+	id: number;
+	from_name: string;
+	to_name: string;
+	subject: string;
+	posted_at: string;
+	unread: boolean;
+	from_local: boolean;
+}
+
+export interface BBSNetmail {
+	id: number;
+	from_name: string;
+	from_address: string;
+	to_name: string;
+	to_address: string;
+	subject: string;
+	body: string;
+	body_html: string;
+	/** See BBSMessage.preformatted. */
+	preformatted: boolean;
+	/** See BBSMessage.grid. */
+	grid?: Grid;
+	posted_at: string;
+	/** See BBSMessage.prev_id/next_id -- within the caller's own inbox instead of an area. */
+	prev_id?: number;
+	next_id?: number;
+}
+
+export interface BBSFileArea {
+	id: number;
+	tag: string;
+	name: string;
+	network: string;
+	min_sl_download: number;
+	min_sl_upload: number;
+	total: number;
+	new: number;
+	yours: number;
+}
+
+export function bbsLogin(username: string, password: string): Promise<LoginResponse> {
+	return request<LoginResponse>('/api/bbs/auth/login', {
+		method: 'POST',
+		body: JSON.stringify({ username, password })
+	});
+}
+
+export function listBBSMessageAreas(token: string): Promise<BBSMessageArea[]> {
+	return request<BBSMessageArea[]>('/api/bbs/message-areas', { method: 'GET' }, token);
+}
+
+export function listBBSMessages(
+	token: string,
+	areaId: number,
+	limit: number,
+	offset: number
+): Promise<BBSMessagePage> {
+	const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+	return request<BBSMessagePage>(
+		`/api/bbs/message-areas/${areaId}/messages?${params}`,
+		{ method: 'GET' },
+		token
+	);
+}
+
+/** Where (0-based, oldest-first) the caller should jump to on entering areaId -- see internal/message.Store.FirstUnreadPosition. Divide by your own page size to know which page to open. */
+export function getFirstUnreadMessagePosition(token: string, areaId: number): Promise<{ position: number }> {
+	return request(`/api/bbs/message-areas/${areaId}/first-unread`, { method: 'GET' }, token);
+}
+
+export function getBBSMessage(token: string, id: number): Promise<BBSMessage> {
+	return request<BBSMessage>(`/api/bbs/messages/${id}`, { method: 'GET' }, token);
+}
+
+export function postBBSMessage(
+	token: string,
+	areaId: number,
+	toName: string,
+	subject: string,
+	body: string
+): Promise<BBSMessage> {
+	return request<BBSMessage>(
+		`/api/bbs/message-areas/${areaId}/messages`,
+		{ method: 'POST', body: JSON.stringify({ to_name: toName, subject, body }) },
+		token
+	);
+}
+
+export function listBBSNetmail(token: string): Promise<BBSNetmailSummary[]> {
+	return request<BBSNetmailSummary[]>('/api/bbs/netmail', { method: 'GET' }, token);
+}
+
+export function getBBSNetmail(token: string, id: number): Promise<BBSNetmail> {
+	return request<BBSNetmail>(`/api/bbs/netmail/${id}`, { method: 'GET' }, token);
+}
+
+export function sendBBSNetmail(
+	token: string,
+	to: string,
+	subject: string,
+	body: string,
+	crash = false
+): Promise<BBSNetmail> {
+	return request<BBSNetmail>(
+		'/api/bbs/netmail',
+		{ method: 'POST', body: JSON.stringify({ to, subject, body, crash }) },
+		token
+	);
+}
+
+export function deleteBBSNetmail(token: string, id: number): Promise<void> {
+	return request<void>(`/api/bbs/netmail/${id}`, { method: 'DELETE' }, token);
+}
+
+export function listBBSFileAreas(token: string): Promise<BBSFileArea[]> {
+	return request<BBSFileArea[]>('/api/bbs/file-areas', { method: 'GET' }, token);
+}
+
+export function listBBSAreaFiles(token: string, areaId: number): Promise<BBSFile[]> {
+	return request<BBSFile[]>(`/api/bbs/file-areas/${areaId}/files`, { method: 'GET' }, token);
+}
+
+export function uploadBBSAreaFile(
+	token: string,
+	areaId: number,
+	file: File,
+	description: string
+): Promise<BBSFile> {
+	const form = new FormData();
+	form.set('file', file);
+	form.set('description', description);
+	return requestForm<BBSFile>(`/api/bbs/file-areas/${areaId}/files`, form, token);
+}
+
+// downloadBBSFile fetches the file with the portal's Bearer token
+// (a plain <a href> can't attach an Authorization header) and hands
+// the browser a synthetic download via an object URL -- the only
+// part of this API that can't just be a real link, since every other
+// BBS portal endpoint the download route sits alongside requires the
+// same bearer auth the rest of the app already uses.
+export async function downloadBBSFile(token: string, id: number, filename: string): Promise<void> {
+	const res = await fetch(`/api/bbs/files/${id}/download`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	if (!res.ok) {
+		let message = res.statusText;
+		try {
+			const body = await res.json();
+			if (body?.error) message = body.error;
+		} catch {
+			// response body wasn't JSON; fall back to statusText
+		}
+		throw new ApiError(res.status, message);
+	}
+	const blob = await res.blob();
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	URL.revokeObjectURL(url);
 }

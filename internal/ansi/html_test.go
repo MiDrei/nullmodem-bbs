@@ -7,7 +7,10 @@ import (
 
 func TestToHTMLPlainTextHasNoSpanForDefaultColors(t *testing.T) {
 	got := ToHTML("hi")
-	want := `<span style="color:#AAAAAA;background-color:#000000">hi</span>`
+	// bg 0 (black, the CP437 default) is omitted -- see openSpan's own
+	// doc comment for why: it's meant to mean "whatever the caller's
+	// own background already is," not literally force black.
+	want := `<span style="color:#AAAAAA">hi</span>`
 	if got != want {
 		t.Fatalf("ToHTML(%q) = %q, want %q", "hi", got, want)
 	}
@@ -15,7 +18,7 @@ func TestToHTMLPlainTextHasNoSpanForDefaultColors(t *testing.T) {
 
 func TestToHTMLAppliesBrightForegroundColor(t *testing.T) {
 	got := ToHTML("\x1b[1;36mhi\x1b[0m")
-	want := `<span style="color:#55FFFF;background-color:#000000">hi</span>`
+	want := `<span style="color:#55FFFF">hi</span>`
 	if got != want {
 		t.Fatalf("ToHTML = %q, want %q", got, want)
 	}
@@ -27,7 +30,7 @@ func TestToHTMLBrightAppliesRegardlessOfParamOrder(t *testing.T) {
 	if a != b {
 		t.Fatalf("param order changed output: %q vs %q", a, b)
 	}
-	if a != `<span style="color:#55FFFF;background-color:#000000">X</span>` {
+	if a != `<span style="color:#55FFFF">X</span>` {
 		t.Fatalf("unexpected bright cyan rendering: %q", a)
 	}
 }
@@ -35,7 +38,7 @@ func TestToHTMLBrightAppliesRegardlessOfParamOrder(t *testing.T) {
 func TestToHTMLHandlesBackgroundAndReset(t *testing.T) {
 	got := ToHTML("\x1b[44mA\x1b[0mB")
 	want := `<span style="color:#AAAAAA;background-color:#0000AA">A</span>` +
-		`<span style="color:#AAAAAA;background-color:#000000">B</span>`
+		`<span style="color:#AAAAAA">B</span>`
 	if got != want {
 		t.Fatalf("ToHTML = %q, want %q", got, want)
 	}
@@ -51,8 +54,8 @@ func TestToHTMLReverseSwapsForegroundAndBackground(t *testing.T) {
 
 func TestToHTMLConvertsCRLFToBreak(t *testing.T) {
 	got := ToHTML("a\r\nb")
-	want := `<span style="color:#AAAAAA;background-color:#000000">a</span><br>` +
-		`<span style="color:#AAAAAA;background-color:#000000">b</span>`
+	want := `<span style="color:#AAAAAA">a</span><br>` +
+		`<span style="color:#AAAAAA">b</span>`
 	if got != want {
 		t.Fatalf("ToHTML = %q, want %q", got, want)
 	}
@@ -77,7 +80,7 @@ func TestToHTMLDropsNonSGRCSISequences(t *testing.T) {
 	// \x1b[2J (clear screen) and \x1b[H (cursor home) carry no meaning
 	// in a static linear preview and must not appear or break output.
 	got := ToHTML("\x1b[2J\x1b[HHello")
-	want := `<span style="color:#AAAAAA;background-color:#000000">Hello</span>`
+	want := `<span style="color:#AAAAAA">Hello</span>`
 	if got != want {
 		t.Fatalf("ToHTML = %q, want %q", got, want)
 	}

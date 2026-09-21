@@ -1,0 +1,214 @@
+package web
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"testing"
+
+	"git.maik.ch/swissmaik/nullmodem/internal/user"
+)
+
+func loginAsBBSUser(t *testing.T, h http.Handler, username, password string) string {
+	t.Helper()
+	rec := doJSON(t, h, http.MethodPost, "/api/bbs/auth/login", map[string]string{
+		"username": username, "password": password,
+	}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("BBS login status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode BBS login response: %v", err)
+	}
+	return resp.Token
+}
+
+func TestBBSLoginAcceptsAnySecurityLevelButRejectsBadCreds(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	h := srv.Routes()
+
+	// Below sysop level -- the sysop admin login would reject this.
+	rec := doJSON(t, h, http.MethodPost, "/api/bbs/auth/login", map[string]string{
+		"username": "alice", "password": "password123",
+	}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("BBS login for a non-sysop status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, h, http.MethodPost, "/api/bbs/auth/login", map[string]string{
+		"username": "alice", "password": "wrong",
+	}, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("BBS login with bad password status = %d, want 401", rec.Code)
+	}
+}
+
+func TestBBSMessageAreasRespectMinSLRead(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	// Bootstrap a sysop first so alice (registered second) isn't
+	// auto-promoted by the first-user-becomes-sysop rule.
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	// "general" (seeded) has min_sl_read 0; add one alice can't read.
+	if _, err := srv.Messages.CreateArea("locked", "Locked Area", "", "", 200, 200); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, "/api/bbs/message-areas", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var areas []bbsMessageAreaDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &areas); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(areas) != 1 || areas[0].Tag != "general" {
+		t.Fatalf("areas = %+v, want just the seeded general area (locked area's min_sl_read excludes alice)", areas)
+	}
+}
+
+func TestBBSPostMessageRespectsMinSLWrite(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	// Bootstrap a sysop first so alice (registered second) isn't
+	// auto-promoted by the first-user-becomes-sysop rule.
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	area, err := srv.Messages.CreateArea("readonly", "Read Only", "", "", 0, 200)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	// Can't post: min_sl_write 200 > alice's SL 10.
+	path := fmt.Sprintf("/api/bbs/message-areas/%d/messages", area.ID)
+	rec := doJSON(t, h, http.MethodPost, path, map[string]string{
+		"subject": "Hi", "body": "hello",
+	}, token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("POST to a write-locked area status = %d, want 403, body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Can post to the seeded "general" area (min_sl_write 0).
+	generalAreas, _ := srv.Messages.AllAreas()
+	var generalID int64
+	for _, a := range generalAreas {
+		if a.Tag == "general" {
+			generalID = a.ID
+		}
+	}
+	path = fmt.Sprintf("/api/bbs/message-areas/%d/messages", generalID)
+	rec = doJSON(t, h, http.MethodPost, path, map[string]string{
+		"subject": "Hi", "body": "hello there",
+	}, token)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST to general status = %d, want 201, body=%s", rec.Code, rec.Body.String())
+	}
+	var created bbsMessageDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created: %v", err)
+	}
+	if created.FromName != "alice" || created.Subject != "Hi" || created.ToName != "All" {
+		t.Fatalf("created = %+v, want from_name=alice subject=Hi to_name=All", created)
+	}
+
+	// Reading it back marks it read and renders body_html.
+	getPath := fmt.Sprintf("/api/bbs/messages/%d", created.ID)
+	rec = doJSON(t, h, http.MethodGet, getPath, nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET message status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var got bbsMessageDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.BodyHTML == "" {
+		t.Fatal("body_html should not be empty")
+	}
+}
+
+func TestBBSPostMessageRoundTripsNonASCIIText(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	areas, _ := srv.Messages.AllAreas()
+	generalID := areas[0].ID
+	path := fmt.Sprintf("/api/bbs/message-areas/%d/messages", generalID)
+	const want = "Hallo von der neuen Web-Oberfläche! Grüße, äöüÄÖÜß"
+	rec := doJSON(t, h, http.MethodPost, path, map[string]string{
+		"subject": "Umlaut test", "body": want,
+	}, token)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("POST status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var created bbsMessageDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created: %v", err)
+	}
+	if created.Body != want {
+		t.Fatalf("created.Body = %q, want %q (CP437 round-trip must preserve non-ASCII text)", created.Body, want)
+	}
+
+	getPath := fmt.Sprintf("/api/bbs/messages/%d", created.ID)
+	rec = doJSON(t, h, http.MethodGet, getPath, nil, token)
+	var got bbsMessageDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Body != want {
+		t.Fatalf("re-fetched Body = %q, want %q", got.Body, want)
+	}
+}
+
+func TestBBSListMessagesPaginates(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	areas, _ := srv.Messages.AllAreas()
+	generalID := areas[0].ID
+	for i := 0; i < 5; i++ {
+		if _, err := srv.Messages.PostMessage(generalID, alice.ID, "All", fmt.Sprintf("Subject %d", i), "body"); err != nil {
+			t.Fatalf("PostMessage: %v", err)
+		}
+	}
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	path := fmt.Sprintf("/api/bbs/message-areas/%d/messages?limit=2&offset=1", generalID)
+	rec := doJSON(t, h, http.MethodGet, path, nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var page bbsMessagePageDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if page.Total != 5 || len(page.Messages) != 2 || page.Messages[0].Subject != "Subject 1" {
+		t.Fatalf("page = %+v, want total=5 len=2 first subject=Subject 1", page)
+	}
+}

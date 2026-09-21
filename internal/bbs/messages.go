@@ -633,44 +633,9 @@ func (s *Server) renderMessageReaderHeader(term *Terminal, area *message.Area, i
 	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
-// stripSeenByAndPathForDisplay hides trailing SEEN-BY and PATH lines
-// (FTS-0004 echomail routing/dupe-detection metadata that every
-// tosser along the way appends -- a real message can carry a dozen or
-// more SEEN-BY lines) from the reader. Unlike those, the tearline
-// ("--- ...") and origin line ("* Origin: ...") directly above them
-// are left alone: real BBS software shows those as the message's
-// visible attribution footer, only SEEN-BY/PATH are meant for
-// tossers, never readers. Also absorbs any blank line left dangling
-// between that footer and the hidden block. A body with neither is
-// returned unchanged.
-//
-// This only affects display -- internal/tosser stores the full body,
-// SEEN-BY/PATH included, so a sysop tracing a routing/dupe problem
-// can still get at it (e.g. straight from the database) rather than
-// it being destroyed the moment a message is tossed.
-func stripSeenByAndPathForDisplay(body string) string {
-	lines := strings.Split(body, "\n")
-	end := len(lines)
-	for end > 0 {
-		line := strings.TrimSpace(lines[end-1])
-		if line == "" {
-			end--
-			continue
-		}
-		// PATH is commonly \x01-kludged even though SEEN-BY isn't --
-		// strip that leading control byte before matching the prefix,
-		// or it never matches and the whole block (SEEN-BY lines
-		// included, since the scan works backward and stops at PATH)
-		// is left showing.
-		upper := strings.ToUpper(strings.TrimPrefix(line, "\x01"))
-		if strings.HasPrefix(upper, "SEEN-BY:") || strings.HasPrefix(upper, "PATH:") {
-			end--
-			continue
-		}
-		break
-	}
-	return strings.Join(lines[:end], "\n")
-}
+// stripSeenByAndPathForDisplay is message.StripSeenByAndPathForDisplay
+// under the name this file's other code already uses.
+var stripSeenByAndPathForDisplay = message.StripSeenByAndPathForDisplay
 
 // drawMessageReader redraws the full reader screen for msgs[idx]: the
 // header banner, the From/To/Subject/Date metadata block (its own

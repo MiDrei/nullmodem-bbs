@@ -545,6 +545,135 @@ func (s *Store) ListMessages(areaID int64) ([]Message, error) {
 	return messages, nil
 }
 
+// FirstUnreadPosition returns the 0-based position, in the area's own
+// oldest-first order, of the first message userID hasn't read yet --
+// mirrors internal/bbs's own firstUnreadIndex, which jumps the
+// Telnet/SSH area lightbar straight there on entry instead of always
+// landing on the oldest message ever posted, so the web BBS portal's
+// paginated list (see ListMessagesPage) can compute which page to
+// open on too. Falls back to the position of the newest (last)
+// message once everything is already read, and 0 for an empty area.
+//
+// The position-counting query compares directly against the first
+// unread row's own stored (posted_at, id) via a subquery, the same
+// way Neighbors does and for the same reason: a Go-side time.Time
+// bound as a separate parameter doesn't reliably compare against
+// CURRENT_TIMESTAMP-populated TEXT it didn't itself produce.
+func (s *Store) FirstUnreadPosition(areaID, userID int64) (int, error) {
+	var firstUnreadID int64
+	switch err := s.db.QueryRow(
+		`SELECT m.id FROM messages m
+		 WHERE m.area_id = ? AND NOT EXISTS (SELECT 1 FROM message_reads r WHERE r.user_id = ? AND r.message_id = m.id)
+		 ORDER BY m.posted_at ASC, m.id ASC LIMIT 1`,
+		areaID, userID,
+	).Scan(&firstUnreadID); {
+	case errors.Is(err, sql.ErrNoRows):
+		var total int
+		if err := s.db.QueryRow(`SELECT COUNT(1) FROM messages WHERE area_id = ?`, areaID).Scan(&total); err != nil {
+			return 0, fmt.Errorf("message: first unread position: count: %w", err)
+		}
+		if total == 0 {
+			return 0, nil
+		}
+		return total - 1, nil
+	case err != nil:
+		return 0, fmt.Errorf("message: first unread position: %w", err)
+	}
+
+	var position int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(1) FROM messages WHERE area_id = ?
+		 AND (posted_at, id) < (SELECT posted_at, id FROM messages WHERE id = ?)`,
+		areaID, firstUnreadID,
+	).Scan(&position); err != nil {
+		return 0, fmt.Errorf("message: first unread position: count before: %w", err)
+	}
+	return position, nil
+}
+
+// ListMessagesPage is ListMessages with LIMIT/OFFSET pagination and a
+// total row count, for the web BBS portal's paginated message list --
+// unlike the telnet/ssh session (which loads a whole area at once for
+// its own in-terminal paging via ListMessages, left untouched here),
+// a JSON API shouldn't ship potentially thousands of messages in one
+// response. Ordering matches ListMessages (oldest first, the
+// conventional echo-area reading order).
+func (s *Store) ListMessagesPage(areaID int64, limit, offset int) ([]Message, int, error) {
+	var total int
+	if err := s.db.QueryRow(`SELECT COUNT(1) FROM messages WHERE area_id = ?`, areaID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("message: count messages for area %d: %w", areaID, err)
+	}
+
+	rows, err := s.db.Query(
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id
+		 WHERE m.area_id = ? ORDER BY m.posted_at, m.id LIMIT ? OFFSET ?`, areaID, limit, offset,
+	)
+	if err != nil {
+		return nil, 0, fmt.Errorf("message: list messages page for area %d: %w", areaID, err)
+	}
+	defer rows.Close()
+
+	var messages []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID); err != nil {
+			return nil, 0, fmt.Errorf("message: scan message: %w", err)
+		}
+		messages = append(messages, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("message: list messages page for area %d: %w", areaID, err)
+	}
+	return messages, total, nil
+}
+
+// Neighbors returns the IDs of the messages immediately before and
+// after id within areaID, in the same oldest-first order
+// ListMessages/ListMessagesPage use -- the web BBS portal's reader
+// uses this for Prev/Next navigation between messages without
+// needing to hold (or re-fetch) the whole area's message list just
+// to find what comes next. Either return value is nil at the
+// beginning/end of the area.
+//
+// The (posted_at, id) row-value comparisons below compare id's
+// posted_at directly against the other candidate rows' own stored
+// posted_at, both read from the same column -- deliberately not a
+// Go-side time.Time bound as a separate query parameter, which
+// doesn't reliably compare equal (or order correctly) against
+// CURRENT_TIMESTAMP-populated TEXT it didn't itself produce: confirmed
+// live, ordering broke because the two representations didn't match.
+func (s *Store) Neighbors(areaID, id int64) (before, after *int64, err error) {
+	var b int64
+	switch err := s.db.QueryRow(
+		`SELECT id FROM messages WHERE area_id = ?
+		 AND (posted_at, id) < (SELECT posted_at, id FROM messages WHERE id = ?)
+		 ORDER BY posted_at DESC, id DESC LIMIT 1`,
+		areaID, id,
+	).Scan(&b); {
+	case err == nil:
+		before = &b
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return nil, nil, fmt.Errorf("message: neighbors before %d: %w", id, err)
+	}
+
+	var a int64
+	switch err := s.db.QueryRow(
+		`SELECT id FROM messages WHERE area_id = ?
+		 AND (posted_at, id) > (SELECT posted_at, id FROM messages WHERE id = ?)
+		 ORDER BY posted_at ASC, id ASC LIMIT 1`,
+		areaID, id,
+	).Scan(&a); {
+	case err == nil:
+		after = &a
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return nil, nil, fmt.Errorf("message: neighbors after %d: %w", id, err)
+	}
+	return before, after, nil
+}
+
 func isUniqueConstraintErr(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint")
 }
