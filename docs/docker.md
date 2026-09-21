@@ -22,13 +22,20 @@ them as three separate OS processes on bare metal.
 
 ## Config and data
 
-`configs/bbs.yaml` and `configs/web.yaml` are gitignored (the web
-admin Settings page can write a live BinkP uplink password into
-`bbs.yaml`) and so aren't baked into the image. `docker-compose.yml`
-bind-mounts the whole `./configs` directory into every container;
-without a real `bbs.yaml`/`web.yaml` there, every daemon just falls
-back to its own built-in defaults (same as running the binaries
-directly). Copy `configs/bbs.yaml.example` to get started.
+`configs/bbs.yaml` is gitignored (the web admin Settings page can
+write a live BinkP uplink password into it) and so isn't baked into
+the image; `configs/web.yaml` is tracked but still deployment-
+specific. `docker-compose.yml` bind-mounts just these two files
+individually (`./configs/bbs.yaml`, `./configs/web.yaml`), not the
+whole `configs/` directory -- `configs/menus` and `configs/screens`
+are versioned code assets the Dockerfile bakes into the image, and
+bind-mounting the whole directory would shadow them with whatever
+happened to be on the host, silently undoing a menu/screen change a
+newer image shipped. Without a real `bbs.yaml` there, every daemon
+just falls back to its own built-in defaults (same as running the
+binaries directly) -- copy `configs/bbs.yaml.example` to get started,
+and note a *file* bind mount needs the source file to already exist,
+or Docker creates an empty directory there instead.
 
 `data/` (SQLite database, SSH host key, JWT signing key, uploaded
 files, and any door installs -- see `docs/adding-a-door.md`) is also
@@ -99,11 +106,38 @@ mkdir -p data
 docker run -d --name nullmodem-bbs \
     -p 2323:2323 -p 2222:2222 \
     --user "$(id -u):$(id -g)" \
-    -v "$PWD/configs:/app/configs" \
+    -v "$PWD/configs/bbs.yaml:/app/configs/bbs.yaml" \
     -v "$PWD/data:/app/data" \
     nullmodem-bbs ./bin/bbs
 ```
 
 Swap the last line's `./bin/bbs` for `./bin/mailer` or `./bin/web`
-(with that service's own ports) to run the other two daemons the same
-way.
+(with that service's own ports, and `web` also needs
+`-v "$PWD/configs/web.yaml:/app/configs/web.yaml"`) to run the other
+two daemons the same way.
+
+## Versioned image tags
+
+Every image pushed to the registry gets both a floating `latest` tag
+and one pinned to `internal/version.Version`'s `vX.Y.Z[-dev]` suffix
+(the same string the welcome screen shows -- see
+`configs/screens/welcome.ans`), so a production deploy can pin to,
+and roll back to, a specific build instead of always tracking
+whatever was pushed last:
+
+```sh
+VTAG=$(grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+(-dev)?' internal/version/version.go)
+docker build -t nullmodem-bbs:latest .
+docker tag nullmodem-bbs:latest git.maik.ch/maik.ch/nullmodem:latest
+docker tag nullmodem-bbs:latest git.maik.ch/maik.ch/nullmodem:"$VTAG"
+docker push git.maik.ch/maik.ch/nullmodem:latest
+docker push git.maik.ch/maik.ch/nullmodem:"$VTAG"
+```
+
+A deployment (e.g. apollo's `~/nullmodem-deploy/docker-compose.yml`)
+references the specific `vX.Y.Z[-dev]` tag in its `image:` lines, not
+`latest`, and moves forward deliberately with
+`docker compose pull && docker compose up -d` once a new tag exists --
+never edited directly otherwise, per this project's deploy workflow
+(develop and commit locally, roll out to production only via a
+freshly pushed image).

@@ -4,9 +4,18 @@ name: nullmodem
 # into the same image (see Dockerfile) and run as separate services
 # here -- each restarts independently, and only the ones you actually
 # want running need to be started (e.g. skip mailer if this system
-# isn't on FidoNet/fsxNet). All three share the same configs/ and
-# data/ bind mounts, exactly like three OS processes on a single host
-# would (see cmd/mailer/main.go's own doc comment).
+# isn't on FidoNet/fsxNet).
+#
+# Only bbs.yaml/web.yaml are bind-mounted, as individual files, not
+# the whole configs/ directory: they're real per-deployment runtime
+# state (bbs.yaml is gitignored -- the web admin Settings page can
+# write a live BinkP uplink password into it), unlike configs/menus
+# and configs/screens, which are versioned code assets baked into the
+# image by the Dockerfile. Bind-mounting the whole directory used to
+# shadow the image's own menus/screens with whatever was on the host
+# from an earlier deploy, silently undoing any screen/menu change a
+# new image shipped -- exactly the kind of drift versioned image tags
+# (see docs/docker.md) are meant to prevent.
 #
 # data/ is a bind mount, not a named volume, so a sysop can manage its
 # contents directly from the host -- installing a door (see
@@ -27,7 +36,7 @@ services:
       - "2323:2323" # telnet
       - "2222:2222" # ssh
     volumes:
-      - ./configs:/app/configs
+      - ./configs/bbs.yaml:/app/configs/bbs.yaml
       - ./data:/app/data
     restart: unless-stopped
 
@@ -38,7 +47,7 @@ services:
     ports:
       - "24554:24554" # inbound BinkP (see configs/bbs.yaml's binkp.listen_enabled)
     volumes:
-      - ./configs:/app/configs
+      - ./configs/bbs.yaml:/app/configs/bbs.yaml
       - ./data:/app/data
     restart: unless-stopped
 
@@ -49,6 +58,7 @@ services:
     ports:
       - "8090:8090" # admin UI + REST API
     volumes:
-      - ./configs:/app/configs
+      - ./configs/bbs.yaml:/app/configs/bbs.yaml
+      - ./configs/web.yaml:/app/configs/web.yaml
       - ./data:/app/data
     restart: unless-stopped
