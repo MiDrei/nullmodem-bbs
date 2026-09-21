@@ -20,6 +20,8 @@ export interface BinkpUplink {
 	network: string;
 	/** Classic FTN "Hold" status: never dialed automatically for any reason at all, not even poll_disabled's own "crash-style" immediate dial for pending mail -- only via "Send Now" (which ignores this, same as it already ignores poll_disabled), or by the uplink itself polling us. For a peer with no way to reach us back either (e.g. a point behind NAT), poll_disabled alone isn't enough: pending mail would still trigger a doomed dial attempt on every check. */
 	hold: boolean;
+	/** Restricts this uplink to a subset of this system's own FTN addresses (BBSConfig.ftn_addresses): only these are presented via M_ADR when polling it, and only their zones count as this uplink's own for Crash-mail routing -- lets one hub's M_ADR handshake not leak AKAs that belong to a different network entirely. Empty means unrestricted (every configured address applies, the old default). */
+	aka_addresses: string[];
 }
 
 export interface BBSConfig {

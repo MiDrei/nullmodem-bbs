@@ -35,8 +35,19 @@
 			areafix_password: '',
 			filefix_password: '',
 			network: '',
-			hold: false
+			hold: false,
+			aka_addresses: []
 		};
+	}
+
+	function isAKAChecked(uplink: BinkpUplink, addr: string): boolean {
+		return uplink.aka_addresses.includes(addr);
+	}
+
+	function toggleAKA(uplink: BinkpUplink, addr: string) {
+		uplink.aka_addresses = isAKAChecked(uplink, addr)
+			? uplink.aka_addresses.filter((a) => a !== addr)
+			: [...uplink.aka_addresses, addr];
 	}
 
 	function addUplink() {
@@ -376,6 +387,29 @@
 							every time there's mail pending for it.
 						</span>
 					</label>
+					<div class="col-span-2 flex flex-col gap-2 rounded border border-slate-800 p-3">
+						<span class="text-sm text-slate-400">Restrict to these of your own addresses</span>
+						<span class="text-xs text-slate-500">
+							Only checked addresses are presented to this uplink (M_ADR) and count as its own for
+							Crash-mail routing -- keeps an AKA that belongs to a different network from leaking
+							into a hub that has nothing to do with it (a hub's own software can auto-register a
+							new node entry for every address it sees in M_ADR). Leave all unchecked to keep the
+							old behavior: every address above applies to every uplink.
+						</span>
+						{#if config.ftn_addresses.filter((a) => a.trim()).length === 0}
+							<p class="text-sm text-slate-500">No addresses configured above yet.</p>
+						{/if}
+						{#each config.ftn_addresses.filter((a) => a.trim()) as addr (addr)}
+							<label class="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									checked={isAKAChecked(uplink, addr)}
+									onchange={() => toggleAKA(uplink, addr)}
+								/>
+								<span class="font-mono text-slate-300">{addr}</span>
+							</label>
+						{/each}
+					</div>
 					<div class="col-span-2 flex gap-2">
 						<button
 							type="button"

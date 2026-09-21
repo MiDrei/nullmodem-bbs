@@ -762,6 +762,39 @@ func TestPollPresentsAllConfiguredAKAsToUplink(t *testing.T) {
 	}
 }
 
+// TestPollRestrictsAKAsToUplinkWhenConfigured is
+// TestPollPresentsAllConfiguredAKAsToUplink's counterpart once
+// config.BinkpUplink.AKAAddresses is set: only that subset is
+// presented, not every configured address -- confirmed live against
+// a real hub, whose own software auto-registered a new node entry for
+// an AKA that had nothing to do with it.
+func TestPollRestrictsAKAsToUplinkWhenConfigured(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	addr, done := runFakeUplink(t, binkp.Config{
+		OurAddresses: []string{"21:3/194"},
+	})
+
+	_, err := Poll(context.Background(), []string{"21:3/194.1", "954:700/14"}, "Test BBS", config.BinkpUplink{
+		Address:      "21:3/194",
+		Host:         addr,
+		AKAAddresses: []string{"21:3/194.1"},
+	}, nil, netmailStore, messages, users, nil, nil)
+	if err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	out := <-done
+	if out.err != nil {
+		t.Fatalf("fake uplink answerer error: %v", out.err)
+	}
+
+	want := []string{"21:3/194.1"}
+	got := out.result.RemoteAddresses
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("uplink saw AKAs %v, want only %v (the 954:700/14 AKA belongs to a different uplink)", got, want)
+	}
+}
+
 func TestPollErrorsWhenUplinkUnreachable(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
 	alice, err := users.Register("alice", "password123", user.SLNewUser)

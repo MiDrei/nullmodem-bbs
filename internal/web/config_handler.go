@@ -46,6 +46,11 @@ type binkpUplinkDTO struct {
 	// dialed automatically at all, not even for pending/Crash mail,
 	// only via "Send Now".
 	Hold bool `json:"hold"`
+	// AKAAddresses -- see config.BinkpUplink.AKAAddresses' own doc
+	// comment: which of this system's own FTN addresses this uplink
+	// is restricted to (M_ADR presentation and Crash routing alike).
+	// Empty means unrestricted (every configured address applies).
+	AKAAddresses []string `json:"aka_addresses"`
 }
 
 type configDTO struct {
@@ -64,6 +69,10 @@ type configDTO struct {
 func toDTO(c *config.Config) configDTO {
 	uplinks := make([]binkpUplinkDTO, len(c.Binkp.Uplinks))
 	for i, u := range c.Binkp.Uplinks {
+		akaAddrs := u.AKAAddresses
+		if akaAddrs == nil {
+			akaAddrs = []string{}
+		}
 		uplinks[i] = binkpUplinkDTO{
 			Address:             u.Address,
 			Host:                u.Host,
@@ -76,6 +85,7 @@ func toDTO(c *config.Config) configDTO {
 			FilefixPassword:     u.FilefixPassword,
 			Network:             u.Network,
 			Hold:                u.Hold,
+			AKAAddresses:        akaAddrs,
 		}
 	}
 	addrs := c.BBS.FTNAddresses
@@ -155,6 +165,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			FilefixPassword:     u.FilefixPassword,
 			Network:             u.Network,
 			Hold:                u.Hold,
+			AKAAddresses:        u.AKAAddresses,
 		}
 	}
 	c.Binkp.PollIntervalSeconds = dto.BinkpDefaultPollIntervalSeconds

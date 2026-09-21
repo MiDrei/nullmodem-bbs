@@ -156,6 +156,21 @@ type BinkpUplink struct {
 	// enough: pending mail -- Crash-flagged or not -- would still
 	// trigger a doomed dial attempt on every check tick.
 	Hold bool `yaml:"hold"`
+	// AKAAddresses restricts which of this system's own FTN
+	// addresses/AKAs (Config.BBS.FTNAddresses) belong to this uplink
+	// specifically: only these are presented via BinkP's M_ADR when
+	// internal/tosser.Poll dials it, and only these addresses' own
+	// zones are considered this uplink's for Crash-mail routing (see
+	// internal/tosser's routeOutbound/uplinkForDestination),
+	// replacing the automatic "shares Address's own zone" default.
+	// Needed because presenting every configured AKA to every uplink
+	// leaks addresses that have nothing to do with a given hub --
+	// confirmed live against a real hub, whose own software
+	// auto-registers a new node entry for every M_ADR address it
+	// sees, aliases included. Empty means the old automatic behavior:
+	// every configured address is presented to every uplink, and only
+	// Address's own zone is used for Crash routing.
+	AKAAddresses []string `yaml:"aka_addresses,omitempty"`
 }
 
 // DoorConfig is one entry in Config.Doors -- see internal/doors.Door,

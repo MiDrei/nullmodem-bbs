@@ -53,6 +53,7 @@ binkp:
     #       password: "..."
     #       poll_disabled: false
     #       hold: false
+    #       aka_addresses: []
     # poll_disabled excludes an uplink from the mailer daemon's regular,
     # interval-based scheduled poll -- it's still dialed immediately
     # whenever there's netmail or echomail actually pending for it
@@ -66,4 +67,12 @@ binkp:
     # either (e.g. a point behind NAT/no port forwarding), where
     # poll_disabled alone would still trigger a doomed dial attempt
     # whenever mail happens to be pending for it.
+    # aka_addresses restricts this uplink to a subset of this
+    # system's own ftn_addresses above: only these are presented via
+    # M_ADR when this uplink is polled, and only their zones count as
+    # this uplink's own for Crash-mail routing -- keeps an AKA that
+    # belongs to a different network from leaking into a hub that has
+    # nothing to do with it (some hub software auto-registers a new
+    # node entry for every address it sees in M_ADR). Empty means
+    # unrestricted: every configured address applies to every uplink.
     poll_interval_seconds: 900

@@ -191,6 +191,7 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 		{
 			Address: "21:3/194", Host: "bbs.maik.ch:24554", Password: "secret", PollIntervalSeconds: 7200,
 			PacketPassword: "pktpass", TICPassword: "ticpass", AreafixPassword: "areapass", Hold: true,
+			AKAAddresses: []string{"1:234/56.0"},
 		},
 	}
 	got.BinkpDefaultPollIntervalSeconds = 1800
@@ -216,7 +217,8 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 		saved.Binkp.Uplinks[0].PacketPassword != "pktpass" ||
 		saved.Binkp.Uplinks[0].TICPassword != "ticpass" ||
 		saved.Binkp.Uplinks[0].AreafixPassword != "areapass" ||
-		!saved.Binkp.Uplinks[0].Hold {
+		!saved.Binkp.Uplinks[0].Hold ||
+		!reflect.DeepEqual(saved.Binkp.Uplinks[0].AKAAddresses, []string{"1:234/56.0"}) {
 		t.Fatalf("saved.Binkp.Uplinks = %+v, want one uplink with the round-tripped fields", saved.Binkp.Uplinks)
 	}
 }

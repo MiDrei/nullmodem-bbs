@@ -150,3 +150,38 @@ func TestRouteOutboundMixedCrashAndOrdinaryMail(t *testing.T) {
 		t.Fatalf("routed to crash-only uplink = %+v, want just the Crash message", routedCrash)
 	}
 }
+
+// TestRouteOutboundCrashMailMatchesUplinkByAKAAddressesWhenSet locks
+// in config.BinkpUplink.AKAAddresses overriding the default "matches
+// Address's own zone" rule entirely once set: restricted's own
+// Address is zone 954, but its AKAAddresses claims a zone-5 AKA
+// instead (a zone neither mainUplink nor crashUplink's own Address
+// naturally owns), so zone-5 Crash mail must go to restricted, not
+// main -- the exact "which hub owns which of my AKAs" matching the
+// web admin's per-uplink checkboxes configure.
+func TestRouteOutboundCrashMailMatchesUplinkByAKAAddressesWhenSet(t *testing.T) {
+	store, aliceID := newRoutingTestStore(t)
+	restricted := crashUplink
+	restricted.AKAAddresses = []string{"5:1/1"}
+	uplinks := []config.BinkpUplink{mainUplink, restricted}
+
+	if _, err := store.Send(aliceID, "21:3/100.1", 0, "Grace", "5:1/300", "Urgent", "body", true); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	routedMain, err := RoutedOutbound(store, mainUplink, uplinks)
+	if err != nil {
+		t.Fatalf("RoutedOutbound(main): %v", err)
+	}
+	if len(routedMain) != 0 {
+		t.Fatalf("routed to main = %+v, want none -- zone 5 now belongs to restricted per its AKAAddresses", routedMain)
+	}
+
+	routedRestricted, err := RoutedOutbound(store, restricted, uplinks)
+	if err != nil {
+		t.Fatalf("RoutedOutbound(restricted): %v", err)
+	}
+	if len(routedRestricted) != 1 {
+		t.Fatalf("routed to restricted = %+v, want the one Crash message", routedRestricted)
+	}
+}

@@ -135,7 +135,14 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	if err != nil {
 		return nil, fmt.Errorf("tosser: uplink address %q: %w", uplink.Address, err)
 	}
-	ourAddr := ourAddressForUplink(ourAddresses, uplinkAddr)
+	// presentedAddresses -- uplink.AKAAddresses if set, else every
+	// configured address -- is both what M_ADR actually offers this
+	// uplink and what ourAddressForUplink picks this session's own
+	// origin AKA from, so the two always agree (see
+	// config.BinkpUplink.AKAAddresses' own doc comment for why a
+	// per-uplink restriction exists at all).
+	presentedAddresses := effectiveAKAAddresses(ourAddresses, uplink)
+	ourAddr := ourAddressForUplink(presentedAddresses, uplinkAddr)
 
 	bundle, err := buildOutboundBundle(ourAddr, uplinkAddr, bbsName, uplink, allUplinks, netmailStore, messages, robot)
 	if err != nil {
@@ -162,7 +169,7 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	defer cancel()
 
 	sessionResult, err := binkp.Dial(ctx, uplink.Host, binkp.Config{
-		OurAddresses:  ourAddresses,
+		OurAddresses:  presentedAddresses,
 		Password:      uplink.Password,
 		OutboundFiles: bundle.outFiles,
 		ReceiveFile:   receiveFile,
@@ -388,7 +395,7 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 				return nil
 			}
 			uplinkAddr = addr
-			ourAddr := ourAddressForUplink(ourAddresses, uplinkAddr)
+			ourAddr := ourAddressForUplink(effectiveAKAAddresses(ourAddresses, matchedUplink), uplinkAddr)
 			b, err := buildOutboundBundle(ourAddr, uplinkAddr, bbsName, matchedUplink, uplinks, netmailStore, messages, robot)
 			if err != nil {
 				bundleErr = err
@@ -761,12 +768,28 @@ func uplinkForDestination(uplinks []config.BinkpUplink, destAddr string) (config
 		return config.BinkpUplink{}, false
 	}
 	for _, u := range uplinks {
-		addr, err := mail.ParseAddress(u.Address)
-		if err == nil && addr.Zone == dest.Zone {
+		if uplinkOwnsZone(u, dest.Zone) {
 			return u, true
 		}
 	}
 	return config.BinkpUplink{}, false
+}
+
+// uplinkOwnsZone reports whether zone is one u is considered
+// responsible for -- any of u.AKAAddresses' own zones if set (see
+// config.BinkpUplink.AKAAddresses' own doc comment), else (the
+// default) u.Address's own zone.
+func uplinkOwnsZone(u config.BinkpUplink, zone int) bool {
+	if len(u.AKAAddresses) > 0 {
+		for _, raw := range u.AKAAddresses {
+			if addr, err := mail.ParseAddress(raw); err == nil && addr.Zone == zone {
+				return true
+			}
+		}
+		return false
+	}
+	addr, err := mail.ParseAddress(u.Address)
+	return err == nil && addr.Zone == zone
 }
 
 // ourAddressForUplink returns whichever of ourAddresses shares
@@ -792,6 +815,18 @@ func ourAddressForUplink(ourAddresses []string, uplinkAddr mail.Address) mail.Ad
 		}
 	}
 	return fallback
+}
+
+// effectiveAKAAddresses returns uplink.AKAAddresses if set, else
+// ourAddresses unchanged -- the address list Poll actually presents
+// via M_ADR and picks this uplink's own origin AKA from (see
+// config.BinkpUplink.AKAAddresses' own doc comment for why a per-
+// uplink restriction exists at all).
+func effectiveAKAAddresses(ourAddresses []string, uplink config.BinkpUplink) []string {
+	if len(uplink.AKAAddresses) > 0 {
+		return uplink.AKAAddresses
+	}
+	return ourAddresses
 }
 
 // appendTearline appends an FTS-0004 tearline and origin line to
