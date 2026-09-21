@@ -31,12 +31,33 @@ back to its own built-in defaults (same as running the binaries
 directly). Copy `configs/bbs.yaml.example` to get started.
 
 `data/` (SQLite database, SSH host key, JWT signing key, uploaded
-files, and any door installs -- see `docs/adding-a-door.md`) is a
-named volume (`nullmodem-data`) shared by all three containers, so it
-survives a `docker compose down`/recreate. All three daemons write to
-the same SQLite database concurrently via WAL mode (see
-`internal/db`) -- this is the same design the non-containerized
-binaries already use, not something specific to Docker.
+files, and any door installs -- see `docs/adding-a-door.md`) is also
+a plain bind mount (`./data`), not a named volume, so it survives a
+`docker compose down`/recreate and -- unlike a named volume -- is
+directly reachable from the host: installing a door is just copying
+files into `./data/doors/`, no `docker cp`/`docker exec` needed. All
+three daemons write to the same SQLite database concurrently via WAL
+mode (see `internal/db`) -- this is the same design the
+non-containerized binaries already use, not something specific to
+Docker.
+
+The containers run as root by default (see `Dockerfile`), which would
+otherwise leave everything under `./data` owned by root on the host.
+`docker-compose.yml` overrides this with `user: "${PUID:-1000}:${PGID:-1000}"`
+-- set these to your own host user before first start so files the
+containers create (and doors you drop in yourself) have matching
+ownership on both sides:
+
+```sh
+mkdir -p data
+echo "PUID=$(id -u)" >> .env
+echo "PGID=$(id -g)" >> .env
+docker compose up -d --build
+```
+
+If `./data` already has content owned by root from an earlier run
+without PUID/PGID set (or from a migration off a named volume), fix
+ownership once with `sudo chown -R $(id -u):$(id -g) data`.
 
 ## Image size and DOS door support
 
@@ -74,10 +95,12 @@ docker buildx build --platform linux/amd64,linux/arm64 -t nullmodem-bbs:latest .
 
 ```sh
 docker build -t nullmodem-bbs .
+mkdir -p data
 docker run -d --name nullmodem-bbs \
     -p 2323:2323 -p 2222:2222 \
+    --user "$(id -u):$(id -g)" \
     -v "$PWD/configs:/app/configs" \
-    -v nullmodem-data:/app/data \
+    -v "$PWD/data:/app/data" \
     nullmodem-bbs ./bin/bbs
 ```
 

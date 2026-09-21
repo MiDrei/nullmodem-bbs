@@ -7,41 +7,48 @@ name: nullmodem
 # isn't on FidoNet/fsxNet). All three share the same configs/ and
 # data/ bind mounts, exactly like three OS processes on a single host
 # would (see cmd/mailer/main.go's own doc comment).
+#
+# data/ is a bind mount, not a named volume, so a sysop can manage its
+# contents directly from the host -- installing a door (see
+# docs/adding-a-door.md) is just copying files into ./data/doors/,
+# no `docker cp`/`docker exec` needed. The container runs as root by
+# default (see Dockerfile), so PUID/PGID below make it write those
+# files as your own host user instead of root -- set them in a .env
+# file next to this one, or export before `docker compose up`:
+#   echo "PUID=$(id -u)" >> .env
+#   echo "PGID=$(id -g)" >> .env
 services:
   bbs:
     build: .
     image: nullmodem-bbs:latest
     command: ["./bin/bbs"]
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "2323:2323" # telnet
       - "2222:2222" # ssh
     volumes:
       - ./configs:/app/configs
-      - nullmodem-data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
 
   mailer:
     image: nullmodem-bbs:latest
     command: ["./bin/mailer"]
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "24554:24554" # inbound BinkP (see configs/bbs.yaml's binkp.listen_enabled)
     volumes:
       - ./configs:/app/configs
-      - nullmodem-data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
 
   web:
     image: nullmodem-bbs:latest
     command: ["./bin/web"]
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "8090:8090" # admin UI + REST API
     volumes:
       - ./configs:/app/configs
-      - nullmodem-data:/app/data
+      - ./data:/app/data
     restart: unless-stopped
-
-volumes:
-  # SQLite database (WAL mode, safely shared across the three
-  # services above -- see internal/db), SSH host key, uploaded files,
-  # and any door installs (see docs/adding-a-door.md) all live here.
-  nullmodem-data:

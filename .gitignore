@@ -12,5 +12,8 @@
 # for the template new checkouts should copy.
 /configs/bbs.yaml
 
+# Host-specific docker compose overrides (PUID/PGID)
+/.env
+
 # Editor/OS
 .DS_Store
