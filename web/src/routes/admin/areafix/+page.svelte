@@ -276,8 +276,9 @@
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else if !config || config.binkp_uplinks.length === 0}
 	<p class="text-sm text-slate-500">
-		No BinkP uplinks configured yet -- add one on the <a href="/admin/binkp" class="text-cyan-400 underline"
-			>BinkP page</a
+		No BinkP uplinks configured yet -- add one on the <a
+			href="/admin/binkp/uplinks"
+			class="text-cyan-400 underline">Uplinks page</a
 		>
 		first.
 	</p>

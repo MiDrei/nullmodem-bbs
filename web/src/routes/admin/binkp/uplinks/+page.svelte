@@ -1,0 +1,416 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { auth } from '$lib/auth.svelte';
+	import { toast } from '$lib/toast.svelte';
+	import {
+		getConfig,
+		putConfig,
+		testBinkpConnection,
+		sendNowBinkp,
+		listGroups,
+		ApiError,
+		type BBSConfig,
+		type BinkpUplink
+	} from '$lib/api';
+
+	let config = $state<BBSConfig | null>(null);
+	let groups = $state<string[]>([]);
+	let loadError = $state<string | null>(null);
+	let saveError = $state<string | null>(null);
+	let saveNote = $state<string | null>(null);
+	let saving = $state(false);
+	let testingIndex = $state<number | null>(null);
+	let sendingIndex = $state<number | null>(null);
+
+	function emptyUplink(): BinkpUplink {
+		return {
+			address: '',
+			host: '',
+			password: '',
+			poll_disabled: false,
+			poll_interval_seconds: 0,
+			packet_password: '',
+			tic_password: '',
+			areafix_password: '',
+			filefix_password: '',
+			network: '',
+			hold: false,
+			aka_addresses: []
+		};
+	}
+
+	function isAKAChecked(uplink: BinkpUplink, addr: string): boolean {
+		return uplink.aka_addresses.includes(addr);
+	}
+
+	function toggleAKA(uplink: BinkpUplink, addr: string) {
+		uplink.aka_addresses = isAKAChecked(uplink, addr)
+			? uplink.aka_addresses.filter((a) => a !== addr)
+			: [...uplink.aka_addresses, addr];
+	}
+
+	function addUplink() {
+		if (!config) return;
+		config.binkp_uplinks = [...config.binkp_uplinks, emptyUplink()];
+	}
+
+	function removeUplink(index: number) {
+		if (!config) return;
+		config.binkp_uplinks = config.binkp_uplinks.filter((_, i) => i !== index);
+	}
+
+	async function testUplink(index: number) {
+		if (!config || !auth.token) return;
+		const uplink = config.binkp_uplinks[index];
+		if (!uplink.host.trim()) {
+			toast.push('Enter a host:port first.', 'error');
+			return;
+		}
+		if (config.ftn_addresses.length === 0) {
+			toast.push('Set this system’s own FTN address on the BinkP page first.', 'error');
+			return;
+		}
+		testingIndex = index;
+		try {
+			const res = await testBinkpConnection(auth.token, uplink);
+			toast.push(`Connected. Uplink claims: ${res.remote_addresses.join(', ')}`, 'success');
+		} catch (err) {
+			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+				auth.clear();
+				await goto('/admin/login');
+				return;
+			}
+			toast.push(err instanceof ApiError ? err.message : 'Connection test failed.', 'error');
+		} finally {
+			testingIndex = null;
+		}
+	}
+
+	async function sendNowUplink(index: number) {
+		if (!config || !auth.token) return;
+		const uplink = config.binkp_uplinks[index];
+		if (!uplink.host.trim()) {
+			toast.push('Enter a host:port first.', 'error');
+			return;
+		}
+		if (config.ftn_addresses.length === 0) {
+			toast.push('Set this system’s own FTN address on the BinkP page first.', 'error');
+			return;
+		}
+		sendingIndex = index;
+		try {
+			const res = await sendNowBinkp(auth.token, uplink);
+			toast.push(
+				`Polled uplink: sent ${res.sent} netmail, ${res.sent_echo} echomail, forwarded ${res.forwarded_echo} echomail, ${res.forwarded_files} file(s), received ${res.received} netmail, ${res.received_echo} echomail, ${res.received_files} file(s).`,
+				'success'
+			);
+		} catch (err) {
+			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+				auth.clear();
+				await goto('/admin/login');
+				return;
+			}
+			toast.push(err instanceof ApiError ? err.message : 'Sending failed.', 'error');
+		} finally {
+			sendingIndex = null;
+		}
+	}
+
+	onMount(async () => {
+		if (!auth.token) {
+			await goto('/admin/login');
+			return;
+		}
+		try {
+			config = await getConfig(auth.token);
+		} catch (err) {
+			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+				auth.clear();
+				await goto('/admin/login');
+				return;
+			}
+			loadError = err instanceof ApiError ? err.message : 'Could not load configuration.';
+		}
+		try {
+			groups = await listGroups(auth.token);
+		} catch {
+			// Non-critical: the Group field just falls back to free text.
+		}
+	});
+
+	async function handleSubmit(e: SubmitEvent) {
+		e.preventDefault();
+		if (!config || !auth.token) return;
+		saveError = null;
+		saveNote = null;
+		saving = true;
+		try {
+			const res = await putConfig(auth.token, config);
+			config = res.config;
+			saveNote = res.note;
+		} catch (err) {
+			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+				auth.clear();
+				await goto('/admin/login');
+				return;
+			}
+			saveError = err instanceof ApiError ? err.message : 'Could not save configuration.';
+		} finally {
+			saving = false;
+		}
+	}
+</script>
+
+<datalist id="groups-list">
+	{#each groups as g (g)}
+		<option value={g}></option>
+	{/each}
+</datalist>
+
+<div class="mb-6 flex items-center justify-between">
+	<h1 class="text-xl font-semibold text-slate-100">BinkP Uplinks</h1>
+	<a href="/admin/binkp" class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800">
+		&larr; BinkP
+	</a>
+</div>
+
+{#if loadError}
+	<p class="text-sm text-red-400">{loadError}</p>
+{:else if !config}
+	<p class="text-sm text-slate-400">Loading…</p>
+{:else}
+	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
+		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">
+			<div class="flex items-center justify-between">
+				<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">
+					Nodes / Points
+				</h2>
+				<button
+					type="button"
+					class="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
+					onclick={addUplink}
+				>
+					+ Add Uplink
+				</button>
+			</div>
+			<p class="text-xs text-slate-500">
+				Nodes/hubs/points this system exchanges netmail, echomail, and files with. The mailer
+				daemon polls each uplink automatically on its own schedule; "Test" connects and
+				authenticates now without sending or requesting any mail, and "Send Now" polls
+				immediately -- sending anything queued and picking up anything waiting for us.
+			</p>
+			<label class="flex max-w-xs flex-col gap-1 text-sm">
+				<span class="text-slate-400">Default poll interval (seconds)</span>
+				<input
+					type="number"
+					min="1"
+					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+					bind:value={config.binkp_default_poll_interval_seconds}
+					placeholder="900"
+				/>
+				<span class="text-xs text-slate-500">
+					Used by any uplink below that doesn't set its own interval.
+				</span>
+			</label>
+			{#if config.binkp_uplinks.length === 0}
+				<p class="text-sm text-slate-500">No uplinks configured.</p>
+			{/if}
+			{#each config.binkp_uplinks as uplink, i (i)}
+				<div class="grid grid-cols-2 gap-3 rounded border border-slate-800 p-3">
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Their FTN address</span>
+						<input
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.address}
+							placeholder="21:3/194"
+						/>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Host:Port</span>
+						<input
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.host}
+							placeholder="bbs.example.com:24554"
+						/>
+					</label>
+					<label class="col-span-2 flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Session Password</span>
+						<input
+							type="password"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.password}
+							placeholder="(optional -- blank for an open/no-auth node)"
+						/>
+						<span class="text-xs text-slate-500">Authenticates the BinkP session itself.</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Packet Password</span>
+						<input
+							type="password"
+							maxlength="8"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.packet_password}
+							placeholder="(optional, max 8 chars)"
+						/>
+						<span class="text-xs text-slate-500">
+							Authenticates the FTS-0001 .pkt file itself (FTS-0001's 8-character packet header
+							field) -- distinct from the session password above.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">TIC Password</span>
+						<input
+							type="password"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.tic_password}
+							placeholder="(optional)"
+						/>
+						<span class="text-xs text-slate-500">
+							Authenticates inbound TIC file-echo announcements from this uplink -- leave blank if
+							it doesn't set one.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Areafix Password</span>
+						<input
+							type="password"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.areafix_password}
+							placeholder="(optional)"
+						/>
+						<span class="text-xs text-slate-500">
+							Sent as the first line of every echomail area (un)subscribe request to this uplink's
+							"Areafix" robot -- see the Areafix / Filefix page under System to manage
+							subscriptions.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Filefix Password</span>
+						<input
+							type="password"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.filefix_password}
+							placeholder="(optional)"
+						/>
+						<span class="text-xs text-slate-500">
+							Sent as the first line of every file-echo area (un)subscribe request to this uplink's
+							"Filefix" robot -- commonly a different password from Areafix's.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Group / Network</span>
+						<input
+							list="groups-list"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.network}
+							placeholder="fsxNet, HobbyNet… (blank if this uplink never carries outgoing echomail)"
+						/>
+						<span class="text-xs text-slate-500">
+							Matched against a message area's own Group to decide which uplink a locally-posted
+							echo message goes out through.
+						</span>
+					</label>
+					<label class="flex flex-col gap-1 text-sm">
+						<span class="text-slate-400">Poll interval override (seconds)</span>
+						<input
+							type="number"
+							min="0"
+							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							bind:value={uplink.poll_interval_seconds}
+							placeholder={`0 = use default (${config.binkp_default_poll_interval_seconds || 900}s)`}
+						/>
+						<span class="text-xs text-slate-500">
+							Still meaningful when Crash-only is checked below: a slow fallback poll, since a
+							crash-only uplink otherwise only gets dialed when there's actually mail to send.
+						</span>
+					</label>
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={uplink.poll_disabled} />
+						<span class="text-slate-400">
+							Crash-only: exclude from the mailer's regular, interval-based scheduled poll --
+							still dialed immediately whenever there's netmail or echomail actually pending for
+							it (see the mailer's crash-style triggering), plus the poll interval above as a slow
+							fallback if set, or manually via "Send Now"
+						</span>
+					</label>
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={uplink.hold} />
+						<span class="text-slate-400">
+							Hold: never dialed automatically for any reason at all, not even pending/Crash mail
+							-- only via "Send Now", or by this uplink polling us itself. Use this for a peer
+							that can't be reached back either way (e.g. a point behind NAT with no port
+							forwarding), where Crash-only above still isn't enough to stop a doomed dial attempt
+							every time there's mail pending for it.
+						</span>
+					</label>
+					<div class="col-span-2 flex flex-col gap-2 rounded border border-slate-800 p-3">
+						<span class="text-sm text-slate-400">Restrict to these of your own addresses</span>
+						<span class="text-xs text-slate-500">
+							Only checked addresses are presented to this uplink (M_ADR) and count as its own for
+							Crash-mail routing -- keeps an AKA that belongs to a different network from leaking
+							into a hub that has nothing to do with it (a hub's own software can auto-register a
+							new node entry for every address it sees in M_ADR). Leave all unchecked to keep the
+							old behavior: every address applies to every uplink.
+						</span>
+						{#if config.ftn_addresses.filter((a) => a.trim()).length === 0}
+							<p class="text-sm text-slate-500">
+								No addresses configured yet -- add one on the BinkP page.
+							</p>
+						{/if}
+						{#each config.ftn_addresses.filter((a) => a.trim()) as addr (addr)}
+							<label class="flex items-center gap-2 text-sm">
+								<input
+									type="checkbox"
+									checked={isAKAChecked(uplink, addr)}
+									onchange={() => toggleAKA(uplink, addr)}
+								/>
+								<span class="font-mono text-slate-300">{addr}</span>
+							</label>
+						{/each}
+					</div>
+					<div class="col-span-2 flex gap-2">
+						<button
+							type="button"
+							class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800 disabled:opacity-50"
+							disabled={testingIndex === i}
+							onclick={() => testUplink(i)}
+						>
+							{testingIndex === i ? 'Testing…' : 'Test Connection'}
+						</button>
+						<button
+							type="button"
+							class="rounded border border-cyan-700 px-3 py-1 text-sm text-cyan-400 hover:bg-cyan-950 disabled:opacity-50"
+							disabled={sendingIndex === i}
+							onclick={() => sendNowUplink(i)}
+						>
+							{sendingIndex === i ? 'Sending…' : 'Send Now'}
+						</button>
+						<button
+							type="button"
+							class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950"
+							onclick={() => removeUplink(i)}
+						>
+							Remove
+						</button>
+					</div>
+				</div>
+			{/each}
+		</section>
+
+		{#if saveError}
+			<p class="text-sm text-red-400">{saveError}</p>
+		{/if}
+		{#if saveNote}
+			<p class="text-sm text-amber-400">{saveNote}</p>
+		{/if}
+
+		<button
+			type="submit"
+			disabled={saving}
+			class="rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+		>
+			{saving ? 'Saving…' : 'Save changes'}
+		</button>
+	</form>
+{/if}

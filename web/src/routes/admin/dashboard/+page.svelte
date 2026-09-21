@@ -86,7 +86,9 @@
 	<section class="mb-8 rounded border border-slate-800 p-4">
 		<div class="mb-4 flex items-center justify-between">
 			<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">BinkP</h2>
-			<a href="/admin/binkp" class="text-xs text-cyan-500 hover:text-cyan-300">Configure &rarr;</a>
+			<a href="/admin/binkp/uplinks" class="text-xs text-cyan-500 hover:text-cyan-300"
+				>Configure &rarr;</a
+			>
 		</div>
 		{#if dashboard.binkp.own_ftn_addresses.length === 0}
 			<p class="text-sm text-slate-500">No FTN address configured yet.</p>

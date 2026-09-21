@@ -226,6 +226,13 @@
 								BinkP
 							</a>
 							<a
+								href="/admin/binkp/uplinks"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 py-2 pr-3 pl-7 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								Uplinks (Nodes/Points)
+							</a>
+							<a
 								href="/admin/areafix"
 								onclick={closeSystemMenu}
 								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
