@@ -11,8 +11,11 @@
 # a missing/unwritable bind mount shouldn't block startup, it should
 # just leave that screen/menu unseeded and let the daemon fall back to
 # its own built-in defaults the way it already does for a missing
-# bbs.yaml/web.yaml.
-mkdir -p configs/menus configs/screens
+# bbs.yaml/web.yaml -- this also covers cmd/mailer, which doesn't get
+# configs/menus or configs/screens bind-mounted at all (it doesn't
+# serve the BBS UI or Designer), so configs/ itself isn't writable
+# there and both mkdir and cp are expected to no-op, silently.
+mkdir -p configs/menus configs/screens 2>/dev/null
 cp -rn configs-defaults/menus/. configs/menus/ 2>/dev/null
 cp -rn configs-defaults/screens/. configs/screens/ 2>/dev/null
 
