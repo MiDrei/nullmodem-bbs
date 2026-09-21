@@ -17,20 +17,23 @@ import (
 // handleAreafixRequest) needs beyond the plain netmail/message stores
 // every inbound toss already has: this system's own addresses (to
 // address the reply and pick the right AKA, mirroring outbound
-// requests -- see ourAddressForUplink), every configured uplink (both
-// to authenticate the requester by its claimed FTN address and to
-// look up which Areafix/Filefix password applies), the echo/file-area
-// subscription stores an accepted "+TAG"/"-TAG" command is recorded
-// into (Direction Inbound: a downlink asking us, the mirror image of
-// the Outbound direction our own RequestEchoAreaChanges/
-// RequestFileAreaChanges record), and the file-area catalog a Filefix
-// "%LIST" reply draws from (Areafix's own %LIST uses the
-// *message.Store tossInbound already has). A nil *RobotConfig
-// disables the robot entirely -- an inbound netmail addressed to
-// "Areafix"/"Filefix" is then just filed as ordinary netmail, exactly
-// as before this existed.
+// requests -- see ourAddressForUplink), this system's own display name
+// (BBSName -- see requestAreaCommand's doc comment for why a reply
+// must never claim to be from "Areafix"/"Filefix" itself), every
+// configured uplink (both to authenticate the requester by its
+// claimed FTN address and to look up which Areafix/Filefix password
+// applies), the echo/file-area subscription stores an accepted
+// "+TAG"/"-TAG" command is recorded into (Direction Inbound: a
+// downlink asking us, the mirror image of the Outbound direction our
+// own RequestEchoAreaChanges/RequestFileAreaChanges record), and the
+// file-area catalog a Filefix "%LIST" reply draws from (Areafix's own
+// %LIST uses the *message.Store tossInbound already has). A nil
+// *RobotConfig disables the robot entirely -- an inbound netmail
+// addressed to "Areafix"/"Filefix" is then just filed as ordinary
+// netmail, exactly as before this existed.
 type RobotConfig struct {
 	OurAddresses []string
+	BBSName      string
 	Uplinks      []config.BinkpUplink
 	EchoStore    *areafix.EchoStore
 	FileStore    *areafix.FileStore
@@ -101,8 +104,22 @@ func handleAreafixRequest(msg *mail.Message, robot *RobotConfig, messages *messa
 	}
 
 	ourAddr := ourAddressForUplink(robot.OurAddresses, msg.OrigAddr)
+	// replyFromName must never be robotName ("Areafix"/"Filefix"):
+	// this reply's ToName mirrors msg.FromName right back at the
+	// sender, so if this side's own FromName here were the robot's
+	// name too, a peer's inbound handler (this same function, on
+	// either end) would misidentify the reply as a fresh incoming
+	// request and answer it, which answers back the same way, forever
+	// -- confirmed live as a real, hours-long netmail loop between two
+	// NullModem test systems before this fix (see
+	// requestAreaCommand's own doc comment for the outbound-request
+	// half of this same rule).
+	replyFromName := robot.BBSName
+	if replyFromName == "" {
+		replyFromName = "BBS"
+	}
 	replyTo := func(body string) error {
-		_, err := netmailStore.SendSystem(robotName, ourAddr.String(), msg.FromName, msg.OrigAddr.String(), "Re: "+msg.Subject, body, true)
+		_, err := netmailStore.SendSystem(replyFromName, ourAddr.String(), msg.FromName, msg.OrigAddr.String(), "Re: "+msg.Subject, body, true)
 		return err
 	}
 

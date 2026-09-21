@@ -267,6 +267,7 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 
 	robot := &tosser.RobotConfig{
 		OurAddresses: c.BBS.FTNAddresses,
+		BBSName:      c.BBS.Name,
 		Uplinks:      c.Binkp.Uplinks,
 		EchoStore:    s.EchoAreafix,
 		FileStore:    s.FileAreafix,

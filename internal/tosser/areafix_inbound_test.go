@@ -74,6 +74,7 @@ func TestHandleAreafixRequestSubscribesToExistingArea(t *testing.T) {
 	}
 	robot := &RobotConfig{
 		OurAddresses: []string{"21:3/1"},
+		BBSName:      "Test BBS",
 		Uplinks:      []config.BinkpUplink{downlinkUplink},
 		EchoStore:    echoSubs,
 		FileStore:    fileSubs,
@@ -109,6 +110,67 @@ func TestHandleAreafixRequestSubscribesToExistingArea(t *testing.T) {
 	}
 	if !strings.Contains(reply.Body, "+TESTAREA: added") {
 		t.Fatalf("reply body = %q, want it to confirm +TESTAREA was added", reply.Body)
+	}
+	// FromName must be robot.BBSName, never "Areafix"/"Filefix" --
+	// see TestHandleAreafixRequestReplyLoopSelfTerminates for why.
+	if reply.FromName != "Test BBS" {
+		t.Fatalf("reply.FromName = %q, want robot.BBSName (Test BBS), not the robot's own name", reply.FromName)
+	}
+}
+
+// TestHandleAreafixRequestReplyLoopSelfTerminates is an end-to-end
+// regression test for a real, hours-long netmail loop observed live
+// between two NullModem test systems: handleAreafixRequest's own
+// reply (see replyTo) used to carry the robot's own name ("Areafix"/
+// "Filefix") as its FromName, same as the request it was replying to
+// did before requestAreaCommand's own fix. Since a reply's ToName
+// always mirrors the triggering message's FromName right back, a
+// robot-named reply looked exactly like a fresh incoming request to
+// whichever side received it next -- which then replied the same way,
+// forever. This feeds handleAreafixRequest's own reply back into
+// itself, mimicking the peer mirroring ToName back at us exactly as a
+// real one does, and requires it NOT be treated as a new request the
+// second time around.
+func TestHandleAreafixRequestReplyLoopSelfTerminates(t *testing.T) {
+	netmailStore, messages, files, _, echoSubs, fileSubs := newTestStoresWithRobot(t)
+	robot := &RobotConfig{
+		OurAddresses: []string{"21:3/1"},
+		BBSName:      "Test BBS",
+		Uplinks:      []config.BinkpUplink{downlinkUplink},
+		EchoStore:    echoSubs,
+		FileStore:    fileSubs,
+		Files:        files,
+	}
+	// A wrong-password request, so the reply is the short rejection
+	// path -- irrelevant to what's under test here (only FromName/
+	// ToName matter), and simpler to trigger than a real subscribe.
+	msg := &mail.Message{
+		OrigAddr: downlinkOrigAddr(),
+		ToName:   "Areafix",
+		FromName: "Downlink Sysop",
+		Subject:  "wrong-password",
+		Body:     "+TESTAREA\n",
+	}
+	if handled, err := handleAreafixRequest(msg, robot, messages, netmailStore); err != nil || !handled {
+		t.Fatalf("handleAreafixRequest: handled=%v err=%v", handled, err)
+	}
+	reply := pendingReplyTo(t, netmailStore, downlinkUplink.Address)
+
+	// The peer would mirror this reply's FromName back as ToName --
+	// simulate that arriving back at us.
+	mirrored := &mail.Message{
+		OrigAddr: downlinkOrigAddr(),
+		ToName:   reply.FromName,
+		FromName: "Downlink Sysop",
+		Subject:  "Re: " + reply.Subject,
+		Body:     reply.Body,
+	}
+	handled, err := handleAreafixRequest(mirrored, robot, messages, netmailStore)
+	if err != nil {
+		t.Fatalf("handleAreafixRequest (mirrored): %v", err)
+	}
+	if handled {
+		t.Fatalf("handled = true for a reply mirrored back at us (ToName %q) -- want it left alone as ordinary netmail, not treated as a new request", mirrored.ToName)
 	}
 }
 

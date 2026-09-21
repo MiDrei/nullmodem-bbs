@@ -72,6 +72,7 @@ func main() {
 	pollStore := tosser.NewUplinkPollStore(sqlDB)
 	robot := &tosser.RobotConfig{
 		OurAddresses: cfg.BBS.FTNAddresses,
+		BBSName:      cfg.BBS.Name,
 		Uplinks:      cfg.Binkp.Uplinks,
 		EchoStore:    areafix.NewEchoStore(sqlDB),
 		FileStore:    areafix.NewFileStore(sqlDB),
