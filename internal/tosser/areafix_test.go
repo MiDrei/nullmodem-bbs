@@ -38,13 +38,22 @@ func TestRequestEchoAreaSubscriptionComposesAndRecordsRequest(t *testing.T) {
 		AreafixPassword: "secret1",
 	}
 
-	msg, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1"}, uplink, "FSX_GEN", true)
+	msg, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1"}, "Test BBS", uplink, "FSX_GEN", true)
 	if err != nil {
 		t.Fatalf("RequestEchoAreaSubscription: %v", err)
 	}
 
 	if msg.ToName != "Areafix" || msg.ToAddress != "21:3/100" {
 		t.Fatalf("message addressed to %q at %q, want Areafix at 21:3/100", msg.ToName, msg.ToAddress)
+	}
+	// FromName must be our own identity (bbsName), never "Areafix"
+	// again -- handleAreafixRequest's reply mirrors this request's own
+	// FromName back as its reply's ToName, so if this were "Areafix"
+	// too, our own inbound robot would misidentify that reply as a
+	// fresh incoming request instead of a reply to one we sent (see
+	// requestAreaCommand's doc comment).
+	if msg.FromName != "Test BBS" {
+		t.Fatalf("message FromName = %q, want our own bbsName (Test BBS), not the remote robot's name", msg.FromName)
 	}
 	if !msg.Crash {
 		t.Fatal("message.Crash = false, want true (dialed immediately, not on next scheduled poll)")
@@ -73,10 +82,10 @@ func TestRequestEchoAreaSubscriptionUnsubscribeWithdrawsRecord(t *testing.T) {
 	netmailStore, _, _, subs, _ := newTestStoresWithAreafix(t)
 	uplink := config.BinkpUplink{Address: "21:3/100", Host: "hub.example.com:24554", AreafixPassword: "secret1"}
 
-	if _, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1"}, uplink, "FSX_GEN", true); err != nil {
+	if _, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1"}, "Test BBS", uplink, "FSX_GEN", true); err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	msg, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1"}, uplink, "FSX_GEN", false)
+	msg, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1"}, "Test BBS", uplink, "FSX_GEN", false)
 	if err != nil {
 		t.Fatalf("unsubscribe: %v", err)
 	}
@@ -109,7 +118,7 @@ func TestRequestFileAreaSubscriptionUsesFilefixRobotAndPassword(t *testing.T) {
 		FilefixPassword: "filesecret",
 	}
 
-	msg, err := RequestFileAreaSubscription(netmailStore, fileSubs, []string{"21:3/194.1"}, uplink, "FSX_FILES", true)
+	msg, err := RequestFileAreaSubscription(netmailStore, fileSubs, []string{"21:3/194.1"}, "Test BBS", uplink, "FSX_FILES", true)
 	if err != nil {
 		t.Fatalf("RequestFileAreaSubscription: %v", err)
 	}
@@ -138,7 +147,7 @@ func TestRequestEchoAreaSubscriptionRoutesToExactUplinkOnly(t *testing.T) {
 	hobbyUplink := config.BinkpUplink{Address: "954:700/1", Host: "unused:2", AreafixPassword: "pw2"}
 	allUplinks := []config.BinkpUplink{fsxUplink, hobbyUplink}
 
-	if _, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1", "954:700/14"}, fsxUplink, "FSX_GEN", true); err != nil {
+	if _, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1", "954:700/14"}, "Test BBS", fsxUplink, "FSX_GEN", true); err != nil {
 		t.Fatalf("RequestEchoAreaSubscription: %v", err)
 	}
 
@@ -174,7 +183,7 @@ func TestRequestEchoAreaChangesBatchesMultipleAreasIntoOneMessage(t *testing.T) 
 		{Tag: "FSX_ADS", Subscribe: true},
 		{Tag: "FSX_OLD", Subscribe: false},
 	}
-	msg, err := RequestEchoAreaChanges(netmailStore, subs, []string{"21:3/194.1"}, uplink, changes)
+	msg, err := RequestEchoAreaChanges(netmailStore, subs, []string{"21:3/194.1"}, "Test BBS", uplink, changes)
 	if err != nil {
 		t.Fatalf("RequestEchoAreaChanges: %v", err)
 	}
@@ -201,7 +210,7 @@ func TestRequestEchoAreaListSendsPercentListCommand(t *testing.T) {
 	netmailStore, _, _, _, _ := newTestStoresWithAreafix(t)
 	uplink := config.BinkpUplink{Address: "21:3/100", Host: "hub.example.com:24554", AreafixPassword: "pw1"}
 
-	msg, err := RequestEchoAreaList(netmailStore, []string{"21:3/194.1"}, uplink)
+	msg, err := RequestEchoAreaList(netmailStore, []string{"21:3/194.1"}, "Test BBS", uplink)
 	if err != nil {
 		t.Fatalf("RequestEchoAreaList: %v", err)
 	}
@@ -244,7 +253,7 @@ func TestRequestEchoAreaListDoesNotGetATearlineWhenSent(t *testing.T) {
 
 	// A non-point address, matching a real leaf system's own AKA --
 	// no FMPT/INTL kludge to account for, just the request itself.
-	if _, err := RequestEchoAreaList(netmailStore, []string{"21:3/194"}, uplink); err != nil {
+	if _, err := RequestEchoAreaList(netmailStore, []string{"21:3/194"}, "Test BBS", uplink); err != nil {
 		t.Fatalf("RequestEchoAreaList: %v", err)
 	}
 
@@ -294,7 +303,7 @@ func TestRequestEchoAreaSubscriptionActuallySendsViaPoll(t *testing.T) {
 	})
 	uplink := config.BinkpUplink{Address: "21:3/100", Host: addr, AreafixPassword: "pw1"}
 
-	if _, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1"}, uplink, "FSX_GEN", true); err != nil {
+	if _, err := RequestEchoAreaSubscription(netmailStore, subs, []string{"21:3/194.1"}, "Test BBS", uplink, "FSX_GEN", true); err != nil {
 		t.Fatalf("RequestEchoAreaSubscription: %v", err)
 	}
 

@@ -91,9 +91,9 @@ func (s *Server) handleRequestAreafixChanges(w http.ResponseWriter, r *http.Requ
 
 	var msg *netmail.Message
 	if req.Kind == "file" {
-		msg, err = tosser.RequestFileAreaChanges(s.Netmail, s.FileAreafix, c.BBS.FTNAddresses, uplink, changes)
+		msg, err = tosser.RequestFileAreaChanges(s.Netmail, s.FileAreafix, c.BBS.FTNAddresses, c.BBS.Name, uplink, changes)
 	} else {
-		msg, err = tosser.RequestEchoAreaChanges(s.Netmail, s.EchoAreafix, c.BBS.FTNAddresses, uplink, changes)
+		msg, err = tosser.RequestEchoAreaChanges(s.Netmail, s.EchoAreafix, c.BBS.FTNAddresses, c.BBS.Name, uplink, changes)
 	}
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("areafix request failed: %v", err))
@@ -146,9 +146,9 @@ func (s *Server) handleRequestAreafixList(w http.ResponseWriter, r *http.Request
 
 	var msg *netmail.Message
 	if req.Kind == "file" {
-		msg, err = tosser.RequestFileAreaList(s.Netmail, c.BBS.FTNAddresses, uplink)
+		msg, err = tosser.RequestFileAreaList(s.Netmail, c.BBS.FTNAddresses, c.BBS.Name, uplink)
 	} else {
-		msg, err = tosser.RequestEchoAreaList(s.Netmail, c.BBS.FTNAddresses, uplink)
+		msg, err = tosser.RequestEchoAreaList(s.Netmail, c.BBS.FTNAddresses, c.BBS.Name, uplink)
 	}
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("areafix list request failed: %v", err))

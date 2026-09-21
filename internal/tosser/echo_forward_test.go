@@ -136,6 +136,38 @@ func TestRoutedOutboundEchoForwardIncludesRemoteOriginMessagesToo(t *testing.T) 
 	}
 }
 
+// TestRoutedOutboundEchoForwardSkipsMessagesOriginatedByTarget locks
+// in the loopback fix: a message downlinkUplink itself sent us (its
+// MSGID origin is downlinkUplink's own net/node) must never be
+// forwarded straight back to it, even though nothing ever marks a
+// message's own author into its own SEEN-BY -- confirmed live against
+// the NullModem test network's own boss/point pair, where a point's
+// freshly-posted message kept coming right back to it every poll.
+func TestRoutedOutboundEchoForwardSkipsMessagesOriginatedByTarget(t *testing.T) {
+	_, messages, _, _, echoSubs, _ := newTestStoresWithRobot(t)
+	area, err := messages.CreateArea("FSX_GEN", "fsxNet General", "", "fsxNet", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	// downlinkUplink's own address is 21:3/100 -- this message's MSGID
+	// claims that exact origin, as if downlinkUplink had just sent it
+	// to us themselves.
+	if _, _, err := messages.ReceiveEcho(area.ID, "Point User", "Hi", "hello from the point", "21:3/100 1", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
+	}
+	if err := echoSubs.Request(downlinkUplink.Host, "FSX_GEN", areafix.Inbound); err != nil {
+		t.Fatalf("Request: %v", err)
+	}
+
+	out, err := RoutedOutboundEchoForward(messages, echoSubs, downlinkUplink)
+	if err != nil {
+		t.Fatalf("RoutedOutboundEchoForward: %v", err)
+	}
+	if len(out) != 0 {
+		t.Fatalf("RoutedOutboundEchoForward = %+v, want empty -- target originated this message itself", out)
+	}
+}
+
 // TestPollForwardsEchomailToSubscribedDownlinkAndMarksSeenBy is an
 // end-to-end regression test through Poll itself: a downlink with an
 // active inbound Areafix subscription must receive a copy of a

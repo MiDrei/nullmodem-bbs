@@ -487,9 +487,14 @@ func RoutedOutboundEcho(messages *message.Store, target config.BinkpUplink) ([]m
 // echo_area_grants) that target's own address doesn't already carry
 // in that message's SEEN-BY (message.SeenByNetNodes -- see
 // message.Store.MarkSeenBy, called once Poll confirms a forwarded
-// message was actually delivered). A subscription naming a tag with
-// no matching local area (deleted since, say) is silently skipped
-// rather than erroring the whole poll over it.
+// message was actually delivered), and that target didn't itself
+// originate (see msgIDOriginNetNode) -- nothing ever adds a message's
+// own author into its own SEEN-BY (that's implicit, not useful
+// information a real tosser bothers recording), so SEEN-BY alone
+// never catches a message a downlink just sent us from being handed
+// straight back to it on the very next forward. A subscription naming
+// a tag with no matching local area (deleted since, say) is silently
+// skipped rather than erroring the whole poll over it.
 func RoutedOutboundEchoForward(messages *message.Store, echoGrants *areafix.EchoStore, target config.BinkpUplink) ([]message.PendingEcho, error) {
 	targetAddr, err := mail.ParseAddress(target.Address)
 	if err != nil {
@@ -519,10 +524,29 @@ func RoutedOutboundEchoForward(messages *message.Store, echoGrants *areafix.Echo
 			if message.SeenByNetNodes(m.Body)[targetNetNode] {
 				continue
 			}
+			if msgIDOriginNetNode(m.MsgID) == targetNetNode {
+				continue
+			}
 			out = append(out, message.PendingEcho{Message: m, AreaTag: sub.AreaTag})
 		}
 	}
 	return out, nil
+}
+
+// msgIDOriginNetNode returns the net/node (see message.NetNode) an
+// echomail message's MSGID kludge (FTS-0001: "<origin-address>
+// <serial>", see buildPacket/tossEcho) claims as its origin, or "" if
+// msgID is empty or doesn't parse as one.
+func msgIDOriginNetNode(msgID string) string {
+	addr, _, ok := strings.Cut(msgID, " ")
+	if !ok {
+		return ""
+	}
+	a, err := mail.ParseAddress(addr)
+	if err != nil {
+		return ""
+	}
+	return message.NetNode(a.Net, a.Node)
 }
 
 func routeOutbound(pending []netmail.Message, target config.BinkpUplink, allUplinks []config.BinkpUplink) []netmail.Message {

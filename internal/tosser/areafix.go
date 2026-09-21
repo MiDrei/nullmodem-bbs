@@ -38,8 +38,8 @@ type AreaChange struct {
 
 // RequestEchoAreaSubscription is RequestEchoAreaChanges for a single
 // area -- see that function's doc comment.
-func RequestEchoAreaSubscription(netmailStore *netmail.Store, subs *areafix.EchoStore, ourAddresses []string, uplink config.BinkpUplink, areaTag string, subscribe bool) (*netmail.Message, error) {
-	return RequestEchoAreaChanges(netmailStore, subs, ourAddresses, uplink, []AreaChange{{Tag: areaTag, Subscribe: subscribe}})
+func RequestEchoAreaSubscription(netmailStore *netmail.Store, subs *areafix.EchoStore, ourAddresses []string, bbsName string, uplink config.BinkpUplink, areaTag string, subscribe bool) (*netmail.Message, error) {
+	return RequestEchoAreaChanges(netmailStore, subs, ourAddresses, bbsName, uplink, []AreaChange{{Tag: areaTag, Subscribe: subscribe}})
 }
 
 // RequestEchoAreaChanges queues a single Crash-priority netmail asking
@@ -48,13 +48,15 @@ func RequestEchoAreaSubscription(netmailStore *netmail.Store, subs *areafix.Echo
 // areafix.EchoStore) so the web admin UI can show what's pending.
 // ourAddresses picks whichever AKA shares uplink's own FTN zone (see
 // ourAddressForUplink), matching how Poll stamps outbound mail's
-// origin. The request is Crash-priority and addressed to uplink's own
-// configured Address specifically, so routeOutbound sends it to
-// exactly that uplink (never a different, same-zone one) and
-// cmd/mailer's universal crash-trigger dials it immediately rather
-// than waiting for a scheduled poll.
-func RequestEchoAreaChanges(netmailStore *netmail.Store, subs *areafix.EchoStore, ourAddresses []string, uplink config.BinkpUplink, changes []AreaChange) (*netmail.Message, error) {
-	msg, err := requestAreaCommand(netmailStore, ourAddresses, uplink, defaultAreafixRobotName, uplink.AreafixPassword, changeLines(changes))
+// origin. bbsName identifies us as the request's sender (see
+// requestAreaCommand's doc comment for why this must not be
+// defaultAreafixRobotName itself). The request is Crash-priority and
+// addressed to uplink's own configured Address specifically, so
+// routeOutbound sends it to exactly that uplink (never a different,
+// same-zone one) and cmd/mailer's universal crash-trigger dials it
+// immediately rather than waiting for a scheduled poll.
+func RequestEchoAreaChanges(netmailStore *netmail.Store, subs *areafix.EchoStore, ourAddresses []string, bbsName string, uplink config.BinkpUplink, changes []AreaChange) (*netmail.Message, error) {
+	msg, err := requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultAreafixRobotName, uplink.AreafixPassword, changeLines(changes))
 	if err != nil {
 		return nil, err
 	}
@@ -70,22 +72,22 @@ func RequestEchoAreaChanges(netmailStore *netmail.Store, subs *areafix.EchoStore
 // netmail; see netmail.Store.InboxFromAddress and
 // areafix.ParseAreaListReply for pulling it back out and turning it
 // into a pickable list.
-func RequestEchoAreaList(netmailStore *netmail.Store, ourAddresses []string, uplink config.BinkpUplink) (*netmail.Message, error) {
-	return requestAreaCommand(netmailStore, ourAddresses, uplink, defaultAreafixRobotName, uplink.AreafixPassword, []string{areaListCommand})
+func RequestEchoAreaList(netmailStore *netmail.Store, ourAddresses []string, bbsName string, uplink config.BinkpUplink) (*netmail.Message, error) {
+	return requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultAreafixRobotName, uplink.AreafixPassword, []string{areaListCommand})
 }
 
 // RequestFileAreaSubscription is RequestEchoAreaSubscription's exact
 // counterpart for a file-echo (TIC) area, addressed to uplink's
 // Filefix robot instead of Areafix.
-func RequestFileAreaSubscription(netmailStore *netmail.Store, subs *areafix.FileStore, ourAddresses []string, uplink config.BinkpUplink, areaTag string, subscribe bool) (*netmail.Message, error) {
-	return RequestFileAreaChanges(netmailStore, subs, ourAddresses, uplink, []AreaChange{{Tag: areaTag, Subscribe: subscribe}})
+func RequestFileAreaSubscription(netmailStore *netmail.Store, subs *areafix.FileStore, ourAddresses []string, bbsName string, uplink config.BinkpUplink, areaTag string, subscribe bool) (*netmail.Message, error) {
+	return RequestFileAreaChanges(netmailStore, subs, ourAddresses, bbsName, uplink, []AreaChange{{Tag: areaTag, Subscribe: subscribe}})
 }
 
 // RequestFileAreaChanges is RequestEchoAreaChanges's exact counterpart
 // for file-echo (TIC) areas, addressed to uplink's Filefix robot
 // instead of Areafix -- see that function's doc comment.
-func RequestFileAreaChanges(netmailStore *netmail.Store, subs *areafix.FileStore, ourAddresses []string, uplink config.BinkpUplink, changes []AreaChange) (*netmail.Message, error) {
-	msg, err := requestAreaCommand(netmailStore, ourAddresses, uplink, defaultFilefixRobotName, uplink.FilefixPassword, changeLines(changes))
+func RequestFileAreaChanges(netmailStore *netmail.Store, subs *areafix.FileStore, ourAddresses []string, bbsName string, uplink config.BinkpUplink, changes []AreaChange) (*netmail.Message, error) {
+	msg, err := requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultFilefixRobotName, uplink.FilefixPassword, changeLines(changes))
 	if err != nil {
 		return nil, err
 	}
@@ -97,8 +99,8 @@ func RequestFileAreaChanges(netmailStore *netmail.Store, subs *areafix.FileStore
 
 // RequestFileAreaList is RequestEchoAreaList's exact counterpart for
 // file-echo areas, addressed to uplink's Filefix robot.
-func RequestFileAreaList(netmailStore *netmail.Store, ourAddresses []string, uplink config.BinkpUplink) (*netmail.Message, error) {
-	return requestAreaCommand(netmailStore, ourAddresses, uplink, defaultFilefixRobotName, uplink.FilefixPassword, []string{areaListCommand})
+func RequestFileAreaList(netmailStore *netmail.Store, ourAddresses []string, bbsName string, uplink config.BinkpUplink) (*netmail.Message, error) {
+	return requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultFilefixRobotName, uplink.FilefixPassword, []string{areaListCommand})
 }
 
 // changeLines renders each AreaChange as its "+TAG"/"-TAG" command
@@ -146,7 +148,21 @@ func recordChanges(subs echoSubscriptionRecorder, uplinkHost string, changes []A
 // (Clearing Houz): it authenticates the Subject specifically, and a
 // request with the (correct) password sitting on the body's first
 // line instead was rejected as "password incorrect."
-func requestAreaCommand(netmailStore *netmail.Store, ourAddresses []string, uplink config.BinkpUplink, robotName, password string, lines []string) (*netmail.Message, error) {
+//
+// bbsName, not robotName, is the message's own FromName: the request
+// is addressed TO the remote robot (robotName, e.g. "Areafix"), but
+// must identify US as its sender, not the robot it's headed to.
+// handleAreafixRequest's own reply mirrors the request's FromName
+// back as its reply's ToName (there being no other name to address a
+// robot-to-robot reply to) -- were this robotName too, our own
+// inbound handler would see that reply land with ToName == "Areafix"
+// and misidentify it as a fresh incoming request instead of a reply
+// to one we sent, worth a defensive "password incorrect" bounce back
+// (the reply's "Re: <password>" subject doesn't match either
+// robot's own configured password) and, against a real hub doing the
+// same mirroring, an indefinite once-per-poll ping-pong. Confirmed
+// live against the NullModem test network's own boss/point pair.
+func requestAreaCommand(netmailStore *netmail.Store, ourAddresses []string, bbsName string, uplink config.BinkpUplink, robotName, password string, lines []string) (*netmail.Message, error) {
 	if len(ourAddresses) == 0 {
 		return nil, fmt.Errorf("tosser: no FTN addresses configured for this system")
 	}
@@ -165,5 +181,5 @@ func requestAreaCommand(netmailStore *netmail.Store, ourAddresses []string, upli
 		b.WriteByte('\r')
 	}
 
-	return netmailStore.SendSystem(robotName, ourAddr.String(), robotName, uplink.Address, password, b.String(), true)
+	return netmailStore.SendSystem(bbsName, ourAddr.String(), robotName, uplink.Address, password, b.String(), true)
 }

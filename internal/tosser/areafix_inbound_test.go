@@ -112,6 +112,46 @@ func TestHandleAreafixRequestSubscribesToExistingArea(t *testing.T) {
 	}
 }
 
+// TestHandleAreafixRequestDoesNotMisidentifyAReplyToOurOwnRequest
+// locks in requestAreaCommand's FromName fix: a reply to a request we
+// sent (ToName mirrors that request's own FromName, per
+// handleAreafixRequest's own replyTo) must never itself be recognized
+// as a fresh incoming request just because it happens to come from a
+// configured uplink -- only an inbound message actually addressed TO
+// "Areafix"/"Filefix" is a request. handled=false here means it falls
+// through to ordinary netmail storage instead (see
+// netmail.Store.UnresolvedInbox, which exists specifically to surface
+// a reply like this).
+func TestHandleAreafixRequestDoesNotMisidentifyAReplyToOurOwnRequest(t *testing.T) {
+	netmailStore, messages, files, _, echoSubs, fileSubs := newTestStoresWithRobot(t)
+	robot := &RobotConfig{
+		OurAddresses: []string{"21:3/1"},
+		Uplinks:      []config.BinkpUplink{downlinkUplink},
+		EchoStore:    echoSubs,
+		FileStore:    fileSubs,
+		Files:        files,
+	}
+	// Shaped exactly like handleAreafixRequest's own replyTo builds a
+	// reply: ToName is our own bbsName (whatever FromName our original
+	// request carried, see requestAreaCommand), FromName is the remote
+	// robot's own name.
+	reply := &mail.Message{
+		OrigAddr: downlinkOrigAddr(),
+		ToName:   "Test BBS",
+		FromName: "Areafix",
+		Subject:  "Re: areasecret",
+		Body:     "+TESTAREA: added\r",
+	}
+
+	handled, err := handleAreafixRequest(reply, robot, messages, netmailStore)
+	if err != nil {
+		t.Fatalf("handleAreafixRequest: %v", err)
+	}
+	if handled {
+		t.Fatal("handled = true, want false -- this is a reply to our own request, not an incoming one")
+	}
+}
+
 func TestHandleAreafixRequestWrongPasswordSendsRejection(t *testing.T) {
 	netmailStore, messages, files, _, echoSubs, fileSubs := newTestStoresWithRobot(t)
 	if _, err := messages.CreateArea("TESTAREA", "Test Area", "", "", 0, 0); err != nil {
