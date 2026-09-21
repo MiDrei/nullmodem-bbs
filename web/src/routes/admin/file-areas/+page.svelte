@@ -441,7 +441,9 @@
 												<tr class="border-b border-slate-900">
 													<td class="py-1 pr-3 text-slate-100">{f.filename}</td>
 													<td class="py-1 pr-3 text-slate-400">{f.size_human}</td>
-													<td class="py-1 pr-3 text-slate-400">{f.description}</td>
+													<td class="max-w-xs truncate py-1 pr-3 text-slate-400" title={f.description}
+													>{f.description}</td
+												>
 													<td class="py-1 pr-3 text-slate-400">{f.uploaded_by}</td>
 													<td class="py-1 pr-3 text-slate-400">{f.download_count}</td>
 													<td class="py-1">

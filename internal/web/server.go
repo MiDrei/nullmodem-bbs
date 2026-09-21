@@ -128,6 +128,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/bbs/file-areas", s.requireBBSUser(http.HandlerFunc(s.handleListBBSFileAreas)))
 	mux.Handle("GET /api/bbs/file-areas/{id}/files", s.requireBBSUser(http.HandlerFunc(s.handleListBBSAreaFiles)))
 	mux.Handle("POST /api/bbs/file-areas/{id}/files", s.requireBBSUser(http.HandlerFunc(s.handleUploadBBSAreaFile)))
+	mux.Handle("GET /api/bbs/files/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSFile)))
 	mux.Handle("GET /api/bbs/files/{id}/download", s.requireBBSUser(http.HandlerFunc(s.handleDownloadBBSFile)))
 
 	if s.StaticDir != "" {

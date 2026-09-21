@@ -140,10 +140,10 @@
 								: 'border-l-2 border-l-transparent'} transition hover:bg-slate-800/60"
 						>
 							<td class="py-2 pl-4 {f.unread ? 'font-medium text-slate-100' : 'text-slate-300'}">
-								{f.filename}
+								<a href="/files/{f.id}" class="hover:underline">{f.filename}</a>
 							</td>
 							<td class="py-2 text-slate-500">{f.size_human}</td>
-							<td class="py-2 text-slate-500">{f.description}</td>
+							<td class="max-w-xs truncate py-2 text-slate-500">{f.description}</td>
 							<td class="py-2 text-slate-500">{f.uploaded_by}</td>
 							<td class="py-2 pr-4">
 								<button

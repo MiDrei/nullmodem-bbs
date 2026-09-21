@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -101,6 +102,93 @@ func TestBBSUploadAndDownloadFileRoundTrip(t *testing.T) {
 	}
 	if f.DownloadCount != 1 {
 		t.Fatalf("DownloadCount = %d, want 1", f.DownloadCount)
+	}
+}
+
+// TestBBSGetFileReturnsDescriptionAndMarksRead locks in
+// handleGetBBSFile: a file's full (here, multi-line -- the way a real
+// TIC's Desc+Ldesc lines join, see internal/tic.File.Description)
+// description must come back, and viewing it must mark it read --
+// the only other way to do that is downloading, which isn't always
+// wanted just to see what a file actually is.
+func TestBBSGetFileReturnsDescriptionAndMarksRead(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	// Bootstrap a sysop first so alice (registered second) isn't
+	// auto-promoted by the first-user-becomes-sysop rule.
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	areas, err := srv.Files.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	var generalID int64
+	for _, a := range areas {
+		if a.Tag == "general" {
+			generalID = a.ID
+		}
+	}
+	desc := "A short one-liner\nAn additional detail line\nAnother detail line"
+	uploaded, err := srv.Files.UploadFile(generalID, alice.ID, "readme.txt", desc, strings.NewReader("hello"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d", uploaded.ID), nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var got bbsFileDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Description != desc {
+		t.Fatalf("Description = %q, want the full multi-line description %q", got.Description, desc)
+	}
+
+	read, err := srv.Files.ReadFileIDs(alice.ID, generalID)
+	if err != nil {
+		t.Fatalf("ReadFileIDs: %v", err)
+	}
+	if !read[uploaded.ID] {
+		t.Fatal("file not marked read after GET /api/bbs/files/{id}")
+	}
+}
+
+func TestBBSGetFileRespectsMinSLDownload(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	sysop, err := users.Register("sysop2", "password123", user.SLSysop)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	locked, err := srv.Files.CreateArea("locked", "Locked", "", "", 200, 200)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	uploaded, err := srv.Files.UploadFile(locked.ID, sysop.ID, "secret.txt", "shh", strings.NewReader("data"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d", uploaded.ID), nil, token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("GET status = %d, want 403, body=%s", rec.Code, rec.Body.String())
 	}
 }
 

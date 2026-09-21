@@ -79,6 +79,36 @@ func TestBBSMessageAreasRespectMinSLRead(t *testing.T) {
 	}
 }
 
+func TestBBSMessageAreasIncludeDescription(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := srv.Messages.CreateArea("chat", "Chat", "General chat for everyone", "", 0, 0); err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, "/api/bbs/message-areas", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var areas []bbsMessageAreaDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &areas); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	var chat *bbsMessageAreaDTO
+	for i := range areas {
+		if areas[i].Tag == "chat" {
+			chat = &areas[i]
+		}
+	}
+	if chat == nil || chat.Description != "General chat for everyone" {
+		t.Fatalf("areas = %+v, want the chat area's description included", areas)
+	}
+}
+
 func TestBBSPostMessageRespectsMinSLWrite(t *testing.T) {
 	srv, users, _ := newTestServer(t)
 	// Bootstrap a sysop first so alice (registered second) isn't

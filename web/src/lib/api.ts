@@ -576,6 +576,7 @@ export interface BBSMessageArea {
 	id: number;
 	tag: string;
 	name: string;
+	description: string;
 	network: string;
 	min_sl_read: number;
 	min_sl_write: number;
@@ -752,6 +753,11 @@ export function listBBSFileAreas(token: string): Promise<BBSFileArea[]> {
 
 export function listBBSAreaFiles(token: string, areaId: number): Promise<BBSFile[]> {
 	return request<BBSFile[]>(`/api/bbs/file-areas/${areaId}/files`, { method: 'GET' }, token);
+}
+
+/** Loads one file's full metadata (including its full, possibly multi-line description) and marks it read -- the only other way to mark a file read is downloading it. */
+export function getBBSFile(token: string, id: number): Promise<BBSFile> {
+	return request<BBSFile>(`/api/bbs/files/${id}`, { method: 'GET' }, token);
 }
 
 export function uploadBBSAreaFile(

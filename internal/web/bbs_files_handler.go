@@ -130,6 +130,50 @@ func (s *Server) handleListBBSAreaFiles(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, dtos)
 }
 
+// handleGetBBSFile loads one file's metadata -- including its full
+// (possibly multi-line, see internal/tic.File.Description) TIC/upload
+// description -- and marks it read, the same way opening a message
+// does. The only other way to mark a file read is downloading it (see
+// handleDownloadBBSFile), which isn't always what a caller wants just
+// to see what a file actually is.
+func (s *Server) handleGetBBSFile(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid file id")
+		return
+	}
+	f, err := s.Files.FileByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	area, err := s.Files.AreaByID(f.AreaID)
+	if err != nil || !area.CanDownload(claims.SecurityLevel) {
+		writeError(w, http.StatusForbidden, "not permitted to view this file")
+		return
+	}
+	if err := s.Files.MarkFileRead(claims.UserID, f.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not mark file read")
+		return
+	}
+	writeJSON(w, http.StatusOK, bbsFileDTO{
+		ID:            f.ID,
+		AreaID:        f.AreaID,
+		Filename:      f.Filename,
+		Description:   f.Description,
+		SizeBytes:     f.SizeBytes,
+		SizeHuman:     humanize.Bytes(uint64(f.SizeBytes)),
+		UploadedBy:    f.UploadedByName,
+		UploadedAt:    f.UploadedAt.Format(time.RFC3339),
+		DownloadCount: f.DownloadCount,
+	})
+}
+
 // handleDownloadBBSFile streams a file straight over HTTP -- unlike
 // internal/bbs's own Zmodem-over-Telnet download (see
 // internal/bbs/files.go's downloadFile), a browser can just receive

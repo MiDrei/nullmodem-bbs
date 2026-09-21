@@ -89,6 +89,9 @@
 								>
 									{area.name}
 								</div>
+								{#if area.description}
+									<div class="truncate text-xs text-slate-500">{area.description}</div>
+								{/if}
 							</div>
 							{#if area.new > 0}
 								<span

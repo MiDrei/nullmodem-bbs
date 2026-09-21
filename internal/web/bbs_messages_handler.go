@@ -22,28 +22,30 @@ const (
 )
 
 type bbsMessageAreaDTO struct {
-	ID         int64  `json:"id"`
-	Tag        string `json:"tag"`
-	Name       string `json:"name"`
-	Network    string `json:"network"`
-	MinSLRead  int    `json:"min_sl_read"`
-	MinSLWrite int    `json:"min_sl_write"`
-	Total      int    `json:"total"`
-	New        int    `json:"new"`
-	Yours      int    `json:"yours"`
+	ID          int64  `json:"id"`
+	Tag         string `json:"tag"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Network     string `json:"network"`
+	MinSLRead   int    `json:"min_sl_read"`
+	MinSLWrite  int    `json:"min_sl_write"`
+	Total       int    `json:"total"`
+	New         int    `json:"new"`
+	Yours       int    `json:"yours"`
 }
 
 func toBBSMessageAreaDTO(a message.AreaWithStats) bbsMessageAreaDTO {
 	return bbsMessageAreaDTO{
-		ID:         a.Area.ID,
-		Tag:        a.Area.Tag,
-		Name:       a.Area.Name,
-		Network:    a.Area.Network,
-		MinSLRead:  a.Area.MinSLRead,
-		MinSLWrite: a.Area.MinSLWrite,
-		Total:      a.Total,
-		New:        a.New,
-		Yours:      a.Yours,
+		ID:          a.Area.ID,
+		Tag:         a.Area.Tag,
+		Name:        a.Area.Name,
+		Description: a.Area.Description,
+		Network:     a.Area.Network,
+		MinSLRead:   a.Area.MinSLRead,
+		MinSLWrite:  a.Area.MinSLWrite,
+		Total:       a.Total,
+		New:         a.New,
+		Yours:       a.Yours,
 	}
 }
 
