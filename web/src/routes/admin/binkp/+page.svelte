@@ -34,7 +34,8 @@
 			tic_password: '',
 			areafix_password: '',
 			filefix_password: '',
-			network: ''
+			network: '',
+			hold: false
 		};
 	}
 
@@ -363,6 +364,16 @@
 							still dialed immediately whenever there's netmail or echomail actually pending for
 							it (see the mailer's crash-style triggering), plus the poll interval above as a slow
 							fallback if set, or manually via "Send Now"
+						</span>
+					</label>
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={uplink.hold} />
+						<span class="text-slate-400">
+							Hold: never dialed automatically for any reason at all, not even pending/Crash mail
+							-- only via "Send Now", or by this uplink polling us itself. Use this for a peer
+							that can't be reached back either way (e.g. a point behind NAT with no port
+							forwarding), where Crash-only above still isn't enough to stop a doomed dial attempt
+							every time there's mail pending for it.
 						</span>
 					</label>
 					<div class="col-span-2 flex gap-2">

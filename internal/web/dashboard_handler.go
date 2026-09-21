@@ -22,8 +22,13 @@ type binkpStatusDTO struct {
 	OwnFTNAddresses      []string `json:"own_ftn_addresses"`
 	UplinkCount          int      `json:"uplink_count"`
 	CrashOnlyUplinkCount int      `json:"crash_only_uplink_count"`
-	PendingOutbound      int      `json:"pending_outbound"`
-	PendingCrash         int      `json:"pending_crash"`
+	// HoldUplinkCount counts config.BinkpUplink.Hold entries --
+	// distinct from CrashOnlyUplinkCount (PollDisabled): a Hold uplink
+	// is never auto-dialed for any reason, while a crash-only one
+	// still is, for pending mail.
+	HoldUplinkCount int `json:"hold_uplink_count"`
+	PendingOutbound int `json:"pending_outbound"`
+	PendingCrash    int `json:"pending_crash"`
 }
 
 type dashboardDTO struct {
@@ -83,6 +88,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		binkp.UplinkCount++
 		if u.PollDisabled {
 			binkp.CrashOnlyUplinkCount++
+		}
+		if u.Hold {
+			binkp.HoldUplinkCount++
 		}
 	}
 	if s.Netmail != nil {

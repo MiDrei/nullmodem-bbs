@@ -190,7 +190,7 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 	got.BinkpUplinks = []binkpUplinkDTO{
 		{
 			Address: "21:3/194", Host: "bbs.maik.ch:24554", Password: "secret", PollIntervalSeconds: 7200,
-			PacketPassword: "pktpass", TICPassword: "ticpass", AreafixPassword: "areapass",
+			PacketPassword: "pktpass", TICPassword: "ticpass", AreafixPassword: "areapass", Hold: true,
 		},
 	}
 	got.BinkpDefaultPollIntervalSeconds = 1800
@@ -215,7 +215,8 @@ func TestLoginAndConfigRoundTrip(t *testing.T) {
 		saved.Binkp.Uplinks[0].PollIntervalSeconds != 7200 ||
 		saved.Binkp.Uplinks[0].PacketPassword != "pktpass" ||
 		saved.Binkp.Uplinks[0].TICPassword != "ticpass" ||
-		saved.Binkp.Uplinks[0].AreafixPassword != "areapass" {
+		saved.Binkp.Uplinks[0].AreafixPassword != "areapass" ||
+		!saved.Binkp.Uplinks[0].Hold {
 		t.Fatalf("saved.Binkp.Uplinks = %+v, want one uplink with the round-tripped fields", saved.Binkp.Uplinks)
 	}
 }
@@ -285,6 +286,7 @@ func TestDashboardReportsBinkpStatus(t *testing.T) {
 	c.Binkp.Uplinks = []config.BinkpUplink{
 		{Address: "21:3/100", Host: "n3.z21.example.org:24554"},
 		{Address: "954:700/1", Host: "n700.z954.example.org:24554", PollDisabled: true},
+		{Address: "9999:1/100", Host: "n/a", Hold: true},
 	}
 	if err := config.Save(configPath, c); err != nil {
 		t.Fatalf("config.Save: %v", err)
@@ -308,11 +310,14 @@ func TestDashboardReportsBinkpStatus(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode dashboard: %v", err)
 	}
-	if got.Binkp.UplinkCount != 2 {
-		t.Fatalf("Binkp.UplinkCount = %d, want 2", got.Binkp.UplinkCount)
+	if got.Binkp.UplinkCount != 3 {
+		t.Fatalf("Binkp.UplinkCount = %d, want 3", got.Binkp.UplinkCount)
 	}
 	if got.Binkp.CrashOnlyUplinkCount != 1 {
 		t.Fatalf("Binkp.CrashOnlyUplinkCount = %d, want 1", got.Binkp.CrashOnlyUplinkCount)
+	}
+	if got.Binkp.HoldUplinkCount != 1 {
+		t.Fatalf("Binkp.HoldUplinkCount = %d, want 1", got.Binkp.HoldUplinkCount)
 	}
 	if got.Binkp.PendingOutbound != 2 {
 		t.Fatalf("Binkp.PendingOutbound = %d, want 2", got.Binkp.PendingOutbound)

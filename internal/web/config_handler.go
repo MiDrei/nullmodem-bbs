@@ -42,6 +42,10 @@ type binkpUplinkDTO struct {
 	// Network labels which FTN network this uplink carries echomail
 	// for -- see config.BinkpUplink.Network's doc comment.
 	Network string `json:"network"`
+	// Hold -- see config.BinkpUplink.Hold's own doc comment: never
+	// dialed automatically at all, not even for pending/Crash mail,
+	// only via "Send Now".
+	Hold bool `json:"hold"`
 }
 
 type configDTO struct {
@@ -71,6 +75,7 @@ func toDTO(c *config.Config) configDTO {
 			AreafixPassword:     u.AreafixPassword,
 			FilefixPassword:     u.FilefixPassword,
 			Network:             u.Network,
+			Hold:                u.Hold,
 		}
 	}
 	addrs := c.BBS.FTNAddresses
@@ -149,6 +154,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			AreafixPassword:     u.AreafixPassword,
 			FilefixPassword:     u.FilefixPassword,
 			Network:             u.Network,
+			Hold:                u.Hold,
 		}
 	}
 	c.Binkp.PollIntervalSeconds = dto.BinkpDefaultPollIntervalSeconds

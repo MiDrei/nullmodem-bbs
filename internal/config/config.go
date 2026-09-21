@@ -144,6 +144,18 @@ type BinkpUplink struct {
 	// originated echomail (fine for a network we only read, never
 	// post to).
 	Network string `yaml:"network"`
+	// Hold marks this uplink as classic FTN "Hold" status: cmd/mailer
+	// never dials it automatically for any reason at all, not even
+	// PollDisabled's own "crash-style" immediate dial for pending mail
+	// (see cmd/mailer's checkUplinks/dialedForPendingMail) -- mail
+	// just queues until the uplink itself polls us (see
+	// Binkp.ListenEnabled) or a sysop uses the web admin's "Send Now"
+	// button, which ignores Hold entirely, same as it already ignores
+	// PollDisabled. For a genuinely unreachable peer (e.g. a point
+	// behind NAT with no port forwarding) PollDisabled alone isn't
+	// enough: pending mail -- Crash-flagged or not -- would still
+	// trigger a doomed dial attempt on every check tick.
+	Hold bool `yaml:"hold"`
 }
 
 // DoorConfig is one entry in Config.Doors -- see internal/doors.Door,

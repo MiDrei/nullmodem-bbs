@@ -1,10 +1,25 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
+	import { getBBSInfo } from '$lib/api';
 	import Toaster from '$lib/Toaster.svelte';
 
 	let { children } = $props();
+
+	// Falls back to the generic product name until the (unauthenticated,
+	// so it also works on the login page) fetch resolves -- see
+	// handleBBSInfo's own doc comment for why this needs no token.
+	let bbsName = $state('NullModem BBS');
+	onMount(async () => {
+		try {
+			const info = await getBBSInfo();
+			if (info.name) bbsName = info.name;
+		} catch {
+			// Non-critical: keep the generic fallback name.
+		}
+	});
 
 	let systemMenuOpen = $state(false);
 
@@ -35,7 +50,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>NullModem BBS Admin</title>
+	<title>{bbsName} Admin</title>
 </svelte:head>
 
 <div class="min-h-screen bg-slate-950 text-slate-100">
@@ -44,7 +59,7 @@
 	>
 		<div class="flex items-center justify-center md:justify-start">
 			<span class="font-mono text-lg font-semibold tracking-wide text-cyan-400"
-				>NullModem BBS &middot; Admin</span
+				>{bbsName} &middot; Admin</span
 			>
 		</div>
 

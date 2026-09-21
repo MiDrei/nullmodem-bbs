@@ -171,11 +171,14 @@ func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, n
 	logger.Info("inbound BinkP session from %s (%v): received %d netmail, %d echomail, %d file(s)%s", remote, res.RemoteAddresses, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
 }
 
-// checkUplinks visits every configured uplink once: any uplink --
-// crash-only (PollDisabled) or not -- is dialed immediately if any
-// netmail or echomail is actually routed to it right now (see
-// dialedForPendingMail), regardless of whether that mail is
-// Crash-flagged. Only once an uplink has nothing pending does it fall
+// checkUplinks visits every configured uplink once: a Hold uplink
+// (see config.BinkpUplink.Hold) is skipped entirely here -- it's
+// never dialed automatically for any reason, only via "Send Now".
+// Otherwise, any uplink -- crash-only (PollDisabled) or not -- is
+// dialed immediately if any netmail or echomail is actually routed to
+// it right now (see dialedForPendingMail), regardless of whether that
+// mail is Crash-flagged. Only once an uplink has nothing pending does
+// it fall
 // back to slower scheduling: a crash-only uplink gets a fallback poll
 // if it has its own explicit PollIntervalSeconds set (never the
 // global default: an uplink that wants this must say so explicitly,
@@ -225,6 +228,9 @@ func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail
 	}
 
 	for _, uplink := range cfg.Binkp.Uplinks {
+		if uplink.Hold {
+			continue // never dialed automatically -- see BinkpUplink.Hold's own doc comment
+		}
 		if dialedForPendingMail(ctx, cfg, uplink, netmailStore, messages, users, robot, ticCfg, pollStore, logger) {
 			return
 		}

@@ -97,7 +97,7 @@
 				>
 			</p>
 		{/if}
-		<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+		<div class="grid grid-cols-2 gap-4 sm:grid-cols-5">
 			<div class="rounded border border-slate-800 p-3">
 				<div class="text-xl font-semibold text-slate-100">{dashboard.binkp.uplink_count}</div>
 				<div class="text-xs tracking-wide text-slate-500 uppercase">Uplinks</div>
@@ -107,6 +107,10 @@
 					{dashboard.binkp.crash_only_uplink_count}
 				</div>
 				<div class="text-xs tracking-wide text-slate-500 uppercase">Crash-Only</div>
+			</div>
+			<div class="rounded border border-slate-800 p-3">
+				<div class="text-xl font-semibold text-slate-100">{dashboard.binkp.hold_uplink_count}</div>
+				<div class="text-xs tracking-wide text-slate-500 uppercase">Hold</div>
 			</div>
 			<div class="rounded border border-slate-800 p-3">
 				<div class="text-xl font-semibold text-slate-100">{dashboard.binkp.pending_outbound}</div>

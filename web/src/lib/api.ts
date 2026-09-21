@@ -18,6 +18,8 @@ export interface BinkpUplink {
 	filefix_password: string;
 	/** Which FTN network this uplink carries echomail for (e.g. "fsxNet", "HobbyNet"), matched case-insensitively against a message area's own Network to decide which uplink a locally-posted echo message goes out through. Empty means this uplink never sends locally-originated echomail. */
 	network: string;
+	/** Classic FTN "Hold" status: never dialed automatically for any reason at all, not even poll_disabled's own "crash-style" immediate dial for pending mail -- only via "Send Now" (which ignores this, same as it already ignores poll_disabled), or by the uplink itself polling us. For a peer with no way to reach us back either (e.g. a point behind NAT), poll_disabled alone isn't enough: pending mail would still trigger a doomed dial attempt on every check. */
+	hold: boolean;
 }
 
 export interface BBSConfig {
@@ -54,6 +56,7 @@ export interface BinkpStatus {
 	own_ftn_addresses: string[];
 	uplink_count: number;
 	crash_only_uplink_count: number;
+	hold_uplink_count: number;
 	pending_outbound: number;
 	pending_crash: number;
 }
@@ -210,6 +213,11 @@ async function requestForm<T>(path: string, formData: FormData, token: string): 
 		body: formData
 	});
 	return handleResponse<T>(res);
+}
+
+/** The BBS's own configured display name -- unauthenticated, shown in both the admin and BBS portal headers/login pages before anyone has a token. */
+export function getBBSInfo(): Promise<{ name: string }> {
+	return request('/api/bbs/info', { method: 'GET' });
 }
 
 export function login(username: string, password: string): Promise<LoginResponse> {

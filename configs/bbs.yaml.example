@@ -52,10 +52,18 @@ binkp:
     #       host: "bbs.example.com:24554"
     #       password: "..."
     #       poll_disabled: false
-    # poll_disabled excludes an uplink from the mailer daemon's regular
-    # scheduled poll -- for a link that should only ever be dialed for
-    # Crash-flagged netmail addressed to its own FTN network (see
-    # internal/tosser's routing), or manually via "Send Now". Ordinary
-    # mail for that network still goes out via whichever uplink IS
-    # being polled regularly.
+    #       hold: false
+    # poll_disabled excludes an uplink from the mailer daemon's regular,
+    # interval-based scheduled poll -- it's still dialed immediately
+    # whenever there's netmail or echomail actually pending for it
+    # (ordinary or Crash-flagged alike), plus its own
+    # poll_interval_seconds below as a slow fallback if set, or
+    # manually via "Send Now".
+    # hold marks classic FTN "Hold" status: never dialed automatically
+    # for any reason at all, not even poll_disabled's own immediate
+    # dial for pending mail -- only via "Send Now", or by the uplink
+    # itself polling us. Needed for a peer with no way to reach us back
+    # either (e.g. a point behind NAT/no port forwarding), where
+    # poll_disabled alone would still trigger a doomed dial attempt
+    # whenever mail happens to be pending for it.
     poll_interval_seconds: 900
