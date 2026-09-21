@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
@@ -58,6 +59,26 @@ func (s *Server) handleListBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dtos)
 }
 
+// handleListBBSNetmailSent returns the caller's own sent netmail --
+// Sent's counterpart to handleListBBSNetmail's Inbox.
+func (s *Server) handleListBBSNetmailSent(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	msgs, err := s.Netmail.Sent(claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list sent netmail")
+		return
+	}
+	dtos := make([]bbsNetmailSummaryDTO, len(msgs))
+	for i, m := range msgs {
+		dtos[i] = toBBSNetmailSummaryDTO(m)
+	}
+	writeJSON(w, http.StatusOK, dtos)
+}
+
 type bbsNetmailDTO struct {
 	ID          int64  `json:"id"`
 	FromName    string `json:"from_name"`
@@ -76,6 +97,11 @@ type bbsNetmailDTO struct {
 	// comment) -- within the caller's own inbox instead of an area.
 	PrevID *int64 `json:"prev_id,omitempty"`
 	NextID *int64 `json:"next_id,omitempty"`
+	// IsRecipient is false when the caller is viewing this from their
+	// own Sent list (they were the sender, not the recipient) -- the
+	// frontend uses it to hide Reply/Delete, which only make sense for
+	// the recipient.
+	IsRecipient bool `json:"is_recipient"`
 }
 
 // toBBSNetmailDTO is toBBSMessageDTO's netmail counterpart -- see its
@@ -104,10 +130,14 @@ func toBBSNetmailDTO(m netmail.Message) bbsNetmailDTO {
 	}
 }
 
-// handleGetBBSNetmail loads one netmail message and marks it read --
-// only the recipient may open it, mirroring internal/bbs's own
-// netmail reader (a caller has no legitimate reason to read someone
-// else's private mail just because they know its numeric ID).
+// handleGetBBSNetmail loads one netmail message -- the recipient may
+// open it (which also marks it read), and so may the original sender
+// looking at their own Sent list (an FTN-addressed message has no
+// local recipient to ever be "read" by at all, and even a
+// local-recipient message shouldn't be marked read just because its
+// own sender re-opened it). Anyone else has no legitimate reason to
+// read someone else's private mail just because they know its
+// numeric ID, mirroring internal/bbs's own netmail reader.
 func (s *Server) handleGetBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	claims, ok := claimsFromContext(r.Context())
 	if !ok {
@@ -124,16 +154,24 @@ func (s *Server) handleGetBBSNetmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "netmail message not found")
 		return
 	}
-	if !m.ToUserID.Valid || m.ToUserID.Int64 != claims.UserID {
+	isRecipient := m.ToUserID.Valid && m.ToUserID.Int64 == claims.UserID
+	isSender := m.FromUserID.Valid && m.FromUserID.Int64 == claims.UserID
+	if !isRecipient && !isSender {
 		writeError(w, http.StatusForbidden, "not permitted to read this message")
 		return
 	}
-	if err := s.Netmail.MarkRead(id); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not mark message read")
-		return
-	}
+
 	dto := toBBSNetmailDTO(*m)
-	if prev, next, err := s.Netmail.Neighbors(claims.UserID, m.ID); err == nil {
+	dto.IsRecipient = isRecipient
+	if isRecipient {
+		if err := s.Netmail.MarkRead(id); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not mark message read")
+			return
+		}
+		if prev, next, err := s.Netmail.Neighbors(claims.UserID, m.ID); err == nil {
+			dto.PrevID, dto.NextID = prev, next
+		}
+	} else if prev, next, err := s.Netmail.SentNeighbors(claims.UserID, m.ID); err == nil {
 		dto.PrevID, dto.NextID = prev, next
 	}
 	writeJSON(w, http.StatusOK, dto)
@@ -154,6 +192,7 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		To      string `json:"to"`
+		ToName  string `json:"to_name"`
 		Subject string `json:"subject"`
 		Body    string `json:"body"`
 		Crash   bool   `json:"crash"`
@@ -167,6 +206,12 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ToName only matters for an FTN address: a node has many possible
+	// recipients, so the address alone doesn't say who the remote
+	// sysop should hand the message to (mirrors internal/bbs's
+	// composeNetmail "Recipient name" prompt, including its fallback
+	// to the address itself when left blank). A local username is
+	// unambiguous on its own, so any ToName is ignored for it.
 	var toUserID int64
 	var toName, toAddress string
 	if recipient, err := s.Users.ByUsername(req.To); err == nil {
@@ -174,7 +219,10 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 		toName = recipient.Username
 	} else if netmail.IsFTNAddress(req.To) {
 		toAddress = req.To
-		toName = req.To
+		toName = strings.TrimSpace(req.ToName)
+		if toName == "" {
+			toName = req.To
+		}
 	} else {
 		writeError(w, http.StatusBadRequest, "unknown local user and not a valid FTN address")
 		return
@@ -187,6 +235,7 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	m, err := s.Netmail.Send(claims.UserID, s.FTNAddress, toUserID, toName, toAddress,
 		string(ansi.EncodeCP437(req.Subject)), string(ansi.EncodeCP437(req.Body)), req.Crash)
 	if err != nil {
+		s.logWarn("could not send BBS portal netmail from %s to %s: %v", claims.Subject, req.To, err)
 		writeError(w, http.StatusInternalServerError, "could not send netmail")
 		return
 	}
@@ -194,8 +243,17 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, toBBSNetmailDTO(*m))
 }
 
-// handleDeleteBBSNetmail permanently removes a netmail message --
-// only the recipient may delete it.
+// handleDeleteBBSNetmail permanently removes a netmail message -- the
+// recipient may delete it from their Inbox, and the original sender
+// may delete it from their own Sent list, mirroring
+// handleGetBBSNetmail's same two-sided ownership check. There's only
+// one row per message (no separate per-side copy the way an echo-area
+// message's reads are tracked separately from its body), so either
+// side deleting it removes it for the other side too -- a message
+// with a local recipient already worked this way for the recipient's
+// own delete, this just extends the same one-row-shared-by-both-sides
+// reality to the sender as well, rather than inventing a soft-delete
+// concept neither side had before.
 func (s *Server) handleDeleteBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	claims, ok := claimsFromContext(r.Context())
 	if !ok {
@@ -212,7 +270,9 @@ func (s *Server) handleDeleteBBSNetmail(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusNotFound, "netmail message not found")
 		return
 	}
-	if !m.ToUserID.Valid || m.ToUserID.Int64 != claims.UserID {
+	isRecipient := m.ToUserID.Valid && m.ToUserID.Int64 == claims.UserID
+	isSender := m.FromUserID.Valid && m.FromUserID.Int64 == claims.UserID
+	if !isRecipient && !isSender {
 		writeError(w, http.StatusForbidden, "not permitted to delete this message")
 		return
 	}

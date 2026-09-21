@@ -57,11 +57,30 @@ type Config struct {
 	// M_ADR yet), based on whether either Password or
 	// PasswordForAddresses is set at all.
 	PasswordForAddresses func(peerAddrs []string) (password string, ok bool)
+	// OutboundFilesForAddresses, set only on the answerer side, is the
+	// answerer's counterpart to the originator's static OutboundFiles:
+	// an answerer doesn't know which peer is calling (and so what it
+	// owes that peer) until PasswordForAddresses has matched it mid-
+	// handshake, so its outbound files can't be prepared up front the
+	// way an originator's can. Called with the same peerAddrs
+	// PasswordForAddresses received, once authentication actually
+	// succeeds (immediately before this side's M_OK) -- never for a
+	// caller that fails to authenticate, so nothing is offered to
+	// someone who didn't get in. Its result becomes OutboundFiles for
+	// the rest of this session. Meaningless (never called) unless
+	// PasswordForAddresses is also set.
+	OutboundFilesForAddresses func(peerAddrs []string) []OutboundFile
 	// SysName, Sysop, and Location are sent as informational M_NUL
 	// lines (SYS/ZYZ/LOC); all optional.
 	SysName, Sysop, Location string
 
-	// OutboundFiles are sent, in order, before this side's M_EOB.
+	// OutboundFiles are sent, in order, before this side's M_EOB. On
+	// the answerer side, set this directly only for a fixed/static
+	// offer known before the session starts (rare -- almost always
+	// OutboundFilesForAddresses instead, since an answerer usually
+	// serves several possible callers with different outbound mail
+	// each); OutboundFilesForAddresses, if also set, overwrites
+	// whatever's here once the caller authenticates.
 	OutboundFiles []OutboundFile
 	// ReceiveFile is called once per file the peer sends us; it must
 	// read r to completion (exactly Size bytes) before returning, or
@@ -463,6 +482,9 @@ func (s *session) answererHandshake() error {
 	if !authOK {
 		_ = s.send(MERR, "authentication failed")
 		return fmt.Errorf("peer authentication failed")
+	}
+	if s.cfg.OutboundFilesForAddresses != nil {
+		s.cfg.OutboundFiles = s.cfg.OutboundFilesForAddresses(s.result.RemoteAddresses)
 	}
 	return s.send(MOK, "")
 }

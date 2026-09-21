@@ -640,9 +640,11 @@ export interface BBSNetmail {
 	/** See BBSMessage.grid. */
 	grid?: Grid;
 	posted_at: string;
-	/** See BBSMessage.prev_id/next_id -- within the caller's own inbox instead of an area. */
+	/** See BBSMessage.prev_id/next_id -- within the caller's own inbox/sent list instead of an area. */
 	prev_id?: number;
 	next_id?: number;
+	/** False when viewed from the caller's own Sent list (they were the sender, not the recipient) -- Reply/Delete only make sense when true. */
+	is_recipient: boolean;
 }
 
 export interface BBSFileArea {
@@ -709,6 +711,10 @@ export function listBBSNetmail(token: string): Promise<BBSNetmailSummary[]> {
 	return request<BBSNetmailSummary[]>('/api/bbs/netmail', { method: 'GET' }, token);
 }
 
+export function listBBSNetmailSent(token: string): Promise<BBSNetmailSummary[]> {
+	return request<BBSNetmailSummary[]>('/api/bbs/netmail/sent', { method: 'GET' }, token);
+}
+
 export function getBBSNetmail(token: string, id: number): Promise<BBSNetmail> {
 	return request<BBSNetmail>(`/api/bbs/netmail/${id}`, { method: 'GET' }, token);
 }
@@ -718,13 +724,20 @@ export function sendBBSNetmail(
 	to: string,
 	subject: string,
 	body: string,
+	toName = '',
 	crash = false
 ): Promise<BBSNetmail> {
 	return request<BBSNetmail>(
 		'/api/bbs/netmail',
-		{ method: 'POST', body: JSON.stringify({ to, subject, body, crash }) },
+		{ method: 'POST', body: JSON.stringify({ to, to_name: toName, subject, body, crash }) },
 		token
 	);
+}
+
+/** Same shape as internal/netmail.IsFTNAddress -- zone:net/node[.point], all-numeric. Used client-side only to decide whether to show the "recipient name" field, not for validation (the server re-checks). */
+export function isFTNAddress(s: string): boolean {
+	const m = s.match(/^(\d+):(\d+)\/(\d+)(?:\.(\d+))?$/);
+	return m !== null;
 }
 
 export function deleteBBSNetmail(token: string, id: number): Promise<void> {

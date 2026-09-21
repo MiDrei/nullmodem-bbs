@@ -121,6 +121,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/bbs/message-areas/{id}/first-unread", s.requireBBSUser(http.HandlerFunc(s.handleFirstUnreadMessagePosition)))
 	mux.Handle("GET /api/bbs/messages/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSMessage)))
 	mux.Handle("GET /api/bbs/netmail", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmail)))
+	mux.Handle("GET /api/bbs/netmail/sent", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmailSent)))
 	mux.Handle("POST /api/bbs/netmail", s.requireBBSUser(http.HandlerFunc(s.handleSendBBSNetmail)))
 	mux.Handle("GET /api/bbs/netmail/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSNetmail)))
 	mux.Handle("DELETE /api/bbs/netmail/{id}", s.requireBBSUser(http.HandlerFunc(s.handleDeleteBBSNetmail)))

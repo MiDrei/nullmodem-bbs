@@ -1347,7 +1347,7 @@ func TestAnswerAuthenticatesKnownUplinkAndTossesMail(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, []config.BinkpUplink{uplink}, netmailStore, messages, users, nil, nil)
+		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{uplink}, netmailStore, messages, users, nil, nil)
 		answerCh <- answerOutcome{res: res, err: err}
 	}()
 
@@ -1385,6 +1385,87 @@ func TestAnswerAuthenticatesKnownUplinkAndTossesMail(t *testing.T) {
 	}
 }
 
+// TestAnswerDeliversOwnPendingMailToCaller locks in the fix for a
+// caller that only ever dials out and is never dialed itself (e.g. a
+// point behind NAT with config.BinkpUplink.Hold set on the far end):
+// Answer must hand back whatever's routed to the now-authenticated
+// caller in the very same session, exactly as Poll would if it were
+// the one dialing out instead -- otherwise such a caller could never
+// receive anything at all.
+func TestAnswerDeliversOwnPendingMailToCaller(t *testing.T) {
+	netmailStore, messages, users := newTestStores(t)
+
+	uplink := config.BinkpUplink{
+		Address:        "9999:1/100",
+		Host:           "unused-for-answer-test",
+		Password:       "sess3cret",
+		PacketPassword: "pktpw01",
+	}
+
+	queued, err := netmailStore.SendSystem("Areafix", "9999:1/1", "Areafix", "9999:1/100", "Re: subscribe", "test_chat: added\r", true)
+	if err != nil {
+		t.Fatalf("SendSystem: %v", err)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	type answerOutcome struct {
+		res *Result
+		err error
+	}
+	answerCh := make(chan answerOutcome, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			answerCh <- answerOutcome{err: err}
+			return
+		}
+		defer conn.Close()
+		res, err := Answer(context.Background(), conn, []string{"9999:1/1"}, "Test BBS", []config.BinkpUplink{uplink}, netmailStore, messages, users, nil, nil)
+		answerCh <- answerOutcome{res: res, err: err}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var receivedNames []string
+	_, err = binkp.Dial(ctx, ln.Addr().String(), binkp.Config{
+		OurAddresses: []string{uplink.Address},
+		Password:     uplink.Password,
+		ReceiveFile: func(f binkp.InboundFile, r io.Reader) error {
+			receivedNames = append(receivedNames, f.Name)
+			_, err := io.Copy(io.Discard, r)
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatalf("caller-side Dial: %v", err)
+	}
+
+	out := <-answerCh
+	if out.err != nil {
+		t.Fatalf("Answer: %v", out.err)
+	}
+	if out.res.Sent != 1 {
+		t.Fatalf("Result.Sent = %d, want 1", out.res.Sent)
+	}
+	if len(receivedNames) != 1 || !strings.HasSuffix(receivedNames[0], ".pkt") {
+		t.Fatalf("caller-side received files = %v, want exactly one .pkt", receivedNames)
+	}
+
+	sent, err := netmailStore.MessageByID(queued.ID)
+	if err != nil {
+		t.Fatalf("MessageByID: %v", err)
+	}
+	if !sent.IsSent() {
+		t.Fatalf("queued message SentAt not set after Answer delivered it")
+	}
+}
+
 // TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink locks in the
 // reject path: a caller whose M_ADR matches none of our configured
 // uplinks must be refused, not silently accepted as an open node.
@@ -1415,7 +1496,7 @@ func TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, []config.BinkpUplink{knownUplink}, netmailStore, messages, users, nil, nil)
+		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{knownUplink}, netmailStore, messages, users, nil, nil)
 		answerCh <- answerOutcome{res: res, err: err}
 	}()
 

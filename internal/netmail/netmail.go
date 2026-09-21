@@ -239,6 +239,38 @@ func (s *Store) Inbox(userID int64) ([]Message, error) {
 	return msgs, nil
 }
 
+// Sent returns netmail userID has sent, newest first -- Inbox's
+// counterpart, needed so a caller can find a message again after
+// sending it (an FTN-addressed one has no local recipient to ever
+// show it in an Inbox at all).
+func (s *Store) Sent(userID int64) ([]Message, error) {
+	rows, err := s.db.Query(
+		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
+		 WHERE m.from_user_id = ?
+		 ORDER BY m.posted_at DESC, m.id DESC`, userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("netmail: sent for user %d: %w", userID, err)
+	}
+	defer rows.Close()
+
+	var msgs []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			return nil, fmt.Errorf("netmail: scan sent row: %w", err)
+		}
+		msgs = append(msgs, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("netmail: sent for user %d: %w", userID, err)
+	}
+	return msgs, nil
+}
+
 // UnresolvedInbox returns inbound netmail whose recipient name never
 // resolved to any local user account, most recent first -- a reply
 // from an Areafix/Filefix robot, for instance, addressed back to
@@ -387,6 +419,39 @@ func (s *Store) Neighbors(userID, id int64) (before, after *int64, err error) {
 	case errors.Is(err, sql.ErrNoRows):
 	default:
 		return nil, nil, fmt.Errorf("netmail: neighbors after %d: %w", id, err)
+	}
+	return before, after, nil
+}
+
+// SentNeighbors is Neighbors' counterpart for Sent, scoped by
+// from_user_id instead of to_user_id.
+func (s *Store) SentNeighbors(userID, id int64) (before, after *int64, err error) {
+	var b int64
+	switch err := s.db.QueryRow(
+		`SELECT id FROM netmail_messages WHERE from_user_id = ?
+		 AND (posted_at, id) > (SELECT posted_at, id FROM netmail_messages WHERE id = ?)
+		 ORDER BY posted_at ASC, id ASC LIMIT 1`,
+		userID, id,
+	).Scan(&b); {
+	case err == nil:
+		before = &b
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return nil, nil, fmt.Errorf("netmail: sent neighbors before %d: %w", id, err)
+	}
+
+	var a int64
+	switch err := s.db.QueryRow(
+		`SELECT id FROM netmail_messages WHERE from_user_id = ?
+		 AND (posted_at, id) < (SELECT posted_at, id FROM netmail_messages WHERE id = ?)
+		 ORDER BY posted_at DESC, id DESC LIMIT 1`,
+		userID, id,
+	).Scan(&a); {
+	case err == nil:
+		after = &a
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return nil, nil, fmt.Errorf("netmail: sent neighbors after %d: %w", id, err)
 	}
 	return before, after, nil
 }

@@ -163,12 +163,12 @@ func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, n
 	defer cancel()
 
 	remote := conn.RemoteAddr().String()
-	res, err := tosser.Answer(sessionCtx, conn, cfg.BBS.FTNAddresses, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg)
+	res, err := tosser.Answer(sessionCtx, conn, cfg.BBS.FTNAddresses, cfg.BBS.Name, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg)
 	if err != nil {
 		logger.Warn("inbound BinkP session from %s: %v", remote, err)
 		return
 	}
-	logger.Info("inbound BinkP session from %s (%v): received %d netmail, %d echomail, %d file(s)%s", remote, res.RemoteAddresses, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
+	logger.Info("inbound BinkP session from %s (%v): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", remote, res.RemoteAddresses, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
 }
 
 // checkUplinks visits every configured uplink once: a Hold uplink

@@ -76,9 +76,14 @@
 	async function sendReply() {
 		if (!bbsAuth.token || !message) return;
 		const to = message.from_address || message.from_name;
+		// When the original came from an FTN address, from_name is that
+		// remote user's real name -- pass it along as the reply's
+		// recipient name so it isn't lost (see the compose page's
+		// matching field for why an FTN address alone isn't enough).
+		const toName = message.from_address ? message.from_name : '';
 		sending = true;
 		try {
-			await sendBBSNetmail(bbsAuth.token, to, replySubject, replyBody);
+			await sendBBSNetmail(bbsAuth.token, to, replySubject, replyBody, toName);
 			replying = false;
 			toast.push('Reply sent.', 'success');
 		} catch (err) {
@@ -91,7 +96,16 @@
 
 	async function remove() {
 		if (!bbsAuth.token || !message) return;
-		if (!confirm('Delete this message?')) return;
+		// There's only one copy of a netmail message, not a separate one
+		// per side -- deleting it from your own Sent list removes it
+		// from the recipient's Inbox too, so a local recipient gets an
+		// extra warning about that (an FTN recipient has no local Inbox
+		// copy to lose, so the plain confirmation is enough there).
+		const question =
+			!message.is_recipient && message.to_address === ''
+				? "Delete this message? It'll also disappear from the recipient's inbox."
+				: 'Delete this message?';
+		if (!confirm(question)) return;
 		try {
 			await deleteBBSNetmail(bbsAuth.token, message.id);
 			toast.push('Message deleted.', 'success');
@@ -132,16 +146,21 @@
 		<div class="flex items-start gap-3">
 			<div
 				class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white {avatarGradient(
-					message.from_name
+					message.is_recipient ? message.from_name : message.to_name
 				)}"
 			>
-				{initials(message.from_name)}
+				{initials(message.is_recipient ? message.from_name : message.to_name)}
 			</div>
 			<div class="min-w-0">
 				<h1 class="text-xl font-bold tracking-tight text-slate-100">{message.subject}</h1>
 				<div class="mt-0.5 text-sm text-slate-500">
-					<strong class="text-slate-300">{message.from_name}</strong>
-					{#if message.from_address}<span class="text-slate-600">({message.from_address})</span>{/if}
+					{#if message.is_recipient}
+						<strong class="text-slate-300">{message.from_name}</strong>
+						{#if message.from_address}<span class="text-slate-600">({message.from_address})</span>{/if}
+					{:else}
+						To <strong class="text-slate-300">{message.to_name}</strong>
+						{#if message.to_address}<span class="text-slate-600">({message.to_address})</span>{/if}
+					{/if}
 					&middot; {new Date(message.posted_at).toLocaleString()}
 				</div>
 			</div>
@@ -168,12 +187,14 @@
 		</div>
 	{/if}
 
-	<button
-		class="mt-5 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-fuchsia-500/20 transition hover:shadow-fuchsia-500/40"
-		onclick={startReply}
-	>
-		Reply
-	</button>
+	{#if message.is_recipient}
+		<button
+			class="mt-5 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-fuchsia-500/20 transition hover:shadow-fuchsia-500/40"
+			onclick={startReply}
+		>
+			Reply
+		</button>
+	{/if}
 
 	{#if replying}
 		<div class="mt-4 max-w-2xl rounded-2xl border border-slate-800/60 bg-slate-900/40 p-4">

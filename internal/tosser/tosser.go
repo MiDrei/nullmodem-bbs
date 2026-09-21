@@ -137,6 +137,74 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	}
 	ourAddr := ourAddressForUplink(ourAddresses, uplinkAddr)
 
+	bundle, err := buildOutboundBundle(ourAddr, uplinkAddr, bbsName, uplink, allUplinks, netmailStore, messages, robot)
+	if err != nil {
+		return nil, err
+	}
+
+	acceptedPasswords := acceptedPacketPasswords(uplink, allUplinks)
+	var ticSess *ticSession
+	if tic != nil {
+		ticSess = newTICSession(tic.Files, acceptedTICPasswords(uplink, allUplinks))
+	}
+
+	res := &Result{}
+	var receiveErr error
+	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
+		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, robot, ticSess, res)
+		if err != nil {
+			receiveErr = err
+		}
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, dialTimeout)
+	defer cancel()
+
+	sessionResult, err := binkp.Dial(ctx, uplink.Host, binkp.Config{
+		OurAddresses:  ourAddresses,
+		Password:      uplink.Password,
+		OutboundFiles: bundle.outFiles,
+		ReceiveFile:   receiveFile,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("tosser: polling %s: %w", uplink.Host, err)
+	}
+	res.RemoteAddresses = sessionResult.RemoteAddresses
+	if ticSess != nil {
+		ticSess.flushUnmatched(res)
+	}
+
+	if err := bundle.markSent(res, sessionResult.FilesSent, uplinkAddr, netmailStore, messages, robot); err != nil {
+		return res, err
+	}
+
+	return res, receiveErr
+}
+
+// outboundBundle is everything currently pending for one uplink,
+// packed into the BinkP file offer -- gathered by buildOutboundBundle
+// and shared between Poll (dialing the uplink) and Answer (answering
+// a call from it), since which side placed the call has no bearing on
+// what either side owes the other equally.
+type outboundBundle struct {
+	outFiles       []binkp.OutboundFile
+	packetName     string
+	routed         []netmail.Message
+	routedEcho     []message.PendingEcho
+	forwardedEcho  []message.PendingEcho
+	forwardedFiles []PendingFileForward
+}
+
+// buildOutboundBundle gathers routed netmail, routed echo, forwarded
+// echo, and forwarded files for uplink (see RoutedOutbound/
+// RoutedOutboundEcho/RoutedOutboundEchoForward/
+// RoutedOutboundFileForward) and packs them into the same BinkP file
+// offer Poll has always sent: a single FTS-0001 .pkt carrying routed
+// netmail/echo/forwardedEcho if there's any, plus a TIC descriptor
+// and payload pair per forwarded file, exactly how a real hub sends
+// file-echo (never bundled into the .pkt itself).
+func buildOutboundBundle(ourAddr, uplinkAddr mail.Address, bbsName string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, robot *RobotConfig) (*outboundBundle, error) {
 	routed, err := RoutedOutbound(netmailStore, uplink, allUplinks)
 	if err != nil {
 		return nil, err
@@ -162,27 +230,22 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 		}
 	}
 
-	var outFiles []binkp.OutboundFile
-	var packetName string
+	b := &outboundBundle{routed: routed, routedEcho: routedEcho, forwardedEcho: forwardedEcho, forwardedFiles: forwardedFiles}
+
 	if len(routed) > 0 || len(routedEcho) > 0 || len(forwardedEcho) > 0 {
 		buf, err := buildPacket(ourAddr, uplinkAddr, uplink.PacketPassword, bbsName, routed, routedEcho, forwardedEcho)
 		if err != nil {
 			return nil, err
 		}
-		packetName = fmt.Sprintf("%08x.pkt", time.Now().Unix())
-		outFiles = append(outFiles, binkp.OutboundFile{
-			Name:    packetName,
+		b.packetName = fmt.Sprintf("%08x.pkt", time.Now().Unix())
+		b.outFiles = append(b.outFiles, binkp.OutboundFile{
+			Name:    b.packetName,
 			Size:    int64(buf.Len()),
 			ModTime: time.Now(),
 			Data:    buf,
 		})
 	}
 
-	// Each forwarded file goes out as two separate BinkP file
-	// transfers alongside (or instead of) the .pkt above -- a freshly
-	// generated TIC descriptor (see encodeTIC) plus the file's own
-	// bytes under its real filename, exactly how a real hub sends
-	// file-echo: never bundled into the packet itself.
 	for _, pf := range forwardedFiles {
 		data, crc, err := readFileForForwarding(pf)
 		if err != nil {
@@ -190,63 +253,39 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 		}
 		ticBytes := encodeTIC(pf, ourAddr, uplink.TICPassword, int64(len(data)), crc)
 		now := time.Now()
-		outFiles = append(outFiles,
+		b.outFiles = append(b.outFiles,
 			binkp.OutboundFile{Name: ticOutboundName(pf.ID), Size: int64(len(ticBytes)), ModTime: now, Data: bytes.NewReader(ticBytes)},
 			binkp.OutboundFile{Name: pf.Filename, Size: int64(len(data)), ModTime: now, Data: bytes.NewReader(data)},
 		)
 	}
 
-	acceptedPasswords := acceptedPacketPasswords(uplink, allUplinks)
-	var ticSess *ticSession
-	if tic != nil {
-		ticSess = newTICSession(tic.Files, acceptedTICPasswords(uplink, allUplinks))
-	}
+	return b, nil
+}
 
-	res := &Result{}
-	var receiveErr error
-	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
-		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, robot, ticSess, res)
-		if err != nil {
-			receiveErr = err
-		}
-		return err
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, dialTimeout)
-	defer cancel()
-
-	sessionResult, err := binkp.Dial(ctx, uplink.Host, binkp.Config{
-		OurAddresses:  ourAddresses,
-		Password:      uplink.Password,
-		OutboundFiles: outFiles,
-		ReceiveFile:   receiveFile,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("tosser: polling %s: %w", uplink.Host, err)
-	}
-	res.RemoteAddresses = sessionResult.RemoteAddresses
-	if ticSess != nil {
-		ticSess.flushUnmatched(res)
-	}
-
-	if packetName != "" && containsString(sessionResult.FilesSent, packetName) {
-		for _, m := range routed {
+// markSent applies MarkSent/MarkSeenBy bookkeeping for whichever of
+// b's offered files sessionFilesSent (the session's own binkp.Result.
+// FilesSent, i.e. what the peer actually M_GOT-acknowledged) confirms
+// arrived, and tallies res accordingly -- shared by Poll and Answer
+// once their respective BinkP session has finished.
+func (b *outboundBundle) markSent(res *Result, sessionFilesSent []string, uplinkAddr mail.Address, netmailStore *netmail.Store, messages *message.Store, robot *RobotConfig) error {
+	if b.packetName != "" && containsString(sessionFilesSent, b.packetName) {
+		for _, m := range b.routed {
 			if err := netmailStore.MarkSent(m.ID); err != nil {
-				return res, fmt.Errorf("tosser: marking message %d sent: %w", m.ID, err)
+				return fmt.Errorf("tosser: marking message %d sent: %w", m.ID, err)
 			}
 			res.Sent++
 		}
-		for _, m := range routedEcho {
+		for _, m := range b.routedEcho {
 			if err := messages.MarkSent(m.ID); err != nil {
-				return res, fmt.Errorf("tosser: marking echo message %d sent: %w", m.ID, err)
+				return fmt.Errorf("tosser: marking echo message %d sent: %w", m.ID, err)
 			}
 			res.SentEcho++
 		}
-		if len(forwardedEcho) > 0 {
+		if len(b.forwardedEcho) > 0 {
 			targetNetNode := message.NetNode(uplinkAddr.Net, uplinkAddr.Node)
-			for _, m := range forwardedEcho {
+			for _, m := range b.forwardedEcho {
 				if err := messages.MarkSeenBy(m.ID, targetNetNode); err != nil {
-					return res, fmt.Errorf("tosser: marking echo message %d seen-by %s: %w", m.ID, targetNetNode, err)
+					return fmt.Errorf("tosser: marking echo message %d seen-by %s: %w", m.ID, targetNetNode, err)
 				}
 				res.ForwardedEcho++
 			}
@@ -254,43 +293,53 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	}
 
 	// Each forwarded file's delivery is confirmed independently of the
-	// .pkt above (it's never part of it -- see the OutboundFile loop
-	// building outFiles) via its own uniquely-named TIC descriptor;
+	// .pkt above (it's never part of it -- see buildOutboundBundle's
+	// own OutboundFile loop) via its own uniquely-named TIC descriptor;
 	// the payload's own filename isn't used for this check since two
 	// different forwarded files could plausibly share a filename
 	// across different areas, unlike the TIC name (keyed by file ID).
-	if len(forwardedFiles) > 0 {
+	if len(b.forwardedFiles) > 0 {
 		targetNetNode := file.NetNode(uplinkAddr.Net, uplinkAddr.Node)
-		for _, pf := range forwardedFiles {
-			if !containsString(sessionResult.FilesSent, ticOutboundName(pf.ID)) {
+		for _, pf := range b.forwardedFiles {
+			if !containsString(sessionFilesSent, ticOutboundName(pf.ID)) {
 				continue
 			}
 			if err := robot.Files.MarkSeenBy(pf.ID, targetNetNode); err != nil {
-				return res, fmt.Errorf("tosser: marking file %d seen-by %s: %w", pf.ID, targetNetNode, err)
+				return fmt.Errorf("tosser: marking file %d seen-by %s: %w", pf.ID, targetNetNode, err)
 			}
 			res.ForwardedFiles++
 		}
 	}
 
-	return res, receiveErr
+	return nil
 }
 
 // Answer handles one inbound BinkP connection -- a caller dialing us,
 // e.g. a hub that wants to push mail to us between our own scheduled
-// polls rather than waiting for us to ask. It matches the caller's
-// claimed FTN address (from M_ADR) against uplinks to authenticate it
-// and pick the right packet password (see binkp.Config.
-// PasswordForAddresses and acceptedPacketPasswords), then files away
+// polls rather than waiting for us to ask, or a point (like Poll's
+// own caller) that only ever dials out to us and needs whatever we
+// owe it delivered in that same call. It matches the caller's claimed
+// FTN address (from M_ADR) against uplinks to authenticate it and
+// pick the right packet password (see binkp.Config.
+// PasswordForAddresses and acceptedPacketPasswords), files away
 // whatever it sends exactly as Poll does for an outbound session --
 // same handleInboundFile handling (plain packets, ArcMail bundles,
-// and everything else via SkippedFiles). Unlike Poll, it doesn't also
-// hand the caller this system's own queued outbound mail in the same
-// session; an inbound call only ever receives, and sending stays with
-// the regular scheduled/crash Poll flow.
-func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, uplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig) (*Result, error) {
+// and everything else via SkippedFiles) -- and, once authenticated,
+// hands it back this system's own queued outbound mail for that same
+// uplink (see buildOutboundBundle), exactly as Poll would if it dialed
+// out instead: routed netmail/echo, anything forwarded to it as a
+// downlink, and any files forwarded via TIC. Who placed the call
+// doesn't change what either side owes the other -- notably, this is
+// the only way a point that always dials out (and so is never dialed
+// itself, e.g. config.BinkpUplink.Hold, a point behind NAT) can ever
+// actually receive anything.
+func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName string, uplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig) (*Result, error) {
 	var matchedUplink config.BinkpUplink
 	var matched bool
 	var ticSess *ticSession
+	var bundle *outboundBundle
+	var uplinkAddr mail.Address
+	var bundleErr error
 
 	res := &Result{}
 	var receiveErr error
@@ -328,14 +377,42 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, uplinks [
 			matchedUplink, matched = u, true
 			return u.Password, true
 		},
+		// Only called once PasswordForAddresses has both matched and
+		// authenticated the caller (see binkp.Config.
+		// OutboundFilesForAddresses' own doc comment), so matchedUplink
+		// is always set by the time this runs.
+		OutboundFilesForAddresses: func(peerAddrs []string) []binkp.OutboundFile {
+			addr, err := mail.ParseAddress(matchedUplink.Address)
+			if err != nil {
+				bundleErr = fmt.Errorf("tosser: matched uplink address %q: %w", matchedUplink.Address, err)
+				return nil
+			}
+			uplinkAddr = addr
+			ourAddr := ourAddressForUplink(ourAddresses, uplinkAddr)
+			b, err := buildOutboundBundle(ourAddr, uplinkAddr, bbsName, matchedUplink, uplinks, netmailStore, messages, robot)
+			if err != nil {
+				bundleErr = err
+				return nil
+			}
+			bundle = b
+			return b.outFiles
+		},
 		ReceiveFile: receiveFile,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("tosser: answering inbound session: %w", err)
 	}
+	if bundleErr != nil {
+		return res, bundleErr
+	}
 	res.RemoteAddresses = sessionResult.RemoteAddresses
 	if ticSess != nil {
 		ticSess.flushUnmatched(res)
+	}
+	if bundle != nil {
+		if err := bundle.markSent(res, sessionResult.FilesSent, uplinkAddr, netmailStore, messages, robot); err != nil {
+			return res, err
+		}
 	}
 	return res, receiveErr
 }
