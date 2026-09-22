@@ -288,6 +288,25 @@
 								</svg>
 								Undeliverable Netmail
 							</a>
+							<a
+								href="/admin/archive"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<rect x="3" y="4" width="18" height="5" rx="1" />
+									<path d="M4 9v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
+									<path d="M10 13h4" />
+								</svg>
+								Packet Analyzer
+							</a>
 							<div class="my-1 border-t border-slate-800"></div>
 							<a
 								href="/admin/settings"

@@ -488,6 +488,94 @@ export function deleteUnresolvedNetmail(token: string, id: number): Promise<void
 	return request<void>(`/api/netmail/unresolved/${id}`, { method: 'DELETE' }, token);
 }
 
+export interface ArchiveEntry {
+	id: number;
+	filename: string;
+	uplink_address: string;
+	uplink_host: string;
+	size_bytes: number;
+	size_human: string;
+	received_at: string;
+	/** "ok", "skipped", or "error" -- see internal/tosser's handleInboundFile. */
+	outcome: string;
+	detail: string;
+}
+
+export interface ArchiveList {
+	entries: ArchiveEntry[];
+	total: number;
+	limit: number;
+	offset: number;
+}
+
+/** Every inbound BinkP file this system has received recently, retained for a few days regardless of whether it tossed successfully -- see internal/archive's own doc comment. The web admin's Packet Analyzer. */
+export function listArchive(token: string, limit: number, offset: number): Promise<ArchiveList> {
+	const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+	return request<ArchiveList>(`/api/archive?${params}`, { method: 'GET' }, token);
+}
+
+export async function downloadArchiveEntry(token: string, id: number, filename: string): Promise<void> {
+	const res = await fetch(`/api/archive/${id}/download`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	if (!res.ok) {
+		let message = res.statusText;
+		try {
+			const body = await res.json();
+			if (body?.error) message = body.error;
+		} catch {
+			// response body wasn't JSON; fall back to statusText
+		}
+		throw new ApiError(res.status, message);
+	}
+	const blob = await res.blob();
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	URL.revokeObjectURL(url);
+}
+
+/** Fetches an archived entry's raw bytes for an inline preview -- each byte maps 1:1 to a code point (not a real charset decode), so a text-shaped file (a .tic, a .pkt's mostly-ASCII framing) reads naturally and nothing is lost for a genuinely binary one either. */
+export async function previewArchiveEntry(token: string, id: number): Promise<string> {
+	const res = await fetch(`/api/archive/${id}/download`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	if (!res.ok) {
+		let message = res.statusText;
+		try {
+			const body = await res.json();
+			if (body?.error) message = body.error;
+		} catch {
+			// response body wasn't JSON; fall back to statusText
+		}
+		throw new ApiError(res.status, message);
+	}
+	const buf = new Uint8Array(await res.arrayBuffer());
+	let s = '';
+	for (let i = 0; i < buf.length; i++) s += String.fromCharCode(buf[i]);
+	return s;
+}
+
+export function deleteArchiveEntry(token: string, id: number): Promise<void> {
+	return request<void>(`/api/archive/${id}`, { method: 'DELETE' }, token);
+}
+
+export interface RetossResult {
+	received: number;
+	received_echo: number;
+	received_files: number;
+	skipped_files: string[] | null;
+}
+
+/** Re-tosses one or more archived entries' raw bytes together, as if they'd just arrived in a single BinkP session -- select both halves of a TIC descriptor/payload pair to have them correlate the same way their original session did. */
+export function retossArchiveEntries(token: string, ids: number[]): Promise<RetossResult> {
+	return request<RetossResult>('/api/archive/retoss', { method: 'POST', body: JSON.stringify({ ids }) }, token);
+}
+
 /** Every distinct group ("network") already in use across message and file areas combined, sorted -- suggestions for that field on the area forms. */
 export function listGroups(token: string): Promise<string[]> {
 	return request<string[]>('/api/groups', { method: 'GET' }, token);

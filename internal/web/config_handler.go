@@ -272,6 +272,7 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 		EchoStore:    s.EchoAreafix,
 		FileStore:    s.FileAreafix,
 		Files:        s.Files,
+		Archive:      s.Archive,
 	}
 	ticCfg := &tosser.TICConfig{Files: s.Files}
 	result, err := tosser.Poll(ctx, c.BBS.FTNAddresses, c.BBS.Name, config.BinkpUplink{

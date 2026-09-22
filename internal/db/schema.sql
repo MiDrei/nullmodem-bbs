@@ -294,3 +294,31 @@ CREATE TABLE IF NOT EXISTS file_area_grants (
     granted_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (uplink_host, area_tag)
 );
+
+-- inbound_archive retains a short-lived raw copy of every inbound
+-- BinkP file (FTS-0001 packet/bundle, TIC descriptor, file-echo
+-- payload, or anything unsupported) exactly as received, mirroring
+-- how binkd/ifcico-style tossers keep a "bad packets" directory --
+-- except this keeps everything, not just failures, since something
+-- that tossed cleanly today can still turn out to matter later. See
+-- internal/archive, which owns this table; storage_path points at
+-- the actual bytes on disk (kept out of the database itself), pruned
+-- automatically after archive.RetentionPeriod.
+CREATE TABLE IF NOT EXISTS inbound_archive (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename       TEXT NOT NULL,
+    uplink_address TEXT NOT NULL DEFAULT '',
+    uplink_host    TEXT NOT NULL DEFAULT '',
+    size_bytes     INTEGER NOT NULL DEFAULT 0,
+    received_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    storage_path   TEXT NOT NULL,
+    -- outcome is "ok", "skipped", or "error" -- see
+    -- internal/tosser's handleInboundFile, the only writer. detail
+    -- carries the error message (outcome "error") or is empty
+    -- otherwise -- "skipped" doesn't get its own reason recorded here
+    -- since Result.SkippedFiles already carries none either.
+    outcome        TEXT NOT NULL DEFAULT '',
+    detail         TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_inbound_archive_received_at ON inbound_archive(received_at);

@@ -22,11 +22,13 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
+	"git.maik.ch/swissmaik/nullmodem/internal/archive"
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
@@ -70,6 +72,7 @@ func main() {
 	files := file.NewStore(sqlDB, cfg.BBS.FilesDir)
 	users := user.NewStore(sqlDB)
 	pollStore := tosser.NewUplinkPollStore(sqlDB)
+	archiveDir := filepath.Join(filepath.Dir(cfg.Database.Path), "inbound-archive")
 	robot := &tosser.RobotConfig{
 		OurAddresses: cfg.BBS.FTNAddresses,
 		BBSName:      cfg.BBS.Name,
@@ -77,6 +80,7 @@ func main() {
 		EchoStore:    areafix.NewEchoStore(sqlDB),
 		FileStore:    areafix.NewFileStore(sqlDB),
 		Files:        files,
+		Archive:      archive.NewStore(sqlDB, archiveDir),
 	}
 	ticCfg := &tosser.TICConfig{Files: files}
 

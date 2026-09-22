@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
+	"git.maik.ch/swissmaik/nullmodem/internal/archive"
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
@@ -33,6 +34,7 @@ type Server struct {
 	Logger        *applog.Logger
 	EchoAreafix   *areafix.EchoStore
 	FileAreafix   *areafix.FileStore
+	Archive       *archive.Store
 	BBSConfigPath string
 	// FTNAddress is this system's own primary FTN address (see
 	// config.Config.PrimaryFTNAddress), stamped on netmail the BBS
@@ -79,6 +81,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/netmail/unresolved", s.requireAuth(http.HandlerFunc(s.handleListUnresolvedNetmail)))
 	mux.Handle("GET /api/netmail/unresolved/{id}", s.requireAuth(http.HandlerFunc(s.handleGetUnresolvedNetmail)))
 	mux.Handle("DELETE /api/netmail/unresolved/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteUnresolvedNetmail)))
+	mux.Handle("GET /api/archive", s.requireAuth(http.HandlerFunc(s.handleListArchive)))
+	mux.Handle("GET /api/archive/{id}/download", s.requireAuth(http.HandlerFunc(s.handleDownloadArchiveEntry)))
+	mux.Handle("DELETE /api/archive/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteArchiveEntry)))
+	mux.Handle("POST /api/archive/retoss", s.requireAuth(http.HandlerFunc(s.handleRetossArchiveEntries)))
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))

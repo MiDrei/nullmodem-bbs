@@ -171,7 +171,7 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	res := &Result{}
 	var receiveErr error
 	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
-		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, robot, ticSess, res)
+		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, robot, ticSess, res, uplink.Address, uplink.Host)
 		if err != nil {
 			receiveErr = err
 		}
@@ -380,7 +380,7 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 		if tic != nil && ticSess == nil {
 			ticSess = newTICSession(tic.Files, acceptedTICPasswords(matchedUplink, uplinks))
 		}
-		err := handleInboundFile(f, r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users, robot, ticSess, res)
+		err := handleInboundFile(f, r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users, robot, ticSess, res, matchedUplink.Address, matchedUplink.Host)
 		if err != nil {
 			receiveErr = err
 		}
@@ -705,7 +705,26 @@ func extractPacketBundle(name string, data []byte) ([]namedPacket, error) {
 // anything else is drained and reported in res.SkippedFiles rather
 // than dropped silently or fed to the packet parser (which fails hard
 // on it -- see isPacketFile's doc comment).
-func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, ticSess *ticSession, res *Result) error {
+func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, ticSess *ticSession, res *Result, uplinkAddress, uplinkHost string) (err error) {
+	if robot != nil && robot.Archive != nil {
+		if capture, cerr := robot.Archive.Begin(uplinkAddress, uplinkHost, f.Name); cerr == nil {
+			r = io.TeeReader(r, capture.Writer())
+			defer func() {
+				outcome, detail := "ok", ""
+				switch {
+				case err != nil:
+					outcome, detail = "error", err.Error()
+				case containsString(res.SkippedFiles, f.Name):
+					outcome = "skipped"
+				}
+				// Best-effort: archiving is a diagnostic aid, never a
+				// reason to fail real mail processing that already
+				// succeeded (or already failed for its own reason).
+				_, _ = capture.Finish(outcome, detail)
+			}()
+		}
+	}
+
 	switch {
 	case isPacketFile(f.Name):
 		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users, robot)

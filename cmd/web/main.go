@@ -8,8 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
+	"git.maik.ch/swissmaik/nullmodem/internal/archive"
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
@@ -69,6 +71,7 @@ func main() {
 		Logger:        logger,
 		EchoAreafix:   areafix.NewEchoStore(sqlDB),
 		FileAreafix:   areafix.NewFileStore(sqlDB),
+		Archive:       archive.NewStore(sqlDB, filepath.Join(filepath.Dir(cfg.DatabasePath), "inbound-archive")),
 		BBSConfigPath: cfg.BBSConfigPath,
 		FTNAddress:    bbsCfg.PrimaryFTNAddress(),
 		JWTSecret:     secret,

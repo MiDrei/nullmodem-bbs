@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/archive"
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
@@ -27,10 +28,18 @@ import (
 // downlink asking us, the mirror image of the Outbound direction our
 // own RequestEchoAreaChanges/RequestFileAreaChanges record), and the
 // file-area catalog a Filefix "%LIST" reply draws from (Areafix's own
-// %LIST uses the *message.Store tossInbound already has). A nil
-// *RobotConfig disables the robot entirely -- an inbound netmail
-// addressed to "Areafix"/"Filefix" is then just filed as ordinary
-// netmail, exactly as before this existed.
+// %LIST uses the *message.Store tossInbound already has), and Archive
+// (see internal/archive), a short-lived raw copy of every inbound
+// file this system receives regardless of the Areafix/Filefix robot
+// specifically -- bundled here rather than as its own separate
+// handleInboundFile parameter since cmd/mailer already always builds
+// exactly one RobotConfig for the whole daemon's lifetime, same as
+// Archive's own lifetime. A nil *RobotConfig disables the robot
+// (an inbound netmail addressed to "Areafix"/"Filefix" is then just
+// filed as ordinary netmail, exactly as before either existed) and,
+// as a side effect, archiving too -- acceptable since nothing in this
+// codebase actually constructs Poll/Answer with a nil robot outside
+// tests.
 type RobotConfig struct {
 	OurAddresses []string
 	BBSName      string
@@ -38,6 +47,7 @@ type RobotConfig struct {
 	EchoStore    *areafix.EchoStore
 	FileStore    *areafix.FileStore
 	Files        *file.Store
+	Archive      *archive.Store
 }
 
 // handleAreafixRequest processes msg if it's an inbound netmail
