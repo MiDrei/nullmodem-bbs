@@ -83,6 +83,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/netmail/unresolved/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteUnresolvedNetmail)))
 	mux.Handle("GET /api/archive", s.requireAuth(http.HandlerFunc(s.handleListArchive)))
 	mux.Handle("GET /api/archive/{id}/download", s.requireAuth(http.HandlerFunc(s.handleDownloadArchiveEntry)))
+	mux.Handle("GET /api/archive/{id}/inspect", s.requireAuth(http.HandlerFunc(s.handleInspectArchiveEntry)))
 	mux.Handle("DELETE /api/archive/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteArchiveEntry)))
 	mux.Handle("POST /api/archive/retoss", s.requireAuth(http.HandlerFunc(s.handleRetossArchiveEntries)))
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))

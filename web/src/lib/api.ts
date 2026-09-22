@@ -576,6 +576,53 @@ export function retossArchiveEntries(token: string, ids: number[]): Promise<Reto
 	return request<RetossResult>('/api/archive/retoss', { method: 'POST', body: JSON.stringify({ ids }) }, token);
 }
 
+export interface InspectedMessage {
+	orig_addr: string;
+	dest_addr: string;
+	from_name: string;
+	to_name: string;
+	subject: string;
+	written: string;
+	private: boolean;
+	/** The echomail area this message belongs to, "" for netmail. */
+	area_tag: string;
+	body_size: number;
+}
+
+export interface InspectedPacket {
+	name: string;
+	orig_addr: string;
+	dest_addr: string;
+	created: string;
+	messages: InspectedMessage[];
+}
+
+export interface InspectedTIC {
+	area: string;
+	file: string;
+	description: string;
+	size_bytes: number;
+	has_crc32: boolean;
+	/** Hex, only meaningful when has_crc32 is true. */
+	crc32: string;
+	origin: string;
+}
+
+export interface ArchiveInspection {
+	/** "packet", "bundle", "tic", or "unknown". */
+	kind: string;
+	/** One entry for a plain packet (kind === "packet") or one per packet found inside a bundle (kind === "bundle"). */
+	packets?: InspectedPacket[];
+	tic?: InspectedTIC;
+	/** Set only when kind is "unknown" because parsing failed outright (rather than the file genuinely being of unrecognized shape). */
+	error?: string;
+}
+
+/** Parses an archived entry's raw bytes as an FTN artifact (a packet, a packet bundle, or a TIC descriptor) and returns a structured summary of what it actually contains -- what the Packet Analyzer's detail view shows beyond the raw byte preview. */
+export function inspectArchiveEntry(token: string, id: number): Promise<ArchiveInspection> {
+	return request<ArchiveInspection>(`/api/archive/${id}/inspect`, { method: 'GET' }, token);
+}
+
 /** Every distinct group ("network") already in use across message and file areas combined, sorted -- suggestions for that field on the area forms. */
 export function listGroups(token: string): Promise<string[]> {
 	return request<string[]>('/api/groups', { method: 'GET' }, token);

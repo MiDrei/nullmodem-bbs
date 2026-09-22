@@ -7,10 +7,12 @@
 		listArchive,
 		downloadArchiveEntry,
 		previewArchiveEntry,
+		inspectArchiveEntry,
 		deleteArchiveEntry,
 		retossArchiveEntries,
 		ApiError,
-		type ArchiveEntry
+		type ArchiveEntry,
+		type ArchiveInspection
 	} from '$lib/api';
 
 	const PAGE_SIZE = 50;
@@ -23,6 +25,9 @@
 
 	let selected = $state<Set<number>>(new Set());
 	let expandedID = $state<number | null>(null);
+	let inspection = $state<ArchiveInspection | null>(null);
+	let inspectError = $state<string | null>(null);
+	let showRaw = $state(false);
 	let previewText = $state<string | null>(null);
 	let previewError = $state<string | null>(null);
 	let busyID = $state<number | null>(null);
@@ -74,8 +79,22 @@
 		}
 		if (!auth.token) return;
 		expandedID = entry.id;
+		showRaw = false;
+		inspection = null;
+		inspectError = null;
 		previewText = null;
 		previewError = null;
+		try {
+			inspection = await inspectArchiveEntry(auth.token, entry.id);
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			inspectError = err instanceof ApiError ? err.message : 'Could not inspect entry.';
+		}
+	}
+
+	async function loadRaw(entry: ArchiveEntry) {
+		showRaw = true;
+		if (previewText !== null || !auth.token) return;
 		try {
 			previewText = await previewArchiveEntry(auth.token, entry.id);
 		} catch (err) {
@@ -251,13 +270,99 @@
 
 					{#if expandedID === entry.id}
 						<div class="mt-3 border-t border-slate-800 pt-3">
-							{#if previewError}
-								<p class="text-sm text-red-400">{previewError}</p>
-							{:else if previewText === null}
+							{#if inspectError}
+								<p class="text-sm text-red-400">{inspectError}</p>
+							{:else if inspection === null}
 								<p class="text-sm text-slate-400">Loading…</p>
+							{:else if inspection.kind === 'packet' || inspection.kind === 'bundle'}
+								<div class="flex flex-col gap-3">
+									{#if inspection.kind === 'bundle'}
+										<p class="text-xs text-slate-500">
+											Packet bundle containing {inspection.packets?.length ?? 0} packet(s).
+										</p>
+									{/if}
+									{#each inspection.packets ?? [] as p}
+										<div class="rounded border border-slate-800/70 bg-slate-900/40 p-2">
+											<div class="font-mono text-xs text-slate-400">
+												{p.name} &middot; {p.orig_addr} &rarr; {p.dest_addr} &middot; {new Date(
+													p.created
+												).toLocaleString()}
+											</div>
+											{#if p.messages.length === 0}
+												<p class="mt-1 text-xs text-slate-500">No messages.</p>
+											{:else}
+												<table class="mt-2 w-full text-xs">
+													<thead class="text-slate-500">
+														<tr class="text-left">
+															<th class="py-1 pr-2 font-normal">From</th>
+															<th class="py-1 pr-2 font-normal">To</th>
+															<th class="py-1 pr-2 font-normal">Subject</th>
+															<th class="py-1 pr-2 font-normal">Area</th>
+															<th class="py-1 pr-2 font-normal">Written</th>
+															<th class="py-1 font-normal">Size</th>
+														</tr>
+													</thead>
+													<tbody>
+														{#each p.messages as m}
+															<tr class="border-t border-slate-800/60 text-slate-300">
+																<td class="py-1 pr-2">{m.from_name}</td>
+																<td class="py-1 pr-2">{m.to_name}</td>
+																<td class="py-1 pr-2">{m.subject}</td>
+																<td class="py-1 pr-2 font-mono">
+																	{m.area_tag || (m.private ? 'netmail' : '')}
+																</td>
+																<td class="py-1 pr-2">{new Date(m.written).toLocaleString()}</td>
+																<td class="py-1">{m.body_size} B</td>
+															</tr>
+														{/each}
+													</tbody>
+												</table>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							{:else if inspection.kind === 'tic'}
+								<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+									<dt class="text-slate-500">Area</dt>
+									<dd class="font-mono text-slate-300">{inspection.tic?.area}</dd>
+									<dt class="text-slate-500">File</dt>
+									<dd class="font-mono text-slate-300">{inspection.tic?.file}</dd>
+									<dt class="text-slate-500">Description</dt>
+									<dd class="whitespace-pre-wrap text-slate-300">
+										{inspection.tic?.description || '(none -- this is the missing-Desc case)'}
+									</dd>
+									<dt class="text-slate-500">Size</dt>
+									<dd class="text-slate-300">{inspection.tic?.size_bytes} B</dd>
+									{#if inspection.tic?.has_crc32}
+										<dt class="text-slate-500">CRC-32</dt>
+										<dd class="font-mono text-slate-300">{inspection.tic?.crc32}</dd>
+									{/if}
+									<dt class="text-slate-500">Origin</dt>
+									<dd class="font-mono text-slate-300">{inspection.tic?.origin}</dd>
+								</dl>
 							{:else}
-								<pre class="max-h-96 overflow-auto rounded bg-slate-950 p-3 font-mono text-xs break-all whitespace-pre-wrap text-slate-300">{previewText}</pre>
+								<p class="text-sm text-slate-500">
+									{inspection.error || "Not a recognized packet, bundle, or TIC descriptor."}
+								</p>
 							{/if}
+
+							<div class="mt-3">
+								{#if !showRaw}
+									<button
+										type="button"
+										class="text-xs text-cyan-400 hover:underline"
+										onclick={() => loadRaw(entry)}
+									>
+										Show raw bytes
+									</button>
+								{:else if previewError}
+									<p class="text-sm text-red-400">{previewError}</p>
+								{:else if previewText === null}
+									<p class="text-sm text-slate-400">Loading…</p>
+								{:else}
+									<pre class="max-h-96 overflow-auto rounded bg-slate-950 p-3 font-mono text-xs break-all whitespace-pre-wrap text-slate-300">{previewText}</pre>
+								{/if}
+							</div>
 						</div>
 					{/if}
 				</div>

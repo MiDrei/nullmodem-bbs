@@ -108,6 +108,62 @@ func TestDeleteArchiveEntryRemovesIt(t *testing.T) {
 	}
 }
 
+func TestInspectArchiveEntryReturnsPacketSummary(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	var buf bytes.Buffer
+	w, err := mail.NewWriter(&buf, mail.PacketHeader{
+		OrigAddr: mail.Address{Zone: 21, Net: 3, Node: 100},
+		DestAddr: mail.Address{Zone: 21, Net: 3, Node: 194},
+		Created:  time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := w.WriteMessage(mail.Message{ToName: "Bob", FromName: "Alice", Subject: "Hi", Body: "hello"}); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	c, err := srv.Archive.Begin("21:3/100", "host:24554", "12345678.pkt")
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	if _, err := c.Writer().Write(buf.Bytes()); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	e, err := c.Finish("ok", "")
+	if err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/archive/%d/inspect", e.ID), nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Kind    string               `json:"kind"`
+		Packets []inspectedPacketDTO `json:"packets"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Kind != "packet" || len(resp.Packets) != 1 || len(resp.Packets[0].Messages) != 1 {
+		t.Fatalf("response = %+v, want one packet with one message", resp)
+	}
+	if resp.Packets[0].Messages[0].Subject != "Hi" || resp.Packets[0].Messages[0].FromName != "Alice" {
+		t.Fatalf("message summary = %+v", resp.Packets[0].Messages[0])
+	}
+}
+
 func TestRetossArchiveEntriesReplaysAPacket(t *testing.T) {
 	srv, users, _ := newTestServer(t)
 	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
