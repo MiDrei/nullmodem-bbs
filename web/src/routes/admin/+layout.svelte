@@ -268,6 +268,26 @@
 								</svg>
 								Pending Areas
 							</a>
+							<a
+								href="/admin/netmail"
+								onclick={closeSystemMenu}
+								class="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+							>
+								<svg
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									stroke-linejoin="round"
+									class="h-4 w-4"
+								>
+									<path d="M3 6h18v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z" />
+									<path d="M3 6l9 7 9-7" />
+									<path d="M15 3.5l4 4" />
+									<path d="M19 3.5l-4 4" />
+								</svg>
+								Undeliverable Netmail
+							</a>
 							<div class="my-1 border-t border-slate-800"></div>
 							<a
 								href="/admin/settings"

@@ -461,6 +461,33 @@ export function listPendingAreas(token: string): Promise<PendingAreas> {
 	return request<PendingAreas>('/api/pending-areas', { method: 'GET' }, token);
 }
 
+export interface UnresolvedNetmailSummary {
+	id: number;
+	from_name: string;
+	from_address: string;
+	to_name: string;
+	subject: string;
+	posted_at: string;
+}
+
+export interface UnresolvedNetmail extends UnresolvedNetmailSummary {
+	body: string;
+	body_html: string;
+}
+
+/** Inbound netmail whose recipient never resolved to a real local user and has no remote FTN destination either -- a mistyped username, or a reply from an automated robot (Areafix/Filefix, ...) with nowhere else to go. Otherwise invisible anywhere in the BBS. */
+export function listUnresolvedNetmail(token: string): Promise<UnresolvedNetmailSummary[]> {
+	return request<UnresolvedNetmailSummary[]>('/api/netmail/unresolved', { method: 'GET' }, token);
+}
+
+export function getUnresolvedNetmail(token: string, id: number): Promise<UnresolvedNetmail> {
+	return request<UnresolvedNetmail>(`/api/netmail/unresolved/${id}`, { method: 'GET' }, token);
+}
+
+export function deleteUnresolvedNetmail(token: string, id: number): Promise<void> {
+	return request<void>(`/api/netmail/unresolved/${id}`, { method: 'DELETE' }, token);
+}
+
 /** Every distinct group ("network") already in use across message and file areas combined, sorted -- suggestions for that field on the area forms. */
 export function listGroups(token: string): Promise<string[]> {
 	return request<string[]>('/api/groups', { method: 'GET' }, token);
