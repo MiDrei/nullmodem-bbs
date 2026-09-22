@@ -5,9 +5,12 @@
 	import { avatarGradient, initials } from '$lib/avatar';
 	import { listBBSFileAreas, ApiError, type BBSFileArea } from '$lib/api';
 
+	const ALL_TAB = '__all__';
+
 	let areas = $state<BBSFileArea[]>([]);
 	let loadError = $state<string | null>(null);
 	let loaded = $state(false);
+	let activeNetwork = $state(ALL_TAB);
 
 	async function handleAuthError(err: unknown): Promise<boolean> {
 		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
@@ -36,15 +39,27 @@
 	// Areas already arrive grouped by network (see ListAreaStats'
 	// ORDER BY) -- fold them into named sections, same as message-areas.
 	let groups = $derived.by(() => {
-		const out: { network: string; areas: BBSFileArea[] }[] = [];
+		const out: { network: string; areas: BBSFileArea[]; newCount: number }[] = [];
 		for (const area of areas) {
 			const label = area.network || 'Local';
 			const last = out[out.length - 1];
-			if (last && last.network === label) last.areas.push(area);
-			else out.push({ network: label, areas: [area] });
+			if (last && last.network === label) {
+				last.areas.push(area);
+				last.newCount += area.new;
+			} else {
+				out.push({ network: label, areas: [area], newCount: area.new });
+			}
 		}
 		return out;
 	});
+	let totalNew = $derived(areas.reduce((sum, a) => sum + a.new, 0));
+
+	// A real hub can easily carry hundreds of areas across a handful of
+	// networks -- one tab per network (plus "All") so that's not one
+	// huge scroll to find anything.
+	let visibleGroups = $derived(
+		activeNetwork === ALL_TAB ? groups : groups.filter((g) => g.network === activeNetwork)
+	);
 </script>
 
 <div class="mb-6">
@@ -59,8 +74,45 @@
 {:else if areas.length === 0}
 	<p class="text-sm text-slate-400">No file areas available to you yet.</p>
 {:else}
+	{#if groups.length > 1}
+		<div class="mb-4 flex flex-wrap gap-1 border-b border-slate-800/60">
+			<button
+				class="border-b-2 px-3 py-2 text-sm font-medium transition {activeNetwork === ALL_TAB
+					? 'border-fuchsia-400 text-slate-100'
+					: 'border-transparent text-slate-500 hover:text-slate-300'}"
+				onclick={() => (activeNetwork = ALL_TAB)}
+			>
+				All ({areas.length})
+				{#if totalNew > 0}
+					<span
+						class="ml-1 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+					>
+						{totalNew}
+					</span>
+				{/if}
+			</button>
+			{#each groups as group (group.network)}
+				<button
+					class="border-b-2 px-3 py-2 text-sm font-medium transition {activeNetwork ===
+					group.network
+						? 'border-fuchsia-400 text-slate-100'
+						: 'border-transparent text-slate-500 hover:text-slate-300'}"
+					onclick={() => (activeNetwork = group.network)}
+				>
+					{group.network} ({group.areas.length})
+					{#if group.newCount > 0}
+						<span
+							class="ml-1 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+						>
+							{group.newCount}
+						</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+	{/if}
 	<div class="flex flex-col gap-6">
-		{#each groups as group (group.network)}
+		{#each visibleGroups as group (group.network)}
 			<div>
 				<h2 class="mb-2 px-1 text-xs font-semibold tracking-widest text-slate-500 uppercase">
 					{group.network}

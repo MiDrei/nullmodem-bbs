@@ -26,10 +26,30 @@
 		};
 	}
 
+	const UNGROUPED = 'Ungrouped';
+	const ALL_TAB = '__all__';
+
 	let areas = $state<MessageArea[]>([]);
 	let groups = $state<string[]>([]);
 	let loadError = $state<string | null>(null);
 	let loaded = $state(false);
+	let activeNetwork = $state(ALL_TAB);
+
+	// One tab per distinct Group, in the order areas already arrive in
+	// (network, sort_order, name -- see ListAreas) so a long list (a
+	// real hub can easily carry hundreds of areas across a handful of
+	// networks) doesn't force one huge scroll to find anything.
+	let networkTabs = $derived.by(() => {
+		const counts = new Map<string, number>();
+		for (const a of areas) {
+			const key = a.network || UNGROUPED;
+			counts.set(key, (counts.get(key) ?? 0) + 1);
+		}
+		return [...counts.entries()];
+	});
+	let visibleAreas = $derived(
+		activeNetwork === ALL_TAB ? areas : areas.filter((a) => (a.network || UNGROUPED) === activeNetwork)
+	);
 
 	let editingId = $state<number | null>(null);
 	let draft = $state<MessageAreaInput>(emptyDraft());
@@ -220,8 +240,30 @@
 {:else if !loaded}
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
+	{#if areas.length > 0}
+		<div class="mb-4 flex flex-wrap gap-1 border-b border-slate-800">
+			<button
+				class="border-b-2 px-3 py-2 text-sm font-medium transition {activeNetwork === ALL_TAB
+					? 'border-cyan-400 text-slate-100'
+					: 'border-transparent text-slate-500 hover:text-slate-300'}"
+				onclick={() => (activeNetwork = ALL_TAB)}
+			>
+				All ({areas.length})
+			</button>
+			{#each networkTabs as [name, count] (name)}
+				<button
+					class="border-b-2 px-3 py-2 text-sm font-medium transition {activeNetwork === name
+						? 'border-cyan-400 text-slate-100'
+						: 'border-transparent text-slate-500 hover:text-slate-300'}"
+					onclick={() => (activeNetwork = name)}
+				>
+					{name} ({count})
+				</button>
+			{/each}
+		</div>
+	{/if}
 	<div class="flex flex-col gap-4">
-		{#each areas as area (area.id)}
+		{#each visibleAreas as area (area.id)}
 			<div class="rounded border border-slate-800 p-4">
 				{#if editingId === area.id}
 					<div class="grid grid-cols-2 gap-4">
@@ -327,6 +369,8 @@
 					</div>
 				{/if}
 			</div>
+		{:else}
+			<p class="text-sm text-slate-500">No areas in this group.</p>
 		{/each}
 	</div>
 {/if}
