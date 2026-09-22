@@ -100,6 +100,19 @@ type Result struct {
 	// whole session, including mail already successfully tossed
 	// earlier in it).
 	SkippedFiles []string
+	// TICDebug is a TEMPORARY diagnostic aid: the raw bytes of every
+	// inbound .tic descriptor this session received, name-prefixed --
+	// added to settle live whether a real hub (dege.au, serving both
+	// fsxNet and HobbyNet) is genuinely sending file-echo without a
+	// Desc/Ldesc line at all for some areas (observed: FSX_IMGE/
+	// FSX_NODE/FSX_INFO/HNET_* files all land with an empty
+	// description, while a LovlyNet file parsed one fine through the
+	// exact same code) versus internal/tic.Parse mishandling their
+	// specific format. Remove this field and its one call site (see
+	// ticSession.receive) once that's confirmed either way -- logging
+	// a peer's raw file-echo metadata on every session isn't
+	// something to leave in permanently.
+	TICDebug []string
 }
 
 // Poll connects to uplink, sends whatever netmail routes to it (see
