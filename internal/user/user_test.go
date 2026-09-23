@@ -50,6 +50,45 @@ func TestRegisterAndAuthenticate(t *testing.T) {
 	}
 }
 
+func TestSetRealName(t *testing.T) {
+	s := newTestStore(t)
+	u, err := s.Register("bob", "password123", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if u.RealName != "" {
+		t.Fatalf("RealName after Register = %q, want empty (never set at registration itself)", u.RealName)
+	}
+
+	if err := s.SetRealName(u.ID, "Bob Smith"); err != nil {
+		t.Fatalf("SetRealName: %v", err)
+	}
+
+	got, err := s.ByID(u.ID)
+	if err != nil {
+		t.Fatalf("ByID: %v", err)
+	}
+	if got.RealName != "Bob Smith" {
+		t.Fatalf("RealName = %q, want %q", got.RealName, "Bob Smith")
+	}
+
+	// ListAll and ByUsername must surface it too, not just ByID.
+	all, err := s.ListAll()
+	if err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	if len(all) != 1 || all[0].RealName != "Bob Smith" {
+		t.Fatalf("ListAll = %+v, want the one user with RealName set", all)
+	}
+	byUsername, err := s.ByUsername("bob")
+	if err != nil {
+		t.Fatalf("ByUsername: %v", err)
+	}
+	if byUsername.RealName != "Bob Smith" {
+		t.Fatalf("ByUsername RealName = %q, want %q", byUsername.RealName, "Bob Smith")
+	}
+}
+
 func TestRegisterDuplicateUsernameRejected(t *testing.T) {
 	s := newTestStore(t)
 

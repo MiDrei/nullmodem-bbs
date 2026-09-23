@@ -387,7 +387,7 @@ func TestHandleLogsConnectLoginAndDisconnect(t *testing.T) {
 		Logger: applog.NewLogger(logStore, "bbs"),
 	}
 
-	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\nQ\r\n")
+	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
 	s.Handle(conn)
 
 	entries, err := logStore.Recent(50)
@@ -404,6 +404,81 @@ func TestHandleLogsConnectLoginAndDisconnect(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("log entries missing %q; got:\n%s", want, joined)
 		}
+	}
+}
+
+// TestRegisterNewRequiresRealName locks in promptRealName's two
+// rejection cases -- blank (many FTN networks reject a handle-only
+// participant) and a reserved system/staff role (see
+// user.IsRestrictedRealName) -- both must re-prompt rather than fail
+// or hang, and a valid real name on a later attempt must still get
+// through and stored.
+func TestRegisterNewRequiresRealName(t *testing.T) {
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+
+	nodes := session.NewStore(sqlDB)
+	if err := nodes.ClearAll(); err != nil {
+		t.Fatalf("Nodes.ClearAll: %v", err)
+	}
+	users := user.NewStore(sqlDB)
+	s := &Server{
+		Nodes:  nodes,
+		Menus:  testMenus(),
+		Users:  users,
+		Logger: applog.NewLogger(applog.NewStore(sqlDB), "bbs"),
+	}
+
+	// Blank, then a reserved name, then a real one -- both rejections
+	// must simply re-prompt.
+	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\n\r\nSysop\r\nAlice Example\r\nQ\r\n")
+	s.Handle(conn)
+
+	alice, err := users.ByUsername("alice")
+	if err != nil {
+		t.Fatalf("ByUsername: %v", err)
+	}
+	if alice.RealName != "Alice Example" {
+		t.Fatalf("RealName = %q, want %q", alice.RealName, "Alice Example")
+	}
+}
+
+// TestLoginRejectsReservedHandleForNewRegistration locks in that a
+// caller can't register a brand-new account under a reserved system/
+// staff handle (see user.IsRestrictedUsername) -- the handle prompt
+// must simply loop, not fail or hang.
+func TestLoginRejectsReservedHandleForNewRegistration(t *testing.T) {
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+
+	nodes := session.NewStore(sqlDB)
+	if err := nodes.ClearAll(); err != nil {
+		t.Fatalf("Nodes.ClearAll: %v", err)
+	}
+	users := user.NewStore(sqlDB)
+	s := &Server{
+		Nodes:  nodes,
+		Menus:  testMenus(),
+		Users:  users,
+		Logger: applog.NewLogger(applog.NewStore(sqlDB), "bbs"),
+	}
+
+	conn := newFakeConn("admin\r\nalice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
+	s.Handle(conn)
+
+	if _, err := users.ByUsername("admin"); !errors.Is(err, user.ErrNotFound) {
+		t.Fatalf("ByUsername(admin) = %v, want ErrNotFound -- reserved handle must never register", err)
+	}
+	if _, err := users.ByUsername("alice"); err != nil {
+		t.Fatalf("ByUsername(alice): %v, want the retry to succeed", err)
 	}
 }
 
@@ -447,7 +522,7 @@ func TestHandleLogsMenuErrors(t *testing.T) {
 		Logger: applog.NewLogger(logStore, "bbs"),
 	}
 
-	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\nB\r\n")
+	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nB\r\n")
 	s.Handle(conn)
 
 	entries, err := logStore.Recent(50)

@@ -54,6 +54,10 @@ func Open(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("db: apply schema: %w", err)
 	}
 
+	if err := ensureColumn(sqlDB, "users", "real_name", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	if err := ensureColumn(sqlDB, "message_areas", "network", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		sqlDB.Close()
 		return nil, err

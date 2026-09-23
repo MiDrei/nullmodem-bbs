@@ -210,6 +210,13 @@ func (s *Server) login(term *Terminal) (*user.User, error) {
 			return nil, fmt.Errorf("bbs: too many failed login attempts for %s", handle)
 		}
 
+		if user.IsRestrictedUsername(handle) {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That handle is reserved."); err != nil {
+				return nil, err
+			}
+			continue
+		}
+
 		u, ok, err := s.registerNew(term, handle)
 		if err != nil {
 			return nil, err
@@ -295,10 +302,19 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 			continue
 		}
 
+		realName, err := s.promptRealName(term)
+		if err != nil {
+			return nil, false, err
+		}
+
 		u, err := s.Users.Register(handle, pw1, s.NewUserSL)
 		if err != nil {
 			return nil, false, err
 		}
+		if err := s.Users.SetRealName(u.ID, realName); err != nil {
+			return nil, false, err
+		}
+		u.RealName = realName
 		s.logInfo("new account registered: %s (SL %d)", u.Username, u.SecurityLevel)
 		if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Account created. Welcome, " + handle + "!"); err != nil {
 			return nil, false, err
@@ -309,6 +325,37 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 			}
 		}
 		return u, true, nil
+	}
+}
+
+// promptRealName asks for a real name, required (many FTN networks
+// reject a purely handle-only participant) and rejected if it's a
+// reserved system/staff role (see user.IsRestrictedRealName) -- loops
+// until a valid one is given, mirroring the password-confirmation
+// loop just above it.
+func (s *Server) promptRealName(term *Terminal) (string, error) {
+	for {
+		if err := term.Print(ansi.Reset + "Real name: " + ansi.FG(ansi.Yellow, true)); err != nil {
+			return "", err
+		}
+		realName, err := term.ReadLine(false)
+		if err != nil {
+			return "", err
+		}
+		realName = strings.TrimSpace(realName)
+		if realName == "" {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Real name is required."); err != nil {
+				return "", err
+			}
+			continue
+		}
+		if user.IsRestrictedRealName(realName) {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That name is reserved."); err != nil {
+				return "", err
+			}
+			continue
+		}
+		return realName, nil
 	}
 }
 

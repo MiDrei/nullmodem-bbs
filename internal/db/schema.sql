@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS users (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     username       TEXT NOT NULL COLLATE NOCASE UNIQUE,
     password_hash  TEXT NOT NULL,
+    real_name      TEXT NOT NULL DEFAULT '',
     security_level INTEGER NOT NULL DEFAULT 10,
     created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_login_at  TIMESTAMP,

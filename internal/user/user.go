@@ -42,8 +42,14 @@ var ErrLastSysop = errors.New("user: cannot demote the last sysop-level account"
 
 // User is one BBS account.
 type User struct {
-	ID            int64
-	Username      string
+	ID       int64
+	Username string
+	// RealName is required at Telnet/SSH registration (internal/bbs's
+	// registerNew/promptRealName -- many FTN networks reject a
+	// handle-only participant) and editable by a sysop afterward (see
+	// SetRealName). May still be "" for an account that existed before
+	// this field did.
+	RealName      string
 	SecurityLevel int
 	CreatedAt     time.Time
 	LastLoginAt   sql.NullTime
@@ -127,10 +133,10 @@ func (s *Store) Authenticate(username, password string) (*User, error) {
 		hash string
 	)
 	row := s.db.QueryRow(
-		`SELECT id, username, password_hash, security_level, created_at, last_login_at, total_calls
+		`SELECT id, username, password_hash, real_name, security_level, created_at, last_login_at, total_calls
 		 FROM users WHERE username = ?`, username,
 	)
-	if err := row.Scan(&u.ID, &u.Username, &hash, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
+	if err := row.Scan(&u.ID, &u.Username, &hash, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrInvalidCredentials
 		}
@@ -154,7 +160,7 @@ func (s *Store) Authenticate(username, password string) (*User, error) {
 // ByID loads a single user by primary key.
 func (s *Store) ByID(id int64) (*User, error) {
 	return s.scanOne(s.db.QueryRow(
-		`SELECT id, username, security_level, created_at, last_login_at, total_calls
+		`SELECT id, username, real_name, security_level, created_at, last_login_at, total_calls
 		 FROM users WHERE id = ?`, id,
 	))
 }
@@ -162,14 +168,14 @@ func (s *Store) ByID(id int64) (*User, error) {
 // ByUsername loads a single user by handle (matched case-insensitively).
 func (s *Store) ByUsername(username string) (*User, error) {
 	return s.scanOne(s.db.QueryRow(
-		`SELECT id, username, security_level, created_at, last_login_at, total_calls
+		`SELECT id, username, real_name, security_level, created_at, last_login_at, total_calls
 		 FROM users WHERE username = ?`, username,
 	))
 }
 
 func (s *Store) scanOne(row *sql.Row) (*User, error) {
 	var u User
-	if err := row.Scan(&u.ID, &u.Username, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
+	if err := row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -182,7 +188,7 @@ func (s *Store) scanOne(row *sql.Row) (*User, error) {
 // order), for the sysop user-list menu and admin API.
 func (s *Store) ListAll() ([]User, error) {
 	rows, err := s.db.Query(
-		`SELECT id, username, security_level, created_at, last_login_at, total_calls
+		`SELECT id, username, real_name, security_level, created_at, last_login_at, total_calls
 		 FROM users ORDER BY id`,
 	)
 	if err != nil {
@@ -193,7 +199,7 @@ func (s *Store) ListAll() ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
 			return nil, fmt.Errorf("user: scan: %w", err)
 		}
 		users = append(users, u)
@@ -202,6 +208,17 @@ func (s *Store) ListAll() ([]User, error) {
 		return nil, fmt.Errorf("user: list all: %w", err)
 	}
 	return users, nil
+}
+
+// SetRealName updates a user's optional real name -- set at
+// registration (see internal/bbs's registerNew) or later corrected by
+// a sysop. Not validated: an empty string is a legitimate choice for
+// a caller who'd rather stay handle-only.
+func (s *Store) SetRealName(id int64, realName string) error {
+	if _, err := s.db.Exec(`UPDATE users SET real_name = ? WHERE id = ?`, realName, id); err != nil {
+		return fmt.Errorf("user: set real name for id %d: %w", id, err)
+	}
+	return nil
 }
 
 // Count returns the total number of registered accounts, for the web

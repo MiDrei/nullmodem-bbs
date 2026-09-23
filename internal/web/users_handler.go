@@ -13,6 +13,7 @@ import (
 type userDTO struct {
 	ID            int64   `json:"id"`
 	Username      string  `json:"username"`
+	RealName      string  `json:"real_name"`
 	SecurityLevel int     `json:"security_level"`
 	CreatedAt     string  `json:"created_at"`
 	LastLoginAt   *string `json:"last_login_at"`
@@ -23,6 +24,7 @@ func toUserDTO(u user.User) userDTO {
 	dto := userDTO{
 		ID:            u.ID,
 		Username:      u.Username,
+		RealName:      u.RealName,
 		SecurityLevel: u.SecurityLevel,
 		CreatedAt:     u.CreatedAt.Format(time.RFC3339),
 		TotalCalls:    u.TotalCalls,
@@ -47,6 +49,12 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dtos)
 }
 
+// handleSetUserSecurityLevel updates a user's security level and/or
+// real name -- one combined PUT since the admin Users page edits both
+// on the same row with a single Save button. RealName is a plain
+// *string (as opposed to SecurityLevel, which is always sent) so a
+// request that only means to change the level can omit it entirely
+// without accidentally clearing an existing real name.
 func (s *Server) handleSetUserSecurityLevel(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -55,7 +63,8 @@ func (s *Server) handleSetUserSecurityLevel(w http.ResponseWriter, r *http.Reque
 	}
 
 	var body struct {
-		SecurityLevel int `json:"security_level"`
+		SecurityLevel int     `json:"security_level"`
+		RealName      *string `json:"real_name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -76,6 +85,12 @@ func (s *Server) handleSetUserSecurityLevel(w http.ResponseWriter, r *http.Reque
 			writeError(w, http.StatusInternalServerError, "could not update security level")
 		}
 		return
+	}
+	if body.RealName != nil {
+		if err := s.Users.SetRealName(id, *body.RealName); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not update real name")
+			return
+		}
 	}
 
 	updated, err := s.Users.ByID(id)

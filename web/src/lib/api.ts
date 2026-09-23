@@ -82,6 +82,8 @@ export interface Dashboard {
 export interface BBSUser {
 	id: number;
 	username: string;
+	/** Optional, collected at Telnet/SSH registration or corrected by a sysop -- "" if never set. */
+	real_name: string;
 	security_level: number;
 	created_at: string;
 	last_login_at: string | null;
@@ -408,16 +410,16 @@ export function listUsers(token: string): Promise<BBSUser[]> {
 	return request<BBSUser[]>('/api/users', { method: 'GET' }, token);
 }
 
+/** realName omitted (undefined) leaves the stored real name untouched -- pass it explicitly (including "") only when the sysop actually means to change it. */
 export function setUserSecurityLevel(
 	token: string,
 	id: number,
-	securityLevel: number
+	securityLevel: number,
+	realName?: string
 ): Promise<BBSUser> {
-	return request<BBSUser>(
-		`/api/users/${id}`,
-		{ method: 'PUT', body: JSON.stringify({ security_level: securityLevel }) },
-		token
-	);
+	const body: { security_level: number; real_name?: string } = { security_level: securityLevel };
+	if (realName !== undefined) body.real_name = realName;
+	return request<BBSUser>(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(body) }, token);
 }
 
 export type MessageAreaInput = Omit<MessageArea, 'id' | 'pending'>;

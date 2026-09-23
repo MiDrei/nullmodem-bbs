@@ -471,6 +471,47 @@ func TestListAndUpdateUsers(t *testing.T) {
 	}
 }
 
+// TestUpdateUserRealName locks in that a sysop can correct a real
+// name via the same PUT the Users admin page's Save button already
+// uses for security level, and that omitting real_name entirely (the
+// shape TestListAndUpdateUsers' plain security_level-only PUTs use)
+// never clears an existing one.
+func TestUpdateUserRealName(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	path := fmt.Sprintf("/api/users/%d", alice.ID)
+	rec := doJSON(t, h, http.MethodPut, path,
+		map[string]any{"security_level": alice.SecurityLevel, "real_name": "Alice Example"}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var updated userDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if updated.RealName != "Alice Example" {
+		t.Fatalf("RealName = %q, want %q", updated.RealName, "Alice Example")
+	}
+
+	// A PUT that omits real_name entirely must not clear it.
+	rec = doJSON(t, h, http.MethodPut, path, map[string]int{"security_level": alice.SecurityLevel}, token)
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if updated.RealName != "Alice Example" {
+		t.Fatalf("RealName after security_level-only PUT = %q, want it preserved as %q", updated.RealName, "Alice Example")
+	}
+}
+
 func TestPutConfigRejectsInvalidInput(t *testing.T) {
 	srv, users, _ := newTestServer(t)
 	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {

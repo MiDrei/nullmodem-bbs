@@ -8,6 +8,7 @@
 	interface Row {
 		user: BBSUser;
 		level: number;
+		realName: string;
 		saving: boolean;
 	}
 
@@ -16,7 +17,7 @@
 	let loaded = $state(false);
 
 	function toRows(users: BBSUser[]): Row[] {
-		return users.map((user) => ({ user, level: user.security_level, saving: false }));
+		return users.map((user) => ({ user, level: user.security_level, realName: user.real_name, saving: false }));
 	}
 
 	async function load() {
@@ -48,10 +49,11 @@
 		if (!auth.token) return;
 		row.saving = true;
 		try {
-			const updated = await setUserSecurityLevel(auth.token, row.user.id, row.level);
+			const updated = await setUserSecurityLevel(auth.token, row.user.id, row.level, row.realName);
 			row.user = updated;
 			row.level = updated.security_level;
-			toast.push(`Saved ${updated.username}'s security level.`, 'success');
+			row.realName = updated.real_name;
+			toast.push(`Saved ${updated.username}.`, 'success');
 		} catch (err) {
 			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
 				auth.clear();
@@ -88,6 +90,7 @@
 			<thead class="text-xs tracking-wide text-slate-500 uppercase">
 				<tr class="border-b border-slate-800">
 					<th class="p-3">Username</th>
+					<th class="p-3">Real Name</th>
 					<th class="p-3">Security Level</th>
 					<th class="p-3">Total Calls</th>
 					<th class="p-3">Last Login</th>
@@ -118,6 +121,13 @@
 						</td>
 						<td class="p-3">
 							<input
+								class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								placeholder="—"
+								bind:value={row.realName}
+							/>
+						</td>
+						<td class="p-3">
+							<input
 								type="number"
 								min="0"
 								max="255"
@@ -133,7 +143,8 @@
 						<td class="p-3">
 							<button
 								class="rounded bg-cyan-600 px-3 py-1 text-white hover:bg-cyan-500 disabled:opacity-50"
-								disabled={row.saving || row.level === row.user.security_level}
+								disabled={row.saving ||
+									(row.level === row.user.security_level && row.realName === row.user.real_name)}
 								onclick={() => save(row)}
 							>
 								{row.saving ? 'Saving…' : 'Save'}
