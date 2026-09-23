@@ -64,6 +64,39 @@
 		<p class="font-mono text-sm text-slate-500">{dashboard.version}</p>
 	</div>
 
+	{#if dashboard.pending_message_area_count > 0 || dashboard.pending_file_area_count > 0 || dashboard.unresolved_netmail_count > 0}
+		<section class="mb-8 rounded border border-amber-800/60 bg-amber-950/20 p-4">
+			<h2 class="mb-3 text-sm font-semibold tracking-wide text-amber-400 uppercase">
+				Needs Attention
+			</h2>
+			<div class="flex flex-col gap-2 text-sm">
+				{#if dashboard.pending_message_area_count > 0}
+					<a href="/admin/pending-areas" class="text-amber-300 hover:text-amber-200">
+						{dashboard.pending_message_area_count} new message area{dashboard.pending_message_area_count ===
+						1
+							? ''
+							: 's'} awaiting approval &rarr;
+					</a>
+				{/if}
+				{#if dashboard.pending_file_area_count > 0}
+					<a href="/admin/pending-areas" class="text-amber-300 hover:text-amber-200">
+						{dashboard.pending_file_area_count} new file area{dashboard.pending_file_area_count === 1
+							? ''
+							: 's'} awaiting approval &rarr;
+					</a>
+				{/if}
+				{#if dashboard.unresolved_netmail_count > 0}
+					<a href="/admin/netmail" class="text-amber-300 hover:text-amber-200">
+						{dashboard.unresolved_netmail_count} undeliverable netmail message{dashboard.unresolved_netmail_count ===
+						1
+							? ''
+							: 's'} &rarr;
+					</a>
+				{/if}
+			</div>
+		</section>
+	{/if}
+
 	<div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
 		<div class="rounded border border-slate-800 p-4">
 			<div class="text-2xl font-semibold text-cyan-400">{dashboard.nodes.length}</div>

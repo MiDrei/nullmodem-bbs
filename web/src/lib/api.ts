@@ -71,6 +71,12 @@ export interface Dashboard {
 	file_area_count: number;
 	nodes: Node[];
 	binkp: BinkpStatus;
+	/** Echomail areas an inbound toss created that are still awaiting approval -- see /admin/pending-areas. */
+	pending_message_area_count: number;
+	/** Same, for file-echo areas. */
+	pending_file_area_count: number;
+	/** Inbound netmail stuck with no real recipient -- see /admin/netmail. Capped the same way that page's own list is. */
+	unresolved_netmail_count: number;
 }
 
 export interface BBSUser {
@@ -486,6 +492,15 @@ export function getUnresolvedNetmail(token: string, id: number): Promise<Unresol
 
 export function deleteUnresolvedNetmail(token: string, id: number): Promise<void> {
 	return request<void>(`/api/netmail/unresolved/${id}`, { method: 'DELETE' }, token);
+}
+
+/** Dismisses several unresolved messages at once -- a nonexistent or already-resolved id is skipped rather than failing the whole batch. */
+export function batchDeleteUnresolvedNetmail(token: string, ids: number[]): Promise<{ deleted: number }> {
+	return request<{ deleted: number }>(
+		'/api/netmail/unresolved/batch-delete',
+		{ method: 'POST', body: JSON.stringify({ ids }) },
+		token
+	);
 }
 
 export interface ArchiveEntry {

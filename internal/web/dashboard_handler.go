@@ -39,6 +39,16 @@ type dashboardDTO struct {
 	FileAreaCount    int            `json:"file_area_count"`
 	Nodes            []nodeDTO      `json:"nodes"`
 	Binkp            binkpStatusDTO `json:"binkp"`
+	// PendingMessageAreaCount/PendingFileAreaCount are areas an
+	// inbound echomail/file-echo toss created that are still awaiting
+	// a sysop's approval (see message.Area.Pending's doc comment) --
+	// invisible anywhere in the BBS until then.
+	PendingMessageAreaCount int `json:"pending_message_area_count"`
+	PendingFileAreaCount    int `json:"pending_file_area_count"`
+	// UnresolvedNetmailCount mirrors netmail.Store.UnresolvedInbox's
+	// own cap (unresolvedNetmailLimit) -- exact below that, "at least
+	// this many" at or above it.
+	UnresolvedNetmailCount int `json:"unresolved_netmail_count"`
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -107,13 +117,36 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	pendingMsgAreas, err := s.Messages.PendingAreas()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not count pending message areas")
+		return
+	}
+	pendingFileAreas, err := s.Files.PendingAreas()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not count pending file areas")
+		return
+	}
+	var unresolvedCount int
+	if s.Netmail != nil {
+		unresolved, err := s.Netmail.UnresolvedInbox(unresolvedNetmailLimit)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not count unresolved netmail")
+			return
+		}
+		unresolvedCount = len(unresolved)
+	}
+
 	writeJSON(w, http.StatusOK, dashboardDTO{
-		BBSName:          cfg.BBS.Name,
-		Version:          version.Version,
-		UserCount:        userCount,
-		MessageAreaCount: messageAreaCount,
-		FileAreaCount:    fileAreaCount,
-		Nodes:            nodeDTOs,
-		Binkp:            binkp,
+		BBSName:                 cfg.BBS.Name,
+		Version:                 version.Version,
+		UserCount:               userCount,
+		MessageAreaCount:        messageAreaCount,
+		FileAreaCount:           fileAreaCount,
+		Nodes:                   nodeDTOs,
+		Binkp:                   binkp,
+		PendingMessageAreaCount: len(pendingMsgAreas),
+		PendingFileAreaCount:    len(pendingFileAreas),
+		UnresolvedNetmailCount:  unresolvedCount,
 	})
 }

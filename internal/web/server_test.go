@@ -334,6 +334,48 @@ func TestDashboardReportsBinkpStatus(t *testing.T) {
 	}
 }
 
+func TestDashboardReportsPendingAreasAndUnresolvedNetmailCounts(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodGet, "/api/dashboard", nil, token)
+	var got dashboardDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode dashboard: %v", err)
+	}
+	if got.PendingMessageAreaCount != 0 || got.PendingFileAreaCount != 0 || got.UnresolvedNetmailCount != 0 {
+		t.Fatalf("initial counts = %+v, want all zero", got)
+	}
+
+	if _, _, err := srv.Messages.EnsureArea("FSXNET_GENERAL", "FSXNET_GENERAL", "fsxNet"); err != nil {
+		t.Fatalf("EnsureArea (message): %v", err)
+	}
+	if _, _, err := srv.Files.EnsureArea("SOME_FILE_ECHO", "SOME_FILE_ECHO", ""); err != nil {
+		t.Fatalf("EnsureArea (file): %v", err)
+	}
+	if _, err := srv.Netmail.SendSystem("Areafix", "9999:1/1", "nobody-by-this-name", "", "Re: subscribe", "body", true); err != nil {
+		t.Fatalf("SendSystem: %v", err)
+	}
+
+	rec = doJSON(t, h, http.MethodGet, "/api/dashboard", nil, token)
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode dashboard: %v", err)
+	}
+	if got.PendingMessageAreaCount != 1 {
+		t.Fatalf("PendingMessageAreaCount = %d, want 1", got.PendingMessageAreaCount)
+	}
+	if got.PendingFileAreaCount != 1 {
+		t.Fatalf("PendingFileAreaCount = %d, want 1", got.PendingFileAreaCount)
+	}
+	if got.UnresolvedNetmailCount != 1 {
+		t.Fatalf("UnresolvedNetmailCount = %d, want 1", got.UnresolvedNetmailCount)
+	}
+}
+
 func TestListAndUpdateUsers(t *testing.T) {
 	srv, users, _ := newTestServer(t)
 	sysop, err := users.Register("root", "supersecret", user.SLSysop)

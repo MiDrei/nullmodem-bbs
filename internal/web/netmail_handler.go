@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -155,4 +156,44 @@ func (s *Server) handleDeleteUnresolvedNetmail(w http.ResponseWriter, r *http.Re
 		s.logInfo("%s deleted unresolved netmail %d", claims.Subject, id)
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleBatchDeleteUnresolvedNetmail dismisses several unresolved
+// messages at once (the admin UI's multi-select "Delete selected") --
+// same semantics as handleDeleteUnresolvedNetmail per ID: a
+// nonexistent or already-resolved ID is skipped rather than failing
+// the whole batch, since a concurrent sysop or a stale UI selection
+// shouldn't stop the rest from being cleared.
+func (s *Server) handleBatchDeleteUnresolvedNetmail(w http.ResponseWriter, r *http.Request) {
+	if s.Netmail == nil {
+		writeError(w, http.StatusInternalServerError, "netmail is not configured")
+		return
+	}
+	var req struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.IDs) == 0 {
+		writeError(w, http.StatusBadRequest, "ids must not be empty")
+		return
+	}
+
+	var deleted int
+	for _, id := range req.IDs {
+		if _, err := s.unresolvedByID(id); err != nil {
+			continue
+		}
+		if err := s.Netmail.Delete(id); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not delete message")
+			return
+		}
+		deleted++
+	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s deleted %d unresolved netmail message(s)", claims.Subject, deleted)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": deleted})
 }

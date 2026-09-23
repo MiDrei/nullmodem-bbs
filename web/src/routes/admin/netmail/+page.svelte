@@ -7,6 +7,7 @@
 		listUnresolvedNetmail,
 		getUnresolvedNetmail,
 		deleteUnresolvedNetmail,
+		batchDeleteUnresolvedNetmail,
 		ApiError,
 		type UnresolvedNetmailSummary,
 		type UnresolvedNetmail
@@ -19,6 +20,8 @@
 	let expanded = $state<UnresolvedNetmail | null>(null);
 	let expandError = $state<string | null>(null);
 	let deletingID = $state<number | null>(null);
+	let selected = $state<Set<number>>(new Set());
+	let batchDeleting = $state(false);
 
 	async function handleAuthError(err: unknown): Promise<boolean> {
 		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
@@ -34,12 +37,25 @@
 		try {
 			messages = await listUnresolvedNetmail(auth.token);
 			loadError = null;
+			const ids = new Set(messages.map((m) => m.id));
+			selected = new Set([...selected].filter((id) => ids.has(id)));
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			loadError = err instanceof ApiError ? err.message : 'Could not load unresolved netmail.';
 		} finally {
 			loaded = true;
 		}
+	}
+
+	function toggleSelected(id: number) {
+		const next = new Set(selected);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		selected = next;
+	}
+
+	function toggleSelectAll() {
+		selected = selected.size === messages.length ? new Set() : new Set(messages.map((m) => m.id));
 	}
 
 	onMount(async () => {
@@ -88,6 +104,30 @@
 			deletingID = null;
 		}
 	}
+
+	async function removeSelected() {
+		if (!auth.token || selected.size === 0) return;
+		if (!confirm(`Delete ${selected.size} selected undeliverable message(s)? There's nowhere else they can go.`))
+			return;
+		batchDeleting = true;
+		try {
+			const ids = [...selected];
+			await batchDeleteUnresolvedNetmail(auth.token, ids);
+			const removed = new Set(ids);
+			messages = messages.filter((m) => !removed.has(m.id));
+			if (expandedID !== null && removed.has(expandedID)) {
+				expandedID = null;
+				expanded = null;
+			}
+			selected = new Set();
+			toast.push('Selected messages deleted.', 'success');
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not delete selected messages.', 'error');
+		} finally {
+			batchDeleting = false;
+		}
+	}
 </script>
 
 <h1 class="mb-2 text-xl font-semibold text-slate-100">Undeliverable Netmail</h1>
@@ -105,25 +145,51 @@
 {:else if messages.length === 0}
 	<p class="text-sm text-slate-500">Nothing undeliverable right now.</p>
 {:else}
+	<div class="mb-3 flex items-center gap-3">
+		<label class="flex items-center gap-2 text-sm text-slate-400">
+			<input
+				type="checkbox"
+				checked={selected.size > 0 && selected.size === messages.length}
+				onchange={toggleSelectAll}
+			/>
+			Select all
+		</label>
+		<button
+			class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
+			disabled={selected.size === 0 || batchDeleting}
+			onclick={removeSelected}
+		>
+			{batchDeleting ? 'Deleting…' : `Delete selected (${selected.size})`}
+		</button>
+	</div>
+
 	<div class="flex flex-col gap-3">
 		{#each messages as m (m.id)}
 			<div class="rounded border border-slate-800 p-4">
-				<button
-					type="button"
-					class="flex w-full items-start justify-between gap-4 text-left"
-					onclick={() => toggle(m)}
-				>
-					<div class="min-w-0">
-						<div class="truncate text-sm font-medium text-slate-100">{m.subject}</div>
-						<div class="mt-0.5 text-xs text-slate-500">
-							From <span class="text-slate-300">{m.from_name}</span>
-							{#if m.from_address}<span class="font-mono">({m.from_address})</span>{/if}
-							to <span class="font-mono text-slate-300">{m.to_name}</span>
-							&middot; {new Date(m.posted_at).toLocaleString()}
+				<div class="flex items-start gap-3">
+					<input
+						type="checkbox"
+						class="mt-1"
+						checked={selected.has(m.id)}
+						onchange={() => toggleSelected(m.id)}
+					/>
+					<button
+						type="button"
+						class="flex min-w-0 flex-1 items-start justify-between gap-4 text-left"
+						onclick={() => toggle(m)}
+					>
+						<div class="min-w-0">
+							<div class="truncate text-sm font-medium text-slate-100">{m.subject}</div>
+							<div class="mt-0.5 text-xs text-slate-500">
+								From <span class="text-slate-300">{m.from_name}</span>
+								{#if m.from_address}<span class="font-mono">({m.from_address})</span>{/if}
+								to <span class="font-mono text-slate-300">{m.to_name}</span>
+								&middot; {new Date(m.posted_at).toLocaleString()}
+							</div>
 						</div>
-					</div>
-					<span class="shrink-0 text-xs text-slate-500">{expandedID === m.id ? '▲' : '▼'}</span>
-				</button>
+						<span class="shrink-0 text-xs text-slate-500">{expandedID === m.id ? '▲' : '▼'}</span>
+					</button>
+				</div>
 
 				{#if expandedID === m.id}
 					<div class="mt-3 border-t border-slate-800 pt-3">
