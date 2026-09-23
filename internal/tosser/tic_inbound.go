@@ -105,8 +105,6 @@ func (ts *ticSession) receive(name string, r io.Reader, res *Result) error {
 	}
 
 	if isTICFile(name) {
-		// TEMPORARY -- see Result.TICDebug's own doc comment.
-		res.TICDebug = append(res.TICDebug, fmt.Sprintf("%s:\n%s", name, data))
 		desc, err := tic.Parse(data)
 		if err != nil {
 			res.SkippedFiles = append(res.SkippedFiles, name)

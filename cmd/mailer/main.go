@@ -173,7 +173,6 @@ func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, n
 		logger.Warn("inbound BinkP session from %s: %v", remote, err)
 		return
 	}
-	logTICDebug(res, logger)
 	logger.Info("inbound BinkP session from %s (%v): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", remote, res.RemoteAddresses, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
 }
 
@@ -276,7 +275,6 @@ func pollIfDue(ctx context.Context, cfg *config.Config, uplink config.BinkpUplin
 		logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
 		return true
 	}
-	logTICDebug(res, logger)
 	logger.Info("polled %s (%s): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
 	return true
 }
@@ -294,15 +292,6 @@ func skippedFilesSuffix(skipped []string) string {
 		return ""
 	}
 	return fmt.Sprintf(", skipped %d unsupported file(s): %s", len(skipped), strings.Join(skipped, ", "))
-}
-
-// logTICDebug is a TEMPORARY diagnostic aid -- see
-// tosser.Result.TICDebug's own doc comment. Remove this call (and
-// that field) once resolved.
-func logTICDebug(res *tosser.Result, logger *applog.Logger) {
-	for _, raw := range res.TICDebug {
-		logger.Warn("TIC debug capture: %s", raw)
-	}
 }
 
 // dialedForPendingMail dials uplink immediately -- "crash" delivery,
@@ -354,7 +343,6 @@ func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config
 		logger.Warn("crash-dialing %s (%s) for pending mail: %v", uplink.Address, uplink.Host, err)
 		return true
 	}
-	logTICDebug(res, logger)
 	logger.Info("crash-dialed %s (%s) for pending mail: sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
 	return true
 }

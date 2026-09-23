@@ -36,9 +36,10 @@ type File struct {
 	// correlates this descriptor with the matching file BinkP
 	// transfers alongside it in the same session.
 	Name string
-	// Description is "Desc" plus every "Ldesc" line, joined with "\n"
-	// in the order they appeared -- real hub software uses Desc for a
-	// short one-liner and Ldesc for additional detail lines.
+	// Description is "Desc" (or, equivalently, the real-world vendor
+	// variant "AreaDesc") plus every "Ldesc" line, joined with "\n" in
+	// the order they appeared -- real hub software uses Desc/AreaDesc
+	// for a short one-liner and Ldesc for additional detail lines.
 	Description string
 	// SizeBytes is the file's claimed size ("Size"), 0 if absent or
 	// unparseable -- sanity-checked against the actually received
@@ -81,7 +82,11 @@ func Parse(data []byte) (File, error) {
 			f.Area = value
 		case "file":
 			f.Name = value
-		case "desc":
+		case "desc", "areadesc":
+			// "Desc" is FTS-0006's standard keyword; "AreaDesc" is a
+			// real-world vendor variant (confirmed live from a
+			// dege.au/htick hub) some hub software sends instead --
+			// treated identically.
 			desc = value
 		case "ldesc":
 			ldesc = append(ldesc, value)

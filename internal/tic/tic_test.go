@@ -58,6 +58,26 @@ func TestParseCombinesDescAndLdescInOrder(t *testing.T) {
 	}
 }
 
+func TestParseAcceptsAreaDescAsDescSynonym(t *testing.T) {
+	// Confirmed live against a real dege.au/htick hub, which sends
+	// "AreaDesc" instead of FTS-0006's standard "Desc" -- see
+	// internal/tosser's Archive-backed Packet Analyzer, which is how
+	// this was actually caught.
+	data := "Area FSX_IMGE\r\n" +
+		"File apod0923.zip\r\n" +
+		"AreaDesc Astronomy picture of the day\r\n" +
+		"Ldesc more detail\r\n"
+
+	f, err := Parse([]byte(data))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want := "Astronomy picture of the day\nmore detail"
+	if f.Description != want {
+		t.Fatalf("Description = %q, want %q", f.Description, want)
+	}
+}
+
 func TestParseKeywordsAreCaseInsensitive(t *testing.T) {
 	data := "AREA FSX_FILES\r\nfile readme.zip\r\nDESC hello\r\n"
 	f, err := Parse([]byte(data))
