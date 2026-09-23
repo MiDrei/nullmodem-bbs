@@ -132,37 +132,6 @@ const (
 // only ever spent against a peer that lingers.
 var closeGracePeriod = 3 * time.Second
 
-// DebugIO is a TEMPORARY diagnostic hook: when non-nil, every byte
-// Dial sends or receives is reported here (direction is "send" or
-// "recv"), to settle live whether a real hub (tqwNet/SysopNet, both
-// Mystic BBS) rejecting our dial-out with a handshake-stage EOF is
-// something malformed in what we actually send, or the remote simply
-// never responding at all. Remove this var and its one call site in
-// Dial once that's confirmed either way.
-var DebugIO func(direction string, data []byte)
-
-// debugConn wraps a net.Conn to report every Read/Write through
-// DebugIO -- see its own doc comment.
-type debugConn struct {
-	net.Conn
-}
-
-func (c *debugConn) Read(b []byte) (int, error) {
-	n, err := c.Conn.Read(b)
-	if n > 0 {
-		DebugIO("recv", b[:n])
-	}
-	return n, err
-}
-
-func (c *debugConn) Write(b []byte) (int, error) {
-	n, err := c.Conn.Write(b)
-	if n > 0 {
-		DebugIO("send", b[:n])
-	}
-	return n, err
-}
-
 // Dial opens an originating (caller) BinkP session to addr
 // ("host:port"), runs the full handshake and file transfer, gives the
 // peer a brief grace period to close the connection on its own (see
@@ -177,15 +146,11 @@ func Dial(ctx context.Context, addr string, cfg Config) (*Result, error) {
 		return nil, fmt.Errorf("binkp: dial %s: %w", addr, err)
 	}
 	defer conn.Close()
-	var wireConn net.Conn = conn
-	if DebugIO != nil {
-		wireConn = &debugConn{Conn: conn}
-	}
-	result, err := runSession(ctx, wireConn, cfg, roleOriginator)
+	result, err := runSession(ctx, conn, cfg, roleOriginator)
 	if err != nil {
 		return nil, err
 	}
-	waitForPeerToCloseFirst(wireConn)
+	waitForPeerToCloseFirst(conn)
 	return result, nil
 }
 
