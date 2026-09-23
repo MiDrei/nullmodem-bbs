@@ -228,6 +228,22 @@ export function getBBSInfo(): Promise<{ name: string }> {
 	return request('/api/bbs/info', { method: 'GET' });
 }
 
+export interface WelcomeScreen {
+	html: string;
+	preformatted: boolean;
+	grid?: Grid;
+}
+
+/** welcome.ans rendered (unauthenticated), the same banner a Telnet/SSH caller sees on connect -- for the BBS portal login page. Real ANSI art comes back as preformatted+grid, meant for AnsiArt.svelte (see its own doc comment for why), the same as a message/netmail body. Returns null if no welcome.ans is configured (404), rather than throwing, since the login page should just render without a banner in that case. */
+export async function getWelcomeScreen(): Promise<WelcomeScreen | null> {
+	try {
+		return await request<WelcomeScreen>('/api/bbs/welcome-screen', { method: 'GET' });
+	} catch (err) {
+		if (err instanceof ApiError && err.status === 404) return null;
+		throw err;
+	}
+}
+
 export function login(username: string, password: string): Promise<LoginResponse> {
 	return request<LoginResponse>('/api/auth/login', {
 		method: 'POST',

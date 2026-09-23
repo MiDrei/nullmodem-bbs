@@ -67,6 +67,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/bbs/info", s.handleBBSInfo)
+	mux.HandleFunc("GET /api/bbs/welcome-screen", s.handleWelcomeScreen)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.Handle("GET /api/config", s.requireAuth(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.requireAuth(http.HandlerFunc(s.handlePutConfig)))

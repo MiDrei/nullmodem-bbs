@@ -5,4 +5,4 @@ package version
 
 // Version is shown on the BBS welcome screen, the [V]ersion menu
 // command, and the web admin dashboard.
-const Version = "NullModem BBS v0.19.0-dev"
+const Version = "NullModem BBS v0.19.1-dev"
