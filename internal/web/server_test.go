@@ -374,6 +374,21 @@ func TestDashboardReportsPendingAreasAndUnresolvedNetmailCounts(t *testing.T) {
 	if got.UnresolvedNetmailCount != 1 {
 		t.Fatalf("UnresolvedNetmailCount = %d, want 1", got.UnresolvedNetmailCount)
 	}
+
+	// The admin page's own list caps at unresolvedNetmailLimit (50) --
+	// the dashboard badge must report the true total regardless.
+	for i := 0; i < 55; i++ {
+		if _, err := srv.Netmail.SendSystem("Areafix", "9999:1/1", "nobody-by-this-name", "", "Re: subscribe", "body", true); err != nil {
+			t.Fatalf("SendSystem: %v", err)
+		}
+	}
+	rec = doJSON(t, h, http.MethodGet, "/api/dashboard", nil, token)
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode dashboard: %v", err)
+	}
+	if got.UnresolvedNetmailCount != 56 {
+		t.Fatalf("UnresolvedNetmailCount = %d, want 56 (not capped at unresolvedNetmailLimit)", got.UnresolvedNetmailCount)
+	}
 }
 
 func TestListAndUpdateUsers(t *testing.T) {

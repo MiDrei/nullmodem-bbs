@@ -45,9 +45,9 @@ type dashboardDTO struct {
 	// invisible anywhere in the BBS until then.
 	PendingMessageAreaCount int `json:"pending_message_area_count"`
 	PendingFileAreaCount    int `json:"pending_file_area_count"`
-	// UnresolvedNetmailCount mirrors netmail.Store.UnresolvedInbox's
-	// own cap (unresolvedNetmailLimit) -- exact below that, "at least
-	// this many" at or above it.
+	// UnresolvedNetmailCount is the true total (see
+	// netmail.Store.CountUnresolvedInbox), not capped at what the
+	// admin's own list page displays.
 	UnresolvedNetmailCount int `json:"unresolved_netmail_count"`
 }
 
@@ -129,12 +129,11 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	var unresolvedCount int
 	if s.Netmail != nil {
-		unresolved, err := s.Netmail.UnresolvedInbox(unresolvedNetmailLimit)
+		unresolvedCount, err = s.Netmail.CountUnresolvedInbox()
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "could not count unresolved netmail")
 			return
 		}
-		unresolvedCount = len(unresolved)
 	}
 
 	writeJSON(w, http.StatusOK, dashboardDTO{

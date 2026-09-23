@@ -257,6 +257,32 @@ func TestUnresolvedInboxFindsMessagesWithNoMatchingLocalUser(t *testing.T) {
 	}
 }
 
+func TestCountUnresolvedInboxIsNotCappedByAListLimit(t *testing.T) {
+	s, _ := newTestStore(t)
+	written := time.Date(2026, time.September, 16, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 3; i++ {
+		if _, err := s.Receive("Areafix", "21:3/100", 0, "Areafix", "", "Re: %LIST", "area list here", written, false); err != nil {
+			t.Fatalf("Receive: %v", err)
+		}
+	}
+
+	got, err := s.UnresolvedInbox(2)
+	if err != nil {
+		t.Fatalf("UnresolvedInbox: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("UnresolvedInbox(2) len = %d, want 2 (the list cap)", len(got))
+	}
+
+	n, err := s.CountUnresolvedInbox()
+	if err != nil {
+		t.Fatalf("CountUnresolvedInbox: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("CountUnresolvedInbox = %d, want the true total 3, not capped like the list", n)
+	}
+}
+
 func TestDeleteRemovesMessageFromInbox(t *testing.T) {
 	s, users := newTestStore(t)
 	alice, err := users.Register("alice", "password123", user.SLNewUser)

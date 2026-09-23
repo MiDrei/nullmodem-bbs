@@ -310,6 +310,18 @@ func (s *Store) UnresolvedInbox(limit int) ([]Message, error) {
 	return msgs, nil
 }
 
+// CountUnresolvedInbox reports how many messages UnresolvedInbox
+// would return with no limit -- for a dashboard badge, where the
+// admin list's own display cap shouldn't understate the real number.
+func (s *Store) CountUnresolvedInbox() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM netmail_messages WHERE to_user_id IS NULL AND to_address = ''`).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("netmail: count unresolved inbox: %w", err)
+	}
+	return n, nil
+}
+
 // InboxFromAddress returns netmail from fromAddress, most recent
 // first (at most limit messages), regardless of whether its recipient
 // name resolved to a local user -- an inbound reply from an automated
