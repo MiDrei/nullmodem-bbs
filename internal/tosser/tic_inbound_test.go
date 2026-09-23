@@ -1,6 +1,7 @@
 package tosser
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"fmt"
@@ -53,6 +54,98 @@ func TestTICSessionTossesAFileWhenTICArrivesFirst(t *testing.T) {
 	}
 	if len(stored) != 1 || stored[0].Filename != "readme.zip" {
 		t.Fatalf("stored files = %+v, want exactly one named readme.zip", stored)
+	}
+}
+
+// buildZipWithFileIDDiz builds an in-memory .zip containing a
+// FILE_ID.DIZ entry with the given text plus one other, unrelated
+// file -- mirroring a real distribution .zip's shape.
+func buildZipWithFileIDDiz(t *testing.T, dizText string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	diz, err := zw.Create("FILE_ID.DIZ")
+	if err != nil {
+		t.Fatalf("zip Create FILE_ID.DIZ: %v", err)
+	}
+	if _, err := diz.Write([]byte(dizText)); err != nil {
+		t.Fatalf("zip write FILE_ID.DIZ: %v", err)
+	}
+	payload, err := zw.Create("apod0923.jpg")
+	if err != nil {
+		t.Fatalf("zip Create payload: %v", err)
+	}
+	if _, err := payload.Write([]byte("not really a jpeg")); err != nil {
+		t.Fatalf("zip write payload: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip Close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func TestTICSessionUsesFileIDDizAsDescriptionWhenTICHasNone(t *testing.T) {
+	_, _, files, _, _, _ := newTestStoresWithRobot(t)
+	ts := newTICSession(files, nil)
+	res := &Result{}
+
+	zipData := buildZipWithFileIDDiz(t, "Astronomy Picture of the Day\r\nDaily image feed")
+
+	// No Desc/AreaDesc/Ldesc line at all -- exactly what was observed
+	// live from a real fsxNet apodNNNN.zip distribution.
+	ticData := buildTICBytes("Area FSX_IMGE", "File apod0923.zip")
+	if err := ts.receive("00001122.tic", bytes.NewReader(ticData), res); err != nil {
+		t.Fatalf("receive TIC: %v", err)
+	}
+	if err := ts.receive("apod0923.zip", bytes.NewReader(zipData), res); err != nil {
+		t.Fatalf("receive payload: %v", err)
+	}
+	if res.ReceivedFiles != 1 {
+		t.Fatalf("ReceivedFiles = %d, want 1", res.ReceivedFiles)
+	}
+
+	area, err := files.AreaByTag("FSX_IMGE")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	stored, err := files.ListFiles(area.ID)
+	if err != nil {
+		t.Fatalf("ListFiles: %v", err)
+	}
+	if len(stored) != 1 {
+		t.Fatalf("stored files = %+v, want exactly one", stored)
+	}
+	want := "Astronomy Picture of the Day\r\nDaily image feed"
+	if stored[0].Description != want {
+		t.Fatalf("Description = %q, want the FILE_ID.DIZ text %q", stored[0].Description, want)
+	}
+}
+
+func TestTICSessionPrefersTICDescriptionOverFileIDDiz(t *testing.T) {
+	_, _, files, _, _, _ := newTestStoresWithRobot(t)
+	ts := newTICSession(files, nil)
+	res := &Result{}
+
+	zipData := buildZipWithFileIDDiz(t, "DIZ text, should be ignored")
+
+	ticData := buildTICBytes("Area FSX_IMGE", "File apod0923.zip", "Desc a real TIC description")
+	if err := ts.receive("00001122.tic", bytes.NewReader(ticData), res); err != nil {
+		t.Fatalf("receive TIC: %v", err)
+	}
+	if err := ts.receive("apod0923.zip", bytes.NewReader(zipData), res); err != nil {
+		t.Fatalf("receive payload: %v", err)
+	}
+
+	area, err := files.AreaByTag("FSX_IMGE")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	stored, err := files.ListFiles(area.ID)
+	if err != nil {
+		t.Fatalf("ListFiles: %v", err)
+	}
+	if len(stored) != 1 || stored[0].Description != "a real TIC description" {
+		t.Fatalf("stored = %+v, want the TIC's own description kept, not the DIZ", stored)
 	}
 }
 

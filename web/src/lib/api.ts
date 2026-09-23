@@ -949,6 +949,92 @@ export function uploadBBSAreaFile(
 	return requestForm<BBSFile>(`/api/bbs/file-areas/${areaId}/files`, form, token);
 }
 
+export interface FilePreviewArchiveEntry {
+	name: string;
+	size_bytes: number;
+}
+
+/** Discriminated union keyed by kind: "image", "text" (CP437/ANSI, rendered the same way an echomail message body is), "archive" (a .zip's table of contents), or "none" when nothing about the file is worth previewing. Only the fields for that kind are set. */
+export interface FilePreview {
+	kind: 'image' | 'text' | 'archive' | 'none';
+	body_html?: string;
+	preformatted?: boolean;
+	grid?: Grid;
+	truncated?: boolean;
+	content_type?: string;
+	entries?: FilePreviewArchiveEntry[];
+	entries_truncated?: boolean;
+}
+
+const PREVIEW_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
+const PREVIEW_TEXT_EXTS = new Set(['.txt', '.nfo', '.diz', '.asc', '.me', '.1st', '.cat', '.ans']);
+
+/** Mirrors the server's own extension-based preview-kind detection (see internal/web's previewImageExtensions/previewTextExtensions) -- lets the UI decide up front (no request needed) whether a file is worth a Preview button, and specifically whether it's a .zip whose contents list should just be shown outright. */
+export function guessFilePreviewKind(filename: string): 'image' | 'text' | 'archive' | 'none' {
+	const dot = filename.lastIndexOf('.');
+	if (dot < 0) return 'none';
+	const ext = filename.slice(dot).toLowerCase();
+	if (PREVIEW_IMAGE_EXTS.has(ext)) return 'image';
+	if (PREVIEW_TEXT_EXTS.has(ext)) return 'text';
+	if (ext === '.zip') return 'archive';
+	return 'none';
+}
+
+export function previewBBSFile(token: string, id: number): Promise<FilePreview> {
+	return request<FilePreview>(`/api/bbs/files/${id}/preview`, { method: 'GET' }, token);
+}
+
+/** Fetches an image file's raw bytes (an <img> element can't attach a Bearer token itself) and returns an object URL for its src -- the caller must URL.revokeObjectURL it when done (e.g. onDestroy). */
+export async function previewBBSFileImageURL(token: string, id: number): Promise<string> {
+	const res = await fetch(`/api/bbs/files/${id}/preview-raw`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	if (!res.ok) {
+		let message = res.statusText;
+		try {
+			const body = await res.json();
+			if (body?.error) message = body.error;
+		} catch {
+			// response body wasn't JSON; fall back to statusText
+		}
+		throw new ApiError(res.status, message);
+	}
+	const blob = await res.blob();
+	return URL.createObjectURL(blob);
+}
+
+/** preview-entry counterpart of previewBBSFile, for one named file inside a .zip. */
+export function previewBBSFileEntry(token: string, id: number, name: string): Promise<FilePreview> {
+	return request<FilePreview>(
+		`/api/bbs/files/${id}/preview-entry?name=${encodeURIComponent(name)}`,
+		{ method: 'GET' },
+		token
+	);
+}
+
+/** preview-entry-raw counterpart of previewBBSFileImageURL, for one named image inside a .zip. */
+export async function previewBBSFileEntryImageURL(
+	token: string,
+	id: number,
+	name: string
+): Promise<string> {
+	const res = await fetch(`/api/bbs/files/${id}/preview-entry-raw?name=${encodeURIComponent(name)}`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	if (!res.ok) {
+		let message = res.statusText;
+		try {
+			const body = await res.json();
+			if (body?.error) message = body.error;
+		} catch {
+			// response body wasn't JSON; fall back to statusText
+		}
+		throw new ApiError(res.status, message);
+	}
+	const blob = await res.blob();
+	return URL.createObjectURL(blob);
+}
+
 // downloadBBSFile fetches the file with the portal's Bearer token
 // (a plain <a href> can't attach an Authorization header) and hands
 // the browser a synthetic download via an object URL -- the only

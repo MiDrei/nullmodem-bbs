@@ -1,14 +1,19 @@
 package web
 
 import (
+	"archive/zip"
 	"errors"
+	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
 
+	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 )
 
@@ -290,4 +295,378 @@ func (s *Server) handleUploadBBSAreaFile(w http.ResponseWriter, r *http.Request)
 		UploadedAt:    f.UploadedAt.Format(time.RFC3339),
 		DownloadCount: f.DownloadCount,
 	})
+}
+
+// filePreviewTextCap bounds how much of a text-shaped file
+// handlePreviewBBSFile reads for a preview -- generous for a real
+// FILE_ID.DIZ/NFO/ad, but a mislabeled huge .txt shouldn't blow up the
+// response.
+const filePreviewTextCap = 200 * 1024
+
+// filePreviewArchiveEntryCap bounds how many of a .zip's entries
+// handlePreviewBBSFile lists -- a real file-area .zip is a handful of
+// files; this is only to stop something pathological from producing
+// an enormous response.
+const filePreviewArchiveEntryCap = 500
+
+// previewImageExtensions maps a lowercased file extension to the
+// image/* content type handlePreviewRawBBSFile serves it as -- the
+// set of formats every mainstream browser renders natively in an
+// <img>, so no server-side conversion is ever needed.
+var previewImageExtensions = map[string]string{
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+	".bmp":  "image/bmp",
+}
+
+// previewTextExtensions is what handlePreviewBBSFile treats as CP437
+// text worth rendering inline -- the small sidecar/description/ad
+// files a file area routinely carries alongside the real payload,
+// plus real ANSI art (.ans), rendered the same way an echomail
+// message body already is (see toBBSMessageDTO).
+var previewTextExtensions = map[string]bool{
+	".txt": true, ".nfo": true, ".diz": true, ".asc": true,
+	".me": true, ".1st": true, ".cat": true, ".ans": true,
+}
+
+type filePreviewArchiveEntryDTO struct {
+	Name      string `json:"name"`
+	SizeBytes int64  `json:"size_bytes"`
+}
+
+// filePreviewDTO is a discriminated union keyed by Kind ("image",
+// "text", "archive", or "none" when nothing about the file is worth
+// previewing) -- only the fields relevant to that Kind are set.
+type filePreviewDTO struct {
+	Kind string `json:"kind"`
+	// text kind: same shape/meaning as bbsMessageDTO's own
+	// BodyHTML/Preformatted/Grid (see toBBSMessageDTO's doc comment).
+	BodyHTML     string     `json:"body_html,omitempty"`
+	Preformatted bool       `json:"preformatted,omitempty"`
+	Grid         *ansi.Grid `json:"grid,omitempty"`
+	Truncated    bool       `json:"truncated,omitempty"`
+	// image kind.
+	ContentType string `json:"content_type,omitempty"`
+	// archive kind.
+	Entries          []filePreviewArchiveEntryDTO `json:"entries,omitempty"`
+	EntriesTruncated bool                         `json:"entries_truncated,omitempty"`
+}
+
+// handlePreviewBBSFile inspects one file's actual bytes (by extension
+// -- an image, CP437 text/ANSI art, or a .zip's table of contents) and
+// returns a structured summary for the portal's file detail page to
+// render inline, without a full download. Read-only: doesn't record a
+// download or change read state (handleGetBBSFile, loaded alongside
+// this on the same page, already does the latter).
+func (s *Server) handlePreviewBBSFile(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid file id")
+		return
+	}
+	f, err := s.Files.FileByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	area, err := s.Files.AreaByID(f.AreaID)
+	if err != nil || !area.CanDownload(claims.SecurityLevel) {
+		writeError(w, http.StatusForbidden, "not permitted to view this file")
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(f.Filename))
+	switch {
+	case previewImageExtensions[ext] != "":
+		writeJSON(w, http.StatusOK, filePreviewDTO{Kind: "image", ContentType: previewImageExtensions[ext]})
+
+	case previewTextExtensions[ext]:
+		data, truncated, err := readCapped(f.StoragePath, filePreviewTextCap)
+		if err != nil {
+			s.logWarn("reading %s for preview: %v", f.StoragePath, err)
+			writeJSON(w, http.StatusOK, filePreviewDTO{Kind: "none"})
+			return
+		}
+		body := string(data)
+		preformatted := ansi.IsPreformatted(body)
+		var grid *ansi.Grid
+		if preformatted {
+			g := ansi.ParseGrid(body, artWidth)
+			grid = &g
+		}
+		writeJSON(w, http.StatusOK, filePreviewDTO{
+			Kind:         "text",
+			BodyHTML:     ansi.ToHTML(body),
+			Preformatted: preformatted,
+			Grid:         grid,
+			Truncated:    truncated,
+		})
+
+	case ext == ".zip":
+		entries, truncated, err := listZipEntries(f.StoragePath, filePreviewArchiveEntryCap)
+		if err != nil {
+			writeJSON(w, http.StatusOK, filePreviewDTO{Kind: "none"})
+			return
+		}
+		writeJSON(w, http.StatusOK, filePreviewDTO{Kind: "archive", Entries: entries, EntriesTruncated: truncated})
+
+	default:
+		writeJSON(w, http.StatusOK, filePreviewDTO{Kind: "none"})
+	}
+}
+
+// handlePreviewBBSFileEntry mirrors handlePreviewBBSFile for one
+// entry inside a .zip file (identified by the exact name a "archive"
+// kind preview's Entries lists) -- lets a file like fsxNet's daily
+// apodNNNN.zip (an image bundled inside a .zip, not a raw image file)
+// get its own inline preview without ever extracting the archive to
+// disk. Query parameter "name" selects the entry.
+func (s *Server) handlePreviewBBSFileEntry(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid file id")
+		return
+	}
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "missing name")
+		return
+	}
+	f, err := s.Files.FileByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	area, err := s.Files.AreaByID(f.AreaID)
+	if err != nil || !area.CanDownload(claims.SecurityLevel) {
+		writeError(w, http.StatusForbidden, "not permitted to view this file")
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(name))
+	switch {
+	case previewImageExtensions[ext] != "":
+		writeJSON(w, http.StatusOK, filePreviewDTO{Kind: "image", ContentType: previewImageExtensions[ext]})
+
+	case previewTextExtensions[ext]:
+		data, truncated, err := readZipEntryCapped(f.StoragePath, name, filePreviewTextCap)
+		if err != nil {
+			writeJSON(w, http.StatusOK, filePreviewDTO{Kind: "none"})
+			return
+		}
+		body := string(data)
+		preformatted := ansi.IsPreformatted(body)
+		var grid *ansi.Grid
+		if preformatted {
+			g := ansi.ParseGrid(body, artWidth)
+			grid = &g
+		}
+		writeJSON(w, http.StatusOK, filePreviewDTO{
+			Kind:         "text",
+			BodyHTML:     ansi.ToHTML(body),
+			Preformatted: preformatted,
+			Grid:         grid,
+			Truncated:    truncated,
+		})
+
+	default:
+		writeJSON(w, http.StatusOK, filePreviewDTO{Kind: "none"})
+	}
+}
+
+// readZipEntryCapped mirrors readCapped for one named entry inside a
+// .zip file, streaming its decompressed bytes without ever writing
+// them to disk.
+func readZipEntryCapped(zipPath, entryName string, limit int64) (data []byte, truncated bool, err error) {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, false, err
+	}
+	defer zr.Close()
+	for _, zf := range zr.File {
+		if zf.Name != entryName {
+			continue
+		}
+		rc, openErr := zf.Open()
+		if openErr != nil {
+			return nil, false, openErr
+		}
+		defer rc.Close()
+		data, err = io.ReadAll(io.LimitReader(rc, limit+1))
+		if err != nil {
+			return nil, false, err
+		}
+		if int64(len(data)) > limit {
+			return data[:limit], true, nil
+		}
+		return data, false, nil
+	}
+	return nil, false, os.ErrNotExist
+}
+
+// handlePreviewRawBBSFileEntry is handlePreviewRawBBSFile's
+// counterpart for one image entry inside a .zip -- streams it
+// decompressed straight from the archive, inline, no temp file.
+func (s *Server) handlePreviewRawBBSFileEntry(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid file id")
+		return
+	}
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		writeError(w, http.StatusBadRequest, "missing name")
+		return
+	}
+	f, err := s.Files.FileByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	area, err := s.Files.AreaByID(f.AreaID)
+	if err != nil || !area.CanDownload(claims.SecurityLevel) {
+		writeError(w, http.StatusForbidden, "not permitted to view this file")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(name))
+	contentType, ok := previewImageExtensions[ext]
+	if !ok {
+		writeError(w, http.StatusNotFound, "no inline preview for this file type")
+		return
+	}
+
+	zr, err := zip.OpenReader(f.StoragePath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not open that archive")
+		return
+	}
+	defer zr.Close()
+	for _, zf := range zr.File {
+		if zf.Name != name {
+			continue
+		}
+		rc, openErr := zf.Open()
+		if openErr != nil {
+			writeError(w, http.StatusInternalServerError, "could not open that entry")
+			return
+		}
+		defer rc.Close()
+		w.Header().Set("Content-Type", contentType)
+		if _, err := io.Copy(w, rc); err != nil {
+			s.logWarn("streaming zip entry %s from %s: %v", name, f.StoragePath, err)
+		}
+		return
+	}
+	writeError(w, http.StatusNotFound, "entry not found")
+}
+
+// readCapped reads at most limit+1 bytes from path, reporting whether
+// the file actually had more than limit bytes (truncated) rather than
+// silently returning a partial read indistinguishable from the whole
+// file.
+func readCapped(path string, limit int64) (data []byte, truncated bool, err error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, false, err
+	}
+	defer f.Close()
+	data, err = io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, false, err
+	}
+	if int64(len(data)) > limit {
+		return data[:limit], true, nil
+	}
+	return data, false, nil
+}
+
+// listZipEntries reads path's central directory (no decompression --
+// archive/zip.OpenReader only parses the table of contents) and
+// returns up to limit non-directory entries' names and uncompressed
+// sizes.
+func listZipEntries(path string, limit int) (entries []filePreviewArchiveEntryDTO, truncated bool, err error) {
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		return nil, false, err
+	}
+	defer zr.Close()
+	for _, zf := range zr.File {
+		if zf.FileInfo().IsDir() {
+			continue
+		}
+		if len(entries) >= limit {
+			truncated = true
+			break
+		}
+		entries = append(entries, filePreviewArchiveEntryDTO{Name: zf.Name, SizeBytes: int64(zf.UncompressedSize64)})
+	}
+	return entries, truncated, nil
+}
+
+// handlePreviewRawBBSFile streams an image file's raw bytes inline
+// (no Content-Disposition, so a browser displays rather than saves
+// it) for handlePreviewBBSFile's "image" kind to fetch into an <img>
+// -- unlike handleDownloadBBSFile, this doesn't record a download or
+// change read state, since previewing an image inline isn't "getting"
+// the file the way an explicit Download click is.
+func (s *Server) handlePreviewRawBBSFile(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid file id")
+		return
+	}
+	f, err := s.Files.FileByID(id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "file not found")
+		return
+	}
+	area, err := s.Files.AreaByID(f.AreaID)
+	if err != nil || !area.CanDownload(claims.SecurityLevel) {
+		writeError(w, http.StatusForbidden, "not permitted to view this file")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(f.Filename))
+	contentType, ok := previewImageExtensions[ext]
+	if !ok {
+		writeError(w, http.StatusNotFound, "no inline preview for this file type")
+		return
+	}
+
+	fh, err := os.Open(f.StoragePath)
+	if err != nil {
+		s.logWarn("open %s for BBS portal preview by %s: %v", f.StoragePath, claims.Subject, err)
+		writeError(w, http.StatusInternalServerError, "could not open that file")
+		return
+	}
+	defer fh.Close()
+	info, err := fh.Stat()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not stat that file")
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	http.ServeContent(w, r, f.Filename, info.ModTime(), fh)
 }

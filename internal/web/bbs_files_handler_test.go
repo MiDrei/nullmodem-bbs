@@ -1,6 +1,7 @@
 package web
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -189,6 +190,305 @@ func TestBBSGetFileRespectsMinSLDownload(t *testing.T) {
 	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d", uploaded.ID), nil, token)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("GET status = %d, want 403, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPreviewBBSFileRendersTextFiles(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	areas, err := srv.Files.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	var generalID int64
+	for _, a := range areas {
+		if a.Tag == "general" {
+			generalID = a.ID
+		}
+	}
+	uploaded, err := srv.Files.UploadFile(generalID, alice.ID, "readme.nfo", "", strings.NewReader("hello world"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview", uploaded.ID), nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var got filePreviewDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Kind != "text" {
+		t.Fatalf("Kind = %q, want text", got.Kind)
+	}
+	if !strings.Contains(got.BodyHTML, "hello world") {
+		t.Fatalf("BodyHTML = %q, want it to contain the file's text", got.BodyHTML)
+	}
+	if got.Truncated {
+		t.Fatal("Truncated = true for a short file")
+	}
+}
+
+func TestPreviewBBSFileListsZipEntries(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	areas, err := srv.Files.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	var generalID int64
+	for _, a := range areas {
+		if a.Tag == "general" {
+			generalID = a.ID
+		}
+	}
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	zf, err := zw.Create("readme.txt")
+	if err != nil {
+		t.Fatalf("zip Create: %v", err)
+	}
+	if _, err := zf.Write([]byte("hi")); err != nil {
+		t.Fatalf("zip write: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip Close: %v", err)
+	}
+	uploaded, err := srv.Files.UploadFile(generalID, alice.ID, "bundle.zip", "", bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview", uploaded.ID), nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var got filePreviewDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Kind != "archive" {
+		t.Fatalf("Kind = %q, want archive", got.Kind)
+	}
+	if len(got.Entries) != 1 || got.Entries[0].Name != "readme.txt" || got.Entries[0].SizeBytes != 2 {
+		t.Fatalf("Entries = %+v, want the one readme.txt entry", got.Entries)
+	}
+}
+
+func TestPreviewBBSFileReturnsNoneForUnrecognizedFiles(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	areas, err := srv.Files.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	var generalID int64
+	for _, a := range areas {
+		if a.Tag == "general" {
+			generalID = a.ID
+		}
+	}
+	uploaded, err := srv.Files.UploadFile(generalID, alice.ID, "game.exe", "", strings.NewReader("binary"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview", uploaded.ID), nil, token)
+	var got filePreviewDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Kind != "none" {
+		t.Fatalf("Kind = %q, want none", got.Kind)
+	}
+}
+
+func TestPreviewBBSFileRespectsMinSLDownload(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	sysop, err := users.Register("sysop2", "password123", user.SLSysop)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	locked, err := srv.Files.CreateArea("locked", "Locked", "", "", 200, 200)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	uploaded, err := srv.Files.UploadFile(locked.ID, sysop.ID, "secret.txt", "shh", strings.NewReader("data"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview", uploaded.ID), nil, token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("preview status = %d, want 403, body=%s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview-raw", uploaded.ID), nil, token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("preview-raw status = %d, want 403, body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPreviewRawBBSFileStreamsImageBytesWithoutCountingAsDownload(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	areas, err := srv.Files.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	var generalID int64
+	for _, a := range areas {
+		if a.Tag == "general" {
+			generalID = a.ID
+		}
+	}
+	uploaded, err := srv.Files.UploadFile(generalID, alice.ID, "shot.png", "", strings.NewReader("not really a png but bytes are bytes"))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview-raw", uploaded.ID), nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/png" {
+		t.Fatalf("Content-Type = %q, want image/png", ct)
+	}
+	if rec.Header().Get("Content-Disposition") != "" {
+		t.Fatalf("Content-Disposition = %q, want empty (inline, not a forced download)", rec.Header().Get("Content-Disposition"))
+	}
+
+	f, err := srv.Files.FileByID(uploaded.ID)
+	if err != nil {
+		t.Fatalf("FileByID: %v", err)
+	}
+	if f.DownloadCount != 0 {
+		t.Fatalf("DownloadCount = %d, want 0 -- a preview isn't a download", f.DownloadCount)
+	}
+}
+
+func TestPreviewBBSFileEntryRendersAFileInsideAZip(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("bootstrap-sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	areas, err := srv.Files.AllAreas()
+	if err != nil {
+		t.Fatalf("AllAreas: %v", err)
+	}
+	var generalID int64
+	for _, a := range areas {
+		if a.Tag == "general" {
+			generalID = a.ID
+		}
+	}
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	zf, err := zw.Create("readme.txt")
+	if err != nil {
+		t.Fatalf("zip Create: %v", err)
+	}
+	if _, err := zf.Write([]byte("hello from inside the zip")); err != nil {
+		t.Fatalf("zip write: %v", err)
+	}
+	imgf, err := zw.Create("photo.png")
+	if err != nil {
+		t.Fatalf("zip Create: %v", err)
+	}
+	if _, err := imgf.Write([]byte("not really png bytes")); err != nil {
+		t.Fatalf("zip write: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("zip Close: %v", err)
+	}
+	uploaded, err := srv.Files.UploadFile(generalID, alice.ID, "bundle.zip", "", bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("UploadFile: %v", err)
+	}
+
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview-entry?name=readme.txt", uploaded.ID), nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var got filePreviewDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Kind != "text" || !strings.Contains(got.BodyHTML, "hello from inside the zip") {
+		t.Fatalf("preview-entry readme.txt = %+v, want the zip entry's own text", got)
+	}
+
+	rec = doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview-entry-raw?name=photo.png", uploaded.ID), nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET raw status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/png" {
+		t.Fatalf("Content-Type = %q, want image/png", ct)
+	}
+	if rec.Body.String() != "not really png bytes" {
+		t.Fatalf("raw entry body = %q, want the exact zip entry bytes", rec.Body.String())
+	}
+
+	rec = doJSON(t, h, http.MethodGet, fmt.Sprintf("/api/bbs/files/%d/preview-entry?name=nonexistent.txt", uploaded.ID), nil, token)
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Kind != "none" {
+		t.Fatalf("preview-entry for a name not in the zip = %+v, want kind none", got)
 	}
 }
 

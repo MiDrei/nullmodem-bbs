@@ -1,10 +1,12 @@
 package tosser
 
 import (
+	"archive/zip"
 	"bytes"
 	"fmt"
 	"hash/crc32"
 	"io"
+	"path"
 	"strings"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
@@ -166,7 +168,11 @@ func (ts *ticSession) toss(desc tic.File, payload []byte, res *Result) error {
 	if origin == "" {
 		origin = "unknown"
 	}
-	_, created, err := ts.files.Receive(area.ID, origin, desc.Name, desc.Description, bytes.NewReader(payload))
+	description := desc.Description
+	if description == "" {
+		description = descriptionFromZipDIZ(payload)
+	}
+	_, created, err := ts.files.Receive(area.ID, origin, desc.Name, description, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("tosser: storing tossed file %q in area %q: %w", desc.Name, desc.Area, err)
 	}
@@ -174,6 +180,44 @@ func (ts *ticSession) toss(desc tic.File, payload []byte, res *Result) error {
 		res.ReceivedFiles++
 	}
 	return nil
+}
+
+// fileIDDizNames are the sidecar description filenames real BBS
+// software conventionally bundles inside a distribution .zip,
+// checked case-insensitively against a zip entry's base name.
+var fileIDDizNames = map[string]bool{
+	"file_id.diz": true,
+	"desc.sdi":    true,
+}
+
+// descriptionFromZipDIZ looks inside payload for a FILE_ID.DIZ (or
+// DESC.SDI) sidecar and returns its text, or "" if payload isn't a
+// zip or has neither -- a fallback for when a TIC's own Desc/AreaDesc/
+// Ldesc lines are empty. Confirmed live: fsxNet's daily apodNNNN.zip
+// (an Astronomy Picture of the Day distribution) carries no TIC
+// description at all, but does bundle a FILE_ID.DIZ inside the .zip
+// itself.
+func descriptionFromZipDIZ(payload []byte) string {
+	zr, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
+	if err != nil {
+		return ""
+	}
+	for _, zf := range zr.File {
+		if !fileIDDizNames[strings.ToLower(path.Base(zf.Name))] {
+			continue
+		}
+		rc, err := zf.Open()
+		if err != nil {
+			continue
+		}
+		data, err := io.ReadAll(io.LimitReader(rc, 8*1024))
+		rc.Close()
+		if err != nil || len(data) == 0 {
+			continue
+		}
+		return strings.TrimRight(string(data), "\x00\r\n \t")
+	}
+	return ""
 }
 
 // flushUnmatched reports every .tic descriptor or file payload still
