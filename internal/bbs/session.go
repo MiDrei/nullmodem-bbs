@@ -380,6 +380,8 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"importfile":     (*Server).sysopImportFile,
 	"netmail":        (*Server).showNetmail,
 	"doors":          (*Server).showDoors,
+	"qwk":            (*Server).downloadQWK,
+	"qwkrep":         (*Server).uploadQWKReply,
 }
 
 // runMenu displays the named menu and dispatches choices until the

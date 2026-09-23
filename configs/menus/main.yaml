@@ -22,6 +22,14 @@ items:
     label: "Doors"
     action: "builtin:doors"
     min_sl: 0
+  - key: O
+    label: "Download QWK offline mail"
+    action: "builtin:qwk"
+    min_sl: 0
+  - key: U
+    label: "Upload QWK reply packet"
+    action: "builtin:qwkrep"
+    min_sl: 0
   - key: Y
     label: "Your stats (SL {SL})"
     action: "builtin:stats"
