@@ -13,6 +13,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/archive"
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
+	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
@@ -44,6 +45,14 @@ func main() {
 
 	logs := applog.NewStore(sqlDB)
 	logger := applog.NewLogger(logs, "web")
+
+	// TEMPORARY diagnostic: log every raw byte binkp.Dial (via "Send
+	// Now") sends/receives -- see binkp.DebugIO's own doc comment.
+	// Remove this once the tqwNet/SysopNet handshake-EOF investigation
+	// is settled.
+	binkp.DebugIO = func(direction string, data []byte) {
+		logger.Warn("binkp raw %s (%d bytes): %x", direction, len(data), data)
+	}
 
 	secret, err := web.LoadOrCreateJWTSecret(cfg.JWTSecretPath)
 	if err != nil {
