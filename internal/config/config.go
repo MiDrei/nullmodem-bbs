@@ -171,6 +171,14 @@ type BinkpUplink struct {
 	// every configured address is presented to every uplink, and only
 	// Address's own zone is used for Crash routing.
 	AKAAddresses []string `yaml:"aka_addresses,omitempty"`
+	// Downlink is purely a web admin UI grouping: true for one of this
+	// system's own points/nodes it feeds (shown under "Nodes / Points"
+	// in the uplinks page), false for an upstream hub/network feed
+	// this system itself depends on (shown under "Hubs", the
+	// default). Has no effect on polling, dialing, or routing --
+	// internal/tosser/cmd/mailer treat every entry identically either
+	// way, same as before this field existed.
+	Downlink bool `yaml:"downlink,omitempty"`
 }
 
 // DoorConfig is one entry in Config.Doors -- see internal/doors.Door,

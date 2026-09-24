@@ -51,6 +51,10 @@ type binkpUplinkDTO struct {
 	// is restricted to (M_ADR presentation and Crash routing alike).
 	// Empty means unrestricted (every configured address applies).
 	AKAAddresses []string `json:"aka_addresses"`
+	// Downlink -- see config.BinkpUplink.Downlink's own doc comment:
+	// purely a UI grouping (Hubs vs. Nodes/Points), no behavioral
+	// effect.
+	Downlink bool `json:"downlink"`
 }
 
 type configDTO struct {
@@ -86,6 +90,7 @@ func toDTO(c *config.Config) configDTO {
 			Network:             u.Network,
 			Hold:                u.Hold,
 			AKAAddresses:        akaAddrs,
+			Downlink:            u.Downlink,
 		}
 	}
 	addrs := c.BBS.FTNAddresses
@@ -166,6 +171,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			Network:             u.Network,
 			Hold:                u.Hold,
 			AKAAddresses:        u.AKAAddresses,
+			Downlink:            u.Downlink,
 		}
 	}
 	c.Binkp.PollIntervalSeconds = dto.BinkpDefaultPollIntervalSeconds

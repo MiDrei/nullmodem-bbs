@@ -20,10 +20,17 @@
 	let saveError = $state<string | null>(null);
 	let saveNote = $state<string | null>(null);
 	let saving = $state(false);
-	let testingIndex = $state<number | null>(null);
-	let sendingIndex = $state<number | null>(null);
+	let activeTab = $state<'hubs' | 'downlinks'>('hubs');
 
-	function emptyUplink(): BinkpUplink {
+	// The modal edits a detached copy so Cancel doesn't mutate
+	// config.binkp_uplinks -- editingIndex is null while adding a new
+	// entry (Save appends instead of writing back at an index).
+	let editingUplink = $state<BinkpUplink | null>(null);
+	let editingIndex = $state<number | null>(null);
+	let testing = $state(false);
+	let sending = $state(false);
+
+	function emptyUplink(downlink: boolean): BinkpUplink {
 		return {
 			address: '',
 			host: '',
@@ -36,7 +43,8 @@
 			filefix_password: '',
 			network: '',
 			hold: false,
-			aka_addresses: []
+			aka_addresses: [],
+			downlink
 		};
 	}
 
@@ -50,9 +58,43 @@
 			: [...uplink.aka_addresses, addr];
 	}
 
-	function addUplink() {
+	let hubRows = $derived(
+		(config?.binkp_uplinks ?? [])
+			.map((u, i) => ({ u, i }))
+			.filter(({ u }) => !u.downlink)
+	);
+	let downlinkRows = $derived(
+		(config?.binkp_uplinks ?? [])
+			.map((u, i) => ({ u, i }))
+			.filter(({ u }) => u.downlink)
+	);
+
+	function openEdit(index: number) {
 		if (!config) return;
-		config.binkp_uplinks = [...config.binkp_uplinks, emptyUplink()];
+		editingUplink = structuredClone(config.binkp_uplinks[index]);
+		editingIndex = index;
+	}
+
+	function openNew() {
+		editingUplink = emptyUplink(activeTab === 'downlinks');
+		editingIndex = null;
+	}
+
+	function closeModal() {
+		editingUplink = null;
+		editingIndex = null;
+	}
+
+	function saveModal() {
+		if (!config || !editingUplink) return;
+		if (editingIndex === null) {
+			config.binkp_uplinks = [...config.binkp_uplinks, editingUplink];
+		} else {
+			config.binkp_uplinks = config.binkp_uplinks.map((u, i) =>
+				i === editingIndex ? editingUplink! : u
+			);
+		}
+		closeModal();
 	}
 
 	function removeUplink(index: number) {
@@ -60,10 +102,9 @@
 		config.binkp_uplinks = config.binkp_uplinks.filter((_, i) => i !== index);
 	}
 
-	async function testUplink(index: number) {
-		if (!config || !auth.token) return;
-		const uplink = config.binkp_uplinks[index];
-		if (!uplink.host.trim()) {
+	async function testUplink() {
+		if (!config || !auth.token || !editingUplink) return;
+		if (!editingUplink.host.trim()) {
 			toast.push('Enter a host:port first.', 'error');
 			return;
 		}
@@ -71,9 +112,9 @@
 			toast.push('Set this system’s own FTN address on the BinkP page first.', 'error');
 			return;
 		}
-		testingIndex = index;
+		testing = true;
 		try {
-			const res = await testBinkpConnection(auth.token, uplink);
+			const res = await testBinkpConnection(auth.token, editingUplink);
 			toast.push(`Connected. Uplink claims: ${res.remote_addresses.join(', ')}`, 'success');
 		} catch (err) {
 			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
@@ -83,14 +124,13 @@
 			}
 			toast.push(err instanceof ApiError ? err.message : 'Connection test failed.', 'error');
 		} finally {
-			testingIndex = null;
+			testing = false;
 		}
 	}
 
-	async function sendNowUplink(index: number) {
-		if (!config || !auth.token) return;
-		const uplink = config.binkp_uplinks[index];
-		if (!uplink.host.trim()) {
+	async function sendNowUplink() {
+		if (!config || !auth.token || !editingUplink) return;
+		if (!editingUplink.host.trim()) {
 			toast.push('Enter a host:port first.', 'error');
 			return;
 		}
@@ -98,9 +138,9 @@
 			toast.push('Set this system’s own FTN address on the BinkP page first.', 'error');
 			return;
 		}
-		sendingIndex = index;
+		sending = true;
 		try {
-			const res = await sendNowBinkp(auth.token, uplink);
+			const res = await sendNowBinkp(auth.token, editingUplink);
 			toast.push(
 				`Polled uplink: sent ${res.sent} netmail, ${res.sent_echo} echomail, forwarded ${res.forwarded_echo} echomail, ${res.forwarded_files} file(s), received ${res.received} netmail, ${res.received_echo} echomail, ${res.received_files} file(s).`,
 				'success'
@@ -113,7 +153,7 @@
 			}
 			toast.push(err instanceof ApiError ? err.message : 'Sending failed.', 'error');
 		} finally {
-			sendingIndex = null;
+			sending = false;
 		}
 	}
 
@@ -160,7 +200,13 @@
 			saving = false;
 		}
 	}
+
+	function handleModalKeydown(e: KeyboardEvent) {
+		if (editingUplink && e.key === 'Escape') closeModal();
+	}
 </script>
+
+<svelte:window onkeydown={handleModalKeydown} />
 
 <datalist id="groups-list">
 	{#each groups as g (g)}
@@ -182,18 +228,6 @@
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
 		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">
-			<div class="flex items-center justify-between">
-				<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">
-					Nodes / Points
-				</h2>
-				<button
-					type="button"
-					class="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
-					onclick={addUplink}
-				>
-					+ Add Uplink
-				</button>
-			</div>
 			<p class="text-xs text-slate-500">
 				Nodes/hubs/points this system exchanges netmail, echomail, and files with. The mailer
 				daemon polls each uplink automatically on its own schedule; "Test" connects and
@@ -213,16 +247,154 @@
 					Used by any uplink below that doesn't set its own interval.
 				</span>
 			</label>
-			{#if config.binkp_uplinks.length === 0}
-				<p class="text-sm text-slate-500">No uplinks configured.</p>
+
+			<div class="flex gap-1 border-b border-slate-800">
+				<button
+					type="button"
+					class="border-b-2 px-3 py-2 text-sm font-medium transition {activeTab === 'hubs'
+						? 'border-cyan-400 text-slate-100'
+						: 'border-transparent text-slate-500 hover:text-slate-300'}"
+					onclick={() => (activeTab = 'hubs')}
+				>
+					Hubs ({hubRows.length})
+				</button>
+				<button
+					type="button"
+					class="border-b-2 px-3 py-2 text-sm font-medium transition {activeTab === 'downlinks'
+						? 'border-cyan-400 text-slate-100'
+						: 'border-transparent text-slate-500 hover:text-slate-300'}"
+					onclick={() => (activeTab = 'downlinks')}
+				>
+					Nodes / Points ({downlinkRows.length})
+				</button>
+			</div>
+
+			{#if activeTab === 'hubs'}
+				<p class="text-xs text-slate-500">
+					Upstream networks/hubs this system itself is fed by (fsxNet, HobbyNet, ...).
+				</p>
+			{:else}
+				<p class="text-xs text-slate-500">
+					This system's own downstream points/nodes -- entries where we are the hub.
+				</p>
 			{/if}
-			{#each config.binkp_uplinks as uplink, i (i)}
-				<div class="grid grid-cols-2 gap-3 rounded border border-slate-800 p-3">
+
+			<div class="flex items-center justify-between">
+				<span class="text-sm text-slate-400">
+					{(activeTab === 'hubs' ? hubRows : downlinkRows).length === 0
+						? 'None configured yet.'
+						: ''}
+				</span>
+				<button
+					type="button"
+					class="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
+					onclick={openNew}
+				>
+					+ Add {activeTab === 'hubs' ? 'Hub' : 'Node / Point'}
+				</button>
+			</div>
+
+			<div class="flex flex-col divide-y divide-slate-800 overflow-hidden rounded border border-slate-800">
+				{#each (activeTab === 'hubs' ? hubRows : downlinkRows) as { u, i } (i)}
+					<div class="flex items-center gap-3 px-3 py-2 hover:bg-slate-800/40">
+						<div class="min-w-0 flex-1">
+							<div class="flex flex-wrap items-center gap-2">
+								<span class="truncate font-mono text-sm text-slate-100">
+									{u.address || '(no address set)'}
+								</span>
+								{#if u.network}
+									<span class="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+										{u.network}
+									</span>
+								{/if}
+								{#if u.hold}
+									<span class="rounded-full bg-red-950 px-2 py-0.5 text-[10px] text-red-400">
+										Hold
+									</span>
+								{/if}
+								{#if u.poll_disabled}
+									<span class="rounded-full bg-amber-950 px-2 py-0.5 text-[10px] text-amber-400">
+										Crash-only
+									</span>
+								{/if}
+							</div>
+							<div class="truncate font-mono text-xs text-slate-500">
+								{u.host || '(no host set)'}
+							</div>
+						</div>
+						<div class="flex shrink-0 gap-2">
+							<button
+								type="button"
+								class="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
+								onclick={() => openEdit(i)}
+							>
+								Edit
+							</button>
+							<button
+								type="button"
+								class="rounded border border-red-800 px-2 py-1 text-xs text-red-400 hover:bg-red-950"
+								onclick={() => removeUplink(i)}
+							>
+								Remove
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</section>
+
+		{#if saveError}
+			<p class="text-sm text-red-400">{saveError}</p>
+		{/if}
+		{#if saveNote}
+			<p class="text-sm text-amber-400">{saveNote}</p>
+		{/if}
+
+		<button
+			type="submit"
+			disabled={saving}
+			class="rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+		>
+			{saving ? 'Saving…' : 'Save changes'}
+		</button>
+	</form>
+
+	{#if editingUplink}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+			onclick={closeModal}
+		>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="max-h-[90vh] w-full max-w-2xl overflow-auto rounded border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+				onclick={(e) => e.stopPropagation()}
+				role="dialog"
+				aria-modal="true"
+				tabindex="-1"
+			>
+				<div class="mb-4 flex items-center justify-between gap-4">
+					<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">
+						{editingIndex === null ? 'Add' : 'Edit'}
+						{editingUplink.downlink ? 'Node / Point' : 'Hub'}
+					</h2>
+					<button
+						type="button"
+						class="shrink-0 rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800"
+						onclick={closeModal}
+					>
+						Close
+					</button>
+				</div>
+
+				<div class="grid grid-cols-2 gap-3">
 					<label class="flex flex-col gap-1 text-sm">
 						<span class="text-slate-400">Their FTN address</span>
 						<input
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.address}
+							bind:value={editingUplink.address}
 							placeholder="21:3/194"
 						/>
 					</label>
@@ -230,7 +402,7 @@
 						<span class="text-slate-400">Host:Port</span>
 						<input
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.host}
+							bind:value={editingUplink.host}
 							placeholder="bbs.example.com:24554"
 						/>
 					</label>
@@ -239,7 +411,7 @@
 						<input
 							type="password"
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.password}
+							bind:value={editingUplink.password}
 							placeholder="(optional -- blank for an open/no-auth node)"
 						/>
 						<span class="text-xs text-slate-500">Authenticates the BinkP session itself.</span>
@@ -250,7 +422,7 @@
 							type="password"
 							maxlength="8"
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.packet_password}
+							bind:value={editingUplink.packet_password}
 							placeholder="(optional, max 8 chars)"
 						/>
 						<span class="text-xs text-slate-500">
@@ -263,7 +435,7 @@
 						<input
 							type="password"
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.tic_password}
+							bind:value={editingUplink.tic_password}
 							placeholder="(optional)"
 						/>
 						<span class="text-xs text-slate-500">
@@ -276,7 +448,7 @@
 						<input
 							type="password"
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.areafix_password}
+							bind:value={editingUplink.areafix_password}
 							placeholder="(optional)"
 						/>
 						<span class="text-xs text-slate-500">
@@ -290,7 +462,7 @@
 						<input
 							type="password"
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.filefix_password}
+							bind:value={editingUplink.filefix_password}
 							placeholder="(optional)"
 						/>
 						<span class="text-xs text-slate-500">
@@ -303,7 +475,7 @@
 						<input
 							list="groups-list"
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.network}
+							bind:value={editingUplink.network}
 							placeholder="fsxNet, HobbyNet… (blank if this uplink never carries outgoing echomail)"
 						/>
 						<span class="text-xs text-slate-500">
@@ -317,7 +489,7 @@
 							type="number"
 							min="0"
 							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
-							bind:value={uplink.poll_interval_seconds}
+							bind:value={editingUplink.poll_interval_seconds}
 							placeholder={`0 = use default (${config.binkp_default_poll_interval_seconds || 900}s)`}
 						/>
 						<span class="text-xs text-slate-500">
@@ -325,8 +497,15 @@
 							crash-only uplink otherwise only gets dialed when there's actually mail to send.
 						</span>
 					</label>
+					<label class="col-span-2 flex items-center gap-2 text-sm">
+						<input type="checkbox" bind:checked={editingUplink.downlink} />
+						<span class="text-slate-400">
+							This is one of our own nodes/points (we're their hub) -- lists it under "Nodes /
+							Points" instead of "Hubs". Purely organizational, no effect on how it's dialed.
+						</span>
+					</label>
 					<label class="flex items-center gap-2 text-sm">
-						<input type="checkbox" bind:checked={uplink.poll_disabled} />
+						<input type="checkbox" bind:checked={editingUplink.poll_disabled} />
 						<span class="text-slate-400">
 							Crash-only: exclude from the mailer's regular, interval-based scheduled poll --
 							still dialed immediately whenever there's netmail or echomail actually pending for
@@ -335,7 +514,7 @@
 						</span>
 					</label>
 					<label class="flex items-center gap-2 text-sm">
-						<input type="checkbox" bind:checked={uplink.hold} />
+						<input type="checkbox" bind:checked={editingUplink.hold} />
 						<span class="text-slate-400">
 							Hold: never dialed automatically for any reason at all, not even pending/Crash mail
 							-- only via "Send Now", or by this uplink polling us itself. Use this for a peer
@@ -362,55 +541,53 @@
 							<label class="flex items-center gap-2 text-sm">
 								<input
 									type="checkbox"
-									checked={isAKAChecked(uplink, addr)}
-									onchange={() => toggleAKA(uplink, addr)}
+									checked={isAKAChecked(editingUplink, addr)}
+									onchange={() => toggleAKA(editingUplink!, addr)}
 								/>
 								<span class="font-mono text-slate-300">{addr}</span>
 							</label>
 						{/each}
 					</div>
-					<div class="col-span-2 flex gap-2">
-						<button
-							type="button"
-							class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800 disabled:opacity-50"
-							disabled={testingIndex === i}
-							onclick={() => testUplink(i)}
-						>
-							{testingIndex === i ? 'Testing…' : 'Test Connection'}
-						</button>
-						<button
-							type="button"
-							class="rounded border border-cyan-700 px-3 py-1 text-sm text-cyan-400 hover:bg-cyan-950 disabled:opacity-50"
-							disabled={sendingIndex === i}
-							onclick={() => sendNowUplink(i)}
-						>
-							{sendingIndex === i ? 'Sending…' : 'Send Now'}
-						</button>
-						<button
-							type="button"
-							class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950"
-							onclick={() => removeUplink(i)}
-						>
-							Remove
-						</button>
-					</div>
 				</div>
-			{/each}
-		</section>
 
-		{#if saveError}
-			<p class="text-sm text-red-400">{saveError}</p>
-		{/if}
-		{#if saveNote}
-			<p class="text-sm text-amber-400">{saveNote}</p>
-		{/if}
-
-		<button
-			type="submit"
-			disabled={saving}
-			class="rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
-		>
-			{saving ? 'Saving…' : 'Save changes'}
-		</button>
-	</form>
+				<div class="mt-4 flex flex-wrap gap-2 border-t border-slate-800 pt-4">
+					<button
+						type="button"
+						class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800 disabled:opacity-50"
+						disabled={testing}
+						onclick={testUplink}
+					>
+						{testing ? 'Testing…' : 'Test Connection'}
+					</button>
+					<button
+						type="button"
+						class="rounded border border-cyan-700 px-3 py-1 text-sm text-cyan-400 hover:bg-cyan-950 disabled:opacity-50"
+						disabled={sending}
+						onclick={sendNowUplink}
+					>
+						{sending ? 'Sending…' : 'Send Now'}
+					</button>
+					<div class="flex-1"></div>
+					<button
+						type="button"
+						class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+						onclick={closeModal}
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						class="rounded bg-cyan-600 px-3 py-1 text-sm font-medium text-white hover:bg-cyan-500"
+						onclick={saveModal}
+					>
+						{editingIndex === null ? 'Add' : 'Save'}
+					</button>
+				</div>
+				<p class="mt-3 text-xs text-slate-500">
+					Changes here apply to this page's own working copy -- use "Save changes" on the main
+					page to actually persist them.
+				</p>
+			</div>
+		</div>
+	{/if}
 {/if}

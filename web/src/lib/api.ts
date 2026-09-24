@@ -22,6 +22,8 @@ export interface BinkpUplink {
 	hold: boolean;
 	/** Restricts this uplink to a subset of this system's own FTN addresses (BBSConfig.ftn_addresses): only these are presented via M_ADR when polling it, and only their zones count as this uplink's own for Crash-mail routing -- lets one hub's M_ADR handshake not leak AKAs that belong to a different network entirely. Empty means unrestricted (every configured address applies, the old default). */
 	aka_addresses: string[];
+	/** Purely a UI grouping: true for one of this system's own points/nodes it feeds (shown under "Nodes / Points"), false for an upstream hub/network feed (shown under "Hubs", the default). No effect on polling, dialing, or routing. */
+	downlink: boolean;
 }
 
 export interface BBSConfig {
