@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func TestBBSNetmailSendResolvesLocalRecipient(t *testing.T) {

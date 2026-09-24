@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"git.maik.ch/nullmodem/kit/qwk"
-	"git.maik.ch/swissmaik/nullmodem/internal/message"
-	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/message"
+	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 // BBSID derives a short, filename-safe system identifier for

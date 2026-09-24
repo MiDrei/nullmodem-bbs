@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"git.maik.ch/nullmodem/kit/ansi"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func TestGetScreenGridParsesExistingScreen(t *testing.T) {

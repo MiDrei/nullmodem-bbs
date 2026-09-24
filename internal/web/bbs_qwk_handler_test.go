@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"git.maik.ch/nullmodem/kit/qwk"
-	"git.maik.ch/swissmaik/nullmodem/internal/qwkdoor"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func TestListBBSQWKAreasReflectsSelection(t *testing.T) {

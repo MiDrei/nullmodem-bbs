@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/file"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/file"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func writeTempUploadFile(t *testing.T, content string) string {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/db"
+	"git.maik.ch/nullmodem/bbs/internal/db"
 )
 
 func newTestStore(t *testing.T) *Store {

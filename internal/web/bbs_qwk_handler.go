@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"git.maik.ch/nullmodem/kit/qwk"
-	"git.maik.ch/swissmaik/nullmodem/internal/qwkdoor"
+	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
 )
 
 // qwkAreaDTO describes one message area for the QWK area-selection

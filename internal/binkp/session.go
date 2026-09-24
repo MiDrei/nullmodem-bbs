@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/version"
+	"git.maik.ch/nullmodem/bbs/internal/version"
 )
 
 // OutboundFile is a file this side offers to send during a session --

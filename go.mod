@@ -1,4 +1,4 @@
-module git.maik.ch/swissmaik/nullmodem
+module git.maik.ch/nullmodem/bbs
 
 go 1.26.0
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 )
 
 // UplinkPollStore persists when each configured BinkP uplink was last

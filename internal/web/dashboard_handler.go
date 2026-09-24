@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/version"
+	"git.maik.ch/nullmodem/bbs/internal/version"
 )
 
 type nodeDTO struct {

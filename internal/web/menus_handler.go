@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/menu"
+	"git.maik.ch/nullmodem/bbs/internal/menu"
 )
 
 type menuItemDTO struct {

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"git.maik.ch/nullmodem/kit/ansi"
-	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/nullmodem/bbs/internal/message"
 )
 
 // defaultMessagePageSize/maxMessagePageSize bound the ?limit= query

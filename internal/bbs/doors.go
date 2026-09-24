@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"git.maik.ch/nullmodem/kit/ansi"
-	"git.maik.ch/swissmaik/nullmodem/internal/doors"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/doors"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 // showDoors is the "builtin:doors" command: a numbered list (like

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/nullmodem/bbs/internal/message"
 )
 
 // areaTagPattern restricts area tags to a small, predictable
