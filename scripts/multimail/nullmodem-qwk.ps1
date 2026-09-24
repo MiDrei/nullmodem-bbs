@@ -19,6 +19,8 @@ $Username = ""    # e.g. "alice"
 $Password = ""    # leave blank to be prompted each run
 $QwkDown = ""     # leave blank for the default (%USERPROFILE%\nullmodem-qwk\incoming)
 $QwkUp = ""       # leave blank for the default (%USERPROFILE%\nullmodem-qwk\outgoing)
+$MmExe = "mm.exe" # only needed if MultiMail isn't on your PATH, e.g.:
+                  #   $MmExe = "C:\Tools\MultiMail\mm.exe"
 # =========================================================
 
 $ErrorActionPreference = "Stop"
@@ -81,9 +83,15 @@ if ($HttpCode -eq "204") {
 	exit 1
 }
 
+if ($env:NULLMODEM_MM_EXE) { $MmExe = $env:NULLMODEM_MM_EXE }
+if (-not (Get-Command $MmExe -ErrorAction SilentlyContinue)) {
+	Write-Error "MultiMail ('$MmExe') was not found. Install it from https://wmcbrine.com/MultiMail/ and either add it to your PATH or set `$MmExe at the top of this script to its full path."
+	exit 1
+}
+
 Write-Host "Starting MultiMail -- reply packets are saved to $OutDir"
 Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $OutDir "*.rep"), (Join-Path $OutDir "*.REP")
-mm.exe -PacketDir $InDir -ReplyDir $OutDir $InDir
+& $MmExe -PacketDir $InDir -ReplyDir $OutDir $InDir
 
 $Reply = Get-ChildItem -Path $OutDir -Filter "*.rep" -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $Reply) {

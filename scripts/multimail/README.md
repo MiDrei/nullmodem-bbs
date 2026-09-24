@@ -28,8 +28,11 @@ Both do the same four steps:
 Install MultiMail (`mm`):
 - Linux: `apt install multimail` (Debian/Ubuntu) or build from
   <https://github.com/wmcbrine/MultiMail>.
-- Windows: download a build from <https://wmcbrine.com/MultiMail/>
-  and make sure `mm.exe` is on your `PATH`.
+- Windows: download a build from <https://wmcbrine.com/MultiMail/>.
+  If you don't want to add it to your `PATH`, set `$MmExe` at the top
+  of `nullmodem-qwk.ps1` to its full path instead (or the
+  `NULLMODEM_MM_EXE` environment variable) -- the script checks this
+  and fails with a clear message if it can't find `mm.exe`.
 
 Each script has a "Configuration" block right at the top -- edit
 `BBS_URL`/`USERNAME`/`PASSWORD` (`$BbsUrl`/`$Username`/`$Password` in
