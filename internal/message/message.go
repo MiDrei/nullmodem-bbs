@@ -438,6 +438,13 @@ func (s *Store) PostMessage(areaID, fromUserID int64, toName, subject, body stri
 	if err != nil {
 		return nil, fmt.Errorf("message: last insert id: %w", err)
 	}
+	// The poster obviously doesn't need their own post flagged "New"
+	// to themselves -- without this, ListAreaStats/ReadMessageIDs
+	// counted it as unread until they happened to open it, same as
+	// anyone else's message.
+	if err := s.MarkMessageRead(fromUserID, id); err != nil {
+		return nil, err
+	}
 	return s.MessageByID(id)
 }
 

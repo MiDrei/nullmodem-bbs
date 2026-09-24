@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -70,8 +71,16 @@ func TestMessageAreasLightbarShowsCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AreaByTag: %v", err)
 	}
+	// Posting your own message marks it read for you immediately (see
+	// message.Store.PostMessage's own doc comment), so it never counts
+	// toward New for the poster -- use ReceiveEcho for the one that
+	// should, to exercise all three columns as genuinely different
+	// numbers rather than a coincidental "1 1 1".
 	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
 		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", "Hi from Bob", "hi", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
 
 	conn := newFakeConn("M\r\nQ\r\nQ\r\n")
@@ -84,10 +93,10 @@ func TestMessageAreasLightbarShowsCounts(t *testing.T) {
 	if !strings.Contains(out, "Total") || !strings.Contains(out, "New") || !strings.Contains(out, "Yours") {
 		t.Fatalf("expected a Total/New/Yours header, got: %q", out)
 	}
-	// One message, posted by alice herself: Total=1, New=1 (never
-	// visited yet), Yours=1.
-	if !strings.Contains(out, "General Discussion") || !strings.Contains(out, "     1      1      1") {
-		t.Fatalf("expected counts 1/1/1 for General Discussion, got: %q", out)
+	// Two messages: Total=2, New=1 (Bob's, alice's own doesn't count),
+	// Yours=1 (alice's own).
+	if !strings.Contains(out, "General Discussion") || !strings.Contains(out, "     2      1      1") {
+		t.Fatalf("expected counts 2/1/1 for General Discussion, got: %q", out)
 	}
 }
 
@@ -380,8 +389,8 @@ func TestMessageAreasLightbarNewCountUnaffectedByJustVisitingList(t *testing.T) 
 	if err != nil {
 		t.Fatalf("AreaByTag: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	if _, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", "Hi", "hi", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
 
 	// Enter the area and immediately leave again WITHOUT opening the
@@ -398,10 +407,10 @@ func TestMessageAreasLightbarNewCountUnaffectedByJustVisitingList(t *testing.T) 
 	if len(renders) < 3 {
 		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
 	}
-	if !strings.Contains(renders[0], "     1      1      1") {
+	if !strings.Contains(renders[0], "     1      1      0") {
 		t.Fatalf("expected New=1 before visiting the area, got: %q", renders[0])
 	}
-	if !strings.Contains(renders[1], "     1      1      1") {
+	if !strings.Contains(renders[1], "     1      1      0") {
 		t.Fatalf("expected New still 1 after just visiting the list without reading, got: %q", renders[1])
 	}
 }
@@ -416,8 +425,8 @@ func TestMessageAreasLightbarNewCountClearsAfterReadingMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AreaByTag: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	if _, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", "Hi", "hi", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
 
 	// Enter the area, open the message in the reader (Enter on the
@@ -433,10 +442,10 @@ func TestMessageAreasLightbarNewCountClearsAfterReadingMessage(t *testing.T) {
 	if len(renders) < 3 {
 		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
 	}
-	if !strings.Contains(renders[0], "     1      1      1") {
+	if !strings.Contains(renders[0], "     1      1      0") {
 		t.Fatalf("expected New=1 before visiting the area, got: %q", renders[0])
 	}
-	if !strings.Contains(renders[1], "     1      0      1") {
+	if !strings.Contains(renders[1], "     1      0      0") {
 		t.Fatalf("expected New=0 after reading the message, got: %q", renders[1])
 	}
 }
@@ -463,8 +472,8 @@ func TestMessageAreasLightbarUsesCustomRowTemplatesWhenPresent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AreaByTag: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	if _, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", "Hi", "hi", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
 
 	conn := newFakeConn("M\r\nQ\r\nQ\r\n")
@@ -541,8 +550,8 @@ func TestMessageListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AreaByTag: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "Hi", "hi"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	if _, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", "Hi", "hi", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
 
 	// Visit the message list twice (Enter the area, Q back out, Enter
@@ -589,8 +598,14 @@ func TestMessageListScrollsAndKeepsHeaderVisibleWithManyMessages(t *testing.T) {
 		t.Fatalf("AreaByTag: %v", err)
 	}
 	for i := 1; i <= 40; i++ {
-		if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", fmt.Sprintf("Subject %d", i), "body"); err != nil {
-			t.Fatalf("PostMessage %d: %v", i, err)
+		// ReceiveEcho, not PostMessage: this test wants the initial
+		// view to land on message 1, which needs everything genuinely
+		// unread -- alice's own post would mark itself read for her
+		// immediately (see message.Store.PostMessage's own doc
+		// comment), jumping the view to the end (see
+		// TestFirstUnreadIndexFallsBackToLastWhenAllRead) instead.
+		if _, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", fmt.Sprintf("Subject %d", i), "body", "", time.Now()); err != nil {
+			t.Fatalf("ReceiveEcho %d: %v", i, err)
 		}
 	}
 
@@ -654,9 +669,14 @@ func TestMessageListWindowStartsAtFirstUnreadWhenEnoughNewerMessages(t *testing.
 	}
 	var ids []int64
 	for i := 1; i <= 40; i++ {
-		m, err := s.Messages.PostMessage(general.ID, u.ID, "All", fmt.Sprintf("Subject %d", i), "body")
+		// ReceiveEcho, not PostMessage: alice's own post would mark
+		// itself read for her immediately (see message.Store.
+		// PostMessage's own doc comment), leaving nothing for the
+		// MarkMessageRead calls below to meaningfully simulate a
+		// partial read state over.
+		m, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", fmt.Sprintf("Subject %d", i), "body", "", time.Now())
 		if err != nil {
-			t.Fatalf("PostMessage %d: %v", i, err)
+			t.Fatalf("ReceiveEcho %d: %v", i, err)
 		}
 		ids = append(ids, m.ID)
 	}
@@ -711,9 +731,11 @@ func TestMessageListWindowPullsBackToFillScreenNearEndOfList(t *testing.T) {
 	}
 	var ids []int64
 	for i := 1; i <= 40; i++ {
-		m, err := s.Messages.PostMessage(general.ID, u.ID, "All", fmt.Sprintf("Subject %d", i), "body")
+		// ReceiveEcho, not PostMessage -- see the identical comment in
+		// TestMessageListWindowStartsAtFirstUnreadWhenEnoughNewerMessages.
+		m, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", fmt.Sprintf("Subject %d", i), "body", "", time.Now())
 		if err != nil {
-			t.Fatalf("PostMessage %d: %v", i, err)
+			t.Fatalf("ReceiveEcho %d: %v", i, err)
 		}
 		ids = append(ids, m.ID)
 	}
@@ -813,11 +835,14 @@ func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AreaByTag: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "First Subject", "first body"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	// ReceiveEcho, not PostMessage: the test checks for a NEW flag,
+	// which alice's own post wouldn't carry for her (see message.
+	// Store.PostMessage's own doc comment).
+	if _, _, err := s.Messages.ReceiveEcho(area.ID, "Bob", "First Subject", "first body", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Second Subject", "second body"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	if _, _, err := s.Messages.ReceiveEcho(area.ID, "Bob", "Second Subject", "second body", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
 
 	// M -> areas lightbar, Enter -> General Discussion, one Down arrow

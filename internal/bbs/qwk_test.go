@@ -36,8 +36,12 @@ func TestDownloadQWKSendsRealPacketToRealRZOverTheBBSConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AreaByTag: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", "Hello", "an echo post\nwith two lines"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	// ReceiveEcho, not PostMessage: alice's own post would mark itself
+	// read for her immediately (see message.Store.PostMessage's own
+	// doc comment), leaving it out of her QWK download -- this test
+	// wants both messages included.
+	if _, _, err := s.Messages.ReceiveEcho(area.ID, "Bob", "Hello", "an echo post\nwith two lines", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
 	if _, err := s.Netmail.Receive("Bob", "21:1/1", u.ID, "alice", "", "Hi Alice", "a netmail body", time.Now(), false); err != nil {
 		t.Fatalf("Netmail.Receive: %v", err)
@@ -263,11 +267,15 @@ func TestBuildQWKPacketForUserRespectsAreaSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "In general", "general body"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	// ReceiveEcho, not PostMessage: alice's own post would mark itself
+	// read for her immediately (see message.Store.PostMessage's own
+	// doc comment), leaving nothing "new" for this test's area-
+	// selection filtering to actually exercise.
+	if _, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", "In general", "general body", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
-	if _, err := s.Messages.PostMessage(other.ID, u.ID, "All", "In other", "other body"); err != nil {
-		t.Fatalf("PostMessage: %v", err)
+	if _, _, err := s.Messages.ReceiveEcho(other.ID, "Bob", "In other", "other body", "", time.Now()); err != nil {
+		t.Fatalf("ReceiveEcho: %v", err)
 	}
 
 	// No selection configured yet: both areas' new mail is included.

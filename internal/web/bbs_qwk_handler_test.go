@@ -96,7 +96,10 @@ func TestSetBBSQWKAreasIgnoresUnreadableAreasAndClearsWhenAllSelected(t *testing
 
 func TestDownloadBBSQWKReturnsPacketOrNoContent(t *testing.T) {
 	srv, users, _ := newTestServer(t)
-	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	bob, err := users.Register("bob", "password123", user.SLNewUser)
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
@@ -113,7 +116,10 @@ func TestDownloadBBSQWKReturnsPacketOrNoContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AreaByTag: %v", err)
 	}
-	if _, err := srv.Messages.PostMessage(general.ID, alice.ID, "All", "Hello", "a test message"); err != nil {
+	// Posted by bob, not alice -- PostMessage now marks a poster's own
+	// message read for themselves immediately (see its own doc
+	// comment), so alice needs someone else's post to have new mail.
+	if _, err := srv.Messages.PostMessage(general.ID, bob.ID, "All", "Hello", "a test message"); err != nil {
 		t.Fatalf("PostMessage: %v", err)
 	}
 

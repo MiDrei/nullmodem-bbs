@@ -286,15 +286,16 @@ func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 		t.Fatalf("PostMessage: %v", err)
 	}
 
-	// Alice has never visited: everything in the area is new to her,
-	// and one of the two posts is hers.
+	// Alice has never visited: bob's post is new to her, her own isn't
+	// (PostMessage marks a poster's own message read for themselves
+	// immediately -- see its own doc comment).
 	stats, err := s.ListAreaStats(user.SLNewUser, alice.ID)
 	if err != nil {
 		t.Fatalf("ListAreaStats: %v", err)
 	}
 	got := statsFor(t, stats, "chat")
-	if got.Total != 2 || got.New != 2 || got.Yours != 1 {
-		t.Fatalf("alice's stats = %+v, want Total=2 New=2 Yours=1", got)
+	if got.Total != 2 || got.New != 1 || got.Yours != 1 {
+		t.Fatalf("alice's stats = %+v, want Total=2 New=1 Yours=1", got)
 	}
 
 	msgs, err := s.ListMessages(area.ID)
@@ -335,8 +336,10 @@ func TestListAreaStatsCountsTotalNewAndYours(t *testing.T) {
 		t.Fatalf("ListAreaStats for bob: %v", err)
 	}
 	gotBob := statsFor(t, bobStats, "chat")
-	if gotBob.New != 3 || gotBob.Yours != 2 {
-		t.Fatalf("bob's stats = %+v, want New=3 (never visited) Yours=2", gotBob)
+	// Bob's own two posts ("Two", "Three") are read for him
+	// immediately; only alice's "One" is new to him.
+	if gotBob.New != 1 || gotBob.Yours != 2 {
+		t.Fatalf("bob's stats = %+v, want New=1 (only alice's post) Yours=2", gotBob)
 	}
 }
 
