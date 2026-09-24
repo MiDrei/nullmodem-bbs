@@ -248,8 +248,22 @@ type session struct {
 	// single-batch behavior, per FSP-1024's own fallback requirement.
 	peerBinkp11 bool
 
-	mu     sync.Mutex
-	result Result
+	mu sync.Mutex
+	// pendingSent tracks the wire (escaped, see quoteFileName) names of
+	// files sent so far in this session that no M_GOT has matched yet.
+	// sendOneFile adds an entry right after writing its M_FILE frame;
+	// receiveBatch's M_GOT case consumes (deletes) one on a match.
+	// Cross-checking against this, rather than trusting any M_GOT's
+	// name unconditionally, matches binkd's own GOT()/tfile_cmp()
+	// (protocol.c) -- confirmed against its source -- which requires a
+	// M_GOT to name a file actually outstanding before crediting it;
+	// without this, a peer echoing back a wrong or garbled M_GOT could
+	// inflate gotCount/FilesSent for a file that was never actually
+	// delivered. Protected by mu since sendOneFile (the sendBatch
+	// goroutine) and receiveBatch (the main goroutine) touch it
+	// concurrently within the same round.
+	pendingSent map[string]bool
+	result      Result
 }
 
 // noteVersionLine inspects one M_NUL line's argument and records
@@ -671,10 +685,17 @@ func (s *session) sendOneFile(f OutboundFile) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	arg := fmt.Sprintf("%s %d %d 0", f.Name, f.Size, f.ModTime.Unix())
+	wireName := quoteFileName(f.Name)
+	arg := fmt.Sprintf("%s %d %d 0", wireName, f.Size, f.ModTime.Unix())
 	if err := s.writeCommandFrame(s.conn, MFILE, arg); err != nil {
 		return err
 	}
+	s.mu.Lock()
+	if s.pendingSent == nil {
+		s.pendingSent = make(map[string]bool)
+	}
+	s.pendingSent[wireName] = true
+	s.mu.Unlock()
 
 	buf := make([]byte, maxFrameLen)
 	var sent int64
@@ -750,15 +771,33 @@ func (s *session) receiveBatch(gotCount *int, expectedGot int) (peerFiles int, p
 		cmd, arg := Command(payload[0]), string(payload[1:])
 		switch cmd {
 		case MFILE:
-			if err := s.receiveOneFile(arg); err != nil {
+			aborted, err := s.receiveOneFile(arg)
+			if err != nil {
 				return peerFiles, false, err
 			}
-			peerFiles++
+			if !aborted {
+				peerFiles++
+			}
 		case MGOT:
-			*gotCount++
+			// A peer that names a file we never actually have
+			// outstanding (garbled response, stray duplicate, or a
+			// bare M_GOT with no argument at all) must not be
+			// trusted blindly -- see pendingSent's own doc comment.
+			fields := strings.Fields(arg)
+			if len(fields) == 0 {
+				return peerFiles, false, fmt.Errorf("malformed M_GOT argument %q", arg)
+			}
+			wireName := fields[0]
 			s.mu.Lock()
-			s.result.FilesSent = append(s.result.FilesSent, strings.Fields(arg)[0])
+			matched := s.pendingSent[wireName]
+			if matched {
+				delete(s.pendingSent, wireName)
+				s.result.FilesSent = append(s.result.FilesSent, dequoteFileName(wireName))
+			}
 			s.mu.Unlock()
+			if matched {
+				*gotCount++
+			}
 		case MEOB:
 			peerEOB = true
 		case MERR:
@@ -772,15 +811,32 @@ func (s *session) receiveBatch(gotCount *int, expectedGot int) (peerFiles int, p
 	}
 }
 
-func (s *session) receiveOneFile(arg string) error {
+// receiveOneFile receives one file following its M_FILE announcement.
+// aborted is true only for the one case binkd itself tolerates rather
+// than treating as a session-fatal error (confirmed against its
+// source, protocol.c's EOB()): the peer sends M_EOB before this file
+// finished, "due to remote bug" in binkd's own words. binkd discards
+// the partial file and continues the session instead of dropping it
+// entirely; we do the same, pushing the M_EOB back (see pushback) so
+// receiveBatch's own loop processes it as this round's actual end
+// marker rather than losing it. Any other command frame arriving
+// mid-transfer is still a hard error, exactly as before.
+func (s *session) receiveOneFile(arg string) (aborted bool, err error) {
 	fields := strings.Fields(arg)
 	if len(fields) < 2 {
-		return fmt.Errorf("malformed M_FILE argument %q", arg)
+		return false, fmt.Errorf("malformed M_FILE argument %q", arg)
 	}
-	name := fields[0]
+	// wireName is what M_FILE actually carried on the wire and what we
+	// must echo back verbatim in M_GOT (binkd's own GOT()-sending code
+	// echoes state->in.netname, the still-escaped name, never a
+	// dequoted one); name is the real filename, escaping reversed (see
+	// quoteFileName/dequoteFileName's doc comments), for everything
+	// this package exposes to a caller.
+	wireName := fields[0]
+	name := dequoteFileName(wireName)
 	size, err := strconv.ParseInt(fields[1], 10, 64)
 	if err != nil {
-		return fmt.Errorf("malformed M_FILE size in %q: %w", arg, err)
+		return false, fmt.Errorf("malformed M_FILE size in %q: %w", arg, err)
 	}
 	var modTime time.Time
 	var modTimeUnix int64
@@ -808,16 +864,22 @@ func (s *session) receiveOneFile(arg string) error {
 		if err != nil {
 			pw.CloseWithError(err)
 			<-doneCh
-			return err
+			return false, err
 		}
 		if !isData {
+			if len(payload) > 0 && Command(payload[0]) == MEOB {
+				pw.CloseWithError(fmt.Errorf("peer sent M_EOB before finishing %s (%d/%d bytes)", name, received, size))
+				<-doneCh
+				s.pushback(isData, payload)
+				return true, nil
+			}
 			pw.CloseWithError(fmt.Errorf("unexpected command frame mid-file"))
 			<-doneCh
-			return fmt.Errorf("unexpected command frame mid-transfer of %s", name)
+			return false, fmt.Errorf("unexpected command frame mid-transfer of %s", name)
 		}
 		if _, err := pw.Write(payload); err != nil {
 			<-doneCh
-			return fmt.Errorf("deliver received data for %s: %w", name, err)
+			return false, fmt.Errorf("deliver received data for %s: %w", name, err)
 		}
 		received += int64(len(payload))
 	}
@@ -849,18 +911,18 @@ func (s *session) receiveOneFile(arg string) error {
 	// delivered and for a connection dying right after we've
 	// acknowledged a file, both observed live against a real uplink
 	// before this fix.
-	if err := s.send(MGOT, fmt.Sprintf("%s %d %d", name, size, modTimeUnix)); err != nil {
+	if err := s.send(MGOT, fmt.Sprintf("%s %d %d", wireName, size, modTimeUnix)); err != nil {
 		<-doneCh
-		return err
+		return false, err
 	}
 
 	if err := <-doneCh; err != nil {
-		return fmt.Errorf("handling received file %s: %w", name, err)
+		return false, fmt.Errorf("handling received file %s: %w", name, err)
 	}
 
 	s.mu.Lock()
 	s.result.FilesReceived = append(s.result.FilesReceived, name)
 	s.mu.Unlock()
 
-	return nil
+	return false, nil
 }

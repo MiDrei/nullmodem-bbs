@@ -1352,3 +1352,270 @@ func TestSessionRecorderRedactsPasswordAndSummarizesDataFrames(t *testing.T) {
 		t.Fatalf("answerer lines = %v, want \"recv: DATA 5 bytes\"", ansRec.lines)
 	}
 }
+
+// TestMGOTWithEmptyArgumentIsRejectedNotPanicked locks in a real fix:
+// receiveBatch used to index strings.Fields(arg)[0] unconditionally
+// for M_GOT, so a peer sending a bare M_GOT with no argument at all
+// (trivially producible, whether a buggy implementation or a
+// deliberate probe) panicked the whole process instead of failing
+// this one session -- confirmed against binkd's own GOT() (protocol.c),
+// which cleanly rejects anything short of 3 parseable arguments rather
+// than indexing past what it verified is present. A real answer must
+// now surface this as an ordinary error.
+func TestMGOTWithEmptyArgumentIsRejectedNotPanicked(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	go func() { _ = runBareMGOTPeer(ln) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		OutboundFiles: []OutboundFile{
+			{Name: "first.pkt", Size: 3, ModTime: time.Now(), Data: strings.NewReader("one")},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected Dial to fail on a bare M_GOT, not succeed")
+	}
+}
+
+// runBareMGOTPeer accepts one connection, reads the client's one file,
+// and replies with a completely empty M_GOT instead of a real
+// acknowledgment.
+func runBareMGOTPeer(ln net.Listener) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+
+	// Drain the client's M_FILE, its data, and its M_EOB.
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if !isData && len(payload) > 0 && Command(payload[0]) == MEOB {
+			break
+		}
+	}
+
+	return writeCommandFrame(conn, MGOT, "")
+}
+
+// TestMGOTForAFileNeverSentIsIgnored locks in pendingSent's own cross-
+// check (see its doc comment): a M_GOT naming a file this side never
+// actually sent -- garbled, stray, or a plain lie -- must not be
+// credited as an acknowledgment of anything, even though a real
+// M_GOT for the file actually sent must still be accepted normally
+// right alongside it.
+func TestMGOTForAFileNeverSentIsIgnored(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	peerErrCh := make(chan error, 1)
+	go func() { peerErrCh <- runGarbageThenRealGOTPeer(ln) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		OutboundFiles: []OutboundFile{
+			{Name: "real.pkt", Size: 3, ModTime: time.Now(), Data: strings.NewReader("one")},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := <-peerErrCh; err != nil {
+		t.Fatalf("peer: %v", err)
+	}
+	want := []string{"real.pkt"}
+	if !reflect.DeepEqual(result.FilesSent, want) {
+		t.Fatalf("FilesSent = %v, want %v (the garbage M_GOT must not appear)", result.FilesSent, want)
+	}
+}
+
+// runGarbageThenRealGOTPeer reads the client's one file, then sends a
+// M_GOT for a name that was never offered before sending the real
+// acknowledgment for the file actually received.
+func runGarbageThenRealGOTPeer(ln net.Listener) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if !isData && len(payload) > 0 && Command(payload[0]) == MEOB {
+			break
+		}
+	}
+
+	if err := writeCommandFrame(conn, MGOT, "nonexistent.pkt 999 0"); err != nil {
+		return err
+	}
+	if err := writeCommandFrame(conn, MGOT, "real.pkt 3 0"); err != nil {
+		return err
+	}
+	return writeCommandFrame(conn, MEOB, "")
+}
+
+// TestMidTransferMEOBAbortsOnlyThatFileNotTheSession locks in binkd's
+// own tolerance (confirmed against its source, protocol.c's EOB()):
+// a peer that sends M_EOB before finishing a file it announced --
+// binkd's own comment calls this "due to remote bug" -- must not
+// abort the whole session. The partial file is discarded and the
+// session ends normally instead.
+func TestMidTransferMEOBAbortsOnlyThatFileNotTheSession(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	peerErrCh := make(chan error, 1)
+	go func() { peerErrCh <- runEarlyMEOBPeer(ln) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		ReceiveFile: func(f InboundFile, r io.Reader) error {
+			_, err := io.ReadAll(r)
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v (expected the session to tolerate the early M_EOB and succeed)", err)
+	}
+	if len(result.FilesReceived) != 0 {
+		t.Fatalf("FilesReceived = %v, want none (the interrupted file must not count as received)", result.FilesReceived)
+	}
+}
+
+// runEarlyMEOBPeer announces a 20-byte file, sends only 5 bytes of
+// it, then sends M_EOB instead of the remaining data -- exactly the
+// "remote bug" binkd's own EOB() tolerates.
+func runEarlyMEOBPeer(ln net.Listener) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData || len(payload) == 0 {
+			return fmt.Errorf("unexpected frame before M_ADR")
+		}
+		if Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+
+	isData, payload, err := readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MEOB {
+		return fmt.Errorf("expected the client's M_EOB, got isData=%v payload=%q", isData, payload)
+	}
+
+	if err := writeCommandFrame(conn, MFILE, "interrupted.pkt 20 1700000000 0"); err != nil {
+		return err
+	}
+	if err := writeDataFrame(conn, []byte("12345")); err != nil {
+		return err
+	}
+	// The "remote bug": M_EOB instead of the remaining 15 bytes.
+	return writeCommandFrame(conn, MEOB, "")
+}
+
+// TestFileNameWithSpaceSurvivesTheWireRoundTrip locks in
+// quoteFileName/dequoteFileName (see their own doc comments, and
+// binkd's tools.c strquote/strdequote which they mirror): a filename
+// containing a space -- e.g. a file forwarded via TIC under its
+// original, user-chosen name -- must arrive at the other end with the
+// exact same name, not truncated or corrupted by M_FILE's whitespace-
+// delimited argument parsing.
+func TestFileNameWithSpaceSurvivesTheWireRoundTrip(t *testing.T) {
+	const name = "my file with spaces.zip"
+	var receivedName string
+
+	_, _, origErr, ansErr := runPair(t,
+		Config{
+			OurAddresses: []string{"1:234/56.0"},
+			OutboundFiles: []OutboundFile{
+				{Name: name, Size: 3, ModTime: time.Now(), Data: strings.NewReader("abc")},
+			},
+		},
+		Config{
+			OurAddresses: []string{"1:234/99.0"},
+			ReceiveFile: func(f InboundFile, r io.Reader) error {
+				receivedName = f.Name
+				_, err := io.ReadAll(r)
+				return err
+			},
+		},
+	)
+	if origErr != nil {
+		t.Fatalf("originator error: %v", origErr)
+	}
+	if ansErr != nil {
+		t.Fatalf("answerer error: %v", ansErr)
+	}
+	if receivedName != name {
+		t.Fatalf("received file name = %q, want %q", receivedName, name)
+	}
+}
