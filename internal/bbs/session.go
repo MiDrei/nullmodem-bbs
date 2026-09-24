@@ -619,7 +619,7 @@ func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
 	for _, listed := range users {
 		lastLogin := "never"
 		if listed.LastLoginAt.Valid {
-			lastLogin = listed.LastLoginAt.Time.Format("2006-01-02 15:04")
+			lastLogin = listed.LastLoginAt.Time.Format("2006-01-02 15:04 UTC")
 		}
 		line := fmt.Sprintf("%-21s%-5d%-7d%s", listed.Username, listed.SecurityLevel, listed.TotalCalls, lastLogin)
 		if err := term.Println(line); err != nil {
@@ -683,7 +683,7 @@ func (s *Server) showWho(term *Terminal, _ *user.User) error {
 		return err
 	}
 	for _, n := range nodes {
-		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, n.ConnectedAt.Format("15:04:05"))); err != nil {
+		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, n.ConnectedAt.Format("15:04:05 UTC"))); err != nil {
 			return err
 		}
 	}

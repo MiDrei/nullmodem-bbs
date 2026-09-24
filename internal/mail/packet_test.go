@@ -132,7 +132,7 @@ func TestPacketRoundTripMultipleMessages(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadMessage %d: %v", i, err)
 		}
-		if got.Subject != want.Subject || got.Body != want.Body || got.FromName != want.FromName {
+		if got.Subject != want.Subject || stripTZUTCKludge(got.Body) != want.Body || got.FromName != want.FromName {
 			t.Errorf("message %d = %+v, want %+v", i, got, want)
 		}
 	}
@@ -165,7 +165,7 @@ func TestPacketPacketHelperRoundTrip(t *testing.T) {
 	if len(got.Messages) != 1 {
 		t.Fatalf("got %d messages, want 1", len(got.Messages))
 	}
-	if got.Messages[0].Body != "hello" {
+	if stripTZUTCKludge(got.Messages[0].Body) != "hello" {
 		t.Errorf("Body = %q, want %q", got.Messages[0].Body, "hello")
 	}
 }
@@ -268,7 +268,13 @@ func TestPacketPointAddressesGetFMPTAndTOPT(t *testing.T) {
 	}
 }
 
-func TestPacketNoKludgeWhenNoZoneOrPointInfo(t *testing.T) {
+// TestPacketNoAddressingKludgeWhenNoZoneOrPointInfo confirms the
+// INTL/FMPT/TOPT addressing kludges are still omitted when orig/dest
+// carry nothing plain net/node can't already express -- the TZUTC
+// kludge (see TestWriteMessageAddsTZUTCKludgeDeclaringUTC) is
+// unconditional, so it's still present here, unlike before that
+// existed.
+func TestPacketNoAddressingKludgeWhenNoZoneOrPointInfo(t *testing.T) {
 	header := PacketHeader{
 		OrigAddr: Address{Zone: 21, Net: 3, Node: 194},
 		DestAddr: Address{Zone: 21, Net: 3, Node: 1},
@@ -278,7 +284,7 @@ func TestPacketNoKludgeWhenNoZoneOrPointInfo(t *testing.T) {
 		ToName:   "Bob",
 		FromName: "Alice",
 		Subject:  "Plain",
-		Body:     "no kludges expected",
+		Body:     "no addressing kludges expected",
 	}
 
 	var buf bytes.Buffer
@@ -301,8 +307,9 @@ func TestPacketNoKludgeWhenNoZoneOrPointInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadMessage: %v", err)
 	}
-	if got.Body != msg.Body {
-		t.Errorf("Body = %q, want %q (no kludge expected)", got.Body, msg.Body)
+	want := "\x01TZUTC: +0000\n" + msg.Body
+	if got.Body != want {
+		t.Errorf("Body = %q, want %q (TZUTC kludge only, no addressing kludge)", got.Body, want)
 	}
 }
 
@@ -350,8 +357,8 @@ func TestPacketStringTruncation(t *testing.T) {
 	if len(got.Subject) != 71 {
 		t.Errorf("Subject len = %d, want 71", len(got.Subject))
 	}
-	if len(got.Body) != 10000 {
-		t.Errorf("Body len = %d, want 10000 (no truncation)", len(got.Body))
+	if len(stripTZUTCKludge(got.Body)) != 10000 {
+		t.Errorf("Body len = %d, want 10000 (no truncation)", len(stripTZUTCKludge(got.Body)))
 	}
 }
 
@@ -548,7 +555,7 @@ func TestPacketReadCollapsesCRLFBodyInsteadOfDoublingIt(t *testing.T) {
 	if len(pkt.Messages) != 1 {
 		t.Fatalf("got %d messages, want 1", len(pkt.Messages))
 	}
-	if got, want := pkt.Messages[0].Body, "line1\nline2\nline3"; got != want {
+	if got, want := stripTZUTCKludge(pkt.Messages[0].Body), "line1\nline2\nline3"; got != want {
 		t.Fatalf("parsed body = %q, want %q (no doubled blank lines)", got, want)
 	}
 }
@@ -640,7 +647,117 @@ func TestPacketReadTranscodesUTF8FieldsToCP437(t *testing.T) {
 	if got.Subject != "NSA?s Supercomputer" {
 		t.Fatalf("Subject = %q, want %q", got.Subject, "NSA?s Supercomputer")
 	}
-	if got.Body != "block art: \xdb\xdb" {
+	if stripTZUTCKludge(got.Body) != "block art: \xdb\xdb" {
 		t.Fatalf("Body = %q, want CP437-transcoded", got.Body)
 	}
+}
+
+func TestScanTZUTCKludgeCorrectsWrittenToTrueUTC(t *testing.T) {
+	written := time.Date(2026, time.September, 24, 18, 0, 0, 0, time.UTC)
+
+	// "+0900" -- the sender's local clock was 9 hours ahead of UTC, so
+	// the true UTC instant is 9 hours earlier than the naive reading.
+	got := scanTZUTCKludge("\x01TZUTC: +0900\nHello there.\n", written)
+	want := time.Date(2026, time.September, 24, 9, 0, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Fatalf("scanTZUTCKludge(+0900) = %v, want %v", got, want)
+	}
+}
+
+func TestScanTZUTCKludgeHandlesNegativeOffsetAndOptionalPlusSign(t *testing.T) {
+	written := time.Date(2026, time.September, 24, 9, 0, 0, 0, time.UTC)
+
+	got := scanTZUTCKludge("\x01TZUTC: -0500\n", written)
+	want := time.Date(2026, time.September, 24, 14, 0, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Fatalf("scanTZUTCKludge(-0500) = %v, want %v", got, want)
+	}
+
+	// "+" is optional per the convention -- a bare "0100" also means +0100.
+	got = scanTZUTCKludge("\x01TZUTC: 0100\n", written)
+	want = time.Date(2026, time.September, 24, 8, 0, 0, 0, time.UTC)
+	if !got.Equal(want) {
+		t.Fatalf("scanTZUTCKludge(0100, no sign) = %v, want %v", got, want)
+	}
+}
+
+func TestScanTZUTCKludgeLeavesWrittenUnchangedWithoutOne(t *testing.T) {
+	written := time.Date(2026, time.September, 24, 9, 0, 0, 0, time.UTC)
+
+	got := scanTZUTCKludge("\x01MSGID: 21:3/194 abc123\nHello there.\n", written)
+	if !got.Equal(written) {
+		t.Fatalf("scanTZUTCKludge with no TZUTC kludge = %v, want unchanged %v", got, written)
+	}
+
+	got = scanTZUTCKludge("No kludges at all here.\n", written)
+	if !got.Equal(written) {
+		t.Fatalf("scanTZUTCKludge with a plain body = %v, want unchanged %v", got, written)
+	}
+}
+
+func TestScanTZUTCKludgeIgnoresAMalformedValue(t *testing.T) {
+	written := time.Date(2026, time.September, 24, 9, 0, 0, 0, time.UTC)
+	got := scanTZUTCKludge("\x01TZUTC: garbage\n", written)
+	if !got.Equal(written) {
+		t.Fatalf("scanTZUTCKludge with a malformed value = %v, want unchanged %v", got, written)
+	}
+}
+
+// TestWriteMessageAddsTZUTCKludgeDeclaringUTC is an end-to-end check
+// through the real packet writer/reader (not scanTZUTCKludge/
+// parseTZUTCOffset directly): every outgoing message declares a
+// "+0000" TZUTC kludge, since every Written value this codebase
+// produces is already a true UTC instant (see writeMessage's own
+// doc comment) -- so a full round trip leaves Written unchanged
+// (offset zero), and the wire body actually carries the kludge line
+// a receiving system would use to avoid the same ambiguity.
+func TestWriteMessageAddsTZUTCKludgeDeclaringUTC(t *testing.T) {
+	header := PacketHeader{
+		OrigAddr: Address{Zone: 21, Net: 3, Node: 194},
+		DestAddr: Address{Zone: 21, Net: 3, Node: 194},
+		Created:  time.Date(2026, time.September, 24, 9, 0, 0, 0, time.UTC),
+	}
+	written := time.Date(2026, time.September, 24, 9, 0, 0, 0, time.UTC)
+	msg := Message{
+		Written:  written,
+		ToName:   "All",
+		FromName: "Sysop",
+		Subject:  "Testing",
+		Body:     "Hello there.\n",
+	}
+
+	var buf bytes.Buffer
+	pw, err := NewWriter(&buf, header)
+	if err != nil {
+		t.Fatalf("NewWriter: %v", err)
+	}
+	if err := pw.WriteMessage(msg); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	if err := pw.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	pr, err := NewReader(&buf)
+	if err != nil {
+		t.Fatalf("NewReader: %v", err)
+	}
+	got, err := pr.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage: %v", err)
+	}
+	if !strings.Contains(got.Body, "\x01TZUTC: +0000") {
+		t.Fatalf("Body missing expected TZUTC kludge, got %q", got.Body)
+	}
+	if !got.Written.Equal(written) {
+		t.Fatalf("Written = %v, want unchanged %v (a +0000 offset changes nothing)", got.Written, written)
+	}
+}
+
+// stripTZUTCKludge removes the "\x01TZUTC: +0000\n" line every
+// outgoing message now carries (see TestWriteMessageAddsTZUTCKludge-
+// DeclaringUTC) -- a test helper for cases that assert on Body/
+// message content unrelated to that kludge itself.
+func stripTZUTCKludge(body string) string {
+	return strings.TrimPrefix(body, "\x01TZUTC: +0000\n")
 }

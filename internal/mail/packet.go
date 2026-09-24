@@ -88,6 +88,17 @@ type Message struct {
 	// them; this package only interprets INTL/FMPT/TOPT specifically,
 	// to resolve OrigAddr/DestAddr's Zone/Point on read.
 	Body string
+	// SkipTZUTCKludge omits the "\x01TZUTC: +0000" kludge line
+	// WriteMessage otherwise always prepends (see scanTZUTCKludge's
+	// read-side counterpart). Set this for a message addressed to an
+	// automated command parser rather than a person -- e.g. an
+	// Areafix/Filefix request -- whose body a receiving robot expects
+	// to start with the literal command, not any extra content (one
+	// real Areafix robot was observed live inserting a blank line
+	// when quoting a message back that had unexpected content ahead
+	// of it). INTL/FMPT/TOPT are unaffected: those are needed for
+	// correct delivery regardless of what's reading the message.
+	SkipTZUTCKludge bool
 }
 
 // Packet bundles a header with all its messages, for building or
@@ -317,10 +328,21 @@ func writeMessage(w io.Writer, header PacketHeader, m Message) error {
 		dest = header.DestAddr
 	}
 
-	body := m.Body
-	if kludges := addressingKludges(orig, dest); kludges != "" {
-		body = kludges + body
+	// Every Written value this codebase ever produces is already a
+	// true UTC instant (SQLite's CURRENT_TIMESTAMP, which every
+	// posted_at/sent_at column defaults to, is documented to be UTC,
+	// never local wall-clock time -- so there's no daylight-saving
+	// transition to account for here either, unlike a fixed local
+	// zone would have). Declaring that offset explicitly means any
+	// TZUTC-aware receiving system (see scanTZUTCKludge) gets an
+	// unambiguous, always-correct UTC instant back out, instead of
+	// having to guess like we used to before this existed -- except
+	// when the caller opted out via SkipTZUTCKludge.
+	kludges := addressingKludges(orig, dest)
+	if !m.SkipTZUTCKludge {
+		kludges = "\x01TZUTC: +0000\r" + kludges
 	}
+	body := insertKludgesAfterAreaLine(m.Body, kludges)
 
 	bw := &binWriter{w: w}
 	bw.u16(2) // message type -- always 2, the old type-1 format is obsolete
@@ -340,6 +362,28 @@ func writeMessage(w io.Writer, header PacketHeader, m Message) error {
 		return fmt.Errorf("mail: write message: %w", bw.err)
 	}
 	return nil
+}
+
+// insertKludgesAfterAreaLine inserts kludges (already fully formatted
+// as \x01-prefixed, \r-terminated lines) into body -- right after the
+// "AREA:tag" line when body starts with one, since FTS-0001/FSC-0035
+// require that to stay the literal first line of an echomail
+// message's body (internal/tosser already builds it as such before
+// this ever sees it); at the very start otherwise, for a plain
+// netmail body.
+func insertKludgesAfterAreaLine(body, kludges string) string {
+	if !strings.HasPrefix(body, "AREA:") {
+		return kludges + body
+	}
+	idx := strings.IndexAny(body, "\r\n")
+	if idx < 0 {
+		return body + kludges // an AREA: line with nothing after it -- degenerate, but don't lose it
+	}
+	end := idx + 1
+	if body[idx] == '\r' && end < len(body) && body[end] == '\n' {
+		end++
+	}
+	return body[:end] + kludges + body[end:]
 }
 
 // addressingKludges builds the INTL/FMPT/TOPT lines (FSC-0035) needed
@@ -404,6 +448,7 @@ func readMessage(r io.Reader, header PacketHeader) (*Message, error) {
 	fromName = transcodeUTF8ToCP437(fromName)
 	subject = transcodeUTF8ToCP437(subject)
 	orig, dest = scanAddressingKludges(body, orig, dest)
+	written = scanTZUTCKludge(body, written)
 
 	return &Message{
 		OrigAddr: orig,
@@ -451,6 +496,58 @@ func scanAddressingKludges(body string, orig, dest Address) (Address, Address) {
 		}
 	}
 	return orig, dest
+}
+
+// scanTZUTCKludge reads a leading TZUTC kludge line ("TZUTC: +HHMM"/
+// "-HHMM", "+" optional) and corrects written for it -- FTS-0001's
+// own packed message date field carries no timezone at all (see
+// parseFTSCDate's own doc comment), so it's stored as if it were
+// already UTC even though it's really the sender's own local clock
+// reading. TZUTC (a widely used, if not FTS-0001-official, FTN
+// convention -- states how far ahead of UTC the sender's local clock
+// was when they wrote it) lets that be corrected back to a true UTC
+// instant. No TZUTC kludge, or a malformed one, leaves written
+// unchanged -- exactly as if this system had no way to know the
+// sender's zone, which was already true before this existed.
+func scanTZUTCKludge(body string, written time.Time) time.Time {
+	const prefix = "TZUTC:"
+	for _, raw := range strings.Split(body, "\n") {
+		if !strings.HasPrefix(raw, "\x01") {
+			break
+		}
+		line := raw[1:]
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		if offset, ok := parseTZUTCOffset(strings.TrimSpace(line[len(prefix):])); ok {
+			return written.Add(-offset)
+		}
+		return written
+	}
+	return written
+}
+
+// parseTZUTCOffset parses a TZUTC kludge's value into how far ahead
+// of UTC that offset states the sender's clock was (see
+// scanTZUTCKludge for the sign convention this feeds into).
+func parseTZUTCOffset(s string) (time.Duration, bool) {
+	sign := time.Duration(1)
+	switch {
+	case strings.HasPrefix(s, "-"):
+		sign = -1
+		s = s[1:]
+	case strings.HasPrefix(s, "+"):
+		s = s[1:]
+	}
+	if len(s) != 4 {
+		return 0, false
+	}
+	hours, err1 := strconv.Atoi(s[:2])
+	minutes, err2 := strconv.Atoi(s[2:])
+	if err1 != nil || err2 != nil || minutes >= 60 {
+		return 0, false
+	}
+	return sign * (time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute), true
 }
 
 // toFTNLineEndings converts Go-style line breaks ("\n" or "\r\n") to

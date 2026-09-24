@@ -25,8 +25,12 @@ func TestInspectPacketReturnsMessageSummary(t *testing.T) {
 	if m.FromName != "Alice" || m.ToName != "Bob" || m.Subject != "Hi" {
 		t.Fatalf("unexpected message summary: %+v", m)
 	}
-	if m.BodySize != len("hello") {
-		t.Fatalf("BodySize = %d, want %d", m.BodySize, len("hello"))
+	// WriteMessage now always prepends a TZUTC kludge line (see
+	// internal/mail's own doc comment on it) -- BodySize correctly
+	// reflects the real on-wire body, kludge included.
+	wantBody := "\x01TZUTC: +0000\nhello"
+	if m.BodySize != len(wantBody) {
+		t.Fatalf("BodySize = %d, want %d", m.BodySize, len(wantBody))
 	}
 }
 

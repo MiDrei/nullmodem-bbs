@@ -932,6 +932,10 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsNam
 			FromName: m.FromName,
 			Subject:  m.Subject,
 			Body:     body,
+			// Same reasoning as the tearline skip just above: a
+			// system-composed message is addressed to a robot, not a
+			// person, so it must stay exactly the queued body.
+			SkipTZUTCKludge: !m.FromUserID.Valid,
 		}); err != nil {
 			return nil, fmt.Errorf("tosser: writing message %d: %w", m.ID, err)
 		}
