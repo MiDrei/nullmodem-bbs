@@ -339,7 +339,7 @@ func TestPollTossesFileFromRealBinkpSession(t *testing.T) {
 		Address:     "21:3/194",
 		Host:        addr,
 		TICPassword: "secret1",
-	}, nil, netmailStore, messages, users, nil, &TICConfig{Files: files})
+	}, nil, netmailStore, messages, users, nil, &TICConfig{Files: files}, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}

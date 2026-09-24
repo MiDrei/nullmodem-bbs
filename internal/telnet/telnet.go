@@ -101,6 +101,9 @@ func (s *Session) TermType() string {
 	return s.term
 }
 
+// Protocol implements bbs.Conn.
+func (s *Session) Protocol() string { return "telnet" }
+
 // WindowSize returns the last known terminal dimensions (defaults to
 // 80x24 until/unless the client sends a NAWS update).
 func (s *Session) WindowSize() (width, height int) {

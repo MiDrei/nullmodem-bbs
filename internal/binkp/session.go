@@ -87,6 +87,11 @@ type Config struct {
 	// read r to completion (exactly Size bytes) before returning, or
 	// the session aborts. A nil ReceiveFile discards received files.
 	ReceiveFile func(f InboundFile, r io.Reader) error
+	// Recorder, if set, receives one human-readable line per frame
+	// exchanged in either direction (see SessionRecorder's own doc
+	// comment) -- nil means no recording, the default for every
+	// existing caller/test.
+	Recorder SessionRecorder
 }
 
 // Result summarizes a completed session.
@@ -230,14 +235,47 @@ type pendingFrame struct {
 }
 
 // nextFrame returns a pushed-back frame if one is waiting, else reads
-// the next one from the connection.
+// the next one from the connection -- the single choke point every
+// read path funnels through, so this is also the only place a read
+// needs recording (a pushed-back frame was already recorded the first
+// time it was actually read off the wire).
 func (s *session) nextFrame() (isData bool, payload []byte, err error) {
 	if s.pending != nil {
 		f := s.pending
 		s.pending = nil
 		return f.isData, f.payload, nil
 	}
-	return readFrame(s.conn)
+	isData, payload, err = readFrame(s.conn)
+	if err == nil && s.cfg.Recorder != nil {
+		s.cfg.Recorder.RecordFrame("recv", frameLine(isData, payload))
+	}
+	return isData, payload, err
+}
+
+// writeCommandFrame wraps the package-level function of the same name
+// with recording -- w is usually s.conn directly, but sendInfoAndAddress
+// also uses this to build a batched write into a bytes.Buffer, so the
+// frame is still recorded once per logical frame regardless of how
+// many end up combined into one underlying Write.
+func (s *session) writeCommandFrame(w io.Writer, cmd Command, arg string) error {
+	if err := writeCommandFrame(w, cmd, arg); err != nil {
+		return err
+	}
+	if s.cfg.Recorder != nil {
+		s.cfg.Recorder.RecordFrame("send", frameLine(false, append([]byte{byte(cmd)}, arg...)))
+	}
+	return nil
+}
+
+// writeDataFrame is writeCommandFrame's data-frame counterpart.
+func (s *session) writeDataFrame(w io.Writer, data []byte) error {
+	if err := writeDataFrame(w, data); err != nil {
+		return err
+	}
+	if s.cfg.Recorder != nil {
+		s.cfg.Recorder.RecordFrame("send", frameLine(true, data))
+	}
+	return nil
 }
 
 // pushback stashes a frame that was read to decide something (e.g.
@@ -264,13 +302,13 @@ func (s *session) run() (*Result, error) {
 func (s *session) send(cmd Command, arg string) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	return writeCommandFrame(s.conn, cmd, arg)
+	return s.writeCommandFrame(s.conn, cmd, arg)
 }
 
 func (s *session) sendData(data []byte) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	return writeDataFrame(s.conn, data)
+	return s.writeDataFrame(s.conn, data)
 }
 
 // sendInfoAndAddress emits this side's informational M_NUL lines
@@ -305,11 +343,11 @@ func (s *session) sendInfoAndAddress(ourAddresses []string) error {
 
 	var buf bytes.Buffer
 	for _, l := range lines {
-		if err := writeCommandFrame(&buf, MNUL, l); err != nil {
+		if err := s.writeCommandFrame(&buf, MNUL, l); err != nil {
 			return err
 		}
 	}
-	if err := writeCommandFrame(&buf, MADR, strings.Join(ourAddresses, " ")); err != nil {
+	if err := s.writeCommandFrame(&buf, MADR, strings.Join(ourAddresses, " ")); err != nil {
 		return err
 	}
 
@@ -328,7 +366,7 @@ func (s *session) sendInfoAndAddress(ourAddresses []string) error {
 // without the other's address.
 func (s *session) readHandshakeFrames() (peerAddrs, cramChallenge string, err error) {
 	for {
-		isData, payload, err := readFrame(s.conn)
+		isData, payload, err := s.nextFrame()
 		if err != nil {
 			return "", "", err
 		}
@@ -391,7 +429,7 @@ func (s *session) originatorHandshake() error {
 // the address exchange readHandshakeFrames already tolerates.
 func (s *session) readPasswordResponse() error {
 	for {
-		isData, payload, err := readFrame(s.conn)
+		isData, payload, err := s.nextFrame()
 		if err != nil {
 			return err
 		}
@@ -550,7 +588,7 @@ func (s *session) sendOneFile(f OutboundFile) error {
 	defer s.writeMu.Unlock()
 
 	arg := fmt.Sprintf("%s %d %d 0", f.Name, f.Size, f.ModTime.Unix())
-	if err := writeCommandFrame(s.conn, MFILE, arg); err != nil {
+	if err := s.writeCommandFrame(s.conn, MFILE, arg); err != nil {
 		return err
 	}
 
@@ -559,7 +597,7 @@ func (s *session) sendOneFile(f OutboundFile) error {
 	for {
 		n, err := f.Data.Read(buf)
 		if n > 0 {
-			if werr := writeDataFrame(s.conn, buf[:n]); werr != nil {
+			if werr := s.writeDataFrame(s.conn, buf[:n]); werr != nil {
 				return werr
 			}
 			sent += int64(n)
@@ -675,7 +713,7 @@ func (s *session) receiveOneFile(arg string) error {
 
 	var received int64
 	for received < size {
-		isData, payload, err := readFrame(s.conn)
+		isData, payload, err := s.nextFrame()
 		if err != nil {
 			pw.CloseWithError(err)
 			<-doneCh

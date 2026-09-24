@@ -13,6 +13,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/archive"
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
+	"git.maik.ch/swissmaik/nullmodem/internal/binkplog"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
@@ -72,6 +73,7 @@ func main() {
 		EchoAreafix:   areafix.NewEchoStore(sqlDB),
 		FileAreafix:   areafix.NewFileStore(sqlDB),
 		Archive:       archive.NewStore(sqlDB, filepath.Join(filepath.Dir(cfg.DatabasePath), "inbound-archive")),
+		BinkpLog:      binkplog.NewStore(sqlDB, filepath.Join(filepath.Dir(cfg.DatabasePath), "binkp-sessions")),
 		BBSConfigPath: cfg.BBSConfigPath,
 		FTNAddress:    bbsCfg.PrimaryFTNAddress(),
 		JWTSecret:     secret,

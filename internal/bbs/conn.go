@@ -16,4 +16,9 @@ type Conn interface {
 	RemoteAddr() net.Addr
 	TermType() string
 	WindowSize() (width, height int)
+	// Protocol reports which transport this connection came in on --
+	// "telnet" or "ssh" -- purely so Server.Handle's own log lines can
+	// tell the two apart (see the admin Logs page's Telnet/SSH tabs);
+	// nothing in session/menu handling itself branches on it.
+	Protocol() string
 }

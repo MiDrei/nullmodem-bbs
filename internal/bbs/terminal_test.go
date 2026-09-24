@@ -26,6 +26,7 @@ func (c *fakeConn) Write(p []byte) (int, error) { return c.out.Write(p) }
 func (c *fakeConn) Close() error                { return nil }
 func (c *fakeConn) RemoteAddr() net.Addr        { return &net.TCPAddr{} }
 func (c *fakeConn) TermType() string            { return "test" }
+func (c *fakeConn) Protocol() string            { return "test" }
 func (c *fakeConn) WindowSize() (int, int)      { return c.width, c.height }
 
 // TestReadLineCRLFDoesNotLeakIntoNextLine is a regression test: a

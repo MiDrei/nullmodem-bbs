@@ -30,6 +30,7 @@ import (
 
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
 	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
+	"git.maik.ch/swissmaik/nullmodem/internal/binkplog"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/mail"
@@ -124,7 +125,7 @@ type Result struct {
 // uplink need not be poll-disabled just because it's being dialed
 // here (that flag only governs cmd/mailer's own scheduled loop, not a
 // manual or crash-triggered dial).
-func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig) (*Result, error) {
+func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig, sessionLog *binkplog.Store) (*Result, error) {
 	if len(ourAddresses) == 0 {
 		return nil, fmt.Errorf("tosser: no FTN addresses configured for this system")
 	}
@@ -168,12 +169,32 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	ctx, cancel := context.WithTimeout(ctx, dialTimeout)
 	defer cancel()
 
+	// A recording failure (e.g. a disk problem) is never a reason to
+	// skip the real mail exchange -- recorder stays nil and the
+	// session just isn't transcribed this one time.
+	var recorder *binkplog.Recorder
+	if sessionLog != nil {
+		recorder, _ = sessionLog.Begin("outbound", uplink.Address, uplink.Host)
+	}
+	var binkpRecorder binkp.SessionRecorder
+	if recorder != nil {
+		binkpRecorder = recorder
+	}
+
 	sessionResult, err := binkp.Dial(ctx, uplink.Host, binkp.Config{
 		OurAddresses:  presentedAddresses,
 		Password:      uplink.Password,
 		OutboundFiles: bundle.outFiles,
 		ReceiveFile:   receiveFile,
+		Recorder:      binkpRecorder,
 	})
+	if recorder != nil {
+		outcome, detail := "ok", ""
+		if err != nil {
+			outcome, detail = "error", err.Error()
+		}
+		_, _ = recorder.Finish(outcome, detail)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("tosser: polling %s: %w", uplink.Host, err)
 	}
@@ -340,7 +361,7 @@ func (b *outboundBundle) markSent(res *Result, sessionFilesSent []string, uplink
 // the only way a point that always dials out (and so is never dialed
 // itself, e.g. config.BinkpUplink.Hold, a point behind NAT) can ever
 // actually receive anything.
-func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName string, uplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig) (*Result, error) {
+func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName string, uplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig, sessionLog *binkplog.Store) (*Result, error) {
 	var matchedUplink config.BinkpUplink
 	var matched bool
 	var ticSess *ticSession
@@ -374,8 +395,24 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 		return err
 	}
 
+	// A recording failure (e.g. a disk problem) is never a reason to
+	// skip the real mail exchange -- recorder stays nil and the
+	// session just isn't transcribed this one time. Begun immediately
+	// (before the handshake even starts) rather than only once matched,
+	// so a rejected/unrecognized caller's session is fully transcribed
+	// too -- exactly the case most worth being able to inspect.
+	var recorder *binkplog.Recorder
+	if sessionLog != nil {
+		recorder, _ = sessionLog.Begin("inbound", "", conn.RemoteAddr().String())
+	}
+	var binkpRecorder binkp.SessionRecorder
+	if recorder != nil {
+		binkpRecorder = recorder
+	}
+
 	sessionResult, err := binkp.Answer(ctx, conn, binkp.Config{
 		OurAddresses: ourAddresses,
+		Recorder:     binkpRecorder,
 		PasswordForAddresses: func(peerAddrs []string) (string, bool) {
 			u, ok := matchUplink(peerAddrs, uplinks)
 			if !ok {
@@ -406,6 +443,21 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 		},
 		ReceiveFile: receiveFile,
 	})
+	if recorder != nil {
+		outcome, detail := "ok", ""
+		if err != nil {
+			outcome, detail = "error", err.Error()
+		}
+		// matchedUplink.Address is only known once authentication
+		// succeeded, but Finish (and its own DB row) happens after the
+		// whole session either way, so this is always the final,
+		// complete picture by now -- better than the blank placeholder
+		// Begin had to use up front.
+		if matched {
+			recorder.SetPeerAddress(matchedUplink.Address)
+		}
+		_, _ = recorder.Finish(outcome, detail)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("tosser: answering inbound session: %w", err)
 	}

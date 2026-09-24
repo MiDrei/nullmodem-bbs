@@ -114,9 +114,15 @@ func (s *Server) Handle(conn Conn) {
 	if err != nil {
 		return
 	}
-	s.logInfo("node %d connected from %s (%s)", node, conn.RemoteAddr(), conn.TermType())
+	// protocol prefixes every log line for this connection's lifetime
+	// (a plain, greppable "[telnet]"/"[ssh]" tag rather than a new DB
+	// column) so the admin Logs page can split the two apart -- both
+	// share source "bbs" (cmd/bbs's one applog.Logger), which alone
+	// can't tell them apart.
+	protocol := conn.Protocol()
+	s.logInfo("[%s] node %d connected from %s (%s)", protocol, node, conn.RemoteAddr(), conn.TermType())
 	defer func() {
-		s.logInfo("node %d disconnected", node)
+		s.logInfo("[%s] node %d disconnected", protocol, node)
 		s.Nodes.Leave(node)
 	}()
 
@@ -132,10 +138,10 @@ func (s *Server) Handle(conn Conn) {
 		return
 	}
 	s.Nodes.SetUsername(node, u.Username)
-	s.logInfo("node %d: %s logged in", node, u.Username)
+	s.logInfo("[%s] node %d: %s logged in", protocol, node, u.Username)
 
 	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
-		s.logWarn("node %d (%s): menu error: %v", node, u.Username, err)
+		s.logWarn("[%s] node %d (%s): menu error: %v", protocol, node, u.Username, err)
 		term.Println("\n" + ansi.FG(ansi.Red, true) + "Menu error: " + err.Error())
 	}
 

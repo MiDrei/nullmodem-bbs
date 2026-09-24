@@ -1114,3 +1114,78 @@ func runSlowConsumerPeer(ln net.Listener, unblockProcessing chan<- struct{}) err
 
 	return writeCommandFrame(conn, MEOB, "")
 }
+
+// fakeRecorder implements SessionRecorder, capturing "direction: line"
+// entries in order for a test to inspect.
+type fakeRecorder struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (r *fakeRecorder) RecordFrame(direction, line string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.lines = append(r.lines, direction+": "+line)
+}
+
+// TestSessionRecorderRedactsPasswordAndSummarizesDataFrames locks in
+// SessionRecorder's two safety properties: M_PWD's argument never
+// reaches the recorder (redacted to "***" on both the sending and
+// receiving side, regardless of whether it's plaintext or a CRAM-MD5
+// digest), and a data frame is summarized by its byte count only,
+// never its actual content.
+func TestSessionRecorderRedactsPasswordAndSummarizesDataFrames(t *testing.T) {
+	origRec := &fakeRecorder{}
+	ansRec := &fakeRecorder{}
+
+	origResult, ansResult, origErr, ansErr := runPair(t,
+		Config{
+			OurAddresses: []string{"1:234/56.0"},
+			Password:     "super-secret",
+			Recorder:     origRec,
+			OutboundFiles: []OutboundFile{
+				{Name: "test.pkt", Size: 5, ModTime: time.Now(), Data: bytes.NewReader([]byte("hello"))},
+			},
+		},
+		Config{
+			OurAddresses: []string{"21:1/100"},
+			Password:     "super-secret",
+			Recorder:     ansRec,
+		},
+	)
+	if origErr != nil || ansErr != nil {
+		t.Fatalf("runPair: origErr=%v ansErr=%v", origErr, ansErr)
+	}
+	if len(origResult.FilesSent) != 1 || len(ansResult.FilesReceived) != 1 {
+		t.Fatalf("expected the one file to transfer: origResult=%+v ansResult=%+v", origResult, ansResult)
+	}
+
+	for _, rec := range []*fakeRecorder{origRec, ansRec} {
+		for _, line := range rec.lines {
+			if strings.Contains(line, "super-secret") {
+				t.Fatalf("recorded line leaked the password: %q (all lines: %v)", line, rec.lines)
+			}
+		}
+	}
+
+	wantLine := func(lines []string, want string) bool {
+		for _, l := range lines {
+			if l == want {
+				return true
+			}
+		}
+		return false
+	}
+	if !wantLine(origRec.lines, "send: M_PWD ***") {
+		t.Fatalf("originator lines = %v, want a redacted \"send: M_PWD ***\"", origRec.lines)
+	}
+	if !wantLine(ansRec.lines, "recv: M_PWD ***") {
+		t.Fatalf("answerer lines = %v, want a redacted \"recv: M_PWD ***\"", ansRec.lines)
+	}
+	if !wantLine(origRec.lines, "send: DATA 5 bytes") {
+		t.Fatalf("originator lines = %v, want \"send: DATA 5 bytes\" (content summarized, not embedded)", origRec.lines)
+	}
+	if !wantLine(ansRec.lines, "recv: DATA 5 bytes") {
+		t.Fatalf("answerer lines = %v, want \"recv: DATA 5 bytes\"", ansRec.lines)
+	}
+}

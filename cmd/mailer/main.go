@@ -30,6 +30,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/archive"
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
+	"git.maik.ch/swissmaik/nullmodem/internal/binkplog"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
@@ -73,6 +74,8 @@ func main() {
 	users := user.NewStore(sqlDB)
 	pollStore := tosser.NewUplinkPollStore(sqlDB)
 	archiveDir := filepath.Join(filepath.Dir(cfg.Database.Path), "inbound-archive")
+	sessionLogDir := filepath.Join(filepath.Dir(cfg.Database.Path), "binkp-sessions")
+	sessionLog := binkplog.NewStore(sqlDB, sessionLogDir)
 	robot := &tosser.RobotConfig{
 		OurAddresses: cfg.BBS.FTNAddresses,
 		BBSName:      cfg.BBS.Name,
@@ -97,13 +100,13 @@ func main() {
 	defer stop()
 
 	if cfg.Binkp.ListenEnabled && cfg.Binkp.ListenAddr != "" {
-		if err := startInboundListener(ctx, cfg, netmailStore, messages, users, robot, ticCfg, logger); err != nil {
+		if err := startInboundListener(ctx, cfg, netmailStore, messages, users, robot, ticCfg, sessionLog, logger); err != nil {
 			logger.Warn("starting inbound BinkP listener on %s: %v", cfg.Binkp.ListenAddr, err)
 		}
 	}
 
 	logger.Info("mailer daemon starting, checking every %s which uplinks are due (default interval %s)", checkInterval, defaultInterval)
-	checkUplinks(ctx, cfg, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, logger)
+	checkUplinks(ctx, cfg, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, sessionLog, logger)
 
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
@@ -113,7 +116,7 @@ func main() {
 			logger.Info("mailer daemon shutting down")
 			return
 		case <-ticker.C:
-			checkUplinks(ctx, cfg, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, logger)
+			checkUplinks(ctx, cfg, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, sessionLog, logger)
 		}
 	}
 }
@@ -130,7 +133,7 @@ const inboundSessionTimeout = 5 * time.Minute
 // connection is authenticated by matching its claimed FTN address
 // against cfg.Binkp.Uplinks, so only an already-configured uplink can
 // push mail to us; anything else is rejected.
-func startInboundListener(ctx context.Context, cfg *config.Config, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, logger *applog.Logger) error {
+func startInboundListener(ctx context.Context, cfg *config.Config, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, sessionLog *binkplog.Store, logger *applog.Logger) error {
 	ln, err := net.Listen("tcp", cfg.Binkp.ListenAddr)
 	if err != nil {
 		return err
@@ -152,7 +155,7 @@ func startInboundListener(ctx context.Context, cfg *config.Config, netmailStore 
 				logger.Warn("inbound BinkP listener: accept: %v", err)
 				continue
 			}
-			go handleInboundConn(ctx, conn, cfg, netmailStore, messages, users, robot, ticCfg, logger)
+			go handleInboundConn(ctx, conn, cfg, netmailStore, messages, users, robot, ticCfg, sessionLog, logger)
 		}
 	}()
 
@@ -161,14 +164,14 @@ func startInboundListener(ctx context.Context, cfg *config.Config, netmailStore 
 
 // handleInboundConn answers one inbound BinkP connection and logs the
 // outcome, mirroring checkUplinks' logging for an outbound poll.
-func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, logger *applog.Logger) {
+func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, sessionLog *binkplog.Store, logger *applog.Logger) {
 	defer conn.Close()
 
 	sessionCtx, cancel := context.WithTimeout(ctx, inboundSessionTimeout)
 	defer cancel()
 
 	remote := conn.RemoteAddr().String()
-	res, err := tosser.Answer(sessionCtx, conn, cfg.BBS.FTNAddresses, cfg.BBS.Name, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg)
+	res, err := tosser.Answer(sessionCtx, conn, cfg.BBS.FTNAddresses, cfg.BBS.Name, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg, sessionLog)
 	if err != nil {
 		logger.Warn("inbound BinkP session from %s: %v", remote, err)
 		return
@@ -210,7 +213,7 @@ func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, n
 // and, since checkInterval is 60s and minGapBetweenAnyPolls is 5
 // minutes, this same gap is what throttles crash delivery to at most
 // once per 5 minutes even when mail keeps arriving faster than that.
-func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, pollStore *tosser.UplinkPollStore, defaultInterval time.Duration, logger *applog.Logger) {
+func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, pollStore *tosser.UplinkPollStore, defaultInterval time.Duration, sessionLog *binkplog.Store, logger *applog.Logger) {
 	if len(cfg.BBS.FTNAddresses) == 0 {
 		logger.Warn("this system's FTN address isn't configured; skipping poll")
 		return
@@ -236,7 +239,7 @@ func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail
 		if uplink.Hold {
 			continue // never dialed automatically -- see BinkpUplink.Hold's own doc comment
 		}
-		if dialedForPendingMail(ctx, cfg, uplink, netmailStore, messages, users, robot, ticCfg, pollStore, logger) {
+		if dialedForPendingMail(ctx, cfg, uplink, netmailStore, messages, users, robot, ticCfg, pollStore, sessionLog, logger) {
 			return
 		}
 		if uplink.PollDisabled {
@@ -244,7 +247,7 @@ func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail
 				continue // purely crash-only: no fallback interval configured
 			}
 		}
-		if pollIfDue(ctx, cfg, uplink, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, now, logger) {
+		if pollIfDue(ctx, cfg, uplink, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, now, sessionLog, logger) {
 			return
 		}
 	}
@@ -256,7 +259,7 @@ func checkUplinks(ctx context.Context, cfg *config.Config, netmailStore *netmail
 // the outcome. Reports whether it actually dialed (whether or not
 // that dial succeeded), so checkUplinks' caller can stop after one
 // dial per tick the same way it does for a crash dial.
-func pollIfDue(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, pollStore *tosser.UplinkPollStore, defaultInterval time.Duration, now time.Time, logger *applog.Logger) bool {
+func pollIfDue(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, pollStore *tosser.UplinkPollStore, defaultInterval time.Duration, now time.Time, sessionLog *binkplog.Store, logger *applog.Logger) bool {
 	last, err := pollStore.LastPolledAt(uplink.Host)
 	if err != nil {
 		logger.Warn("checking last poll time for %s (%s): %v", uplink.Address, uplink.Host, err)
@@ -270,7 +273,7 @@ func pollIfDue(ctx context.Context, cfg *config.Config, uplink config.BinkpUplin
 		return false
 	}
 
-	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, cfg.BBS.Name, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg)
+	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, cfg.BBS.Name, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg, sessionLog)
 	if err != nil {
 		logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
 		return true
@@ -302,7 +305,7 @@ func skippedFilesSuffix(skipped []string) string {
 // scheduling. Reports whether it actually dialed (whether or not that
 // dial succeeded), so checkUplinks' caller can stop after one dial
 // per tick the same way it does for a regular poll.
-func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, pollStore *tosser.UplinkPollStore, logger *applog.Logger) bool {
+func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, pollStore *tosser.UplinkPollStore, sessionLog *binkplog.Store, logger *applog.Logger) bool {
 	routedNetmail, err := tosser.RoutedOutbound(netmailStore, uplink, cfg.Binkp.Uplinks)
 	if err != nil {
 		logger.Warn("checking pending netmail for %s (%s): %v", uplink.Address, uplink.Host, err)
@@ -338,7 +341,7 @@ func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config
 		logger.Warn("recording poll attempt for %s (%s): %v", uplink.Address, uplink.Host, err)
 		return false
 	}
-	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, cfg.BBS.Name, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg)
+	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, cfg.BBS.Name, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg, sessionLog)
 	if err != nil {
 		logger.Warn("crash-dialing %s (%s) for pending mail: %v", uplink.Address, uplink.Host, err)
 		return true

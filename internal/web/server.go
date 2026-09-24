@@ -16,6 +16,7 @@ import (
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/archive"
 	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
+	"git.maik.ch/swissmaik/nullmodem/internal/binkplog"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
@@ -35,6 +36,7 @@ type Server struct {
 	EchoAreafix   *areafix.EchoStore
 	FileAreafix   *areafix.FileStore
 	Archive       *archive.Store
+	BinkpLog      *binkplog.Store
 	BBSConfigPath string
 	// FTNAddress is this system's own primary FTN address (see
 	// config.Config.PrimaryFTNAddress), stamped on netmail the BBS
@@ -122,6 +124,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/menus/{name}/items/{key}", s.requireAuth(http.HandlerFunc(s.handleSetMenuItemSL)))
 
 	mux.Handle("GET /api/logs", s.requireAuth(http.HandlerFunc(s.handleListLogs)))
+	mux.Handle("GET /api/binkp/sessions", s.requireAuth(http.HandlerFunc(s.handleListBinkpSessions)))
+	mux.Handle("GET /api/binkp/sessions/{id}/transcript", s.requireAuth(http.HandlerFunc(s.handleGetBinkpSessionTranscript)))
 
 	// BBS user portal: open to any registered account, gated per
 	// endpoint/area (see requireBBSUser's own doc comment), not just

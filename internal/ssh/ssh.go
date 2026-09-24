@@ -38,6 +38,9 @@ func (s *Session) TermType() string {
 	return s.term
 }
 
+// Protocol implements bbs.Conn.
+func (s *Session) Protocol() string { return "ssh" }
+
 // WindowSize returns the last known terminal dimensions.
 func (s *Session) WindowSize() (width, height int) {
 	s.mu.Lock()

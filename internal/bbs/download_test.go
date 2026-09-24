@@ -30,6 +30,7 @@ type pipeConn struct {
 
 func (c pipeConn) RemoteAddr() net.Addr   { return c.Conn.RemoteAddr() }
 func (c pipeConn) TermType() string       { return "test" }
+func (c pipeConn) Protocol() string       { return "test" }
 func (c pipeConn) WindowSize() (int, int) { return 80, 24 }
 
 // startRZ starts a real "sexyz rz" subprocess wired to conn (a

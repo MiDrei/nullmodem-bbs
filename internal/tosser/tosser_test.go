@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
+	"git.maik.ch/swissmaik/nullmodem/internal/binkplog"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"
 	"git.maik.ch/swissmaik/nullmodem/internal/db"
 	"git.maik.ch/swissmaik/nullmodem/internal/mail"
@@ -93,7 +94,7 @@ func TestPollSendsPendingNetmailAndMarksSent(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -192,7 +193,7 @@ func TestPollSendsPendingOutboundEchoAndMarksSent(t *testing.T) {
 		Address: "21:3/194",
 		Host:    addr,
 		Network: "fsxNet",
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -297,7 +298,7 @@ func TestPollStampsOriginWithTheAKAMatchingTheUplinksOwnZone(t *testing.T) {
 		Address: "954:700/1",
 		Host:    addr,
 		Network: "HobbyNet",
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -369,7 +370,7 @@ func TestPollReceivesInboundNetmailForLocalUser(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -423,7 +424,7 @@ func TestPollStampsPacketPasswordOnOutboundPacket(t *testing.T) {
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "pktpass",
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -477,7 +478,7 @@ func TestPollRejectsInboundPacketWithWrongPassword(t *testing.T) {
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "rightpw",
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err == nil {
 		t.Fatal("Poll with a wrong inbound packet password: want error, got nil")
 	}
@@ -527,7 +528,7 @@ func TestPollAcceptsInboundPacketWithMatchingPassword(t *testing.T) {
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "rightpw",
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -586,7 +587,7 @@ func TestPollAcceptsInboundPacketPasswordCaseInsensitively(t *testing.T) {
 		Address:        "21:3/194",
 		Host:           addr,
 		PacketPassword: "rightpw", // mixed/lower case configured, uppercase on the wire
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -656,7 +657,7 @@ func TestPollAcceptsInboundPacketPasswordFromASiblingUplinkOnTheSameHost(t *test
 	}
 
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", fsxnetUplink,
-		[]config.BinkpUplink{fsxnetUplink, hobbynetUplink}, netmailStore, messages, users, nil, nil)
+		[]config.BinkpUplink{fsxnetUplink, hobbynetUplink}, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -702,7 +703,7 @@ func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -716,14 +717,14 @@ func TestPollQueuesInboundNetmailForUnresolvedRecipient(t *testing.T) {
 
 func TestPollRejectsInvalidOwnAddress(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
-	if _, err := Poll(context.Background(), []string{"not-an-address"}, "Test BBS", config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users, nil, nil); err == nil {
+	if _, err := Poll(context.Background(), []string{"not-an-address"}, "Test BBS", config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users, nil, nil, nil); err == nil {
 		t.Fatal("Poll with an invalid own FTN address: want error, got nil")
 	}
 }
 
 func TestPollRejectsNoOwnAddresses(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
-	if _, err := Poll(context.Background(), nil, "Test BBS", config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users, nil, nil); err == nil {
+	if _, err := Poll(context.Background(), nil, "Test BBS", config.BinkpUplink{Host: "127.0.0.1:1"}, nil, netmailStore, messages, users, nil, nil, nil); err == nil {
 		t.Fatal("Poll with no own FTN addresses: want error, got nil")
 	}
 }
@@ -741,7 +742,7 @@ func TestPollPresentsAllConfiguredAKAsToUplink(t *testing.T) {
 	_, err := Poll(context.Background(), []string{"21:3/194.1", "954:700/14"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -779,7 +780,7 @@ func TestPollRestrictsAKAsToUplinkWhenConfigured(t *testing.T) {
 		Address:      "21:3/194",
 		Host:         addr,
 		AKAAddresses: []string{"21:3/194.1"},
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -813,7 +814,7 @@ func TestPollErrorsWhenUplinkUnreachable(t *testing.T) {
 	addr := ln.Addr().String()
 	ln.Close()
 
-	if _, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{Address: "21:3/194", Host: addr}, nil, netmailStore, messages, users, nil, nil); err == nil {
+	if _, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{Address: "21:3/194", Host: addr}, nil, netmailStore, messages, users, nil, nil, nil); err == nil {
 		t.Fatal("Poll against an unreachable uplink: want error, got nil")
 	}
 
@@ -865,7 +866,7 @@ func TestPollTossesEchomailIntoAutoCreatedPendingArea(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -988,7 +989,7 @@ func TestPollSkipsNonPacketInboundFilesInsteadOfAbortingTheSession(t *testing.T)
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v, want no error despite the non-packet .tic file", err)
 	}
@@ -1132,7 +1133,7 @@ func TestPollExtractsAndTossesPacketsFromArcMailBundle(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -1198,7 +1199,7 @@ func TestPollSkipsEchomailAlreadyTossedUnderTheSameMsgID(t *testing.T) {
 		res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 			Address: "21:3/194",
 			Host:    addr,
-		}, nil, netmailStore, messages, users, nil, nil)
+		}, nil, netmailStore, messages, users, nil, nil, nil)
 		if err != nil {
 			t.Fatalf("Poll: %v", err)
 		}
@@ -1270,7 +1271,7 @@ func TestPollTossesEchomailIntoExistingApprovedArea(t *testing.T) {
 	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
 		Address: "21:3/194",
 		Host:    addr,
-	}, nil, netmailStore, messages, users, nil, nil)
+	}, nil, netmailStore, messages, users, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
@@ -1380,7 +1381,7 @@ func TestAnswerAuthenticatesKnownUplinkAndTossesMail(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{uplink}, netmailStore, messages, users, nil, nil)
+		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{uplink}, netmailStore, messages, users, nil, nil, nil)
 		answerCh <- answerOutcome{res: res, err: err}
 	}()
 
@@ -1458,7 +1459,7 @@ func TestAnswerDeliversOwnPendingMailToCaller(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		res, err := Answer(context.Background(), conn, []string{"9999:1/1"}, "Test BBS", []config.BinkpUplink{uplink}, netmailStore, messages, users, nil, nil)
+		res, err := Answer(context.Background(), conn, []string{"9999:1/1"}, "Test BBS", []config.BinkpUplink{uplink}, netmailStore, messages, users, nil, nil, nil)
 		answerCh <- answerOutcome{res: res, err: err}
 	}()
 
@@ -1529,7 +1530,7 @@ func TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink(t *testing.T) {
 			return
 		}
 		defer conn.Close()
-		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{knownUplink}, netmailStore, messages, users, nil, nil)
+		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{knownUplink}, netmailStore, messages, users, nil, nil, nil)
 		answerCh <- answerOutcome{res: res, err: err}
 	}()
 
@@ -1546,5 +1547,113 @@ func TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink(t *testing.T) {
 	out := <-answerCh
 	if out.err == nil {
 		t.Fatal("Answer: expected an error for an unrecognized caller")
+	}
+}
+
+// TestPollAndAnswerRecordSessionTranscriptsWhenSessionLogConfigured is
+// an end-to-end check through the real Poll/Answer functions (not
+// binkp directly): with a *binkplog.Store wired in on both sides, a
+// real session -- including a real password exchange -- produces one
+// readable, redacted transcript entry per side.
+func TestPollAndAnswerRecordSessionTranscriptsWhenSessionLogConfigured(t *testing.T) {
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+	netmailStore := netmail.NewStore(sqlDB)
+	messages := message.NewStore(sqlDB)
+	users := user.NewStore(sqlDB)
+	// One shared Store for both directions, same as a real mailer
+	// daemon has exactly one binkplog.Store (backed by one binkp_sessions
+	// table) regardless of whether it's dialing out or answering in.
+	sessionLog := binkplog.NewStore(sqlDB, filepath.Join(t.TempDir(), "sessions"))
+
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register alice: %v", err)
+	}
+	if _, err := netmailStore.Send(alice.ID, "21:3/194.1", 0, "Someone", "21:3/194", "Hi", "body", false); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+
+	knownUplink := config.BinkpUplink{Address: "21:3/194.1", Host: "unused-for-answer-test", Password: "sess3cret"}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	type answerOutcome struct {
+		res *Result
+		err error
+	}
+	answerCh := make(chan answerOutcome, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			answerCh <- answerOutcome{err: err}
+			return
+		}
+		defer conn.Close()
+		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{knownUplink}, netmailStore, messages, users, nil, nil, sessionLog)
+		answerCh <- answerOutcome{res: res, err: err}
+	}()
+
+	if _, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", config.BinkpUplink{
+		Address:  "21:3/194",
+		Host:     ln.Addr().String(),
+		Password: "sess3cret",
+	}, nil, netmailStore, messages, users, nil, nil, sessionLog); err != nil {
+		t.Fatalf("Poll: %v", err)
+	}
+	if out := <-answerCh; out.err != nil {
+		t.Fatalf("Answer: %v", out.err)
+	}
+
+	entries, err := sessionLog.Recent(10)
+	if err != nil {
+		t.Fatalf("Recent: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d session entries, want 2 (one outbound, one inbound)", len(entries))
+	}
+	var sawOutbound, sawInbound bool
+	for _, e := range entries {
+		if e.Outcome != "ok" {
+			t.Fatalf("entry = %+v, want outcome=ok", e)
+		}
+		switch e.Direction {
+		case "outbound":
+			sawOutbound = true
+		case "inbound":
+			sawInbound = true
+		default:
+			t.Fatalf("entry = %+v, want direction outbound or inbound", e)
+		}
+
+		rc, err := sessionLog.Open(e.ID)
+		if err != nil {
+			t.Fatalf("Open(%d): %v", e.ID, err)
+		}
+		transcript, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatalf("reading transcript %d: %v", e.ID, err)
+		}
+		text := string(transcript)
+		if !strings.Contains(text, "M_ADR") {
+			t.Fatalf("%s transcript missing M_ADR: %q", e.Direction, text)
+		}
+		if !strings.Contains(text, "M_PWD ***") {
+			t.Fatalf("%s transcript missing redacted M_PWD: %q", e.Direction, text)
+		}
+		if strings.Contains(text, "sess3cret") {
+			t.Fatalf("%s transcript leaked the real password: %q", e.Direction, text)
+		}
+	}
+	if !sawOutbound || !sawInbound {
+		t.Fatalf("entries = %+v, want one outbound and one inbound", entries)
 	}
 }

@@ -333,3 +333,24 @@ CREATE TABLE IF NOT EXISTS inbound_archive (
 );
 
 CREATE INDEX IF NOT EXISTS idx_inbound_archive_received_at ON inbound_archive(received_at);
+
+-- binkp_sessions is internal/binkplog's own record of every BinkP
+-- session's complete frame-level transcript -- storage_path points at
+-- the actual (redacted, human-readable) transcript text on disk, kept
+-- out of the database itself, pruned automatically after
+-- binkplog.RetentionPeriod, same pattern as inbound_archive above.
+CREATE TABLE IF NOT EXISTS binkp_sessions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- direction is "outbound" (we dialed) or "inbound" (they dialed us).
+    direction      TEXT NOT NULL,
+    peer_address   TEXT NOT NULL DEFAULT '',
+    peer_host      TEXT NOT NULL DEFAULT '',
+    started_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    storage_path   TEXT NOT NULL,
+    size_bytes     INTEGER NOT NULL DEFAULT 0,
+    -- outcome is "ok" or "error"; detail carries the error message.
+    outcome        TEXT NOT NULL DEFAULT '',
+    detail         TEXT NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_binkp_sessions_started_at ON binkp_sessions(started_at);

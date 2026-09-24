@@ -287,7 +287,7 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 		Password:       req.Password,
 		PacketPassword: req.PacketPassword,
 		Network:        req.Network,
-	}, c.Binkp.Uplinks, s.Netmail, s.Messages, s.Users, robot, ticCfg)
+	}, c.Binkp.Uplinks, s.Netmail, s.Messages, s.Users, robot, ticCfg, s.BinkpLog)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("poll failed: %v", err))
 		return

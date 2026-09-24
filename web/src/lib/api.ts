@@ -763,6 +763,42 @@ export function listLogs(token: string, afterId?: number, limit = 200): Promise<
 	return request<LogEntry[]>(`/api/logs?${params}`, { method: 'GET' }, token);
 }
 
+/** One recorded BinkP session's summary (see internal/binkplog) -- the admin Logs page's BinkP tab. Its full frame-by-frame transcript is fetched separately via getBinkpSessionTranscript, only once a row's Detail is opened. */
+export interface BinkpSessionEntry {
+	id: number;
+	/** "outbound" (we dialed) or "inbound" (they dialed us). */
+	direction: 'outbound' | 'inbound';
+	peer_address: string;
+	peer_host: string;
+	started_at: string;
+	size_bytes: number;
+	/** "ok" or "error"; detail carries the error message. */
+	outcome: 'ok' | 'error';
+	detail: string;
+}
+
+export function listBinkpSessions(token: string, limit = 100): Promise<BinkpSessionEntry[]> {
+	return request<BinkpSessionEntry[]>(`/api/binkp/sessions?limit=${limit}`, { method: 'GET' }, token);
+}
+
+/** Fetches one session's full recorded transcript (M_PWD already redacted server-side) as plain text. */
+export async function getBinkpSessionTranscript(token: string, id: number): Promise<string> {
+	const res = await fetch(`/api/binkp/sessions/${id}/transcript`, {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	if (!res.ok) {
+		let message = res.statusText;
+		try {
+			const body = await res.json();
+			if (body?.error) message = body.error;
+		} catch {
+			// response body wasn't JSON; fall back to statusText
+		}
+		throw new ApiError(res.status, message);
+	}
+	return res.text();
+}
+
 // ---------------------------------------------------------------------
 // BBS user portal (routes/(portal)/*) -- separate login/endpoints from
 // the sysop admin API above (see internal/web/auth.go's

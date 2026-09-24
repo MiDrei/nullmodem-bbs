@@ -218,7 +218,7 @@ func TestPollForwardsEchomailToSubscribedDownlinkAndMarksSeenBy(t *testing.T) {
 		FileStore:    fileSubs,
 	}
 
-	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", dial, []config.BinkpUplink{dial}, netmailStore, messages, users, robot, nil)
+	res, err := Poll(context.Background(), []string{"21:3/194.1"}, "Test BBS", dial, []config.BinkpUplink{dial}, netmailStore, messages, users, robot, nil, nil)
 	if err != nil {
 		t.Fatalf("Poll: %v", err)
 	}
