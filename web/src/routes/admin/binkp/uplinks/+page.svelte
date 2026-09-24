@@ -71,7 +71,12 @@
 
 	function openEdit(index: number) {
 		if (!config) return;
-		editingUplink = structuredClone(config.binkp_uplinks[index]);
+		// $state.snapshot, not structuredClone: cloning a live $state
+		// proxy directly throws DataCloneError (a known Svelte 5 gotcha
+		// -- the structured-clone algorithm rejects Proxy instances
+		// outright). snapshot() already returns an independent, non-
+		// reactive deep copy on its own, so nothing further is needed.
+		editingUplink = $state.snapshot(config.binkp_uplinks[index]);
 		editingIndex = index;
 	}
 
