@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"git.maik.ch/swissmaik/nullmodem/internal/version"
 )
 
 // OutboundFile is a file this side offers to send during a session --
@@ -83,6 +85,18 @@ type Config struct {
 	// each); OutboundFilesForAddresses, if also set, overwrites
 	// whatever's here once the caller authenticates.
 	OutboundFiles []OutboundFile
+	// RescanOutboundFiles, if set, is called after every batch this
+	// side sends (see FSP-1024 section 4.2, "Re-initialise session
+	// after EOB") to check whether anything new should go out in
+	// another batch before the session ends -- e.g. mail that got
+	// tossed into the outbound queue while this session was already in
+	// progress. Only ever called when the peer also advertised
+	// binkp/1.1 (see the session-level doc comment on this behavior
+	// near runTransfer); a nil result or nil func means "nothing new",
+	// which is also exactly OutboundFiles' own zero-batch case, so a
+	// caller that doesn't wire this up behaves identically to one that
+	// only ever offers a single batch.
+	RescanOutboundFiles func() []OutboundFile
 	// ReceiveFile is called once per file the peer sends us; it must
 	// read r to completion (exactly Size bytes) before returning, or
 	// the session aborts. A nil ReceiveFile discards received files.
@@ -225,8 +239,32 @@ type session struct {
 	// nextFrame calls must check it before reading the connection.
 	pending *pendingFrame
 
+	// peerBinkp11 records whether the peer's own M_NUL "VER ..." line
+	// (seen anywhere from the address exchange through the end of
+	// authentication -- see noteVersionLine's call sites) ended in
+	// "binkp/1.1". Multi-batch behavior (see runTransfer) only ever
+	// activates when this is true: a peer that never sends a VER line,
+	// or advertises binkp/1.0, gets exactly this package's original
+	// single-batch behavior, per FSP-1024's own fallback requirement.
+	peerBinkp11 bool
+
 	mu     sync.Mutex
 	result Result
+}
+
+// noteVersionLine inspects one M_NUL line's argument and records
+// whether it's a protocol identification string (FSP-1024 section
+// 4.1: M_NUL "VER mailer version binkp/1.1") advertising binkp/1.1,
+// case-insensitively per that section's own wording. Harmless no-op
+// for every other M_NUL line (SYS/ZYZ/LOC/OPT).
+func (s *session) noteVersionLine(arg string) {
+	fields := strings.Fields(arg)
+	if len(fields) < 2 || !strings.EqualFold(fields[0], "VER") {
+		return
+	}
+	if strings.EqualFold(fields[len(fields)-1], "binkp/1.1") {
+		s.peerBinkp11 = true
+	}
 }
 
 type pendingFrame struct {
@@ -330,7 +368,7 @@ func (s *session) sendData(data []byte) error {
 // contribution to the problem regardless of whose behavior is
 // technically "correct".
 func (s *session) sendInfoAndAddress(ourAddresses []string) error {
-	lines := []string{"VER NullModem-BinkP/1.0 binkp/1.0"}
+	lines := []string{"VER NullModem-BinkP/" + version.Short() + " binkp/1.1"}
 	if s.cfg.SysName != "" {
 		lines = append(lines, "SYS "+s.cfg.SysName)
 	}
@@ -380,6 +418,7 @@ func (s *session) readHandshakeFrames() (peerAddrs, cramChallenge string, err er
 		arg := string(payload[1:])
 		switch cmd {
 		case MNUL:
+			s.noteVersionLine(arg)
 			if ch, ok := parseCRAMChallenge(arg); ok {
 				cramChallenge = ch
 			}
@@ -439,6 +478,7 @@ func (s *session) readPasswordResponse() error {
 		cmd, arg := Command(payload[0]), string(payload[1:])
 		switch cmd {
 		case MNUL:
+			s.noteVersionLine(arg)
 			continue
 		case MOK:
 			return nil
@@ -508,6 +548,7 @@ func (s *session) answererHandshake() error {
 			return err
 		}
 		if !isData && len(payload) > 0 && Command(payload[0]) == MNUL {
+			s.noteVersionLine(string(payload[1:]))
 			continue
 		}
 		break
@@ -548,32 +589,75 @@ func (s *session) answererHandshake() error {
 	return s.send(MOK, "")
 }
 
-// runTransfer sends our OutboundFiles (ending in M_EOB) concurrently
-// with reading whatever the peer sends, until both directions are
-// done: we've sent our M_EOB and read theirs.
+// runTransfer sends and receives one or more batches, each a round of
+// OutboundFiles (or a rescan's result) sent concurrently with reading
+// whatever the peer sends, ending in M_EOB on both sides.
+//
+// A binkp/1.0 peer (or one that never sent a VER line at all -- see
+// noteVersionLine) gets exactly this package's original behavior:
+// one round, done as soon as both sides have reached M_EOB and every
+// file this side offered has been M_GOT-acknowledged.
+//
+// Against a peer that also advertised binkp/1.1, FSP-1024 section 4.2
+// applies instead: after a round ends, this side checks
+// RescanOutboundFiles for anything new and, if there is any, sends
+// another round rather than closing -- and, symmetrically, keeps
+// answering the peer's own further rounds for as long as it keeps
+// sending files. Only once a round comes back "empty" on both sides
+// at once (this side had nothing new to send AND the peer's own round
+// carried no M_FILE) does the session actually end, per the spec's
+// "only an empty batch ends the session". Without this, a real
+// binkp/1.1 peer that queues fresh mail mid-session and starts a
+// second batch would find this side already gone -- the same
+// interoperability bug documented and fixed for ENiGMA-BBS in
+// https://github.com/NuSkooler/enigma-bbs/pull/730 ("sessions close
+// instead of timing out").
 func (s *session) runTransfer() (*Result, error) {
-	sendErrCh := make(chan error, 1)
-	go func() { sendErrCh <- s.sendFiles() }()
+	gotCount := 0
+	expectedGot := 0
+	files := s.cfg.OutboundFiles
 
-	recvErr := s.receiveLoop()
-	sendErr := <-sendErrCh
+	for {
+		expectedGot += len(files)
 
-	if recvErr != nil {
-		return nil, fmt.Errorf("binkp: receiving: %w", recvErr)
+		sendErrCh := make(chan error, 1)
+		go func(files []OutboundFile) { sendErrCh <- s.sendBatch(files) }(files)
+
+		peerFilesThisRound, peerClosed, recvErr := s.receiveBatch(&gotCount, expectedGot)
+		sendErr := <-sendErrCh
+
+		if recvErr != nil {
+			return nil, fmt.Errorf("binkp: receiving: %w", recvErr)
+		}
+		if sendErr != nil {
+			return nil, fmt.Errorf("binkp: sending: %w", sendErr)
+		}
+
+		weSentAnything := len(files) > 0
+		if peerClosed || !s.peerBinkp11 || (!weSentAnything && peerFilesThisRound == 0) {
+			return &s.result, nil
+		}
+		files = s.rescanOutboundFiles()
 	}
-	if sendErr != nil {
-		return nil, fmt.Errorf("binkp: sending: %w", sendErr)
-	}
-	return &s.result, nil
 }
 
-func (s *session) sendFiles() error {
-	for _, f := range s.cfg.OutboundFiles {
+func (s *session) sendBatch(files []OutboundFile) error {
+	for _, f := range files {
 		if err := s.sendOneFile(f); err != nil {
 			return err
 		}
 	}
 	return s.send(MEOB, "")
+}
+
+// rescanOutboundFiles calls Config.RescanOutboundFiles if set, else
+// reports no new files -- the same "nothing to add" result a caller
+// that never wires up multi-batch mail would get anyway.
+func (s *session) rescanOutboundFiles() []OutboundFile {
+	if s.cfg.RescanOutboundFiles == nil {
+		return nil
+	}
+	return s.cfg.RescanOutboundFiles()
 }
 
 // sendOneFile holds writeMu for the file's entire M_FILE-plus-data-
@@ -615,65 +699,72 @@ func (s *session) sendOneFile(f OutboundFile) error {
 	return nil
 }
 
-// receiveLoop reads command frames, dispatching M_FILE to
-// receiveOneFile and recording M_GOT acknowledgments, until the
-// session is truly over: the peer has sent M_EOB (no more files
-// coming from them) AND we've seen an M_GOT for every file we
-// offered. M_GOT for our last file(s) commonly arrives *after* the
-// peer's own M_EOB -- M_EOB only means "I have nothing more to send",
-// not "I'm done acknowledging what you sent me" -- so stopping on
-// M_EOB alone would drop trailing acknowledgments and, worse, let
-// Dial's deferred conn.Close race the peer still writing them.
+// receiveBatch reads command frames for one batch/round, dispatching
+// M_FILE to receiveOneFile and recording M_GOT acknowledgments
+// against the cumulative counters *gotCount/expectedGot (cumulative
+// across every round so far -- see runTransfer), until this round is
+// over: the peer has sent M_EOB (no more files coming from them this
+// round) AND every file offered in this round or any earlier one has
+// been M_GOT-acknowledged. M_GOT for this round's last file(s)
+// commonly arrives *after* the peer's own M_EOB for this round --
+// M_EOB only means "I have nothing more to send this batch", not "I'm
+// done acknowledging what you sent me" -- so stopping on M_EOB alone
+// would drop trailing acknowledgments and, worse, let Dial's deferred
+// conn.Close race the peer still writing them. peerFiles reports how
+// many M_FILEs the peer sent during this specific round (0 means an
+// empty batch on their side, the multi-batch termination signal
+// runTransfer checks for).
 //
 // It tolerates stray handshake-phase commands (M_NUL/M_ADR/M_PWD/
 // M_OK) arriving late, since real implementations occasionally resend
 // them. It also tolerates a peer that closes the connection instead
 // of sending a formal M_EOB once it has nothing left to send --
 // observed live against a real uplink that does exactly this right
-// after its last file -- but only once every file we offered has
+// after its last file -- but only once every file offered so far has
 // already been acknowledged; an EOF while our own M_GOT is still
 // outstanding is a real failure, not an implicit M_EOB, and still
-// surfaces as an error.
-func (s *session) receiveLoop() error {
-	expectedGot := len(s.cfg.OutboundFiles)
-	gotCount := 0
+// surfaces as an error. Either way, an EOF-tolerated end reports
+// peerClosed=true so runTransfer knows not to attempt another round
+// over a connection that's already gone.
+func (s *session) receiveBatch(gotCount *int, expectedGot int) (peerFiles int, peerClosed bool, err error) {
 	peerEOB := false
 
 	for {
-		if peerEOB && gotCount >= expectedGot {
-			return nil
+		if peerEOB && *gotCount >= expectedGot {
+			return peerFiles, false, nil
 		}
 
 		isData, payload, err := s.nextFrame()
 		if err != nil {
-			if err == io.EOF && gotCount >= expectedGot {
-				return nil
+			if err == io.EOF && *gotCount >= expectedGot {
+				return peerFiles, true, nil
 			}
-			return err
+			return peerFiles, false, err
 		}
 		if isData {
-			return fmt.Errorf("unexpected data frame outside a file transfer")
+			return peerFiles, false, fmt.Errorf("unexpected data frame outside a file transfer")
 		}
 		if len(payload) == 0 {
-			return fmt.Errorf("empty command frame")
+			return peerFiles, false, fmt.Errorf("empty command frame")
 		}
 		cmd, arg := Command(payload[0]), string(payload[1:])
 		switch cmd {
 		case MFILE:
 			if err := s.receiveOneFile(arg); err != nil {
-				return err
+				return peerFiles, false, err
 			}
+			peerFiles++
 		case MGOT:
-			gotCount++
+			*gotCount++
 			s.mu.Lock()
 			s.result.FilesSent = append(s.result.FilesSent, strings.Fields(arg)[0])
 			s.mu.Unlock()
 		case MEOB:
 			peerEOB = true
 		case MERR:
-			return fmt.Errorf("peer reported error: %s", arg)
+			return peerFiles, false, fmt.Errorf("peer reported error: %s", arg)
 		case MBSY:
-			return fmt.Errorf("peer busy: %s", arg)
+			return peerFiles, false, fmt.Errorf("peer busy: %s", arg)
 		case MNUL, MADR, MPWD, MOK:
 			// Stray/duplicate handshake frame after the handshake
 			// phase -- nothing to do.

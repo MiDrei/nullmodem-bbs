@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"git.maik.ch/swissmaik/nullmodem/internal/version"
 )
 
 // runPair runs originatorCfg and answererCfg against each other over
@@ -129,7 +131,7 @@ func TestSendInfoAndAddressUsesASingleWrite(t *testing.T) {
 		got = append(got, fmt.Sprintf("%s %s", Command(payload[0]), string(payload[1:])))
 	}
 	want := []string{
-		"M_NUL VER NullModem-BinkP/1.0 binkp/1.0",
+		"M_NUL VER NullModem-BinkP/" + version.Short() + " binkp/1.1",
 		"M_NUL SYS Test BBS",
 		"M_NUL ZYZ Ops",
 		"M_NUL LOC Zurich",
@@ -372,6 +374,167 @@ func TestSessionTransfersMultipleFilesFromOneSide(t *testing.T) {
 	if !reflect.DeepEqual(ansResult.FilesReceived, files) {
 		t.Fatalf("ansResult.FilesReceived = %v, want %v", ansResult.FilesReceived, files)
 	}
+}
+
+// TestMultiBatchSendsFilesQueuedDuringTheSession locks in FSP-1024
+// section 4.2 ("Re-initialise session after EOB"): against a peer
+// that also advertises binkp/1.1 (this package's own default -- see
+// sendInfoAndAddress), a file RescanOutboundFiles only surfaces after
+// the first batch already ended must still go out in the very same
+// session, in a second batch, rather than waiting for the next poll.
+func TestMultiBatchSendsFilesQueuedDuringTheSession(t *testing.T) {
+	var rescanCalls int
+	var mu sync.Mutex
+	var receivedNames []string
+
+	origResult, ansResult, origErr, ansErr := runPair(t,
+		Config{
+			OurAddresses: []string{"1:234/56.0"},
+			OutboundFiles: []OutboundFile{
+				{Name: "first.pkt", Size: 3, ModTime: time.Now(), Data: strings.NewReader("one")},
+			},
+			RescanOutboundFiles: func() []OutboundFile {
+				rescanCalls++
+				if rescanCalls == 1 {
+					return []OutboundFile{
+						{Name: "second.pkt", Size: 3, ModTime: time.Now(), Data: strings.NewReader("two")},
+					}
+				}
+				return nil
+			},
+		},
+		Config{
+			OurAddresses: []string{"1:234/99.0"},
+			ReceiveFile: func(f InboundFile, r io.Reader) error {
+				if _, err := io.ReadAll(r); err != nil {
+					return err
+				}
+				mu.Lock()
+				receivedNames = append(receivedNames, f.Name)
+				mu.Unlock()
+				return nil
+			},
+		},
+	)
+	if origErr != nil {
+		t.Fatalf("originator error: %v", origErr)
+	}
+	if ansErr != nil {
+		t.Fatalf("answerer error: %v", ansErr)
+	}
+	if rescanCalls != 2 {
+		t.Fatalf("RescanOutboundFiles was called %d times, want exactly 2 (once after each of the two non-empty batches)", rescanCalls)
+	}
+
+	want := []string{"first.pkt", "second.pkt"}
+	sort.Strings(receivedNames)
+	if !reflect.DeepEqual(receivedNames, want) {
+		t.Fatalf("receivedNames = %v, want %v", receivedNames, want)
+	}
+	sort.Strings(ansResult.FilesReceived)
+	if !reflect.DeepEqual(ansResult.FilesReceived, want) {
+		t.Fatalf("ansResult.FilesReceived = %v, want %v", ansResult.FilesReceived, want)
+	}
+	sentNames := append([]string(nil), origResult.FilesSent...)
+	sort.Strings(sentNames)
+	if !reflect.DeepEqual(sentNames, want) {
+		t.Fatalf("origResult.FilesSent = %v, want %v", sentNames, want)
+	}
+}
+
+// TestFallsBackToSingleBatchAgainstABinkp10Peer locks in FSP-1024's
+// own fallback requirement (section 3: "if a connection is made with
+// a binkp/1.0 mailer the implementation must fallback to the
+// binkp/1.0 protocol"): a peer that never claims binkp/1.1 must get
+// exactly this package's original one-round behavior -- the session
+// ends right after the first M_EOB exchange, and RescanOutboundFiles
+// must never even be called.
+func TestFallsBackToSingleBatchAgainstABinkp10Peer(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	peerErrCh := make(chan error, 1)
+	go func() { peerErrCh <- runBinkp10OnlyPeer(ln) }()
+
+	var rescanCalls int
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		OutboundFiles: []OutboundFile{
+			{Name: "first.pkt", Size: 3, ModTime: time.Now(), Data: strings.NewReader("one")},
+		},
+		RescanOutboundFiles: func() []OutboundFile {
+			rescanCalls++
+			return []OutboundFile{{Name: "should-not-send.pkt", Size: 1, ModTime: time.Now(), Data: strings.NewReader("x")}}
+		},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := <-peerErrCh; err != nil {
+		t.Fatalf("binkp/1.0 peer: %v", err)
+	}
+	if rescanCalls != 0 {
+		t.Fatalf("RescanOutboundFiles was called %d times, want 0 against a binkp/1.0 peer", rescanCalls)
+	}
+	if len(result.FilesSent) != 1 || result.FilesSent[0] != "first.pkt" {
+		t.Fatalf("FilesSent = %v, want exactly [first.pkt]", result.FilesSent)
+	}
+}
+
+// runBinkp10OnlyPeer plays a plain binkp/1.0 answerer -- its VER line
+// ends in "binkp/1.0", never "binkp/1.1" -- that reads the client's
+// one file and M_EOB, acknowledges it, sends its own empty M_EOB, and
+// stops there: exactly what a real binkp/1.0-only mailer does and
+// nothing more, in particular never offering or expecting a second
+// batch.
+func runBinkp10OnlyPeer(ln net.Listener) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if err := writeCommandFrame(conn, MNUL, "VER OldMailer/1.0 binkp/1.0"); err != nil {
+		return err
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+
+	sawFile := false
+	received := 0
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if isData {
+			received += len(payload)
+			continue
+		}
+		if len(payload) == 0 {
+			return fmt.Errorf("empty command frame")
+		}
+		cmd := Command(payload[0])
+		if cmd == MFILE {
+			sawFile = true
+		}
+		if cmd == MEOB {
+			break
+		}
+	}
+	if !sawFile || received != 3 {
+		return fmt.Errorf("expected exactly one 3-byte file before M_EOB, sawFile=%v received=%d", sawFile, received)
+	}
+	if err := writeCommandFrame(conn, MGOT, "first.pkt 3 0"); err != nil {
+		return err
+	}
+	return writeCommandFrame(conn, MEOB, "")
 }
 
 func TestDialRejectsConfigWithNoAddresses(t *testing.T) {
