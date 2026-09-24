@@ -245,3 +245,120 @@ func startTestAnswererCountingFiles(t *testing.T, password string, filesReceived
 	}()
 	return ln.Addr().String()
 }
+
+// startTestAnswererCapturingRemoteAddresses is startTestAnswerer plus
+// reporting the addresses the caller actually presented via M_ADR
+// (binkp.Result.RemoteAddresses on the answerer's own side) -- lets a
+// test assert exactly which addresses a handler presented, not just
+// that the session succeeded.
+func startTestAnswererCapturingRemoteAddresses(t *testing.T, password string) (addr string, remoteAddresses <-chan []string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	t.Cleanup(func() { ln.Close() })
+
+	ch := make(chan []string, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			ch <- nil
+			return
+		}
+		defer conn.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		res, err := binkp.Answer(ctx, conn, binkp.Config{
+			OurAddresses: []string{"21:3/194"},
+			Password:     password,
+			ReceiveFile: func(f binkp.InboundFile, r io.Reader) error {
+				_, err := io.Copy(io.Discard, r)
+				return err
+			},
+		})
+		if err != nil || res == nil {
+			ch <- nil
+			return
+		}
+		ch <- res.RemoteAddresses
+	}()
+	return ln.Addr().String(), ch
+}
+
+// TestSendNowBinkpPresentsOnlyRestrictedAKAAddresses is a regression
+// test: handleSendNowBinkp used to build its config.BinkpUplink
+// straight from the request body without copying AKAAddresses, so a
+// restricted uplink's "Send Now" silently presented every configured
+// address instead of just the restricted subset (confirmed live).
+func TestSendNowBinkpPresentsOnlyRestrictedAKAAddresses(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	c, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	c.BBS.FTNAddresses = []string{"21:3/194.1", "954:700/14"}
+	if err := config.Save(configPath, c); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+
+	addr, remoteAddresses := startTestAnswererCapturingRemoteAddresses(t, "correct horse")
+
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodPost, "/api/binkp/send-now", binkpUplinkDTO{
+		Address:      "21:3/194",
+		Host:         addr,
+		Password:     "correct horse",
+		AKAAddresses: []string{"21:3/194.1"},
+	}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+
+	got := <-remoteAddresses
+	if len(got) != 1 || got[0] != "21:3/194.1" {
+		t.Fatalf("presented addresses = %v, want exactly [21:3/194.1] (the restricted subset, not every configured address)", got)
+	}
+}
+
+// TestTestBinkpConnectionPresentsOnlyRestrictedAKAAddresses is
+// handleTestBinkpConnection's counterpart to the regression test
+// above -- it never even looked at AKAAddresses.
+func TestTestBinkpConnectionPresentsOnlyRestrictedAKAAddresses(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	if _, err := users.Register("root", "supersecret", user.SLSysop); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	c, err := config.Load(configPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	c.BBS.FTNAddresses = []string{"21:3/194.1", "954:700/14"}
+	if err := config.Save(configPath, c); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+
+	addr, remoteAddresses := startTestAnswererCapturingRemoteAddresses(t, "correct horse")
+
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	rec := doJSON(t, h, http.MethodPost, "/api/binkp/test-connection", binkpUplinkDTO{
+		Host:         addr,
+		Password:     "correct horse",
+		AKAAddresses: []string{"21:3/194.1"},
+	}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
+	}
+
+	got := <-remoteAddresses
+	if len(got) != 1 || got[0] != "21:3/194.1" {
+		t.Fatalf("presented addresses = %v, want exactly [21:3/194.1] (the restricted subset, not every configured address)", got)
+	}
+}

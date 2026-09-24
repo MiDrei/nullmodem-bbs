@@ -220,8 +220,18 @@ func (s *Server) handleTestBinkpConnection(w http.ResponseWriter, r *http.Reques
 	ctx, cancel := context.WithTimeout(r.Context(), binkpRequestTimeout)
 	defer cancel()
 
+	// Mirror tosser.effectiveAKAAddresses: a restricted AKAAddresses
+	// list, if set, is what would actually be presented on a real dial
+	// -- testing with the full unrestricted list instead would give a
+	// falsely reassuring result for an uplink that's deliberately
+	// restricted.
+	presentedAddresses := c.BBS.FTNAddresses
+	if len(req.AKAAddresses) > 0 {
+		presentedAddresses = req.AKAAddresses
+	}
+
 	result, err := binkp.Dial(ctx, req.Host, binkp.Config{
-		OurAddresses: c.BBS.FTNAddresses,
+		OurAddresses: presentedAddresses,
 		Password:     req.Password,
 		SysName:      c.BBS.Name,
 		Sysop:        c.BBS.Sysop,
@@ -287,6 +297,7 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 		Password:       req.Password,
 		PacketPassword: req.PacketPassword,
 		Network:        req.Network,
+		AKAAddresses:   req.AKAAddresses,
 	}, c.Binkp.Uplinks, s.Netmail, s.Messages, s.Users, robot, ticCfg, s.BinkpLog)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("poll failed: %v", err))
