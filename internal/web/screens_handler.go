@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/version"
 )
 

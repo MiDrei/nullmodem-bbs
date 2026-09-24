@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/doors"
 	"git.maik.ch/swissmaik/nullmodem/internal/file"

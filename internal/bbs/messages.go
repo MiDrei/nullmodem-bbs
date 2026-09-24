@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )

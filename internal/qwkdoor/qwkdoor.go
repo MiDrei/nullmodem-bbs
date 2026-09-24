@@ -1,4 +1,12 @@
-package qwk
+// Package qwkdoor is the BBS side of QWK: it gathers a user's mail
+// into a packet, commits the read pointers that implies, and routes
+// an uploaded reply packet back into the right areas.
+//
+// The wire format itself lives in bbskit/qwk, shared with the offline
+// reader. What is left here is everything that needs this system's
+// message, netmail and user stores -- which is precisely what could
+// not be shared.
+package qwkdoor
 
 import (
 	"fmt"
@@ -6,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"git.maik.ch/nullmodem/kit/qwk"
 	"git.maik.ch/swissmaik/nullmodem/internal/message"
 	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
@@ -58,8 +67,8 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		callerName = u.Username
 	}
 
-	var packed []PackedMessage
-	conferences := []ConferenceInfo{{Number: 0, Name: "Personal"}}
+	var packed []qwk.PackedMessage
+	conferences := []qwk.ConferenceInfo{{Number: 0, Name: "Personal"}}
 
 	inbox, err := nm.Inbox(u.ID)
 	if err != nil {
@@ -70,8 +79,8 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		if m.ReadAt.Valid {
 			continue
 		}
-		packed = append(packed, PackedMessage{
-			Header: MessageHeader{
+		packed = append(packed, qwk.PackedMessage{
+			Header: qwk.MessageHeader{
 				Status:     ' ',
 				Number:     len(packed) + 1,
 				Written:    m.PostedAt,
@@ -80,7 +89,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 				Subject:    m.Subject,
 				Conference: 0,
 			},
-			Text: withQWKEKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
+			Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
 		})
 		unreadNetmailIDs = append(unreadNetmailIDs, m.ID)
 	}
@@ -102,7 +111,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		if len(selected) > 0 && !selected[st.Area.ID] {
 			continue
 		}
-		conferences = append(conferences, ConferenceInfo{Number: int(st.Area.ID), Name: st.Area.Name})
+		conferences = append(conferences, qwk.ConferenceInfo{Number: int(st.Area.ID), Name: st.Area.Name})
 
 		areaMessages, err := messages.ListMessages(st.Area.ID)
 		if err != nil {
@@ -116,8 +125,8 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 			if readIDs[m.ID] {
 				continue
 			}
-			packed = append(packed, PackedMessage{
-				Header: MessageHeader{
+			packed = append(packed, qwk.PackedMessage{
+				Header: qwk.MessageHeader{
 					Status:     ' ',
 					Number:     len(packed) + 1,
 					Written:    m.PostedAt,
@@ -126,7 +135,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 					Subject:    m.Subject,
 					Conference: int(st.Area.ID),
 				},
-				Text: withQWKEKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
+				Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
 			})
 			markRead[st.Area.ID] = append(markRead[st.Area.ID], m.ID)
 		}
@@ -136,7 +145,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		return BuildResult{}, nil
 	}
 
-	control := ControlInfo{
+	control := qwk.ControlInfo{
 		BBSName:    bbsName,
 		SysopName:  sysopName,
 		BBSID:      bbsID,
@@ -151,7 +160,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 	}
 
 	packetPath := filepath.Join(dir, bbsID+".QWK")
-	if err := BuildQWKPacket(packetPath, control, packed); err != nil {
+	if err := qwk.BuildQWKPacket(packetPath, control, packed); err != nil {
 		return BuildResult{}, fmt.Errorf("qwk: building packet: %w", err)
 	}
 	return BuildResult{
@@ -190,9 +199,9 @@ func CommitRead(messages *message.Store, nm *netmail.Store, userID int64, unread
 // area whose own ID matches it (rejected if the area doesn't exist,
 // is pending, or the caller lacks write access). It returns how many
 // replies landed in each category.
-func RouteReplies(messages *message.Store, nm *netmail.Store, users *user.Store, ftnAddress string, u *user.User, replies []PackedMessage) (posted, sent, skipped int, err error) {
+func RouteReplies(messages *message.Store, nm *netmail.Store, users *user.Store, ftnAddress string, u *user.User, replies []qwk.PackedMessage) (posted, sent, skipped int, err error) {
 	for _, reply := range replies {
-		conference := reply.Header.Number // REP repurposes this field -- see MessageHeader's doc comment
+		conference := reply.Header.Number // REP repurposes this field -- see qwk.MessageHeader's doc comment
 
 		if conference == 0 {
 			toName := strings.TrimSpace(reply.Header.To)

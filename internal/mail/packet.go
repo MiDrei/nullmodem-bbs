@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 // capValidWord and capWordValue are FSC-0039's way of letting a

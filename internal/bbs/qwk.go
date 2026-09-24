@@ -10,33 +10,34 @@ import (
 
 	"github.com/dustin/go-humanize"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
-	"git.maik.ch/swissmaik/nullmodem/internal/qwk"
+	"git.maik.ch/nullmodem/kit/ansi"
+	"git.maik.ch/nullmodem/kit/qwk"
+	"git.maik.ch/nullmodem/kit/zmodem"
+	"git.maik.ch/swissmaik/nullmodem/internal/qwkdoor"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
-	"git.maik.ch/swissmaik/nullmodem/internal/zmodem"
 )
 
-// buildQWKPacketForUser is a thin wrapper around qwk.BuildPacketForUser
+// buildQWKPacketForUser is a thin wrapper around qwkdoor.BuildPacketForUser
 // binding it to this Server's own stores/identity, shared (via the
 // qwk package) with the web portal's HTTP QWK endpoints.
 func (s *Server) buildQWKPacketForUser(u *user.User, dir string) (packetPath string, messageCount int, unreadNetmailIDs []int64, markRead map[int64][]int64, err error) {
-	result, err := qwk.BuildPacketForUser(s.Messages, s.Netmail, u, s.BBSName, s.SysopName, dir)
+	result, err := qwkdoor.BuildPacketForUser(s.Messages, s.Netmail, u, s.BBSName, s.SysopName, dir)
 	if err != nil {
 		return "", 0, nil, nil, err
 	}
 	return result.PacketPath, result.MessageCount, result.UnreadNetmailIDs, result.MarkRead, nil
 }
 
-// commitQWKRead is a thin wrapper around qwk.CommitRead binding it to
+// commitQWKRead is a thin wrapper around qwkdoor.CommitRead binding it to
 // this Server's own stores.
 func (s *Server) commitQWKRead(userID int64, unreadNetmailIDs []int64, markRead map[int64][]int64) error {
-	return qwk.CommitRead(s.Messages, s.Netmail, userID, unreadNetmailIDs, markRead)
+	return qwkdoor.CommitRead(s.Messages, s.Netmail, userID, unreadNetmailIDs, markRead)
 }
 
-// routeQWKReplies is a thin wrapper around qwk.RouteReplies binding it
+// routeQWKReplies is a thin wrapper around qwkdoor.RouteReplies binding it
 // to this Server's own stores/identity.
 func (s *Server) routeQWKReplies(u *user.User, replies []qwk.PackedMessage) (posted, sent, skipped int, err error) {
-	return qwk.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
+	return qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
 }
 
 // downloadQWK is the "builtin:qwk" command: it builds the caller's
@@ -123,7 +124,7 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "No .REP file was received.")
 	}
 
-	bbsID := qwk.BBSID(s.BBSName)
+	bbsID := qwkdoor.BBSID(s.BBSName)
 	replies, err := qwk.ParseReplyPacket(filepath.Join(tmpDir, repName), bbsID)
 	if err != nil {
 		s.logWarn("parsing QWK reply packet from %s: %v", u.Username, err)

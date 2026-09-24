@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/applog"
 	"git.maik.ch/swissmaik/nullmodem/internal/bbs"
 	"git.maik.ch/swissmaik/nullmodem/internal/config"

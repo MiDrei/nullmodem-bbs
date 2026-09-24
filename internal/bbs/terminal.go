@@ -1,7 +1,7 @@
 package bbs
 
 import (
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 const (

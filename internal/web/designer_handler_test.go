@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/swissmaik/nullmodem/internal/user"
 )
 
