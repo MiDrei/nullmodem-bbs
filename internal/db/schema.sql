@@ -87,6 +87,16 @@ CREATE TABLE IF NOT EXISTS message_reads (
     PRIMARY KEY (user_id, message_id)
 );
 
+-- A user's chosen subset of message areas to include in their QWK
+-- offline-mail packets. No rows for a user means "no explicit
+-- selection yet" -- every readable area with new mail is included,
+-- matching the original QWK behavior before this table existed.
+CREATE TABLE IF NOT EXISTS qwk_area_selections (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    area_id  INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, area_id)
+);
+
 CREATE TABLE IF NOT EXISTS file_areas (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
     tag              TEXT NOT NULL COLLATE NOCASE UNIQUE,

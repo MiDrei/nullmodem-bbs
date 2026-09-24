@@ -1083,3 +1083,65 @@ export async function downloadBBSFile(token: string, id: number, filename: strin
 	a.remove();
 	URL.revokeObjectURL(url);
 }
+
+export interface QWKArea {
+	id: number;
+	name: string;
+	description: string;
+	selected: boolean;
+}
+
+export function listQWKAreas(token: string): Promise<QWKArea[]> {
+	return request<QWKArea[]>('/api/bbs/qwk/areas', { method: 'GET' }, token);
+}
+
+export function setQWKAreas(token: string, areaIds: number[]): Promise<void> {
+	return request<void>(
+		'/api/bbs/qwk/areas',
+		{ method: 'PUT', body: JSON.stringify({ area_ids: areaIds }) },
+		token
+	);
+}
+
+/** Downloads the caller's current .QWK packet the same way downloadBBSFile does. Returns false (nothing fetched, nothing to save) when the server reports no new mail via 204. */
+export async function downloadQWKPacket(token: string): Promise<boolean> {
+	const res = await fetch('/api/bbs/qwk/download', {
+		headers: { Authorization: `Bearer ${token}` }
+	});
+	if (res.status === 204) return false;
+	if (!res.ok) {
+		let message = res.statusText;
+		try {
+			const body = await res.json();
+			if (body?.error) message = body.error;
+		} catch {
+			// response body wasn't JSON; fall back to statusText
+		}
+		throw new ApiError(res.status, message);
+	}
+	const disposition = res.headers.get('Content-Disposition') ?? '';
+	const match = disposition.match(/filename="([^"]+)"/);
+	const filename = match ? match[1] : 'packet.qwk';
+	const blob = await res.blob();
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	URL.revokeObjectURL(url);
+	return true;
+}
+
+export interface QWKReplyResult {
+	posted: number;
+	sent: number;
+	skipped: number;
+}
+
+export function uploadQWKReply(token: string, file: File): Promise<QWKReplyResult> {
+	const form = new FormData();
+	form.set('file', file);
+	return requestForm<QWKReplyResult>('/api/bbs/qwk/upload', form, token);
+}

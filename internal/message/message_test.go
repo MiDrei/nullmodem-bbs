@@ -874,3 +874,76 @@ func TestFirstUnreadPosition(t *testing.T) {
 		t.Fatalf("position with everything read = %d, want 4 (last message)", pos)
 	}
 }
+
+func TestQWKSelectedAreaIDsIsEmptyUntilConfigured(t *testing.T) {
+	s, users := newTestStore(t)
+
+	u, err := users.Register("caller", "pw", 10)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	selected, err := s.QWKSelectedAreaIDs(u.ID)
+	if err != nil {
+		t.Fatalf("QWKSelectedAreaIDs: %v", err)
+	}
+	if len(selected) != 0 {
+		t.Fatalf("selected = %v, want empty before any selection is saved", selected)
+	}
+}
+
+func TestSetQWKSelectedAreasRoundTripsAndReplacesPreviousSelection(t *testing.T) {
+	s, users := newTestStore(t)
+
+	u, err := users.Register("caller", "pw", 10)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	a1, err := s.CreateArea("one", "Area One", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	a2, err := s.CreateArea("two", "Area Two", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	a3, err := s.CreateArea("three", "Area Three", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	if err := s.SetQWKSelectedAreas(u.ID, []int64{a1.ID, a2.ID}); err != nil {
+		t.Fatalf("SetQWKSelectedAreas: %v", err)
+	}
+	selected, err := s.QWKSelectedAreaIDs(u.ID)
+	if err != nil {
+		t.Fatalf("QWKSelectedAreaIDs: %v", err)
+	}
+	if !selected[a1.ID] || !selected[a2.ID] || selected[a3.ID] || len(selected) != 2 {
+		t.Fatalf("selected = %v, want exactly {%d, %d}", selected, a1.ID, a2.ID)
+	}
+
+	// A second call replaces, not merges, the previous selection.
+	if err := s.SetQWKSelectedAreas(u.ID, []int64{a3.ID}); err != nil {
+		t.Fatalf("SetQWKSelectedAreas (replace): %v", err)
+	}
+	selected, err = s.QWKSelectedAreaIDs(u.ID)
+	if err != nil {
+		t.Fatalf("QWKSelectedAreaIDs: %v", err)
+	}
+	if !selected[a3.ID] || len(selected) != 1 {
+		t.Fatalf("selected after replace = %v, want exactly {%d}", selected, a3.ID)
+	}
+
+	// An empty slice clears back to "no selection".
+	if err := s.SetQWKSelectedAreas(u.ID, nil); err != nil {
+		t.Fatalf("SetQWKSelectedAreas (clear): %v", err)
+	}
+	selected, err = s.QWKSelectedAreaIDs(u.ID)
+	if err != nil {
+		t.Fatalf("QWKSelectedAreaIDs: %v", err)
+	}
+	if len(selected) != 0 {
+		t.Fatalf("selected after clear = %v, want empty", selected)
+	}
+}

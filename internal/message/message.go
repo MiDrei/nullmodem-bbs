@@ -350,6 +350,60 @@ func (s *Store) MarkMessageRead(userID, messageID int64) error {
 	return nil
 }
 
+// QWKSelectedAreaIDs returns the set of area IDs userID has explicitly
+// chosen to include in their QWK offline-mail packets. An empty
+// (non-nil) map means the user has never configured a selection --
+// callers should treat that as "include every readable area", not
+// "include none".
+func (s *Store) QWKSelectedAreaIDs(userID int64) (map[int64]bool, error) {
+	rows, err := s.db.Query(`SELECT area_id FROM qwk_area_selections WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("message: qwk selected areas for user %d: %w", userID, err)
+	}
+	defer rows.Close()
+
+	selected := make(map[int64]bool)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("message: scan qwk selected area: %w", err)
+		}
+		selected[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("message: qwk selected areas for user %d: %w", userID, err)
+	}
+	return selected, nil
+}
+
+// SetQWKSelectedAreas replaces userID's QWK area selection with
+// exactly areaIDs. Passing an empty slice clears the selection
+// entirely, which reverts to the "include every readable area"
+// default -- see QWKSelectedAreaIDs.
+func (s *Store) SetQWKSelectedAreas(userID int64, areaIDs []int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("message: set qwk selected areas for user %d: %w", userID, err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM qwk_area_selections WHERE user_id = ?`, userID); err != nil {
+		return fmt.Errorf("message: clear qwk selected areas for user %d: %w", userID, err)
+	}
+	for _, areaID := range areaIDs {
+		if _, err := tx.Exec(
+			`INSERT OR IGNORE INTO qwk_area_selections (user_id, area_id) VALUES (?, ?)`,
+			userID, areaID,
+		); err != nil {
+			return fmt.Errorf("message: set qwk selected area %d for user %d: %w", areaID, userID, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("message: set qwk selected areas for user %d: %w", userID, err)
+	}
+	return nil
+}
+
 // UpdateArea changes an existing area's editable fields (not its tag,
 // which is treated as a stable identifier once created).
 func (s *Store) UpdateArea(id int64, name, description, network string, minSLRead, minSLWrite, sortOrder int) (*Area, error) {

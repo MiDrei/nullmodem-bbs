@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"archive/zip"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -131,7 +132,7 @@ func TestUploadQWKReplyRoutesRepliesFromRealSexyzOverTheBBSConnection(t *testing
 		t.Fatalf("AreaByTag: %v", err)
 	}
 
-	bbsID := qwkBBSID(s.BBSName)
+	bbsID := qwk.BBSID(s.BBSName)
 	repPath := filepath.Join(t.TempDir(), "ALICE.REP")
 	replies := []qwk.PackedMessage{
 		{Header: qwk.MessageHeader{Number: int(area.ID), To: "All", Subject: "an echo reply"}, Text: "posted from offline"},
@@ -236,5 +237,124 @@ func buildTestRepFile(t *testing.T, path, bbsID string, replies []qwk.PackedMess
 	}
 	if err := zw.Close(); err != nil {
 		t.Fatalf("zip.Close: %v", err)
+	}
+}
+
+// TestBuildQWKPacketForUserRespectsAreaSelection locks in that once a
+// user has saved a QWK area selection, buildQWKPacketForUser only
+// includes messages from selected areas (netmail is unaffected, it's
+// always conference 0) -- and that an unconfigured (empty) selection
+// still falls back to "every readable area with new mail", matching
+// the original pre-selection behavior.
+func TestBuildQWKPacketForUserRespectsAreaSelection(t *testing.T) {
+	s := testServer(t)
+	s.BBSName = "Test BBS"
+	s.SysopName = "Sysop"
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	other, err := s.Messages.CreateArea("other", "Other Area", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(general.ID, u.ID, "All", "In general", "general body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, err := s.Messages.PostMessage(other.ID, u.ID, "All", "In other", "other body"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+
+	// No selection configured yet: both areas' new mail is included.
+	dir1 := t.TempDir()
+	_, count, _, markRead, err := s.buildQWKPacketForUser(u, dir1)
+	if err != nil {
+		t.Fatalf("buildQWKPacketForUser (no selection): %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("count with no selection = %d, want 2", count)
+	}
+	if len(markRead[general.ID]) != 1 || len(markRead[other.ID]) != 1 {
+		t.Fatalf("markRead with no selection = %v, want one message in each area", markRead)
+	}
+
+	// Select only "other": general's new message must now be excluded.
+	if err := s.Messages.SetQWKSelectedAreas(u.ID, []int64{other.ID}); err != nil {
+		t.Fatalf("SetQWKSelectedAreas: %v", err)
+	}
+	dir2 := t.TempDir()
+	_, count, _, markRead, err = s.buildQWKPacketForUser(u, dir2)
+	if err != nil {
+		t.Fatalf("buildQWKPacketForUser (other selected): %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count with only 'other' selected = %d, want 1", count)
+	}
+	if len(markRead[general.ID]) != 0 || len(markRead[other.ID]) != 1 {
+		t.Fatalf("markRead with only 'other' selected = %v, want only 'other'", markRead)
+	}
+}
+
+// TestConfigureQWKAreasTogglesAndSaves drives the qwkareas builtin
+// through a real Terminal over a net.Pipe: deselect the seeded
+// "general" area (toggle #1) then save, and confirm the selection
+// actually persisted via message.Store.QWKSelectedAreaIDs.
+func TestConfigureQWKAreasTogglesAndSaves(t *testing.T) {
+	s := testServer(t)
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	other, err := s.Messages.CreateArea("other", "Other Area", "", "", 0, 0)
+	if err != nil {
+		t.Fatalf("CreateArea: %v", err)
+	}
+
+	serverSide, clientSide := net.Pipe()
+	defer serverSide.Close()
+	defer clientSide.Close()
+	term := NewTerminal(pipeConn{serverSide})
+
+	done := make(chan error, 1)
+	go func() { done <- s.configureQWKAreas(term, u) }()
+
+	// net.Pipe is fully synchronous: the builtin's prompt/menu output
+	// would otherwise block on Write with nothing reading it.
+	go io.Copy(io.Discard, clientSide)
+
+	go func() {
+		// Toggle area #1 (general) off, then save.
+		clientSide.Write([]byte("1\r\n"))
+		time.Sleep(50 * time.Millisecond)
+		clientSide.Write([]byte("S\r\n"))
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("configureQWKAreas: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("configureQWKAreas did not return in time")
+	}
+
+	selected, err := s.Messages.QWKSelectedAreaIDs(u.ID)
+	if err != nil {
+		t.Fatalf("QWKSelectedAreaIDs: %v", err)
+	}
+	if selected[general.ID] {
+		t.Fatalf("selected = %v, general area should have been toggled off", selected)
+	}
+	if !selected[other.ID] {
+		t.Fatalf("selected = %v, other area should still be selected", selected)
 	}
 }

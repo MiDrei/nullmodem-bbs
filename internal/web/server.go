@@ -146,6 +146,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/bbs/files/{id}/preview-raw", s.requireBBSUser(http.HandlerFunc(s.handlePreviewRawBBSFile)))
 	mux.Handle("GET /api/bbs/files/{id}/preview-entry", s.requireBBSUser(http.HandlerFunc(s.handlePreviewBBSFileEntry)))
 	mux.Handle("GET /api/bbs/files/{id}/preview-entry-raw", s.requireBBSUser(http.HandlerFunc(s.handlePreviewRawBBSFileEntry)))
+	mux.Handle("GET /api/bbs/qwk/areas", s.requireBBSUser(http.HandlerFunc(s.handleListBBSQWKAreas)))
+	mux.Handle("PUT /api/bbs/qwk/areas", s.requireBBSUser(http.HandlerFunc(s.handleSetBBSQWKAreas)))
+	mux.Handle("GET /api/bbs/qwk/download", s.requireBBSUser(http.HandlerFunc(s.handleDownloadBBSQWK)))
+	mux.Handle("POST /api/bbs/qwk/upload", s.requireBBSUser(http.HandlerFunc(s.handleUploadBBSQWKReply)))
 
 	if s.StaticDir != "" {
 		if _, err := os.Stat(s.StaticDir); err == nil {

@@ -53,6 +53,7 @@
 				<a href="/message-areas" class="transition hover:text-slate-100">Message Areas</a>
 				<a href="/netmail" class="transition hover:text-slate-100">Netmail</a>
 				<a href="/file-areas" class="transition hover:text-slate-100">Files</a>
+				<a href="/qwk" class="transition hover:text-slate-100">QWK Mail</a>
 			</nav>
 		{:else}
 			<div></div>

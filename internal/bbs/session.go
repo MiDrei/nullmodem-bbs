@@ -382,6 +382,7 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"doors":          (*Server).showDoors,
 	"qwk":            (*Server).downloadQWK,
 	"qwkrep":         (*Server).uploadQWKReply,
+	"qwkareas":       (*Server).configureQWKAreas,
 }
 
 // runMenu displays the named menu and dispatches choices until the
