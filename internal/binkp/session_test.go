@@ -76,6 +76,70 @@ func TestSessionHandshakeAndEmptyTransferNoPassword(t *testing.T) {
 	}
 }
 
+// countingConn is a minimal net.Conn (only Write is ever exercised)
+// that records every separate Write call it receives -- for verifying
+// sendInfoAndAddress batches its frames into one underlying Write
+// rather than one per frame.
+type countingConn struct {
+	net.Conn
+	buf        bytes.Buffer
+	writeCount int
+}
+
+func (c *countingConn) Write(b []byte) (int, error) {
+	c.writeCount++
+	return c.buf.Write(b)
+}
+
+// TestSendInfoAndAddressUsesASingleWrite locks in a real production
+// fix: a real peer's own log (Mystic BBS, SysopNet) showed it
+// sometimes receiving only our very first frame (VER) and nothing
+// else -- "Client did not send address" -- right before dropping the
+// connection, while an otherwise-identical dial moments later
+// succeeded and logged every line. Four separate Writes for one
+// logical "here's who I am" burst apparently sometimes arrived as
+// more TCP segments than that peer's own read loop kept reading
+// across. sendInfoAndAddress must emit VER/SYS/ZYZ/LOC/M_ADR as a
+// single underlying Write, not one per frame, regardless of whose
+// behavior is technically spec-correct.
+func TestSendInfoAndAddressUsesASingleWrite(t *testing.T) {
+	conn := &countingConn{}
+	s := &session{conn: conn, cfg: Config{SysName: "Test BBS", Sysop: "Ops", Location: "Zurich"}}
+
+	if err := s.sendInfoAndAddress([]string{"1:234/56.0", "21:1/100@fsxnet"}); err != nil {
+		t.Fatalf("sendInfoAndAddress: %v", err)
+	}
+	if conn.writeCount != 1 {
+		t.Fatalf("Write was called %d times, want exactly 1 (a single underlying Write for the whole info+address burst)", conn.writeCount)
+	}
+
+	r := bytes.NewReader(conn.buf.Bytes())
+	var got []string
+	for {
+		isData, payload, err := readFrame(r)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("readFrame: %v", err)
+		}
+		if isData {
+			t.Fatal("unexpected data frame")
+		}
+		got = append(got, fmt.Sprintf("%s %s", Command(payload[0]), string(payload[1:])))
+	}
+	want := []string{
+		"M_NUL VER NullModem-BinkP/1.0 binkp/1.0",
+		"M_NUL SYS Test BBS",
+		"M_NUL ZYZ Ops",
+		"M_NUL LOC Zurich",
+		"M_ADR 1:234/56.0 21:1/100@fsxnet",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("frames = %v, want %v", got, want)
+	}
+}
+
 func TestSessionPasswordAuthSuccessUsesCRAMMD5(t *testing.T) {
 	origResult, ansResult, origErr, ansErr := runPair(t,
 		Config{OurAddresses: []string{"1:234/56.0"}, Password: "correct horse"},

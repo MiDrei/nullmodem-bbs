@@ -1,6 +1,7 @@
 package binkp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -272,10 +273,25 @@ func (s *session) sendData(data []byte) error {
 	return writeDataFrame(s.conn, data)
 }
 
-// sendInfo emits this side's informational M_NUL lines. None are
-// required by the protocol; real answerers log them but don't act on
-// them, so a missing SysName/Sysop/Location is harmless.
-func (s *session) sendInfo() error {
+// sendInfoAndAddress emits this side's informational M_NUL lines
+// (VER/SYS/ZYZ/LOC -- none required by the protocol; a real peer logs
+// them but doesn't act on them, so a missing SysName/Sysop/Location is
+// harmless) immediately followed by M_ADR, as a single underlying
+// Write call rather than one Write per frame.
+//
+// This matters: a real peer's own log (Mystic BBS, SysopNet) showed
+// it sometimes receiving only our very first frame (VER) and nothing
+// else at all -- "Client did not send address" -- immediately before
+// dropping the connection, while an otherwise-identical dial moments
+// later succeeded and logged every line (VER, SYS, ZYZ, then a
+// correctly matched M_ADR). Four small separate Writes for one
+// logical "here's who I am" burst apparently sometimes arrive as more
+// TCP segments than that peer's own read loop keeps reading across
+// before giving up -- not something we can fix on their end, but
+// collapsing our side of it into one Write removes our own
+// contribution to the problem regardless of whose behavior is
+// technically "correct".
+func (s *session) sendInfoAndAddress(ourAddresses []string) error {
 	lines := []string{"VER NullModem-BinkP/1.0 binkp/1.0"}
 	if s.cfg.SysName != "" {
 		lines = append(lines, "SYS "+s.cfg.SysName)
@@ -286,10 +302,21 @@ func (s *session) sendInfo() error {
 	if s.cfg.Location != "" {
 		lines = append(lines, "LOC "+s.cfg.Location)
 	}
+
+	var buf bytes.Buffer
 	for _, l := range lines {
-		if err := s.send(MNUL, l); err != nil {
+		if err := writeCommandFrame(&buf, MNUL, l); err != nil {
 			return err
 		}
+	}
+	if err := writeCommandFrame(&buf, MADR, strings.Join(ourAddresses, " ")); err != nil {
+		return err
+	}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if _, err := s.conn.Write(buf.Bytes()); err != nil {
+		return fmt.Errorf("binkp: write frame: %w", err)
 	}
 	return nil
 }
@@ -332,10 +359,7 @@ func (s *session) readHandshakeFrames() (peerAddrs, cramChallenge string, err er
 // learn the answerer's address (and CRAM-MD5 challenge, if any), then
 // authenticate if we have a password configured.
 func (s *session) originatorHandshake() error {
-	if err := s.sendInfo(); err != nil {
-		return err
-	}
-	if err := s.send(MADR, strings.Join(s.cfg.OurAddresses, " ")); err != nil {
+	if err := s.sendInfoAndAddress(s.cfg.OurAddresses); err != nil {
 		return err
 	}
 
@@ -404,10 +428,7 @@ func (s *session) answererHandshake() error {
 			return err
 		}
 	}
-	if err := s.sendInfo(); err != nil {
-		return err
-	}
-	if err := s.send(MADR, strings.Join(s.cfg.OurAddresses, " ")); err != nil {
+	if err := s.sendInfoAndAddress(s.cfg.OurAddresses); err != nil {
 		return err
 	}
 
