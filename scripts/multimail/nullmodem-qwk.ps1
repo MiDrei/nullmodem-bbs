@@ -91,7 +91,14 @@ if (-not (Get-Command $MmExe -ErrorAction SilentlyContinue)) {
 
 Write-Host "Starting MultiMail -- reply packets are saved to $OutDir"
 Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $OutDir "*.rep"), (Join-Path $OutDir "*.REP")
+# MultiMail is a native console app -- if it writes anything at all to
+# stderr (even a harmless status line), $ErrorActionPreference = "Stop"
+# would otherwise abort this whole script right here with no useful
+# message. Relax it just for this one call.
+$PreviousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 & $MmExe -PacketDir $InDir -ReplyDir $OutDir $InDir
+$ErrorActionPreference = $PreviousErrorActionPreference
 
 $Reply = Get-ChildItem -Path $OutDir -Filter "*.rep" -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $Reply) {
