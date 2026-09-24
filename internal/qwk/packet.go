@@ -9,10 +9,11 @@ import (
 
 // BuildQWKPacket writes a complete .QWK packet to disk at path: a zip
 // containing CONTROL.DAT, MESSAGES.DAT, one <conf>.NDX per conference
-// listed in control.Conferences (zero-padded to 3 digits), and
-// PERSONAL.NDX (pointers to every message whose To field matches
-// control.CallerName or any of control.PersonalNames, case-
-// insensitively and trimmed).
+// listed in control.Conferences (zero-padded to 3 digits), PERSONAL.NDX
+// (pointers to every message whose To field matches control.CallerName
+// or any of control.PersonalNames, case-insensitively and trimmed),
+// and TOREADER.EXT (QWKE, see WriteToReaderEXT) when control.Username
+// is set.
 //
 // messages must already be in the order they should appear in
 // MESSAGES.DAT -- conference-grouped is conventional but not
@@ -42,6 +43,16 @@ func BuildQWKPacket(path string, control ControlInfo, messages []PackedMessage) 
 	}
 	if err := WriteMessagesDAT(mw, messages); err != nil {
 		return err
+	}
+
+	if control.Username != "" {
+		tw, err := zw.Create("TOREADER.EXT")
+		if err != nil {
+			return fmt.Errorf("qwk: creating TOREADER.EXT entry: %w", err)
+		}
+		if err := WriteToReaderEXT(tw, control.Username); err != nil {
+			return err
+		}
 	}
 
 	personalNames := append([]string{control.CallerName}, control.PersonalNames...)

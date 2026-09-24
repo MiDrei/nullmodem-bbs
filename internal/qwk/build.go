@@ -80,7 +80,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 				Subject:    m.Subject,
 				Conference: 0,
 			},
-			Text: message.StripSeenByAndPathForDisplay(m.Body),
+			Text: withQWKEKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
 		})
 		unreadNetmailIDs = append(unreadNetmailIDs, m.ID)
 	}
@@ -126,7 +126,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 					Subject:    m.Subject,
 					Conference: int(st.Area.ID),
 				},
-				Text: message.StripSeenByAndPathForDisplay(m.Body),
+				Text: withQWKEKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
 			})
 			markRead[st.Area.ID] = append(markRead[st.Area.ID], m.ID)
 		}
@@ -147,6 +147,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		// recognize both.
 		PersonalNames: []string{u.Username},
 		Conferences:   conferences,
+		Username:      u.Username,
 	}
 
 	packetPath := filepath.Join(dir, bbsID+".QWK")

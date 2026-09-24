@@ -2,6 +2,7 @@ package qwk
 
 import (
 	"archive/zip"
+	"bytes"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -113,4 +114,52 @@ func TestIndexMessagesGroupsByConferenceAndFindsPersonal(t *testing.T) {
 	if perConf[5][0].MessageRecordNumber != 2 {
 		t.Fatalf("first message record number = %d, want 2", perConf[5][0].MessageRecordNumber)
 	}
+}
+
+// TestBuildQWKPacketIncludesToReaderEXTWhenUsernameIsSet locks in that
+// TOREADER.EXT (QWKE) is only added when ControlInfo.Username is set
+// -- its presence is what a QWKE-aware reader uses to recognize the
+// packet's extended CONTROL.DAT conference names/kludge lines, so a
+// classic-only packet (no Username) should stay exactly as before.
+func TestBuildQWKPacketIncludesToReaderEXTWhenUsernameIsSet(t *testing.T) {
+	control := ControlInfo{
+		BBSName:    "Test BBS",
+		BBSID:      "testbbs",
+		PacketTime: time.Now(),
+		CallerName: "Alice",
+		Username:   "alice",
+		Conferences: []ConferenceInfo{
+			{Number: 0, Name: "Personal"},
+		},
+	}
+	path := filepath.Join(t.TempDir(), "TESTBBS.QWK")
+	if err := BuildQWKPacket(path, control, nil); err != nil {
+		t.Fatalf("BuildQWKPacket: %v", err)
+	}
+
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatalf("opening built packet as zip: %v", err)
+	}
+	defer zr.Close()
+
+	for _, f := range zr.File {
+		if f.Name != "TOREADER.EXT" {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("opening TOREADER.EXT: %v", err)
+		}
+		defer rc.Close()
+		var buf bytes.Buffer
+		if _, err := buf.ReadFrom(rc); err != nil {
+			t.Fatalf("reading TOREADER.EXT: %v", err)
+		}
+		if buf.String() != "ALIAS alice\r\n" {
+			t.Fatalf("TOREADER.EXT contents = %q, want %q", buf.String(), "ALIAS alice\r\n")
+		}
+		return
+	}
+	t.Fatal("packet has no TOREADER.EXT entry, want one since Username was set")
 }

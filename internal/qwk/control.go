@@ -14,7 +14,12 @@ import (
 // area IDs to conference numbers).
 type ConferenceInfo struct {
 	Number int
-	// Name is truncated to 12 characters -- CONTROL.DAT's own limit.
+	// Name is truncated to 255 characters, CONTROL.DAT's own limit
+	// under QWKE (extended from the classic format's 13). A reader
+	// with no QWKE support simply displays/stores whatever fits its
+	// own UI -- CONTROL.DAT is a plain line-based text file, so a
+	// longer line here doesn't break its parsing, only (at worst)
+	// its own display width.
 	Name string
 }
 
@@ -45,6 +50,11 @@ type ControlInfo struct {
 	// itself never needs repeating here.
 	PersonalNames []string
 	Conferences   []ConferenceInfo
+	// Username, if set, is written into TOREADER.EXT's ALIAS line
+	// (see WriteToReaderEXT) -- the caller's actual login handle,
+	// kept distinct from CallerName since that may be their real name
+	// instead.
+	Username string
 }
 
 // WriteControlDAT writes CONTROL.DAT: a CRLF text file with lines in
@@ -65,7 +75,7 @@ func WriteControlDAT(w io.Writer, c ControlInfo) error {
 		strconv.Itoa(len(c.Conferences) - 1),
 	}
 	for _, conf := range c.Conferences {
-		lines = append(lines, strconv.Itoa(conf.Number), truncate(conf.Name, 12))
+		lines = append(lines, strconv.Itoa(conf.Number), truncate(conf.Name, 255))
 	}
 	lines = append(lines, "WELCOME", "NEWS", "GOODBYE")
 

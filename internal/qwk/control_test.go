@@ -57,12 +57,14 @@ func TestWriteControlDATLineOrder(t *testing.T) {
 	}
 }
 
-func TestWriteControlDATTruncatesLongConferenceNames(t *testing.T) {
+func TestWriteControlDATAllowsLongConferenceNamesButCapsAt255(t *testing.T) {
+	longName := strings.Repeat("x", 300)
 	c := ControlInfo{
 		BBSID:      "id",
 		PacketTime: time.Now(),
 		Conferences: []ConferenceInfo{
-			{Number: 0, Name: "This Name Is Way Too Long For QWK"},
+			{Number: 0, Name: "This Name Is Way Too Long For classic QWK, but QWKE allows up to 255 chars"},
+			{Number: 1, Name: longName},
 		},
 	}
 	var buf bytes.Buffer
@@ -71,8 +73,11 @@ func TestWriteControlDATTruncatesLongConferenceNames(t *testing.T) {
 	}
 	lines := strings.Split(buf.String(), "\r\n")
 	// line index 12 is the conference-0 name (11 header lines, index 0-10, then
-	// conf number at 11, name at 12).
-	if len(lines[12]) != 12 {
-		t.Fatalf("conference name line = %q (len %d), want truncated to 12 chars", lines[12], len(lines[12]))
+	// conf number at 11, name at 12); conf 1's number/name follow at 13/14.
+	if lines[12] != "This Name Is Way Too Long For classic QWK, but QWKE allows up to 255 chars" {
+		t.Fatalf("conference 0 name line = %q, want the full untruncated name (QWKE allows up to 255 chars)", lines[12])
+	}
+	if len(lines[14]) != 255 {
+		t.Fatalf("conference 1 name line len = %d, want capped at 255 (QWKE's own limit)", len(lines[14]))
 	}
 }
