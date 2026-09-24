@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/db"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/db"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func newTestStore(t *testing.T) (*Store, *user.Store) {

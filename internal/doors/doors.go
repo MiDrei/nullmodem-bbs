@@ -2,7 +2,7 @@
 // a caller can launch from the BBS menu, handed the connection itself
 // rather than driven through this project's own line-oriented/ANSI-
 // cooked Terminal (see internal/bbs.Terminal.Raw, the same bypass
-// internal/zmodem uses for file transfers).
+// bbskit/zmodem uses for file transfers).
 //
 // Two kinds of door are supported (Door.Kind), both ultimately handing
 // the door process an already-connected AF_UNIX socket at fd 3 via
@@ -106,7 +106,7 @@ type Session struct {
 
 // isTelnetConn is implemented by a conn that can suspend its own
 // telnet IAC interpretation/escaping for the duration of a raw byte
-// stream -- see internal/telnet.Session.SetRaw and internal/zmodem's
+// stream -- see internal/telnet.Session.SetRaw and bbskit/zmodem's
 // identically motivated rawSwitcher. Most doors built against
 // DOOR32.SYS's socket mode (this package's Usurper included) do their
 // own IAC escaping/negotiation on the wire, so this project's own
@@ -270,7 +270,7 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 	// -- the caller may not have typed anything since the door quit.
 	// If conn supports interrupting a pending Read on demand, force
 	// that now rather than actually waiting for the caller's next
-	// keystroke to arrive on its own -- exactly internal/zmodem's
+	// keystroke to arrive on its own -- exactly bbskit/zmodem's
 	// runSexyz does for the same reason, and the same bounded
 	// fallback below when it can't. Harmless to do even when conn has
 	// already failed on its own (the third select case above).
@@ -406,7 +406,7 @@ func buildDOSBoxCmd(nodeDir string, door Door, sess Session) (*exec.Cmd, error) 
 }
 
 // deadliner is implemented by a conn that can have a pending Read
-// call interrupted on demand -- see internal/zmodem's identically
+// call interrupted on demand -- see bbskit/zmodem's identically
 // named, identically motivated interface.
 type deadliner interface {
 	SetReadDeadline(t time.Time) error

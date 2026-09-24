@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
-	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
-	"git.maik.ch/swissmaik/nullmodem/internal/tosser"
+	"git.maik.ch/nullmodem/bbs/internal/areafix"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/tosser"
 )
 
 // areaChangeDTO is one area a POST /api/binkp/areafix/changes request

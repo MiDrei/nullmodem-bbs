@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/archive"
-	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
-	"git.maik.ch/swissmaik/nullmodem/internal/file"
-	"git.maik.ch/swissmaik/nullmodem/internal/mail"
-	"git.maik.ch/swissmaik/nullmodem/internal/message"
-	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/archive"
+	"git.maik.ch/nullmodem/bbs/internal/areafix"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/file"
+	"git.maik.ch/nullmodem/bbs/internal/mail"
+	"git.maik.ch/nullmodem/bbs/internal/message"
+	"git.maik.ch/nullmodem/bbs/internal/netmail"
 )
 
 // RobotConfig bundles what the inbound Areafix/Filefix robot (see

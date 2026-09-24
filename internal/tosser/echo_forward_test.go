@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
-	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
-	"git.maik.ch/swissmaik/nullmodem/internal/mail"
-	"git.maik.ch/swissmaik/nullmodem/internal/message"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/areafix"
+	"git.maik.ch/nullmodem/bbs/internal/binkp"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/mail"
+	"git.maik.ch/nullmodem/bbs/internal/message"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func TestRoutedOutboundEchoForwardReturnsSubscribedAreaMessages(t *testing.T) {

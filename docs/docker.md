@@ -147,10 +147,10 @@ whatever was pushed last:
 ```sh
 VTAG=$(grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+(-dev)?' internal/version/version.go)
 docker build -t nullmodem-bbs:latest .
-docker tag nullmodem-bbs:latest git.maik.ch/maik.ch/nullmodem:latest
-docker tag nullmodem-bbs:latest git.maik.ch/maik.ch/nullmodem:"$VTAG"
-docker push git.maik.ch/maik.ch/nullmodem:latest
-docker push git.maik.ch/maik.ch/nullmodem:"$VTAG"
+docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:latest
+docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:"$VTAG"
+docker push git.maik.ch/nullmodem/bbs:latest
+docker push git.maik.ch/nullmodem/bbs:"$VTAG"
 ```
 
 A deployment (e.g. apollo's `~/nullmodem-deploy/docker-compose.yml`)

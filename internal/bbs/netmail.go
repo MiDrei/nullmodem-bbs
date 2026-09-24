@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
-	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/kit/ansi"
+	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 // mergeNetmailByPostedAt combines a and b (each already sorted newest-

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func TestFileNetNodeFormatsZoneAndPointDropped(t *testing.T) {

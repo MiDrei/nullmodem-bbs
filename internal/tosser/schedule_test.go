@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
-	"git.maik.ch/swissmaik/nullmodem/internal/db"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/db"
 )
 
 func newTestPollStore(t *testing.T) *UplinkPollStore {

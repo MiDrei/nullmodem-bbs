@@ -9,8 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/qwk"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/kit/qwk"
+	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func TestListBBSQWKAreasReflectsSelection(t *testing.T) {
@@ -162,7 +163,7 @@ func TestUploadBBSQWKReplyRoutesRepliesAndReturnsCounts(t *testing.T) {
 	h := srv.Routes()
 	token := loginAsBBSUser(t, h, "alice", "password123")
 
-	bbsID := qwk.BBSID("Test BBS")
+	bbsID := qwkdoor.BBSID("Test BBS")
 	var repBuf bytes.Buffer
 	zw := zip.NewWriter(&repBuf)
 	mw, err := zw.Create(bbsID + ".MSG")

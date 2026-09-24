@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/qwk"
+	"git.maik.ch/nullmodem/kit/qwk"
+	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
 )
 
 // qwkAreaDTO describes one message area for the QWK area-selection
@@ -98,7 +99,7 @@ func (s *Server) handleSetBBSQWKAreas(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDownloadBBSQWK builds and streams the caller's current QWK
-// packet -- the same qwk.BuildPacketForUser/CommitRead used by the
+// packet -- the same qwkdoor.BuildPacketForUser/CommitRead used by the
 // Telnet/SSH "qwk" builtin (internal/bbs/qwk.go), so the web portal
 // and a scripted client seeing this same endpoint get identical
 // content and read-state bookkeeping. Responds 204 (no body) if there
@@ -128,7 +129,7 @@ func (s *Server) handleDownloadBBSQWK(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	result, err := qwk.BuildPacketForUser(s.Messages, s.Netmail, u, bbsCfg.BBS.Name, bbsCfg.BBS.Sysop, tmpDir)
+	result, err := qwkdoor.BuildPacketForUser(s.Messages, s.Netmail, u, bbsCfg.BBS.Name, bbsCfg.BBS.Sysop, tmpDir)
 	if err != nil {
 		s.logWarn("building QWK packet for %s via the BBS portal: %v", claims.Subject, err)
 		writeError(w, http.StatusInternalServerError, "could not build qwk packet")
@@ -146,13 +147,13 @@ func (s *Server) handleDownloadBBSQWK(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	if err := qwk.CommitRead(s.Messages, s.Netmail, u.ID, result.UnreadNetmailIDs, result.MarkRead); err != nil {
+	if err := qwkdoor.CommitRead(s.Messages, s.Netmail, u.ID, result.UnreadNetmailIDs, result.MarkRead); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update read state")
 		return
 	}
 
 	s.logInfo("%s downloaded a QWK packet via the BBS portal: %d message(s)", claims.Subject, result.MessageCount)
-	bbsID := qwk.BBSID(bbsCfg.BBS.Name)
+	bbsID := qwkdoor.BBSID(bbsCfg.BBS.Name)
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+bbsID+`.QWK"`)
 	http.ServeContent(w, r, bbsID+".QWK", time.Now(), f)
@@ -160,7 +161,7 @@ func (s *Server) handleDownloadBBSQWK(w http.ResponseWriter, r *http.Request) {
 
 // handleUploadBBSQWKReply accepts a .REP reply packet (multipart form
 // field "file", same convention as handleUploadBBSAreaFile) and
-// routes its replies via qwk.RouteReplies -- usable from the web
+// routes its replies via qwkdoor.RouteReplies -- usable from the web
 // portal's own upload control or scripted (e.g. curl -F
 // file=@reply.rep) for automated QWK exchange.
 func (s *Server) handleUploadBBSQWKReply(w http.ResponseWriter, r *http.Request) {
@@ -211,14 +212,14 @@ func (s *Server) handleUploadBBSQWKReply(w http.ResponseWriter, r *http.Request)
 	}
 	dst.Close()
 
-	bbsID := qwk.BBSID(bbsCfg.BBS.Name)
+	bbsID := qwkdoor.BBSID(bbsCfg.BBS.Name)
 	replies, err := qwk.ParseReplyPacket(repPath, bbsID)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "could not parse reply packet")
 		return
 	}
 
-	posted, sent, skipped, err := qwk.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
+	posted, sent, skipped, err := qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not process replies")
 		return

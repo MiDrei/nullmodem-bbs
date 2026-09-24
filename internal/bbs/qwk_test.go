@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/qwk"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/kit/qwk"
+	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 // TestDownloadQWKSendsRealPacketToRealRZOverTheBBSConnection is an
@@ -136,7 +137,7 @@ func TestUploadQWKReplyRoutesRepliesFromRealSexyzOverTheBBSConnection(t *testing
 		t.Fatalf("AreaByTag: %v", err)
 	}
 
-	bbsID := qwk.BBSID(s.BBSName)
+	bbsID := qwkdoor.BBSID(s.BBSName)
 	repPath := filepath.Join(t.TempDir(), "ALICE.REP")
 	replies := []qwk.PackedMessage{
 		{Header: qwk.MessageHeader{Number: int(area.ID), To: "All", Subject: "an echo reply"}, Text: "posted from offline"},

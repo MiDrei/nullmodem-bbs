@@ -9,16 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
-	"git.maik.ch/swissmaik/nullmodem/internal/applog"
-	"git.maik.ch/swissmaik/nullmodem/internal/doors"
-	"git.maik.ch/swissmaik/nullmodem/internal/file"
-	"git.maik.ch/swissmaik/nullmodem/internal/menu"
-	"git.maik.ch/swissmaik/nullmodem/internal/message"
-	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
-	"git.maik.ch/swissmaik/nullmodem/internal/session"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
-	"git.maik.ch/swissmaik/nullmodem/internal/version"
+	"git.maik.ch/nullmodem/kit/ansi"
+	"git.maik.ch/nullmodem/bbs/internal/applog"
+	"git.maik.ch/nullmodem/bbs/internal/doors"
+	"git.maik.ch/nullmodem/bbs/internal/file"
+	"git.maik.ch/nullmodem/bbs/internal/menu"
+	"git.maik.ch/nullmodem/bbs/internal/message"
+	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/session"
+	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/version"
 )
 
 // Version is the BBS software version shown on the welcome screen and

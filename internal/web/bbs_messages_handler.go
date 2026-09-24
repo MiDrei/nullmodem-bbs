@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
-	"git.maik.ch/swissmaik/nullmodem/internal/message"
+	"git.maik.ch/nullmodem/kit/ansi"
+	"git.maik.ch/nullmodem/bbs/internal/message"
 )
 
 // defaultMessagePageSize/maxMessagePageSize bound the ?limit= query
@@ -234,7 +234,7 @@ type bbsMessageDTO struct {
 // toBBSMessageDTO renders m for the BBS portal's JSON API. m.Body
 // (and FromName/ToName/Subject) are raw CP437 bytes on disk -- the
 // same convention Telnet/SSH sessions read and write directly (see
-// internal/ansi's package doc comment) -- which aren't necessarily
+// bbskit/ansi's package doc comment) -- which aren't necessarily
 // valid UTF-8 on their own, so encoding/json can't serialize them
 // as-is. BodyHTML uses ansi.ToHTML directly on those raw bytes (it
 // already expects that encoding, same as the ANSI screen designer's

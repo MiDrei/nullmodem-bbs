@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func TestLogsEndpointRequiresAuth(t *testing.T) {

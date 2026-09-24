@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 )
 
 func TestWelcomeScreenRendersPlaceholdersUnauthenticated(t *testing.T) {

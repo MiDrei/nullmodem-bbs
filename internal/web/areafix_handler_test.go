@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/areafix"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 func setupAreafixTest(t *testing.T) (*Server, string) {

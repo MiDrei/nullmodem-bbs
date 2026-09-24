@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
-	"git.maik.ch/swissmaik/nullmodem/internal/mail"
-	"git.maik.ch/swissmaik/nullmodem/internal/tosser"
+	"git.maik.ch/nullmodem/bbs/internal/binkp"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/mail"
+	"git.maik.ch/nullmodem/bbs/internal/tosser"
 )
 
 // binkpRequestTimeout bounds how long a single BinkP operation

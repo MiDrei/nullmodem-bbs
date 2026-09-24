@@ -7,7 +7,7 @@
 // the server directly (e.g. via SCP) and import it by path (see
 // ImportFile); UploadFile stores one streamed in some other way
 // instead, used both by the web admin's HTTP upload endpoint and by
-// internal/bbs's own Zmodem upload command (internal/zmodem.Receive
+// internal/bbs's own Zmodem upload command (bbskit/zmodem.Receive
 // handles that wire protocol, entirely outside this package).
 package file
 
@@ -547,7 +547,7 @@ func (s *Store) DeleteFile(id int64) error {
 }
 
 // RecordDownload increments a file's download counter -- called once
-// internal/zmodem's Send has actually finished handing it to a BBS
+// bbskit/zmodem's Send has actually finished handing it to a BBS
 // caller.
 func (s *Store) RecordDownload(id int64) error {
 	if _, err := s.db.Exec(`UPDATE files SET download_count = download_count + 1 WHERE id = ?`, id); err != nil {

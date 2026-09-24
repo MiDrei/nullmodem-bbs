@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 // editorCommand identifies one of the classic BBS line-editor slash

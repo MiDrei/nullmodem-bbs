@@ -640,12 +640,18 @@ func TestPacketReadTranscodesUTF8FieldsToCP437(t *testing.T) {
 	if got.FromName != "Caf\x82 Owner" { // CP437 0x82 is é
 		t.Fatalf("FromName = %q, want CP437-transcoded", got.FromName)
 	}
-	// CP437 has no curly-quote glyph, so EncodeCP437 falls back to '?'
-	// -- what matters here is that it's ASCII '?', not the original
-	// multi-byte UTF-8 sequence still sitting there uncorrupted-looking
-	// but rendering as mojibake on a CP437 terminal.
-	if got.Subject != "NSA?s Supercomputer" {
-		t.Fatalf("Subject = %q, want %q", got.Subject, "NSA?s Supercomputer")
+	// CP437 has no curly-quote glyph. What matters is that the
+	// subject comes back as single-byte CP437 rather than the
+	// original multi-byte UTF-8 sequence, which would sit there
+	// looking uncorrupted and render as mojibake on a CP437 terminal.
+	//
+	// It used to come back as '?'. bbskit's EncodeCP437 now
+	// transliterates typographic punctuation to its ASCII reading
+	// instead, which satisfies the same requirement and keeps the
+	// sentence readable -- a modern keyboard produces these quotes by
+	// itself, so this is the common case rather than an exotic one.
+	if got.Subject != "NSA's Supercomputer" {
+		t.Fatalf("Subject = %q, want %q", got.Subject, "NSA's Supercomputer")
 	}
 	if stripTZUTCKludge(got.Body) != "block art: \xdb\xdb" {
 		t.Fatalf("Body = %q, want CP437-transcoded", got.Body)

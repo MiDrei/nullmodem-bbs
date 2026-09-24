@@ -28,16 +28,16 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/areafix"
-	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
-	"git.maik.ch/swissmaik/nullmodem/internal/binkplog"
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
-	"git.maik.ch/swissmaik/nullmodem/internal/file"
-	"git.maik.ch/swissmaik/nullmodem/internal/mail"
-	"git.maik.ch/swissmaik/nullmodem/internal/message"
-	"git.maik.ch/swissmaik/nullmodem/internal/netmail"
-	"git.maik.ch/swissmaik/nullmodem/internal/user"
-	"git.maik.ch/swissmaik/nullmodem/internal/version"
+	"git.maik.ch/nullmodem/bbs/internal/areafix"
+	"git.maik.ch/nullmodem/bbs/internal/binkp"
+	"git.maik.ch/nullmodem/bbs/internal/binkplog"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/file"
+	"git.maik.ch/nullmodem/bbs/internal/mail"
+	"git.maik.ch/nullmodem/bbs/internal/message"
+	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/version"
 )
 
 // dialTimeout bounds one poll attempt against an uplink.

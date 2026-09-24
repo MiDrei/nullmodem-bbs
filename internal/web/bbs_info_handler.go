@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/ansi"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 // handleBBSInfo reports the BBS's own configured display name --

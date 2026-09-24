@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/binkp"
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/binkp"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 )
 
 // buildTICBytes renders a minimal .tic descriptor's contents from the

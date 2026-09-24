@@ -17,6 +17,10 @@ RUN npm run build
 # compiling for both target arches needs no C toolchain at all.
 FROM golang:1.27-bookworm AS go-build
 WORKDIR /src
+# git.maik.ch/nullmodem/kit is public but self-hosted: fetch it
+# straight from there instead of via proxy.golang.org/sum.golang.org
+# (go.sum still pins its hash).
+ENV GOPRIVATE=git.maik.ch
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/ cmd/

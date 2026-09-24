@@ -9,9 +9,9 @@ import (
 	"path"
 	"strings"
 
-	"git.maik.ch/swissmaik/nullmodem/internal/config"
-	"git.maik.ch/swissmaik/nullmodem/internal/file"
-	"git.maik.ch/swissmaik/nullmodem/internal/tic"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/file"
+	"git.maik.ch/nullmodem/bbs/internal/tic"
 )
 
 // isTICFile reports whether name looks like a TIC (FTS-0006 "type 2"
