@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
 	"git.maik.ch/nullmodem/kit/qwk"
@@ -249,7 +250,12 @@ func (s *Server) handleUploadBBSQWKReply(w http.ResponseWriter, r *http.Request)
 	bbsID := qwkdoor.BBSID(bbsCfg.BBS.Name)
 	replies, err := qwk.ParseReplyPacket(repPath, bbsID)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "could not parse reply packet")
+		// The reason goes back to the caller too: an offline reader's
+		// user has no other way to find out what was wrong with the
+		// packet, and it names nothing but the packet's own contents.
+		s.logWarn("QWK reply packet from %s via the BBS portal could not be parsed: %v", claims.Subject, err)
+		reason := strings.ReplaceAll(strings.TrimPrefix(err.Error(), "qwk: "), repPath, "the packet")
+		writeError(w, http.StatusBadRequest, "could not parse reply packet: "+reason)
 		return
 	}
 
