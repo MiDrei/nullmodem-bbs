@@ -78,6 +78,9 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 	}
 
 	sess := doors.Session{
+		// The handle, not u.RealName, on purpose (decided 2026-09-25):
+		// doors key players and save games on this name, and a caller
+		// changing their real name in the profile must not lose theirs.
 		RealName:        u.Username,
 		Handle:          u.Username,
 		AccessLevel:     u.SecurityLevel,
