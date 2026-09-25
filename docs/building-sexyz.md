@@ -23,6 +23,15 @@ user-writable directory like `~/.local/bin` works fine for
 development; a container image should install it under something like
 `/usr/local/bin` in the build stage.
 
+## License
+
+`sexyz` is Synchronet's, under the GNU GPL (version 2 or later), with
+LGPL 2.1 libraries and a BSD-licensed `zmodem.c`. Running it as a
+separate program leaves NullModem BBS's own code unaffected, but
+passing it on -- in the container image, say -- means passing on its
+license texts and source too. The `Dockerfile` does that; see
+[third-party.md](third-party.md).
+
 ## Why not lrzsz
 
 `lrzsz` is what this project used before, and is what most other BBS

@@ -1,0 +1,43 @@
+sexyz -- Synchronet External X/Y/ZMODEM Transfer Protocols
+===========================================================
+
+The NullModem BBS container image ships /usr/local/bin/sexyz, which the
+BBS runs as a separate program for Zmodem file and QWK transfers over
+Telnet/SSH. It is not part of NullModem BBS and is not linked into it.
+
+Upstream:  Synchronet BBS, https://www.synchro.net/
+Source:    https://gitlab.synchro.net/main/sbbs
+Commit:    7cf7f2fc56d8383aeb6cd35639977f3815afe7ce (2026-09-19)
+Built from src/sbbs3 (sexyz.c, xmodem.c, zmodem.c, ringbuf.c, nopen.c,
+date_str.c, telnet.c) with the xpdev and hash libraries, unmodified.
+
+Licenses
+--------
+
+sexyz as a whole is distributed under the GNU General Public License,
+version 2 or (at your option) any later version -- see COPYING.
+
+  sexyz.c, xmodem.c, ringbuf.c, nopen.c, date_str.c, telnet.c
+      Copyright Rob Swindell, https://www.synchro.net/copyright.html
+      GNU General Public License, version 2 or later (COPYING)
+  zmodem.c
+      Copyright (c) 2003-2026 Rob Swindell, (c) 2005-2026 Stephen Hurd
+      Based on zmtx/zmrx v1.02 (C) Mattheij Computer Service 1994
+      BSD-style license, reproduced in LICENSE.zmodem
+  xpdev, hash (crc16, crc32, ...)
+      GNU Lesser General Public License, version 2.1 (COPYING.LESSER)
+  hash/md5.c, where linked
+      Derived from the RSA Data Security, Inc. MD5 Message-Digest
+      Algorithm; its notice is reproduced in LICENSE.md5
+
+Corresponding source
+--------------------
+
+The complete source sexyz was built from, with the build files, lies
+next to this file as sexyz-source-7cf7f2fc.tar.gz. To rebuild it on
+Debian (build-essential):
+
+    tar xzf sexyz-source-7cf7f2fc.tar.gz
+    cd src/sbbs3 && make RELEASE=1 sexyz
+
+The same tree is also at the upstream commit above.

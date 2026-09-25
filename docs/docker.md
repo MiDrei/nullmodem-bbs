@@ -160,3 +160,11 @@ references the specific `vX.Y.Z[-dev]` tag in its `image:` lines, not
 never edited directly otherwise, per this project's deploy workflow
 (develop and commit locally, roll out to production only via a
 freshly pushed image).
+
+## Third-party software
+
+The image carries Synchronet's `sexyz` for Zmodem transfers, built from
+source and licensed under the GNU GPL (v2 or later) -- its license
+texts, notices and the exact source are in
+`/usr/local/share/doc/sexyz/` inside the image. See
+[third-party.md](third-party.md).

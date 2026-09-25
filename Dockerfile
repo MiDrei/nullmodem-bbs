@@ -41,21 +41,39 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # packages it, so it is built from source here. Pinned to the commit
 # the Zmodem tests are run against, and built on the same Debian as
 # the runtime image so its libc matches -- sexyz needs nothing else.
+#
+# sexyz is GPL (v2 or later; parts LGPL 2.1 and BSD): the image carries
+# its license texts, notices and the exact source it was built from in
+# /usr/local/share/doc/sexyz -- see third_party/sexyz/NOTICE and
+# docs/third-party.md.
 FROM debian:trixie-slim AS sexyz-build
 RUN apt-get update && \
     apt-get install -y --no-install-recommends build-essential git ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 ARG SBBS_COMMIT=7cf7f2fc56d8383aeb6cd35639977f3815afe7ce
 WORKDIR /src
-# Only src/ of the (large) Synchronet repository, at that one commit.
+# Just what sexyz is built from, at that one commit: the complete
+# corresponding source, and nothing of the (large) rest.
 RUN git init -q sbbs && cd sbbs && \
     git remote add origin https://gitlab.synchro.net/main/sbbs.git && \
-    git sparse-checkout set src && \
+    git sparse-checkout set --no-cone /src/build/ /src/sbbs3/ /src/xpdev/ /src/hash/ \
+        /src/smblib/ /src/encode/ /docs/gpl.txt /docs/lgpl.txt && \
     git fetch -q --depth 1 --filter=blob:none origin "$SBBS_COMMIT" && \
     git checkout -q FETCH_HEAD
 WORKDIR /src/sbbs/src/sbbs3
-RUN make git_branch.h git_hash.h && make RELEASE=1 sexyz && \
+# The version headers need git; generated first, they go into the
+# source archive too, so it rebuilds without git or network.
+RUN make git_branch.h git_hash.h && \
+    cd /src/sbbs && tar czf /tmp/sexyz-source-${SBBS_COMMIT%${SBBS_COMMIT#????????}}.tar.gz \
+        src/build src/sbbs3 src/xpdev src/hash src/smblib src/encode
+RUN make RELEASE=1 sexyz && \
     install -m 0755 */sexyz /usr/local/bin/sexyz
+COPY third_party/sexyz/NOTICE /out/doc/NOTICE
+RUN cp /src/sbbs/docs/gpl.txt /out/doc/COPYING && \
+    cp /src/sbbs/docs/lgpl.txt /out/doc/COPYING.LESSER && \
+    sed -n '1,/\*\//p' zmodem.c > /out/doc/LICENSE.zmodem && \
+    sed -n '1,/\*\//p' ../hash/md5.c > /out/doc/LICENSE.md5 && \
+    mv /tmp/sexyz-source-*.tar.gz /out/doc/
 
 # ---- runtime ---------------------------------------------------------
 # debian:trixie-slim, not alpine/distroless: DOS door support (see
@@ -75,6 +93,7 @@ RUN apt-get update && \
 WORKDIR /app
 COPY --from=go-build /out/bbs /out/mailer /out/web ./bin/
 COPY --from=sexyz-build /usr/local/bin/sexyz /usr/local/bin/sexyz
+COPY --from=sexyz-build /out/doc /usr/local/share/doc/sexyz
 COPY --from=web-build /src/web/build ./web/build
 COPY docker-entrypoint.sh ./
 
