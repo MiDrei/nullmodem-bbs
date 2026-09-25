@@ -50,7 +50,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -174,13 +173,13 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 	}
 	defer os.RemoveAll(nodeDir)
 
-	// SOCK_CLOEXEC keeps the door process from also inheriting *our*
-	// end (parent) alongside the one it's actually meant to use --
-	// without it, both ends survive its exec, so parent effectively
-	// always has an open writer somewhere even after this function
-	// closes its own copy, and the door's read on fd 3 then never
-	// sees EOF on its own.
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
+	// Close-on-exec (see socketpair) keeps the door process from also
+	// inheriting *our* end (parent) alongside the one it's actually
+	// meant to use -- without it, both ends survive its exec, so parent
+	// effectively always has an open writer somewhere even after this
+	// function closes its own copy, and the door's read on fd 3 then
+	// never sees EOF on its own.
+	fds, err := socketpair()
 	if err != nil {
 		return fmt.Errorf("doors: creating socketpair: %w", err)
 	}
