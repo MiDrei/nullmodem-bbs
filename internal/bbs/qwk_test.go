@@ -367,3 +367,62 @@ func TestConfigureQWKAreasTogglesAndSaves(t *testing.T) {
 		t.Fatalf("selected = %v, other area should still be selected", selected)
 	}
 }
+
+// TestQWKMessageNumbersAreStableAcrossPackets pins what an offline
+// reader relies on to merge packets and keep read markers: a message's
+// QWK number is its database ID, the same in whichever packet carries
+// it, rather than its position in one packet.
+func TestQWKMessageNumbersAreStableAcrossPackets(t *testing.T) {
+	s := testServer(t)
+	s.BBSName = "Test BBS"
+	u, err := s.Users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := s.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	receive := func(subject string) int64 {
+		t.Helper()
+		m, _, err := s.Messages.ReceiveEcho(general.ID, "Bob", subject, "body", "", time.Now())
+		if err != nil {
+			t.Fatalf("ReceiveEcho: %v", err)
+		}
+		return m.ID
+	}
+	build := func() []qwk.PackedMessage {
+		t.Helper()
+		path, _, netIDs, markRead, err := s.buildQWKPacketForUser(u, t.TempDir())
+		if err != nil {
+			t.Fatalf("buildQWKPacketForUser: %v", err)
+		}
+		if err := s.commitQWKRead(u.ID, netIDs, markRead); err != nil {
+			t.Fatalf("commitQWKRead: %v", err)
+		}
+		return mustReadMessagesDATFromZip(t, path)
+	}
+
+	first, second := receive("first"), receive("second")
+	msgs := build()
+	if len(msgs) != 2 || msgs[0].Header.Number != int(first) || msgs[1].Header.Number != int(second) {
+		t.Fatalf("first packet numbers = %v, want the message IDs %d, %d", headerNumbers(msgs), first, second)
+	}
+	if msgs[0].Header.LogicalNumber != 1 || msgs[1].Header.LogicalNumber != 2 {
+		t.Fatalf("logical numbers = %d, %d, want the position in the packet", msgs[0].Header.LogicalNumber, msgs[1].Header.LogicalNumber)
+	}
+
+	third := receive("third")
+	msgs = build()
+	if len(msgs) != 1 || msgs[0].Header.Number != int(third) {
+		t.Fatalf("second packet numbers = %v, want [%d] -- not a restart at 1", headerNumbers(msgs), third)
+	}
+}
+
+func headerNumbers(msgs []qwk.PackedMessage) []int {
+	out := make([]int, len(msgs))
+	for i, m := range msgs {
+		out[i] = m.Header.Number
+	}
+	return out
+}

@@ -60,6 +60,13 @@ type BuildResult struct {
 // with new mail) and writes a .QWK packet into dir, shared by both
 // the Telnet/SSH qwk builtin (internal/bbs) and the web portal's HTTP
 // QWK endpoints (internal/web) so the two surfaces can't drift.
+//
+// Each message's QWK number is its database ID (netmail's own ID in
+// conference 0), so the same message keeps the same number in every
+// packet it could ever appear in -- an offline reader merges packets
+// and keeps its read markers by (conference, number), and numbers that
+// restarted at 1 in each packet made new mail look already read. The
+// position within the packet goes in LogicalNumber instead.
 func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User, bbsName, sysopName, dir string) (BuildResult, error) {
 	bbsID := BBSID(bbsName)
 	callerName := u.RealName
@@ -81,13 +88,14 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		}
 		packed = append(packed, qwk.PackedMessage{
 			Header: qwk.MessageHeader{
-				Status:     ' ',
-				Number:     len(packed) + 1,
-				Written:    m.PostedAt,
-				To:         m.ToName,
-				From:       m.FromName,
-				Subject:    m.Subject,
-				Conference: 0,
+				Status:        ' ',
+				Number:        int(m.ID),
+				LogicalNumber: len(packed) + 1,
+				Written:       m.PostedAt,
+				To:            m.ToName,
+				From:          m.FromName,
+				Subject:       m.Subject,
+				Conference:    0,
 			},
 			Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
 		})
@@ -127,13 +135,14 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 			}
 			packed = append(packed, qwk.PackedMessage{
 				Header: qwk.MessageHeader{
-					Status:     ' ',
-					Number:     len(packed) + 1,
-					Written:    m.PostedAt,
-					To:         m.ToName,
-					From:       m.FromName,
-					Subject:    m.Subject,
-					Conference: int(st.Area.ID),
+					Status:        ' ',
+					Number:        int(m.ID),
+					LogicalNumber: len(packed) + 1,
+					Written:       m.PostedAt,
+					To:            m.ToName,
+					From:          m.FromName,
+					Subject:       m.Subject,
+					Conference:    int(st.Area.ID),
 				},
 				Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
 			})
