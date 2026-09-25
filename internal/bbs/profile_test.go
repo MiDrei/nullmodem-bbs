@@ -156,3 +156,19 @@ func TestSessionDatesFollowProfileTimezone(t *testing.T) {
 		t.Fatalf("default = %q, want 10:00 UTC", got)
 	}
 }
+
+func TestProfileTogglesQWKRouting(t *testing.T) {
+	s := testServer(t)
+	u := registerProfileUser(t, s)
+	conn := newFakeConn("S\r\nQ\r\n")
+	if err := s.showProfile(NewTerminal(conn), u); err != nil {
+		t.Fatalf("showProfile: %v", err)
+	}
+	if !strings.Contains(conn.out.String(), "QWK SEEN-BY:    off") || !strings.Contains(conn.out.String(), "now carry SEEN-BY/PATH") {
+		t.Fatalf("output:\n%s", conn.out.String())
+	}
+	stored, _ := s.Users.ByID(u.ID)
+	if !stored.QWKRouting || !u.QWKRouting {
+		t.Fatalf("stored=%v session=%v, want on", stored.QWKRouting, u.QWKRouting)
+	}
+}

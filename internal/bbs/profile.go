@@ -88,11 +88,13 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			fmt.Sprintf("Total calls:    %d", u.TotalCalls),
 			fmt.Sprintf("Member since:   %s", term.Time(u.CreatedAt).Format("2006-01-02")),
 			fmt.Sprintf("Time zone:      %s", timezoneLabel(u)),
+			fmt.Sprintf("QWK SEEN-BY:    %s", onOff(u.QWKRouting)),
 			"",
 			profileOption("R", "Change real name"),
 			profileOption("T", "Change time zone"),
 			profileOption("P", "Change password"),
 			profileOption("K", "QWK area selection"),
+			profileOption("S", "Switch SEEN-BY/PATH lines in QWK packets on or off"),
 			profileOption("Q", "Back"),
 		}
 		for _, line := range lines {
@@ -120,6 +122,8 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			err = s.changePassword(term, u)
 		case "K":
 			err = s.configureQWKAreas(term, u)
+		case "S":
+			err = s.toggleQWKRouting(term, u)
 		case "Q", "":
 			return nil
 		default:
@@ -129,6 +133,28 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			return err
 		}
 	}
+}
+
+func onOff(b bool) string {
+	if b {
+		return "on"
+	}
+	return "off"
+}
+
+// toggleQWKRouting switches whether this caller's QWK packets carry
+// echomail's SEEN-BY/PATH lines (see user.User.QWKRouting).
+func (s *Server) toggleQWKRouting(term *Terminal, u *user.User) error {
+	if err := s.Users.SetQWKRouting(u.ID, !u.QWKRouting); err != nil {
+		return err
+	}
+	u.QWKRouting = !u.QWKRouting
+	s.logInfo("%s turned QWK SEEN-BY/PATH lines %s", u.Username, onOff(u.QWKRouting))
+	msg := "QWK packets now leave SEEN-BY/PATH out."
+	if u.QWKRouting {
+		msg = "QWK packets now carry SEEN-BY/PATH -- for a reader that hides them, like NullModem Reader."
+	}
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + msg)
 }
 
 func profileOption(key, label string) string {

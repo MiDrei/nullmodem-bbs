@@ -23,6 +23,8 @@ type profileDTO struct {
 	// Timezone is an IANA name, or "" if not set -- the portal then
 	// shows times in the browser's own zone, Telnet/SSH in UTC.
 	Timezone string `json:"timezone"`
+	// QWKRouting: QWK packets carry echomail's SEEN-BY/PATH lines.
+	QWKRouting bool `json:"qwk_routing"`
 }
 
 func toProfileDTO(u *user.User) profileDTO {
@@ -33,6 +35,7 @@ func toProfileDTO(u *user.User) profileDTO {
 		TotalCalls:    u.TotalCalls,
 		CreatedAt:     u.CreatedAt,
 		Timezone:      u.Timezone,
+		QWKRouting:    u.QWKRouting,
 	}
 }
 
@@ -61,8 +64,9 @@ func (s *Server) handleUpdateBBSProfile(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	var req struct {
-		RealName *string `json:"real_name"`
-		Timezone *string `json:"timezone"`
+		RealName   *string `json:"real_name"`
+		Timezone   *string `json:"timezone"`
+		QWKRouting *bool   `json:"qwk_routing"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -102,6 +106,14 @@ func (s *Server) handleUpdateBBSProfile(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		s.logInfo("%s set their time zone to %q via the BBS portal", claims.Subject, timezone)
+	}
+
+	if req.QWKRouting != nil {
+		if err := s.Users.SetQWKRouting(claims.UserID, *req.QWKRouting); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not save the QWK setting")
+			return
+		}
+		s.logInfo("%s turned QWK SEEN-BY/PATH lines %v via the BBS portal", claims.Subject, *req.QWKRouting)
 	}
 
 	u, err := s.Users.ByID(claims.UserID)

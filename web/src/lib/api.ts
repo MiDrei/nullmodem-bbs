@@ -1205,6 +1205,8 @@ export interface BBSProfile {
 	created_at: string;
 	/** IANA zone name, or "" if not set (the portal then uses the browser's own zone, Telnet/SSH uses UTC). */
 	timezone: string;
+	/** QWK packets carry echomail's SEEN-BY/PATH lines (for a reader that hides them, like NullModem Reader). */
+	qwk_routing: boolean;
 }
 
 export function getBBSProfile(token: string): Promise<BBSProfile> {
@@ -1214,7 +1216,7 @@ export function getBBSProfile(token: string): Promise<BBSProfile> {
 /** Fields left undefined are left unchanged. */
 export function updateBBSProfile(
 	token: string,
-	changes: { real_name?: string; timezone?: string }
+	changes: { real_name?: string; timezone?: string; qwk_routing?: boolean }
 ): Promise<BBSProfile> {
 	return request<BBSProfile>('/api/bbs/profile', { method: 'PUT', body: JSON.stringify(changes) }, token);
 }

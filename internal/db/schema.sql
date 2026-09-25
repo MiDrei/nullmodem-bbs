@@ -10,7 +10,11 @@ CREATE TABLE IF NOT EXISTS users (
     -- IANA zone name (e.g. "Europe/Zurich") times are shown in, on
     -- Telnet/SSH and in the web portal alike; '' means not set (see
     -- user.User.Location).
-    timezone       TEXT NOT NULL DEFAULT ''
+    timezone       TEXT NOT NULL DEFAULT '',
+    -- 1: QWK packets carry echomail's SEEN-BY/PATH lines (see
+    -- qwkdoor.BuildPacketForUser); off by default, since most QWK
+    -- readers show them as text.
+    qwk_routing    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_security_level ON users(security_level);

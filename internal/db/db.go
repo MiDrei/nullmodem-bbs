@@ -62,6 +62,10 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "users", "qwk_routing", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	if err := ensureColumn(sqlDB, "message_areas", "network", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		sqlDB.Close()
 		return nil, err

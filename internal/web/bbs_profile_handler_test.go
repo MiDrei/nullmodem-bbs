@@ -124,3 +124,28 @@ func TestBBSChangePassword(t *testing.T) {
 		t.Fatalf("login with new password: %v", err)
 	}
 }
+
+func TestBBSProfileQWKRouting(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	alice, err := users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodPut, "/api/bbs/profile", map[string]any{"qwk_routing": true}, token)
+	var p profileDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &p); err != nil || !p.QWKRouting {
+		t.Fatalf("PUT = %d %s", rec.Code, rec.Body.String())
+	}
+	stored, _ := users.ByID(alice.ID)
+	if !stored.QWKRouting {
+		t.Fatal("not stored")
+	}
+	// Leaving the field out leaves it alone.
+	doJSON(t, h, http.MethodPut, "/api/bbs/profile", map[string]any{"timezone": "UTC"}, token)
+	if stored, _ = users.ByID(alice.ID); !stored.QWKRouting {
+		t.Fatal("an unrelated update turned it off")
+	}
+}

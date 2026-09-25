@@ -141,6 +141,15 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 			if readIDs[m.ID] {
 				continue
 			}
+			// The SEEN-BY/PATH block only for those who asked
+			// (User.QWKRouting): NullModem Reader hides it and can
+			// quote it into a reply, the routing an echo ping or a
+			// dupe hunt is about -- most other readers would just
+			// show it as text.
+			body := message.StripSeenByAndPathForDisplay(m.Body)
+			if u.QWKRouting {
+				body = m.Body
+			}
 			packed = append(packed, qwk.PackedMessage{
 				Header: qwk.MessageHeader{
 					Status:        ' ',
@@ -152,11 +161,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 					Subject:       m.Subject,
 					Conference:    int(st.Area.ID),
 				},
-				// Echomail keeps its SEEN-BY/PATH block: an offline reader hides it,
-				// but can show it or quote it into a reply -- the routing an echo
-				// ping or a dupe hunt is about. The web and Telnet readers still
-				// strip it for display.
-				Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, m.Body),
+				Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, body),
 			})
 			markRead[st.Area.ID] = append(markRead[st.Area.ID], m.ID)
 		}

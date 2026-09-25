@@ -162,7 +162,7 @@ func TestPacketFlagsNetmailAndNamesRemoteSendersWithTheirAddress(t *testing.T) {
 	}
 }
 
-func TestEchomailKeepsItsSeenByAndPathInThePacket(t *testing.T) {
+func TestEchomailSeenByAndPathOnlyWhenTheUserAsks(t *testing.T) {
 	st := newStores(t)
 	alice, err := st.users.Register("alice", "password123", user.SLNewUser)
 	if err != nil {
@@ -176,17 +176,34 @@ func TestEchomailKeepsItsSeenByAndPathInThePacket(t *testing.T) {
 	if _, _, err := st.messages.ReceiveEcho(general.ID, "Bob", "ping", body, "", time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	res, err := BuildPacketForUser(st.messages, st.netmail, alice, "Test BBS", "Sysop", t.TempDir())
-	if err != nil {
-		t.Fatalf("BuildPacketForUser: %v", err)
+	packetText := func() string {
+		t.Helper()
+		res, err := BuildPacketForUser(st.messages, st.netmail, alice, "Test BBS", "Sysop", t.TempDir())
+		if err != nil {
+			t.Fatalf("BuildPacketForUser: %v", err)
+		}
+		p, err := qwk.OpenPacket(res.PacketPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer p.Close()
+		_, text := qwk.ParseQWKEKludges(p.Messages[0].Text)
+		return text
 	}
-	p, err := qwk.OpenPacket(res.PacketPath)
-	if err != nil {
+
+	// Off by default: stripped, as other readers would show it.
+	if text := packetText(); strings.Contains(text, "SEEN-BY") || !strings.Contains(text, "Origin") {
+		t.Fatalf("default text = %q, want the routing stripped and the origin kept", text)
+	}
+
+	if err := st.users.SetQWKRouting(alice.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	defer p.Close()
-	_, text := qwk.ParseQWKEKludges(p.Messages[0].Text)
-	if !strings.Contains(text, "SEEN-BY: 301/1 100") || !strings.Contains(text, "PATH: 301/1") {
-		t.Fatalf("text = %q, want the routing block kept", text)
+	alice, _ = st.users.ByID(alice.ID)
+	if !alice.QWKRouting {
+		t.Fatal("QWKRouting not stored")
+	}
+	if text := packetText(); !strings.Contains(text, "SEEN-BY: 301/1 100") || !strings.Contains(text, "PATH: 301/1") {
+		t.Fatalf("text = %q, want the routing block kept once asked for", text)
 	}
 }

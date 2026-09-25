@@ -80,6 +80,10 @@ type User struct {
 	// Timezone is the IANA zone name (e.g. "Europe/Zurich") the caller
 	// chose in their profile, or "" if never set -- see Location.
 	Timezone string
+	// QWKRouting puts echomail's SEEN-BY/PATH lines into this user's
+	// QWK packets, for an offline reader that hides them and can quote
+	// them (NullModem Reader). Off by default: most readers show them.
+	QWKRouting bool
 }
 
 // Location returns the zone to show this user's times in: their
@@ -128,14 +132,14 @@ func ValidateRealName(realName string) error {
 
 // userColumns is the column list every single-/multi-row user query
 // selects, in scanUser's order.
-const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone`
+const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing`
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
 func scanUser(row rowScanner, u *User) error {
-	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone)
+	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting)
 }
 
 // Store persists User accounts in the shared SQLite database.
@@ -303,6 +307,15 @@ func (s *Store) SetTimezone(id int64, name string) error {
 	}
 	if _, err := s.db.Exec(`UPDATE users SET timezone = ? WHERE id = ?`, name, id); err != nil {
 		return fmt.Errorf("user: set timezone for id %d: %w", id, err)
+	}
+	return nil
+}
+
+// SetQWKRouting turns the SEEN-BY/PATH lines in a user's QWK packets
+// on or off (see User.QWKRouting).
+func (s *Store) SetQWKRouting(id int64, on bool) error {
+	if _, err := s.db.Exec(`UPDATE users SET qwk_routing = ? WHERE id = ?`, on, id); err != nil {
+		return fmt.Errorf("user: set qwk routing for id %d: %w", id, err)
 	}
 	return nil
 }

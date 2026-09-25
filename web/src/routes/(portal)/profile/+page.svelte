@@ -75,7 +75,7 @@
 		}
 	});
 
-	async function save(changes: { real_name?: string; timezone?: string }, done: string) {
+	async function save(changes: { real_name?: string; timezone?: string; qwk_routing?: boolean }, done: string) {
 		if (!bbsAuth.token) return;
 		try {
 			apply(await updateBBSProfile(bbsAuth.token, changes));
@@ -98,6 +98,14 @@
 		savingZone = true;
 		await save({ timezone }, timezone ? `Time zone set to ${timezone}.` : 'Time zone cleared.');
 		savingZone = false;
+	}
+
+	let savingRouting = $state(false);
+
+	async function saveRouting(on: boolean) {
+		savingRouting = true;
+		await save({ qwk_routing: on }, on ? 'QWK packets now carry SEEN-BY/PATH.' : 'QWK packets now leave SEEN-BY/PATH out.');
+		savingRouting = false;
 	}
 
 	async function savePassword(e: SubmitEvent) {
@@ -238,14 +246,30 @@
 			</form>
 		</section>
 
-		<section
-			class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-5"
-		>
-			<div>
-				<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">QWK area selection</h2>
-				<p class="mt-1 text-sm text-slate-500">Choose which message areas your QWK packets include.</p>
+		<section class="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-5">
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">QWK area selection</h2>
+					<p class="mt-1 text-sm text-slate-500">Choose which message areas your QWK packets include.</p>
+				</div>
+				<a href="/qwk" class={secondaryButton}>Open QWK settings</a>
 			</div>
-			<a href="/qwk" class={secondaryButton}>Open QWK settings</a>
+			<label class="mt-4 flex items-start gap-3 text-sm">
+				<input
+					type="checkbox"
+					class="mt-0.5 accent-fuchsia-500"
+					checked={profile.qwk_routing}
+					disabled={savingRouting}
+					onchange={(e) => saveRouting((e.currentTarget as HTMLInputElement).checked)}
+				/>
+				<span>
+					<span class="text-slate-200">Include SEEN-BY/PATH lines in QWK packets</span>
+					<span class="block text-slate-500">
+						The routing of echomail, for a reader that hides it and can quote it into a reply
+						(NullModem Reader). Most other readers show it as text.
+					</span>
+				</span>
+			</label>
 		</section>
 	</div>
 {/if}
