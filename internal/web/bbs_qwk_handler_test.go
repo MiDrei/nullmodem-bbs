@@ -4,9 +4,11 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"git.maik.ch/nullmodem/kit/qwk"
@@ -228,5 +230,57 @@ func TestUploadBBSQWKReplyRoutesRepliesAndReturnsCounts(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("posted messages = %+v, want the uploaded reply", msgs)
+	}
+}
+
+// failingWriter is a ResponseWriter whose connection drops after the
+// headers: every body write fails.
+type failingWriter struct {
+	*httptest.ResponseRecorder
+}
+
+func (f failingWriter) Write([]byte) (int, error) { return 0, errors.New("connection reset") }
+
+func TestDownloadBBSQWKLeavesMessagesUnreadWhenNotFullyDelivered(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	if _, err := users.Register("alice", "password123", user.SLNewUser); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	bob, err := users.Register("bob", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	general, err := srv.Messages.AreaByTag("general")
+	if err != nil {
+		t.Fatalf("AreaByTag: %v", err)
+	}
+	if _, err := srv.Messages.PostMessage(general.ID, bob.ID, "All", "Hello", "a test message"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	// A HEAD request delivers nothing.
+	rec := doJSON(t, h, http.MethodHead, "/api/bbs/qwk/download", nil, token)
+	if rec.Code != http.StatusOK || rec.Body.Len() != 0 {
+		t.Fatalf("HEAD status = %d, body len = %d, want 200 with no body", rec.Code, rec.Body.Len())
+	}
+
+	// The connection drops mid-transfer.
+	req := httptest.NewRequest(http.MethodGet, "/api/bbs/qwk/download", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	h.ServeHTTP(failingWriter{httptest.NewRecorder()}, req)
+
+	// Neither may have marked the message read.
+	rec = doJSON(t, h, http.MethodGet, "/api/bbs/qwk/download", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("download after failed attempts status = %d, want 200 (message still unread)", rec.Code)
+	}
+	if got, want := rec.Header().Get("Content-Length"), strconv.Itoa(rec.Body.Len()); got != want {
+		t.Fatalf("Content-Length = %s, body is %s bytes", got, want)
+	}
+	rec = doJSON(t, h, http.MethodGet, "/api/bbs/qwk/download", nil, token)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("download after a complete one status = %d, want 204", rec.Code)
 	}
 }

@@ -2,10 +2,12 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
+	"strconv"
 
 	"git.maik.ch/nullmodem/kit/qwk"
 	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
@@ -146,17 +148,49 @@ func (s *Server) handleDownloadBBSQWK(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
-
-	if err := qwkdoor.CommitRead(s.Messages, s.Netmail, u.ID, result.UnreadNetmailIDs, result.MarkRead); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not update read state")
+	info, err := f.Stat()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not open qwk packet")
 		return
 	}
 
-	s.logInfo("%s downloaded a QWK packet via the BBS portal: %d message(s)", claims.Subject, result.MessageCount)
 	bbsID := qwkdoor.BBSID(bbsCfg.BBS.Name)
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+bbsID+`.QWK"`)
-	http.ServeContent(w, r, bbsID+".QWK", time.Now(), f)
+	w.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
+	// "GET" routes answer HEAD too: nothing is delivered, so nothing
+	// gets marked read.
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Mark read only once the whole packet has actually gone out, the
+	// same way the Telnet/SSH download waits for its Zmodem transfer to
+	// finish -- an interrupted download leaves everything unread for the
+	// next pull. A plain copy rather than http.ServeContent on purpose:
+	// a Range request would deliver only part of the packet.
+	n, err := io.Copy(w, f)
+	if err == nil && n != info.Size() {
+		err = io.ErrShortWrite
+	}
+	if err == nil {
+		if ferr := http.NewResponseController(w).Flush(); ferr != nil && !errors.Is(ferr, http.ErrNotSupported) {
+			err = ferr
+		}
+	}
+	if err != nil {
+		s.logWarn("QWK download for %s via the BBS portal did not complete (%d of %d bytes), messages left unread: %v", claims.Subject, n, info.Size(), err)
+		return
+	}
+
+	if err := qwkdoor.CommitRead(s.Messages, s.Netmail, u.ID, result.UnreadNetmailIDs, result.MarkRead); err != nil {
+		// Headers and body are already sent; the only effect is that
+		// the same messages come again in the next packet.
+		s.logWarn("QWK download for %s via the BBS portal: could not update read state: %v", claims.Subject, err)
+		return
+	}
+	s.logInfo("%s downloaded a QWK packet via the BBS portal: %d message(s)", claims.Subject, result.MessageCount)
 }
 
 // handleUploadBBSQWKReply accepts a .REP reply packet (multipart form
