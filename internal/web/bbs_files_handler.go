@@ -13,8 +13,8 @@ import (
 
 	"github.com/dustin/go-humanize"
 
-	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/nullmodem/bbs/internal/file"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 type bbsFileAreaDTO struct {

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"git.maik.ch/nullmodem/kit/qwk"
 	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
+	"git.maik.ch/nullmodem/kit/qwk"
 )
 
 // qwkAreaDTO describes one message area for the QWK area-selection

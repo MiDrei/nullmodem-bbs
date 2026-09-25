@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/nullmodem/bbs/internal/applog"
 	"git.maik.ch/nullmodem/bbs/internal/doors"
 	"git.maik.ch/nullmodem/bbs/internal/file"
@@ -19,6 +18,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/session"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 	"git.maik.ch/nullmodem/bbs/internal/version"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 // Version is the BBS software version shown on the welcome screen and

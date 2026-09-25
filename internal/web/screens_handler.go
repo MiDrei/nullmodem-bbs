@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/nullmodem/bbs/internal/version"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 const previewWidth = 80

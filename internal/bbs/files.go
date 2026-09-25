@@ -10,10 +10,10 @@ import (
 
 	"github.com/dustin/go-humanize"
 
-	"git.maik.ch/nullmodem/kit/ansi"
-	"git.maik.ch/nullmodem/kit/zmodem"
 	"git.maik.ch/nullmodem/bbs/internal/file"
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/kit/ansi"
+	"git.maik.ch/nullmodem/kit/zmodem"
 )
 
 // showFileAreas is the "builtin:files" command: a lightbar over every

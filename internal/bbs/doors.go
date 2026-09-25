@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/nullmodem/bbs/internal/doors"
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 // showDoors is the "builtin:doors" command: a numbered list (like

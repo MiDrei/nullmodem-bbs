@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 type bbsNetmailSummaryDTO struct {

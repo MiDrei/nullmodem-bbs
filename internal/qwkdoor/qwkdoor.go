@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/qwk"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/kit/qwk"
 )
 
 // BBSID derives a short, filename-safe system identifier for

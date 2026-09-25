@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/nullmodem/bbs/internal/applog"
 	"git.maik.ch/nullmodem/bbs/internal/bbs"
 	"git.maik.ch/nullmodem/bbs/internal/config"
@@ -23,6 +22,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/ssh"
 	"git.maik.ch/nullmodem/bbs/internal/telnet"
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 func main() {

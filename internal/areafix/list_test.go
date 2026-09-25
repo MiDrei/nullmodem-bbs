@@ -162,9 +162,9 @@ func TestLooksLikeAreaTag(t *testing.T) {
 		{"FSX_GEN", true},
 		{"fsx.general-chat", true},
 		{"AB", true},
-		{"A", false},          // too short
-		{"157", false},        // no letter
-		{"----", false},       // no letter, disallowed chars
+		{"A", false},                           // too short
+		{"157", false},                         // no letter
+		{"----", false},                        // no letter, disallowed chars
 		{"A" + strings.Repeat("B", 41), false}, // too long
 	}
 	for _, c := range cases {

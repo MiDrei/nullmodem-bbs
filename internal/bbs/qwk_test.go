@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/qwk"
 	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/kit/qwk"
 )
 
 // TestDownloadQWKSendsRealPacketToRealRZOverTheBBSConnection is an

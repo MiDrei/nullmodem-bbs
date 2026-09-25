@@ -1022,7 +1022,7 @@ func TestIsPacketBundleFileRecognizesFTS5005Extensions(t *testing.T) {
 		name string
 		want bool
 	}{
-		{"a81ab500.mo0", true},  // observed live, a real lovlynet push
+		{"a81ab500.mo0", true}, // observed live, a real lovlynet push
 		{"12345678.su9", true},
 		{"abcdef01.THA", true}, // day code and sequence letter both case-insensitive
 		{"12345678.pkt", false},

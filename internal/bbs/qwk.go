@@ -10,11 +10,11 @@ import (
 
 	"github.com/dustin/go-humanize"
 
+	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 	"git.maik.ch/nullmodem/kit/ansi"
 	"git.maik.ch/nullmodem/kit/qwk"
 	"git.maik.ch/nullmodem/kit/zmodem"
-	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
-	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 // buildQWKPacketForUser is a thin wrapper around qwkdoor.BuildPacketForUser
