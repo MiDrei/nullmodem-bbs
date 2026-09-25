@@ -45,6 +45,8 @@ export interface LoginResponse {
 	token: string;
 	username: string;
 	security_level: number;
+	/** Portal login only: the caller's profile time zone (IANA name), or "" if not set. */
+	timezone?: string;
 	expires_at: string;
 }
 
@@ -1182,4 +1184,38 @@ export function uploadQWKReply(token: string, file: File): Promise<QWKReplyResul
 	const form = new FormData();
 	form.set('file', file);
 	return requestForm<QWKReplyResult>('/api/bbs/qwk/upload', form, token);
+}
+
+/** The caller's own account overview and settings -- the same the Telnet/SSH profile shows. */
+export interface BBSProfile {
+	username: string;
+	real_name: string;
+	security_level: number;
+	total_calls: number;
+	created_at: string;
+	/** IANA zone name, or "" if not set (the portal then uses the browser's own zone, Telnet/SSH uses UTC). */
+	timezone: string;
+}
+
+export function getBBSProfile(token: string): Promise<BBSProfile> {
+	return request<BBSProfile>('/api/bbs/profile', { method: 'GET' }, token);
+}
+
+/** Fields left undefined are left unchanged. */
+export function updateBBSProfile(
+	token: string,
+	changes: { real_name?: string; timezone?: string }
+): Promise<BBSProfile> {
+	return request<BBSProfile>('/api/bbs/profile', { method: 'PUT', body: JSON.stringify(changes) }, token);
+}
+
+export function changeBBSPassword(token: string, currentPassword: string, newPassword: string): Promise<void> {
+	return request<void>(
+		'/api/bbs/profile/password',
+		{
+			method: 'POST',
+			body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+		},
+		token
+	);
 }

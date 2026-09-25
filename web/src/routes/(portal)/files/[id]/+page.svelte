@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateTime } from '$lib/datetime';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -160,7 +161,7 @@
 		<div class="mt-0.5 text-sm text-slate-500">
 			{file.size_human} &middot; uploaded by
 			<strong class="text-slate-300">{file.uploaded_by}</strong>
-			&middot; {new Date(file.uploaded_at).toLocaleString()} &middot;
+			&middot; {formatDateTime(file.uploaded_at)} &middot;
 			{file.download_count}
 			{file.download_count === 1 ? 'download' : 'downloads'}
 		</div>

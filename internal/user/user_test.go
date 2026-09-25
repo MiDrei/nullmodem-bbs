@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/db"
 )
@@ -270,5 +271,80 @@ func TestSetSecurityLevelAllowsDemotingSysopWhenAnotherRemains(t *testing.T) {
 	}
 	if got.SecurityLevel != 100 {
 		t.Fatalf("SecurityLevel = %d, want 100", got.SecurityLevel)
+	}
+}
+
+func TestSetTimezoneValidatesAndRoundTrips(t *testing.T) {
+	s := newTestStore(t)
+	u, err := s.Register("alice", "password123", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if u.Timezone != "" || u.Location() != time.UTC {
+		t.Fatalf("new account timezone = %q / %v, want unset / UTC", u.Timezone, u.Location())
+	}
+
+	for _, bad := range []string{"Local", "Mars/Olympus", "europe/zurich"} {
+		if err := s.SetTimezone(u.ID, bad); !errors.Is(err, ErrInvalidTimezone) {
+			t.Fatalf("SetTimezone(%q) = %v, want ErrInvalidTimezone", bad, err)
+		}
+	}
+
+	if err := s.SetTimezone(u.ID, "Europe/Zurich"); err != nil {
+		t.Fatalf("SetTimezone: %v", err)
+	}
+	got, err := s.ByID(u.ID)
+	if err != nil {
+		t.Fatalf("ByID: %v", err)
+	}
+	if got.Timezone != "Europe/Zurich" || got.Location().String() != "Europe/Zurich" {
+		t.Fatalf("timezone = %q / %v, want Europe/Zurich", got.Timezone, got.Location())
+	}
+	all, err := s.ListAll()
+	if err != nil || len(all) != 1 || all[0].Timezone != "Europe/Zurich" {
+		t.Fatalf("ListAll = %+v, %v; want timezone carried through", all, err)
+	}
+
+	if err := s.SetTimezone(u.ID, ""); err != nil {
+		t.Fatalf("SetTimezone(\"\"): %v", err)
+	}
+	got, _ = s.ByID(u.ID)
+	if got.Timezone != "" {
+		t.Fatalf("timezone after unset = %q", got.Timezone)
+	}
+}
+
+func TestChangePassword(t *testing.T) {
+	s := newTestStore(t)
+	u, err := s.Register("alice", "password123", SLNewUser)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if err := s.ChangePassword(u.ID, "wrong", "newpass1"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("wrong current password: err = %v, want ErrInvalidCredentials", err)
+	}
+	if err := s.ChangePassword(u.ID, "password123", "abc"); !errors.Is(err, ErrPasswordTooShort) {
+		t.Fatalf("short password: err = %v, want ErrPasswordTooShort", err)
+	}
+	if err := s.ChangePassword(u.ID, "password123", "newpass1"); err != nil {
+		t.Fatalf("ChangePassword: %v", err)
+	}
+	if _, err := s.Authenticate("alice", "newpass1"); err != nil {
+		t.Fatalf("login with new password: %v", err)
+	}
+	if _, err := s.Authenticate("alice", "password123"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("old password still works: %v", err)
+	}
+}
+
+func TestValidateRealName(t *testing.T) {
+	if err := ValidateRealName(""); !errors.Is(err, ErrRealNameRequired) {
+		t.Fatalf("empty: %v", err)
+	}
+	if err := ValidateRealName("Sysop"); !errors.Is(err, ErrRealNameReserved) {
+		t.Fatalf("reserved: %v", err)
+	}
+	if err := ValidateRealName("Alice Example"); err != nil {
+		t.Fatalf("valid: %v", err)
 	}
 }

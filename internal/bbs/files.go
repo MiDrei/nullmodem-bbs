@@ -440,7 +440,7 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 			"FILENAME": f.Filename,
 			"BY":       f.UploadedByName,
 			"SIZE":     humanize.Bytes(uint64(f.SizeBytes)),
-			"DATE":     f.UploadedAt.Format("2006-01-02 15:04"), // fillist-row*.ans's {DATE:16} column has no room for a "UTC" suffix
+			"DATE":     term.Time(f.UploadedAt).Format("2006-01-02 15:04"), // fillist-row*.ans's {DATE:16} column has no room for a zone suffix
 			"NEWFLAG":  newFlag,
 		}
 		b.WriteString(ansi.Render(tmpl, vars))
@@ -583,7 +583,7 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 	vars := ansi.Vars{
 		"FILENAME":  f.Filename,
 		"SIZE":      humanize.Bytes(uint64(f.SizeBytes)),
-		"DATE":      f.UploadedAt.Format("2006-01-02 15:04 UTC"),
+		"DATE":      term.Time(f.UploadedAt).Format("2006-01-02 15:04 MST"),
 		"BY":        f.UploadedByName,
 		"DOWNLOADS": strconv.Itoa(f.DownloadCount),
 	}

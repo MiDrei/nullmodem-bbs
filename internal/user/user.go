@@ -9,6 +9,10 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	// Embedded zone database: the runtime image (debian:trixie-slim)
+	// isn't guaranteed to ship /usr/share/zoneinfo, and a missing zone
+	// would silently fall back to UTC (see Location).
+	_ "time/tzdata"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -34,6 +38,25 @@ var ErrInvalidCredentials = errors.New("user: invalid username or password")
 // account exists.
 var ErrNotFound = errors.New("user: not found")
 
+// MinPasswordLength is the shortest password accepted at registration
+// and when changing it (see ChangePassword).
+const MinPasswordLength = 6
+
+// ErrPasswordTooShort is returned by ChangePassword for a new password
+// under MinPasswordLength.
+var ErrPasswordTooShort = fmt.Errorf("user: password must be at least %d characters", MinPasswordLength)
+
+// ErrRealNameRequired and ErrRealNameReserved are returned by
+// ValidateRealName.
+var (
+	ErrRealNameRequired = errors.New("user: real name is required")
+	ErrRealNameReserved = errors.New("user: that name is reserved")
+)
+
+// ErrInvalidTimezone is returned by SetTimezone for a name that isn't
+// a known IANA zone.
+var ErrInvalidTimezone = errors.New("user: unknown time zone")
+
 // ErrLastSysop is returned by SetSecurityLevel when lowering an
 // account below SLSysop would leave no account at sysop level at all,
 // locking everyone out of every sysop-only feature (web admin login,
@@ -54,6 +77,65 @@ type User struct {
 	CreatedAt     time.Time
 	LastLoginAt   sql.NullTime
 	TotalCalls    int
+	// Timezone is the IANA zone name (e.g. "Europe/Zurich") the caller
+	// chose in their profile, or "" if never set -- see Location.
+	Timezone string
+}
+
+// Location returns the zone to show this user's times in: their
+// profile's Timezone, or UTC if it's unset (or, defensively, no longer
+// loadable). The web portal treats "" differently -- it falls back to
+// the browser's own zone, since it has one to offer.
+func (u *User) Location() *time.Location {
+	if u.Timezone == "" {
+		return time.UTC
+	}
+	loc, err := time.LoadLocation(u.Timezone)
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}
+
+// ValidateTimezone reports whether name is acceptable for SetTimezone:
+// "" (not set) or a loadable IANA zone name. "Local" is rejected --
+// it would mean the server's own zone, not something a caller chose.
+func ValidateTimezone(name string) error {
+	if name == "" {
+		return nil
+	}
+	if name == "Local" {
+		return ErrInvalidTimezone
+	}
+	if _, err := time.LoadLocation(name); err != nil {
+		return ErrInvalidTimezone
+	}
+	return nil
+}
+
+// ValidateRealName checks a real name a caller wants to set, the same
+// rules registration applies: required, and not a reserved system/staff
+// role (see IsRestrictedRealName). Callers pass it already trimmed.
+func ValidateRealName(realName string) error {
+	if realName == "" {
+		return ErrRealNameRequired
+	}
+	if IsRestrictedRealName(realName) {
+		return ErrRealNameReserved
+	}
+	return nil
+}
+
+// userColumns is the column list every single-/multi-row user query
+// selects, in scanUser's order.
+const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone`
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanUser(row rowScanner, u *User) error {
+	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone)
 }
 
 // Store persists User accounts in the shared SQLite database.
@@ -159,23 +241,17 @@ func (s *Store) Authenticate(username, password string) (*User, error) {
 
 // ByID loads a single user by primary key.
 func (s *Store) ByID(id int64) (*User, error) {
-	return s.scanOne(s.db.QueryRow(
-		`SELECT id, username, real_name, security_level, created_at, last_login_at, total_calls
-		 FROM users WHERE id = ?`, id,
-	))
+	return s.scanOne(s.db.QueryRow(`SELECT `+userColumns+` FROM users WHERE id = ?`, id))
 }
 
 // ByUsername loads a single user by handle (matched case-insensitively).
 func (s *Store) ByUsername(username string) (*User, error) {
-	return s.scanOne(s.db.QueryRow(
-		`SELECT id, username, real_name, security_level, created_at, last_login_at, total_calls
-		 FROM users WHERE username = ?`, username,
-	))
+	return s.scanOne(s.db.QueryRow(`SELECT `+userColumns+` FROM users WHERE username = ?`, username))
 }
 
 func (s *Store) scanOne(row *sql.Row) (*User, error) {
 	var u User
-	if err := row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
+	if err := scanUser(row, &u); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -187,10 +263,7 @@ func (s *Store) scanOne(row *sql.Row) (*User, error) {
 // ListAll returns every account, ordered by id (i.e. registration
 // order), for the sysop user-list menu and admin API.
 func (s *Store) ListAll() ([]User, error) {
-	rows, err := s.db.Query(
-		`SELECT id, username, real_name, security_level, created_at, last_login_at, total_calls
-		 FROM users ORDER BY id`,
-	)
+	rows, err := s.db.Query(`SELECT ` + userColumns + ` FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("user: list all: %w", err)
 	}
@@ -199,7 +272,7 @@ func (s *Store) ListAll() ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls); err != nil {
+		if err := scanUser(rows, &u); err != nil {
 			return nil, fmt.Errorf("user: scan: %w", err)
 		}
 		users = append(users, u)
@@ -217,6 +290,46 @@ func (s *Store) ListAll() ([]User, error) {
 func (s *Store) SetRealName(id int64, realName string) error {
 	if _, err := s.db.Exec(`UPDATE users SET real_name = ? WHERE id = ?`, realName, id); err != nil {
 		return fmt.Errorf("user: set real name for id %d: %w", id, err)
+	}
+	return nil
+}
+
+// SetTimezone stores the zone a user's times are shown in: an IANA name
+// (see ValidateTimezone) or "" to unset it. Returns ErrInvalidTimezone
+// for anything else.
+func (s *Store) SetTimezone(id int64, name string) error {
+	if err := ValidateTimezone(name); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`UPDATE users SET timezone = ? WHERE id = ?`, name, id); err != nil {
+		return fmt.Errorf("user: set timezone for id %d: %w", id, err)
+	}
+	return nil
+}
+
+// ChangePassword replaces a user's password after verifying their
+// current one: ErrInvalidCredentials if current doesn't match,
+// ErrPasswordTooShort if next is under MinPasswordLength.
+func (s *Store) ChangePassword(id int64, current, next string) error {
+	var hash string
+	if err := s.db.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, id).Scan(&hash); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("user: load password for id %d: %w", id, err)
+	}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(current)) != nil {
+		return ErrInvalidCredentials
+	}
+	if len(next) < MinPasswordLength {
+		return ErrPasswordTooShort
+	}
+	newHash, err := bcrypt.GenerateFromPassword([]byte(next), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("user: hash password: %w", err)
+	}
+	if _, err := s.db.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, string(newHash), id); err != nil {
+		return fmt.Errorf("user: set password for id %d: %w", id, err)
 	}
 	return nil
 }

@@ -26,7 +26,7 @@
 		submitting = true;
 		try {
 			const res = await bbsLogin(username, password);
-			bbsAuth.set({ token: res.token, username: res.username });
+			bbsAuth.set({ token: res.token, username: res.username, timezone: res.timezone ?? '' });
 			await goto('/message-areas');
 		} catch (err) {
 			error = err instanceof ApiError ? err.message : 'Login failed.';

@@ -172,6 +172,7 @@ func (s *Server) handleBBSLogin(w http.ResponseWriter, r *http.Request) {
 		"token":          signed,
 		"username":       u.Username,
 		"security_level": u.SecurityLevel,
+		"timezone":       u.Timezone,
 		"expires_at":     now.Add(tokenTTL),
 	})
 }

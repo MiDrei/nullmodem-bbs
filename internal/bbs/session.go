@@ -29,9 +29,6 @@ const Version = version.Version
 // before being disconnected.
 const maxLoginAttempts = 3
 
-// minPasswordLength is the minimum length accepted at registration.
-const minPasswordLength = 6
-
 // Server drives BBS sessions handed to it by any transport (telnet,
 // SSH, ...) that implements Conn.
 type Server struct {
@@ -138,6 +135,7 @@ func (s *Server) Handle(conn Conn) {
 		return
 	}
 	s.Nodes.SetUsername(node, u.Username)
+	term.SetLocation(u.Location())
 	s.logInfo("[%s] node %d: %s logged in", protocol, node, u.Username)
 
 	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
@@ -177,6 +175,9 @@ func (s *Server) baseVars(node int) ansi.Vars {
 // authenticated caller, for use once login has completed.
 func (s *Server) userVars(u *user.User, node int) ansi.Vars {
 	vars := s.baseVars(node)
+	now := time.Now().In(u.Location())
+	vars["DATE"] = now.Format("2006-01-02")
+	vars["TIME"] = now.Format("15:04:05")
 	vars["USERNAME"] = u.Username
 	vars["SL"] = strconv.Itoa(u.SecurityLevel)
 	vars["TOTALCALLS"] = strconv.Itoa(u.TotalCalls)
@@ -280,14 +281,14 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 	}
 
 	for {
-		if err := term.Print(ansi.Reset + fmt.Sprintf("Choose a password (min %d chars): ", minPasswordLength) + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + fmt.Sprintf("Choose a password (min %d chars): ", user.MinPasswordLength) + ansi.FG(ansi.Yellow, true)); err != nil {
 			return nil, false, err
 		}
 		pw1, err := term.ReadLine(true)
 		if err != nil {
 			return nil, false, err
 		}
-		if len(pw1) < minPasswordLength {
+		if len(pw1) < user.MinPasswordLength {
 			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Password too short."); err != nil {
 				return nil, false, err
 			}
@@ -349,14 +350,8 @@ func (s *Server) promptRealName(term *Terminal) (string, error) {
 			return "", err
 		}
 		realName = strings.TrimSpace(realName)
-		if realName == "" {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Real name is required."); err != nil {
-				return "", err
-			}
-			continue
-		}
-		if user.IsRestrictedRealName(realName) {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That name is reserved."); err != nil {
+		if err := user.ValidateRealName(realName); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + realNameErrorText(err)); err != nil {
 				return "", err
 			}
 			continue
@@ -372,10 +367,14 @@ var errLogoff = errors.New("bbs: logoff")
 
 // builtins maps a menu item's "builtin:<name>" action to the handler
 // it runs. Adding a new builtin command means adding an entry here
-// and referencing "builtin:<name>" from a menu YAML file.
+// and referencing "builtin:<name>" from a menu YAML file. "stats" is
+// the pre-profile name of the same [Y] entry, kept so a deployment's
+// own (bind-mounted, never overwritten) main.yaml still reaches the
+// profile.
 var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"who":            (*Server).showWho,
-	"stats":          (*Server).showStats,
+	"profile":        (*Server).showProfile,
+	"stats":          (*Server).showProfile,
 	"version":        (*Server).showVersion,
 	"listusers":      (*Server).sysopListUsers,
 	"setsl":          (*Server).sysopSetSecurityLevel,
@@ -593,25 +592,6 @@ func (s *Server) showVersion(term *Terminal, u *user.User) error {
 	return s.pauseForKey(term)
 }
 
-func (s *Server) showStats(term *Terminal, u *user.User) error {
-	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Your account" + ansi.Reset); err != nil {
-		return err
-	}
-	if err := term.Println(fmt.Sprintf("Handle:         %s", u.Username)); err != nil {
-		return err
-	}
-	if err := term.Println(fmt.Sprintf("Security level: %d", u.SecurityLevel)); err != nil {
-		return err
-	}
-	if err := term.Println(fmt.Sprintf("Total calls:    %d", u.TotalCalls)); err != nil {
-		return err
-	}
-	if err := term.Println(fmt.Sprintf("Member since:   %s", u.CreatedAt.Format("2006-01-02"))); err != nil {
-		return err
-	}
-	return s.pauseForKey(term)
-}
-
 // sysopListUsers is the "builtin:listusers" command, reachable only
 // through a menu item gated at sysop level (see configs/menus/sysop.yaml).
 func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
@@ -625,7 +605,7 @@ func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
 	for _, listed := range users {
 		lastLogin := "never"
 		if listed.LastLoginAt.Valid {
-			lastLogin = listed.LastLoginAt.Time.Format("2006-01-02 15:04 UTC")
+			lastLogin = term.Time(listed.LastLoginAt.Time).Format("2006-01-02 15:04 MST")
 		}
 		line := fmt.Sprintf("%-21s%-5d%-7d%s", listed.Username, listed.SecurityLevel, listed.TotalCalls, lastLogin)
 		if err := term.Println(line); err != nil {
@@ -689,7 +669,7 @@ func (s *Server) showWho(term *Terminal, _ *user.User) error {
 		return err
 	}
 	for _, n := range nodes {
-		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, n.ConnectedAt.Format("15:04:05 UTC"))); err != nil {
+		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, term.Time(n.ConnectedAt).Format("15:04:05 MST"))); err != nil {
 			return err
 		}
 	}

@@ -8,6 +8,8 @@ const STORAGE_KEY = 'nullmodem.bbs.session';
 interface Session {
 	token: string;
 	username: string;
+	/** Profile time zone (IANA name); "" or absent = the browser's own zone. See $lib/datetime. */
+	timezone?: string;
 }
 
 function readStoredSession(): Session | null {
@@ -30,6 +32,10 @@ class BBSAuthState {
 		return this.session?.username ?? null;
 	}
 
+	get timezone() {
+		return this.session?.timezone || undefined;
+	}
+
 	set(session: Session) {
 		this.session = session;
 		try {
@@ -37,6 +43,13 @@ class BBSAuthState {
 		} catch {
 			// localStorage unavailable (private mode, etc.); session still
 			// works for the current page load.
+		}
+	}
+
+	/** Updates the stored profile time zone -- after a profile save, or when a refresh finds it changed (e.g. set via Telnet/SSH). */
+	setTimezone(timezone: string) {
+		if (this.session && this.session.timezone !== timezone) {
+			this.set({ ...this.session, timezone });
 		}
 	}
 

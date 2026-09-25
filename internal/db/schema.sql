@@ -6,7 +6,11 @@ CREATE TABLE IF NOT EXISTS users (
     security_level INTEGER NOT NULL DEFAULT 10,
     created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_login_at  TIMESTAMP,
-    total_calls    INTEGER NOT NULL DEFAULT 0
+    total_calls    INTEGER NOT NULL DEFAULT 0,
+    -- IANA zone name (e.g. "Europe/Zurich") times are shown in, on
+    -- Telnet/SSH and in the web portal alike; '' means not set (see
+    -- user.User.Location).
+    timezone       TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_security_level ON users(security_level);

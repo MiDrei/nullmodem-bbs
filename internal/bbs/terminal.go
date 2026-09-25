@@ -1,6 +1,8 @@
 package bbs
 
 import (
+	"time"
+
 	"git.maik.ch/nullmodem/kit/ansi"
 )
 
@@ -32,6 +34,24 @@ type Terminal struct {
 	// press to reach the peek and the second to finally satisfy it)
 	// with a long visible stall in between the two.
 	expectLFOrNUL bool
+	// loc is the zone times are shown in for this session -- the
+	// caller's profile time zone once logged in (see SetLocation), UTC
+	// until then.
+	loc *time.Location
+}
+
+// SetLocation sets the zone Time converts to, e.g. after login or when
+// the caller changes their profile's time zone.
+func (t *Terminal) SetLocation(loc *time.Location) { t.loc = loc }
+
+// Time converts tm to this session's display zone (UTC if none is set).
+// Format it with an "MST" zone abbreviation wherever there's room, so
+// a caller can tell which zone they're looking at.
+func (t *Terminal) Time(tm time.Time) time.Time {
+	if t.loc == nil {
+		return tm.UTC()
+	}
+	return tm.In(t.loc)
 }
 
 // NewTerminal wraps conn for line-based interaction.

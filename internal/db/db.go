@@ -58,6 +58,10 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "users", "timezone", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	if err := ensureColumn(sqlDB, "message_areas", "network", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		sqlDB.Close()
 		return nil, err

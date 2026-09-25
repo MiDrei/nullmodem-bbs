@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDate } from '$lib/datetime';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -117,7 +118,7 @@
 		if (hours < 24) return `${hours}h ago`;
 		const days = Math.round(hours / 24);
 		if (days < 7) return `${days}d ago`;
-		return new Date(iso).toLocaleDateString();
+		return formatDate(iso);
 	}
 
 	async function post() {

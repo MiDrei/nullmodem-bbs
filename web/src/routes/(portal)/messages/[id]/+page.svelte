@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { formatDateTime } from '$lib/datetime';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -146,7 +147,7 @@
 			<h1 class="text-xl font-bold tracking-tight text-slate-100">{message.subject}</h1>
 			<div class="mt-0.5 text-sm text-slate-500">
 				<strong class="text-slate-300">{message.from_name}</strong> to {message.to_name} &middot;
-				{new Date(message.posted_at).toLocaleString()}
+				{formatDateTime(message.posted_at)}
 			</div>
 		</div>
 	</div>

@@ -8,7 +8,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
-	import { getBBSInfo } from '$lib/api';
+	import { getBBSInfo, getBBSProfile } from '$lib/api';
 	import Toaster from '$lib/Toaster.svelte';
 
 	let { children } = $props();
@@ -23,6 +23,16 @@
 			if (info.name) bbsName = info.name;
 		} catch {
 			// Non-critical: keep the generic fallback name.
+		}
+		// Pick up a time zone changed elsewhere (e.g. via Telnet/SSH)
+		// since this browser logged in -- see $lib/datetime.
+		if (bbsAuth.token) {
+			try {
+				const profile = await getBBSProfile(bbsAuth.token);
+				bbsAuth.setTimezone(profile.timezone);
+			} catch {
+				// Non-critical: keep the stored zone; pages handle auth errors.
+			}
 		}
 	});
 
@@ -54,6 +64,7 @@
 				<a href="/netmail" class="transition hover:text-slate-100">Netmail</a>
 				<a href="/file-areas" class="transition hover:text-slate-100">Files</a>
 				<a href="/qwk" class="transition hover:text-slate-100">QWK Mail</a>
+				<a href="/profile" class="transition hover:text-slate-100">Profile</a>
 			</nav>
 		{:else}
 			<div></div>

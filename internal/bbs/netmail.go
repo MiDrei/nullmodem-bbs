@@ -269,7 +269,7 @@ func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Me
 		vars := ansi.Vars{
 			"SUBJECT": m.Subject,
 			"FROM":    m.FromName,
-			"DATE":    m.PostedAt.Format("2006-01-02 15:04"), // netmail-row*.ans's {DATE:16} column has no room for a "UTC" suffix
+			"DATE":    term.Time(m.PostedAt).Format("2006-01-02 15:04"), // netmail-row*.ans's {DATE:16} column has no room for a zone suffix
 			"NEWFLAG": newFlag,
 		}
 		b.WriteString(ansi.Render(tmpl, vars))
@@ -453,7 +453,7 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 		"FROM":    m.FromName,
 		"TO":      to,
 		"SUBJECT": m.Subject,
-		"DATE":    m.PostedAt.Format("2006-01-02 15:04 UTC"),
+		"DATE":    term.Time(m.PostedAt).Format("2006-01-02 15:04 MST"),
 	}
 	meta := ansi.Layout(ansi.Render(metaTemplate, vars), term.Width())
 	footerTemplate := s.loadOptionalScreen(netmailReadFooterScreen, fallbackNetmailReadFooter)
