@@ -104,3 +104,8 @@ Das Docker-Image enthält Synchronets `sexyz` (GNU GPL, Version 2 oder später)
 als eigenes Programm für Zmodem-Übertragungen; Lizenztexte, Hinweise und der
 vollständige Quellcode liegen im Image unter `/usr/local/share/doc/sexyz/`.
 Einzelheiten: [docs/third-party.md](docs/third-party.md).
+
+## Lizenz
+
+MIT — siehe [LICENSE](LICENSE). Fremdsoftware im Docker-Image behält ihre
+eigene Lizenz (siehe oben).
