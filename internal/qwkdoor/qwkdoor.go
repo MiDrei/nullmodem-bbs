@@ -86,6 +86,14 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		if m.ReadAt.Valid {
 			continue
 		}
+		// A sender on another FTN system is named with their address,
+		// "Name@zone:net/node" -- the form RouteReplies accepts -- so
+		// replying from an offline reader reaches them without anyone
+		// having to look the address up.
+		from := m.FromName
+		if !m.FromUserID.Valid && m.FromAddress != "" {
+			from = m.FromName + "@" + m.FromAddress
+		}
 		packed = append(packed, qwk.PackedMessage{
 			Header: qwk.MessageHeader{
 				Status:        ' ',
@@ -93,11 +101,11 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 				LogicalNumber: len(packed) + 1,
 				Written:       m.PostedAt,
 				To:            m.ToName,
-				From:          m.FromName,
+				From:          from,
 				Subject:       m.Subject,
 				Conference:    0,
 			},
-			Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
+			Text: qwk.AddKludges(m.ToName, from, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
 		})
 		unreadNetmailIDs = append(unreadNetmailIDs, m.ID)
 	}
@@ -166,6 +174,11 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		PersonalNames: []string{u.Username},
 		Conferences:   conferences,
 		Username:      u.Username,
+		// Conference 0 is netmail: flagged in TOREADER.EXT, a QWKE
+		// reader asks for a recipient there instead of addressing
+		// "All" -- and knows where a new netmail goes even when this
+		// packet carries none.
+		Areas: []qwk.AreaEntry{{Number: 0, Flags: "N"}},
 	}
 
 	packetPath := filepath.Join(dir, bbsID+".QWK")
@@ -200,47 +213,108 @@ func CommitRead(messages *message.Store, nm *netmail.Store, userID int64, unread
 	return nil
 }
 
+// RouteResult reports what RouteReplies did with a reply packet.
+type RouteResult struct {
+	Posted, Sent int
+	// Rejected are the replies that were not delivered, with why --
+	// so an offline reader can keep them and tell its user instead of
+	// losing them silently.
+	Rejected []Rejected
+}
+
+// Rejected is one reply RouteReplies did not deliver.
+type Rejected struct {
+	// Index is the reply's position in the packet, from 0.
+	Index   int    `json:"index"`
+	To      string `json:"to"`
+	Subject string `json:"subject"`
+	Reason  string `json:"reason"`
+}
+
 // RouteReplies applies every reply parsed from a .REP packet: a reply
-// whose (repurposed) conference number is 0 goes to netmail, resolved
-// exactly the way the BBS portal's own netmail compose already
-// resolves a recipient -- a local username first, else a raw FTN
-// address; any other conference number is posted into the message
-// area whose own ID matches it (rejected if the area doesn't exist,
-// is pending, or the caller lacks write access). It returns how many
-// replies landed in each category.
-func RouteReplies(messages *message.Store, nm *netmail.Store, users *user.Store, ftnAddress string, u *user.User, replies []qwk.PackedMessage) (posted, sent, skipped int, err error) {
-	for _, reply := range replies {
+// whose (repurposed) conference number is 0 goes to netmail (see
+// netmailRecipient for who it reaches); any other conference number is
+// posted into the message area whose own ID matches it (rejected if
+// the area doesn't exist, is pending, or the caller lacks write
+// access).
+//
+// QWKE kludge lines at the top of a reply carry the untruncated To and
+// Subject (the header fields hold 25 bytes); they are used instead of
+// the header and stripped from the text, so they never end up in the
+// posted message.
+func RouteReplies(messages *message.Store, nm *netmail.Store, users *user.Store, ftnAddress string, u *user.User, replies []qwk.PackedMessage) (RouteResult, error) {
+	var res RouteResult
+	for i, reply := range replies {
 		conference := reply.Header.Number // REP repurposes this field -- see qwk.MessageHeader's doc comment
+		k, text := qwk.ParseQWKEKludges(reply.Text)
+		to := strings.TrimSpace(firstNonEmpty(k.To, reply.Header.To))
+		subject := strings.TrimSpace(firstNonEmpty(k.Subject, reply.Header.Subject))
+		reject := func(reason string) {
+			res.Rejected = append(res.Rejected, Rejected{Index: i, To: to, Subject: subject, Reason: reason})
+		}
 
 		if conference == 0 {
-			toName := strings.TrimSpace(reply.Header.To)
-			var toUserID int64
-			var toAddress string
-			if recipient, err := users.ByUsername(toName); err == nil {
-				toUserID = recipient.ID
-				toName = recipient.Username
-			} else if netmail.IsFTNAddress(toName) {
-				toAddress = toName
-			} else {
-				skipped++
+			toUserID, toName, toAddress, ok := netmailRecipient(users, to)
+			if !ok {
+				reject(fmt.Sprintf("unknown recipient %q -- use a username on this BBS or Name@zone:net/node", to))
 				continue
 			}
-			if _, err := nm.Send(u.ID, ftnAddress, toUserID, toName, toAddress, reply.Header.Subject, reply.Text, false); err != nil {
-				return posted, sent, skipped, fmt.Errorf("qwk: sending netmail reply: %w", err)
+			if _, err := nm.Send(u.ID, ftnAddress, toUserID, toName, toAddress, subject, text, false); err != nil {
+				return res, fmt.Errorf("qwk: sending netmail reply: %w", err)
 			}
-			sent++
+			res.Sent++
 			continue
 		}
 
 		area, err := messages.AreaByID(int64(conference))
-		if err != nil || area.Pending || !area.CanWrite(u.SecurityLevel) {
-			skipped++
+		switch {
+		case err != nil:
+			reject(fmt.Sprintf("conference %d does not exist here", conference))
+			continue
+		case area.Pending:
+			reject(fmt.Sprintf("%s is still awaiting the sysop's approval", area.Name))
+			continue
+		case !area.CanWrite(u.SecurityLevel):
+			reject(fmt.Sprintf("you may not post in %s", area.Name))
 			continue
 		}
-		if _, err := messages.PostMessage(area.ID, u.ID, reply.Header.To, reply.Header.Subject, reply.Text); err != nil {
-			return posted, sent, skipped, fmt.Errorf("qwk: posting reply to area %d: %w", area.ID, err)
+		if _, err := messages.PostMessage(area.ID, u.ID, to, subject, text); err != nil {
+			return res, fmt.Errorf("qwk: posting reply to area %d: %w", area.ID, err)
 		}
-		posted++
+		res.Posted++
 	}
-	return posted, sent, skipped, nil
+	return res, nil
+}
+
+// netmailRecipient resolves a netmail reply's To, the way the BBS
+// portal's own netmail compose does plus the one form QWK readers use
+// for a person elsewhere: a username on this BBS; "Name@zone:net/node"
+// for someone on another FTN system; or a bare FTN address, which
+// reaches that system under the address itself as the name.
+func netmailRecipient(users *user.Store, to string) (toUserID int64, toName, toAddress string, ok bool) {
+	if to == "" {
+		return 0, "", "", false
+	}
+	if recipient, err := users.ByUsername(to); err == nil {
+		return recipient.ID, recipient.Username, "", true
+	}
+	if at := strings.LastIndex(to, "@"); at > 0 {
+		name, addr := strings.TrimSpace(to[:at]), strings.TrimSpace(to[at+1:])
+		if name != "" && netmail.IsFTNAddress(addr) {
+			return 0, name, addr, true
+		}
+	}
+	if netmail.IsFTNAddress(to) {
+		return 0, to, to, true
+	}
+	return 0, "", "", false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }

@@ -253,16 +253,23 @@ func (s *Server) handleUploadBBSQWKReply(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	posted, sent, skipped, err := qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
+	res, err := qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not process replies")
 		return
 	}
 
-	s.logInfo("%s uploaded a QWK reply packet via the BBS portal: %d posted, %d netmail sent, %d skipped", claims.Subject, posted, sent, skipped)
+	s.logInfo("%s uploaded a QWK reply packet via the BBS portal: %d posted, %d netmail sent, %d skipped", claims.Subject, res.Posted, res.Sent, len(res.Rejected))
+	rejected := res.Rejected
+	if rejected == nil {
+		rejected = []qwkdoor.Rejected{}
+	}
+	// Rejected names each reply that was not delivered by its position
+	// in the packet, so an offline reader can keep exactly those.
 	writeJSON(w, http.StatusOK, struct {
-		Posted  int `json:"posted"`
-		Sent    int `json:"sent"`
-		Skipped int `json:"skipped"`
-	}{posted, sent, skipped})
+		Posted   int                `json:"posted"`
+		Sent     int                `json:"sent"`
+		Skipped  int                `json:"skipped"`
+		Rejected []qwkdoor.Rejected `json:"rejected"`
+	}{res.Posted, res.Sent, len(res.Rejected), rejected})
 }

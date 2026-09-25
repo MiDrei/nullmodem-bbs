@@ -36,7 +36,7 @@ func (s *Server) commitQWKRead(userID int64, unreadNetmailIDs []int64, markRead 
 
 // routeQWKReplies is a thin wrapper around qwkdoor.RouteReplies binding it
 // to this Server's own stores/identity.
-func (s *Server) routeQWKReplies(u *user.User, replies []qwk.PackedMessage) (posted, sent, skipped int, err error) {
+func (s *Server) routeQWKReplies(u *user.User, replies []qwk.PackedMessage) (qwkdoor.RouteResult, error) {
 	return qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
 }
 
@@ -131,19 +131,31 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Could not read that reply packet.")
 	}
 
-	posted, sent, skipped, err := s.routeQWKReplies(u, replies)
+	res, err := s.routeQWKReplies(u, replies)
 	if err != nil {
 		return fmt.Errorf("qwk upload: %w", err)
 	}
 
-	s.logInfo("%s uploaded a QWK reply packet: %d posted, %d netmail sent, %d skipped", u.Username, posted, sent, skipped)
+	s.logInfo("%s uploaded a QWK reply packet: %d posted, %d netmail sent, %d skipped", u.Username, res.Posted, res.Sent, len(res.Rejected))
 
 	msg := ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) +
-		fmt.Sprintf("Replies processed: %d posted, %d netmail sent", posted, sent)
-	if skipped > 0 {
-		msg += fmt.Sprintf(", %d skipped", skipped)
+		fmt.Sprintf("Replies processed: %d posted, %d netmail sent", res.Posted, res.Sent)
+	if len(res.Rejected) > 0 {
+		msg += fmt.Sprintf(", %d skipped", len(res.Rejected))
 	}
-	return term.Println(msg)
+	if err := term.Println(msg); err != nil {
+		return err
+	}
+	// Say which ones and why: the upload is the only moment the
+	// caller hears about it, and the offline reader has already
+	// dropped them from its queue.
+	for _, r := range res.Rejected {
+		line := fmt.Sprintf("  Not delivered: %q to %s -- %s", r.Subject, r.To, r.Reason)
+		if err := term.Println(ansi.FG(ansi.Red, true) + line + ansi.Reset); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // configureQWKAreas is the "builtin:qwkareas" command: a numbered

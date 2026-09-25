@@ -95,6 +95,9 @@
 					'.',
 				'success'
 			);
+			for (const r of result.rejected ?? []) {
+				toast.push(`Not delivered: "${r.subject}" to ${r.to} -- ${r.reason}`, 'error');
+			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			toast.push(err instanceof ApiError ? err.message : 'Could not process reply packet.', 'error');

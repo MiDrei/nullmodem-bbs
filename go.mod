@@ -3,7 +3,7 @@ module git.maik.ch/nullmodem/bbs
 go 1.26.0
 
 require (
-	git.maik.ch/nullmodem/kit v0.1.0
+	git.maik.ch/nullmodem/kit v0.2.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	golang.org/x/crypto v0.57.0

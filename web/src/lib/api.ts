@@ -1174,10 +1174,20 @@ export async function downloadQWKPacket(token: string): Promise<boolean> {
 	return true;
 }
 
+export interface QWKReplyRejected {
+	/** Position of the reply in the uploaded packet, from 0. */
+	index: number;
+	to: string;
+	subject: string;
+	reason: string;
+}
+
 export interface QWKReplyResult {
 	posted: number;
 	sent: number;
 	skipped: number;
+	/** The replies that were not delivered, and why. */
+	rejected: QWKReplyRejected[];
 }
 
 export function uploadQWKReply(token: string, file: File): Promise<QWKReplyResult> {
