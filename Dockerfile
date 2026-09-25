@@ -35,6 +35,28 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags="-s -w" -o /out/web ./cmd/web
 
+# ---- sexyz (Zmodem) ----------------------------------------------------
+# Telnet/SSH file and QWK transfers shell out to Synchronet's sexyz
+# (see the kit's zmodem package and docs/building-sexyz.md); no distro
+# packages it, so it is built from source here. Pinned to the commit
+# the Zmodem tests are run against, and built on the same Debian as
+# the runtime image so its libc matches -- sexyz needs nothing else.
+FROM debian:trixie-slim AS sexyz-build
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential git ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+ARG SBBS_COMMIT=7cf7f2fc56d8383aeb6cd35639977f3815afe7ce
+WORKDIR /src
+# Only src/ of the (large) Synchronet repository, at that one commit.
+RUN git init -q sbbs && cd sbbs && \
+    git remote add origin https://gitlab.synchro.net/main/sbbs.git && \
+    git sparse-checkout set src && \
+    git fetch -q --depth 1 --filter=blob:none origin "$SBBS_COMMIT" && \
+    git checkout -q FETCH_HEAD
+WORKDIR /src/sbbs/src/sbbs3
+RUN make git_branch.h git_hash.h && make RELEASE=1 sexyz && \
+    install -m 0755 */sexyz /usr/local/bin/sexyz
+
 # ---- runtime ---------------------------------------------------------
 # debian:trixie-slim, not alpine/distroless: DOS door support (see
 # docs/adding-a-door.md) needs a real dosbox-x package with its own
@@ -52,6 +74,7 @@ RUN apt-get update && \
 
 WORKDIR /app
 COPY --from=go-build /out/bbs /out/mailer /out/web ./bin/
+COPY --from=sexyz-build /usr/local/bin/sexyz /usr/local/bin/sexyz
 COPY --from=web-build /src/web/build ./web/build
 COPY docker-entrypoint.sh ./
 

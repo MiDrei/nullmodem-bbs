@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"git.maik.ch/nullmodem/bbs/internal/applog"
@@ -97,6 +98,13 @@ func main() {
 		ScreensDir:    cfg.BBS.ScreensDir,
 		Logger:        logger,
 	})
+
+	// File and QWK transfers over Telnet/SSH run Synchronet's sexyz.
+	// Without it every transfer fails the moment it starts, so say so
+	// once, loudly, where the sysop looks -- not only per attempt.
+	if _, err := exec.LookPath("sexyz"); err != nil {
+		logger.Warn("sexyz not found on PATH: Zmodem file and QWK transfers over Telnet/SSH will fail (see docs/building-sexyz.md)")
+	}
 
 	errCh := make(chan error, 2)
 
