@@ -152,7 +152,11 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 					Subject:       m.Subject,
 					Conference:    int(st.Area.ID),
 				},
-				Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, message.StripSeenByAndPathForDisplay(m.Body)),
+				// Echomail keeps its SEEN-BY/PATH block: an offline reader hides it,
+				// but can show it or quote it into a reply -- the routing an echo
+				// ping or a dupe hunt is about. The web and Telnet readers still
+				// strip it for display.
+				Text: qwk.AddKludges(m.ToName, m.FromName, m.Subject, m.Body),
 			})
 			markRead[st.Area.ID] = append(markRead[st.Area.ID], m.ID)
 		}

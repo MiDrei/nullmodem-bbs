@@ -161,3 +161,32 @@ func TestPacketFlagsNetmailAndNamesRemoteSendersWithTheirAddress(t *testing.T) {
 		t.Fatalf("from = %q, want the sender with their address", from)
 	}
 }
+
+func TestEchomailKeepsItsSeenByAndPathInThePacket(t *testing.T) {
+	st := newStores(t)
+	alice, err := st.users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	general, err := st.messages.AreaByTag("general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "Ping!\n--- SomeTosser\n * Origin: Somewhere (2:301/1)\nSEEN-BY: 301/1 100\n\x01PATH: 301/1"
+	if _, _, err := st.messages.ReceiveEcho(general.ID, "Bob", "ping", body, "", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	res, err := BuildPacketForUser(st.messages, st.netmail, alice, "Test BBS", "Sysop", t.TempDir())
+	if err != nil {
+		t.Fatalf("BuildPacketForUser: %v", err)
+	}
+	p, err := qwk.OpenPacket(res.PacketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+	_, text := qwk.ParseQWKEKludges(p.Messages[0].Text)
+	if !strings.Contains(text, "SEEN-BY: 301/1 100") || !strings.Contains(text, "PATH: 301/1") {
+		t.Fatalf("text = %q, want the routing block kept", text)
+	}
+}
