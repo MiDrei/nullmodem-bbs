@@ -35,7 +35,7 @@ items:
     action: "builtin:qwkareas"
     min_sl: 0
   - key: Y
-    label: "Your profile (SL {SL})"
+    label: "Your profile"
     action: "builtin:profile"
     min_sl: 0
   - key: V
