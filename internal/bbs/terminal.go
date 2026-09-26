@@ -18,6 +18,10 @@ const (
 // suppressed.
 type Terminal struct {
 	conn Conn
+	// Node is the node number this caller is connected on (0 until
+	// the session assigns one), for things that need it outside the
+	// menu loop -- e.g. a door's drop file.
+	Node int
 	// pending holds at most one byte pushed back by ReadKey's escape-
 	// sequence lookahead (an 0x1b not followed by '[').
 	pending []byte

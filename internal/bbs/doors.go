@@ -19,8 +19,12 @@ import (
 // re-shown after every play session anyway, so there's no scrolling
 // concern to solve.
 func (s *Server) showDoors(term *Terminal, u *user.User) error {
+	all := s.Doors
+	if s.LoadDoors != nil {
+		all = s.LoadDoors()
+	}
 	var available []doors.Door
-	for _, d := range s.Doors {
+	for _, d := range all {
 		if u.SecurityLevel >= d.MinSL {
 			available = append(available, d)
 		}
@@ -77,6 +81,10 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 		return err
 	}
 
+	node := term.Node
+	if node < 1 {
+		node = 1
+	}
 	sess := doors.Session{
 		// The handle, not u.RealName, on purpose (decided 2026-09-25):
 		// doors key players and save games on this name, and a caller
@@ -85,7 +93,14 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 		Handle:          u.Username,
 		AccessLevel:     u.SecurityLevel,
 		TimeLeftMinutes: 60,
-		Node:            1,
+		Node:            node,
+		UserID:          u.ID,
+		TotalCalls:      u.TotalCalls,
+		BBSName:         s.BBSName,
+		SysopName:       s.SysopName,
+	}
+	if u.LastLoginAt.Valid {
+		sess.LastCall = u.LastLoginAt.Time
 	}
 	if err := doors.Run(term.Raw(), door, sess); err != nil {
 		s.logWarn("door %s ended abnormally for %s: %v", door.Name, u.Username, err)

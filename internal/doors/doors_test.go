@@ -211,7 +211,7 @@ func TestBuildDOSBoxCmdSubstitutesDropfileDirAndMounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading DOOR.SYS: %v", err)
 	}
-	for _, want := range []string{"COM1:\n", "Test User\n", "10\n"} {
+	for _, want := range []string{"COM1:\r\n", "Test User\r\n", "10\r\n"} {
 		if !strings.Contains(string(dropfile), want) {
 			t.Fatalf("DOOR.SYS missing expected field %q, got: %q", want, dropfile)
 		}

@@ -17,6 +17,9 @@ type Config struct {
 		MenusDir   string `yaml:"menus_dir"`
 		ScreensDir string `yaml:"screens_dir"`
 		FilesDir   string `yaml:"files_dir"`
+		// DoorsDir is where doors installed from the web admin's
+		// templates go, one directory each.
+		DoorsDir string `yaml:"doors_dir"`
 		// FTNAddresses are this system's own FTN addresses (AKAs) on
 		// whichever FTN-compatible network(s) it belongs to (FidoNet,
 		// fsxNet, etc.) -- most systems have exactly one, but a point
@@ -209,6 +212,21 @@ type DoorConfig struct {
 	// DOSBoxLaunchCmd is the DOS command line that starts the door --
 	// see internal/doors.Door.DOSBoxLaunchCmd. Kind "dosbox" only.
 	DOSBoxLaunchCmd string `yaml:"dosbox_launch_cmd"`
+
+	// DropFile is the drop file format ("door.sys", "dorinfo",
+	// "doorfile.sr", "door32.sys"); empty means the kind's default --
+	// see internal/doors.Door.DropFile.
+	DropFile string `yaml:"dropfile,omitempty"`
+	// DropFileInDoorDir also writes the drop file into the door's own
+	// directory -- see internal/doors.Door.DropFileInDoorDir.
+	DropFileInDoorDir bool `yaml:"dropfile_in_door_dir,omitempty"`
+	// LockFiles are cleared before the door starts when nobody else is
+	// playing it -- see internal/doors.Door.LockFiles.
+	LockFiles []string `yaml:"lock_files,omitempty"`
+	// Template names the door template (internal/doors.Templates) this
+	// entry was created from, if any -- informational, shown in the
+	// web admin.
+	Template string `yaml:"template,omitempty"`
 }
 
 // PrimaryFTNAddress returns c's first configured FTN address, or "" if
@@ -233,6 +251,7 @@ func Default() *Config {
 	c.BBS.MenusDir = "configs/menus"
 	c.BBS.ScreensDir = "configs/screens"
 	c.BBS.FilesDir = "data/files"
+	c.BBS.DoorsDir = "data/doors"
 	c.Database.Path = "data/nullmodem.sqlite"
 	c.Telnet.Enabled = true
 	c.Telnet.Addr = ":2323"

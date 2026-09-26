@@ -50,6 +50,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -90,17 +91,50 @@ type Door struct {
 	// (mounted as D:, i.e. "D:\") -- most classic doors take this via
 	// a command-line switch (e.g. DOORWAY's "/s:") rather than a fixed
 	// convention. Kind "dosbox" only.
+	//
+	// Further placeholders: "{dropfile}" is the DOS path of the drop
+	// file itself (e.g. "D:\DOOR.SYS"), "{node}" the caller's node
+	// number. Several lines run one after another, as in a batch file
+	// -- e.g. a door that needs a converter run before the game itself.
 	DOSBoxLaunchCmd string
+
+	// DropFile selects the drop file format written for the session:
+	// "door.sys", "dorinfo", "doorfile.sr" or "door32.sys" (see
+	// DropFileFormats). Empty means the kind's own default: DOOR32.SYS
+	// for "native" (its socket handle is how such a door finds its
+	// connection, so it's always written), DOOR.SYS for "dosbox".
+	DropFile string
+	// DropFileInDoorDir also writes the drop file into the door's own
+	// install directory (DOSBoxDir, or Dir for "native"), for the many
+	// classic doors that look for it there rather than taking a path.
+	// DORINFO is written as DORINFO<node>.DEF there as well, so
+	// several nodes playing at once don't overwrite each other's.
+	DropFileInDoorDir bool
+	// LockFiles are files, relative to the door's install directory,
+	// deleted before the door starts when nobody else is playing it --
+	// stale node locks a crashed session left behind (e.g. OO2's
+	// OONODE.DAT), which would otherwise lock everyone out.
+	LockFiles []string
 }
 
 // Session carries the caller-specific fields Run writes into the
-// DOOR32.SYS dropfile for one play session.
+// drop file for one play session.
 type Session struct {
 	RealName        string
 	Handle          string
 	AccessLevel     int
 	TimeLeftMinutes int
 	Node            int
+
+	// UserID is the caller's user record number.
+	UserID int64
+	// TotalCalls and LastCall are the caller's own call statistics.
+	TotalCalls int
+	LastCall   time.Time
+	// BBSName and SysopName are this board's own, for the drop file
+	// formats that carry them.
+	BBSName   string
+	SysopName string
 }
 
 // isTelnetConn is implemented by a conn that can suspend its own
@@ -166,6 +200,15 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 			defer rs.SetRaw(false)
 		}
 	}
+
+	if err := validateDropFile(door); err != nil {
+		return err
+	}
+	release, err := acquire(door)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	nodeDir, err := os.MkdirTemp("", "nullmodem-door-*")
 	if err != nil {
@@ -308,6 +351,20 @@ func buildNativeCmd(nodeDir string, door Door, sess Session) (*exec.Cmd, error) 
 	if err := writeDoor32Sys(filepath.Join(nodeDir, "DOOR32.SYS"), sess); err != nil {
 		return nil, err
 	}
+	if door.DropFile != "" && door.DropFile != DropFileDoor32Sys {
+		if _, err := writeDropFile(nodeDir, door.DropFile, sess); err != nil {
+			return nil, err
+		}
+	}
+	if door.DropFileInDoorDir {
+		format := door.DropFile
+		if format == "" {
+			format = DropFileDoor32Sys
+		}
+		if _, err := writeDropFile(door.Dir, format, sess); err != nil {
+			return nil, err
+		}
+	}
 
 	// A relative door.Exe must be resolved to an absolute path before
 	// cmd.Dir is set to door.Dir -- confirmed live: exec.Cmd resolves
@@ -381,7 +438,12 @@ EXIT
 // package's doc comment for why this sidesteps DOSBox-X's own
 // TCP-based nullmodem entirely.
 func buildDOSBoxCmd(nodeDir string, door Door, sess Session) (*exec.Cmd, error) {
-	if err := writeDoorSys(filepath.Join(nodeDir, "DOOR.SYS"), sess); err != nil {
+	format := door.DropFile
+	if format == "" {
+		format = DropFileDoorSys
+	}
+	dropName, err := writeDropFile(nodeDir, format, sess)
+	if err != nil {
 		return nil, err
 	}
 
@@ -389,8 +451,12 @@ func buildDOSBoxCmd(nodeDir string, door Door, sess Session) (*exec.Cmd, error) 
 	if err != nil {
 		return nil, fmt.Errorf("doors: resolving %s's DOSBoxDir: %w", door.Name, err)
 	}
-	launchCmd := strings.ReplaceAll(door.DOSBoxLaunchCmd, "{dropfile_dir}", `D:\`)
-	conf := fmt.Sprintf(dosboxConfigTemplate, dosboxDir, nodeDir, launchCmd)
+	if door.DropFileInDoorDir {
+		if _, err := writeDropFile(dosboxDir, format, sess); err != nil {
+			return nil, err
+		}
+	}
+	conf := fmt.Sprintf(dosboxConfigTemplate, dosboxDir, nodeDir, expandLaunchCmd(door.DOSBoxLaunchCmd, dropName, sess.Node))
 	confPath := filepath.Join(nodeDir, "dosbox.conf")
 	if err := os.WriteFile(confPath, []byte(conf), 0o644); err != nil {
 		return nil, fmt.Errorf("doors: writing %s's DOSBox-X config: %w", door.Name, err)
@@ -451,64 +517,78 @@ func (p *preambleStripper) Read(buf []byte) (int, error) {
 	return p.r.Read(buf)
 }
 
-// writeDoor32Sys writes the 11-line DOOR32.SYS dropfile format at
-// path -- see https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt
-// for the full field-by-field spec. Comm type is always 2 (Telnet)
-// and the comm/socket handle is always 3, matching the fixed fd Run
-// hands the door process via ExtraFiles (Go always numbers a spawned
-// child's ExtraFiles starting at 3, right after its inherited stdin/
-// stdout/stderr).
-func writeDoor32Sys(path string, sess Session) error {
-	var b strings.Builder
-	b.WriteString("2\n")                                     // Comm Type: 2=Telnet
-	b.WriteString("3\n")                                     // Comm/Socket Handle
-	b.WriteString("57600\n")                                 // Baud Rate (informational only over a socket)
-	b.WriteString("NullModem BBS\n")                         // BBSID
-	b.WriteString("1\n")                                     // User's Record Position
-	b.WriteString(sess.RealName + "\n")                      // User's Real Name
-	b.WriteString(sess.Handle + "\n")                        // User's Handle/Alias
-	b.WriteString(strconv.Itoa(sess.AccessLevel) + "\n")     // User's Access Level
-	b.WriteString(strconv.Itoa(sess.TimeLeftMinutes) + "\n") // User's Time Left (minutes)
-	b.WriteString("1\n")                                     // Emulation: 1=Ansi
-	b.WriteString(strconv.Itoa(sess.Node) + "\n")            // Current Node Number
-	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
-		return fmt.Errorf("doors: writing DOOR32.SYS: %w", err)
+// expandLaunchCmd fills in DOSBoxLaunchCmd's placeholders (see
+// Door.DOSBoxLaunchCmd) and normalizes its lines for the autoexec
+// section: one DOS command per line, blank lines dropped.
+func expandLaunchCmd(cmd, dropName string, node int) string {
+	r := strings.NewReplacer(
+		"{dropfile_dir}", `D:\`,
+		"{dropfile}", `D:\`+dropName,
+		"{node}", strconv.Itoa(node),
+	)
+	var lines []string
+	for _, line := range strings.Split(strings.ReplaceAll(cmd, "\r\n", "\n"), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, r.Replace(line))
+		}
 	}
-	return nil
+	return strings.Join(lines, "\n")
 }
 
-// writeDoorSys writes the classic 21-line DOOR.SYS dropfile format
-// (the "GAP"/Wildcat! standard virtually every real-mode DOS door
-// understands) at path -- see e.g. https://en.wikipedia.org/wiki/DOOR.SYS
-// or any DOS door's own docs for the full field-by-field spec. The
-// comm port is always "COM1:", matching COM1's fixed base address
-// (3F8h/IRQ4) DOSBox-X assigns its own serial1 -- see
-// dosboxConfigTemplate.
-func writeDoorSys(path string, sess Session) error {
-	var b strings.Builder
-	b.WriteString("COM1:\n")                                    // Comm port
-	b.WriteString("38400\n")                                    // Baud rate
-	b.WriteString("8\n")                                        // Data bits
-	b.WriteString(strconv.Itoa(sess.Node) + "\n")               // Node number
-	b.WriteString("38400\n")                                    // Actual/locked baud rate
-	b.WriteString("Y\n")                                        // Screen display
-	b.WriteString("N\n")                                        // Printer toggle
-	b.WriteString("N\n")                                        // Page bell
-	b.WriteString("N\n")                                        // Caller alarm
-	b.WriteString(sess.RealName + "\n")                         // User's full name
-	b.WriteString("City, ST\n")                                 // City/state
-	b.WriteString("000-000-0000\n")                             // Home phone
-	b.WriteString("000-000-0000\n")                             // Work/data phone
-	b.WriteString("PASSWORD\n")                                 // Password (unused -- BBS already authenticated)
-	b.WriteString(strconv.Itoa(sess.AccessLevel) + "\n")        // Security level
-	b.WriteString("1\n")                                        // Total times on
-	b.WriteString("01/01/26\n")                                 // Last date called
-	b.WriteString(strconv.Itoa(sess.TimeLeftMinutes*60) + "\n") // Seconds remaining this call
-	b.WriteString(strconv.Itoa(sess.TimeLeftMinutes) + "\n")    // Minutes remaining this call
-	b.WriteString("GR\n")                                       // Graphics mode: GR=ANSI
-	b.WriteString("24\n")                                       // Screen length (rows)
-	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
-		return fmt.Errorf("doors: writing DOOR.SYS: %w", err)
+// active counts running sessions per door name, so Run only clears a
+// door's LockFiles when nobody else is in it.
+var (
+	activeMu sync.Mutex
+	active   = map[string]int{}
+)
+
+// acquire registers one more session of door, first deleting its
+// LockFiles if it's the only one. The returned func unregisters it.
+func acquire(door Door) (func(), error) {
+	activeMu.Lock()
+	defer activeMu.Unlock()
+	if active[door.Name] == 0 && len(door.LockFiles) > 0 {
+		base := door.DOSBoxDir
+		if door.Kind != "dosbox" {
+			base = door.Dir
+		}
+		for _, rel := range door.LockFiles {
+			if !filepath.IsLocal(rel) {
+				return nil, fmt.Errorf("doors: %s: lock file %q must be relative to the door's directory", door.Name, rel)
+			}
+			if err := removeCaseInsensitive(base, rel); err != nil {
+				return nil, fmt.Errorf("doors: %s: removing lock file %s: %w", door.Name, rel, err)
+			}
+		}
+	}
+	active[door.Name]++
+	return func() {
+		activeMu.Lock()
+		defer activeMu.Unlock()
+		active[door.Name]--
+	}, nil
+}
+
+// removeCaseInsensitive deletes base/rel, matching the last path
+// element without regard to case -- DOS wrote the file, so it may be
+// OONODE.DAT on disk when the config says oonode.dat. A missing file
+// is not an error.
+func removeCaseInsensitive(base, rel string) error {
+	dir := filepath.Join(base, filepath.Dir(rel))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	want := filepath.Base(rel)
+	for _, e := range entries {
+		if strings.EqualFold(e.Name(), want) && !e.IsDir() {
+			if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

@@ -63,12 +63,84 @@ doors:
 `dosbox_launch_cmd` is run from it, exactly as a sysop would type it
 at the DOS prompt (`CALL START.BAT` for a door with its own batch
 file, or a direct EXE invocation with whatever switches it needs).
-Internal/doors writes a classic 21-line `DOOR.SYS` dropfile into a
-fresh per-session scratch directory and mounts *that* as `D:` --
-the literal placeholder `{dropfile_dir}` in `dosbox_launch_cmd` is
-replaced with that mount's DOS path (`D:\`) before launch, since most
-classic doors take their drop file's directory via a command-line
-switch (DOORWAY's `/s:` above) rather than a fixed convention.
+Internal/doors writes the drop file (the full 52-line `DOOR.SYS`
+unless `dropfile:` says otherwise -- see below) into a fresh
+per-session scratch directory and mounts *that* as `D:` -- the literal
+placeholder `{dropfile_dir}` in `dosbox_launch_cmd` is replaced with
+that mount's DOS path (`D:\`) before launch, since most classic doors
+take their drop file's directory via a command-line switch (DOORWAY's
+`/s:` above) rather than a fixed convention. `{dropfile}` is the drop
+file's full DOS path (e.g. `D:\DOOR.SYS`) and `{node}` the caller's
+node number. A launch command may span several lines, run one after
+another like a batch file (OO2 needs its `OOINFO` converter first).
+
+### Drop files, door directory, lock files
+
+These apply to both kinds:
+
+```yaml
+    - name: Legend of the Red Dragon
+      kind: dosbox
+      dosbox_dir: data/doors/lord
+      dosbox_launch_cmd: CALL START.BAT {node}
+      dropfile: dorinfo           # door.sys | dorinfo | doorfile.sr | door32.sys
+      dropfile_in_door_dir: true  # LORD looks for DORINFO1.DEF in its own directory
+      lock_files: []              # e.g. [OONODE.DAT]: cleared before start when nobody else plays
+```
+
+- `dropfile` picks the format; empty means the kind's default
+  (`DOOR32.SYS` for `native`, which is always written since it carries
+  the socket handle, `DOOR.SYS` for `dosbox`). All DOS formats are
+  written CRLF-terminated with the caller's handle, security level,
+  node, call count and this board's own name and sysop:
+  - `door.sys` -- the full 52-line GAP/Wildcat! `DOOR.SYS`.
+  - `dorinfo` -- `DORINFO1.DEF` (QuickBBS/RBBS/Remote Access), plus
+    `DORINFO<node>.DEF` for nodes above 1 (`A`-`Z` for 10-35).
+  - `doorfile.sr` -- Solar Realms' `DOORFILE.SR`.
+  - `door32.sys` -- `DOOR32.SYS`.
+- `dropfile_in_door_dir` also writes it into the door's own directory,
+  for doors that look for it there. Several nodes playing at once
+  overwrite each other's copy there, except `DORINFO<node>.DEF` -- so
+  for multi-node play prefer a door that takes a path, or the
+  per-node DORINFO name.
+- `lock_files` (relative to the door's directory, matched without
+  regard to case) are deleted before the door starts, but only when
+  no other caller is in that door at the moment -- a crashed session's
+  stale node lock no longer locks everyone out, while a live one stays.
+
+The bbs daemon re-reads the door list from `bbs.yaml` every time a
+caller opens the doors menu, so edits take effect without a restart.
+
+## Web admin: Doors page and templates
+
+**Admin → Doors** lists, adds, edits and removes doors (removing only
+takes a door off the menu; its files stay). Below the list are
+ready-made templates (`internal/doors/templates.go`) for well-known
+doors, with each one's launch command, drop file and quirks worked
+out:
+
+| Template | Install | Notes |
+| --- | --- | --- |
+| Judge Dredd (MIT) | downloaded from GitHub | `JUDGE.CTL` and `DATA/REG.DAT` are set to this board's name and sysop |
+| Legend of the Red Dragon | by hand | `DORINFO1.DEF` in the door dir; run `LORDCFG` once |
+| TradeWars 2002 | by hand | `DORINFO1.DEF` in the door dir; run its setup once |
+| Operation: Overkill II | by hand | `OOINFO` + `OOII`; `OONODE.DAT`/`BBSINFO.OO` cleared as lock files |
+| DoorMUD | by hand | `DMUD.EXE -n {node} -d {dropfile_dir}` |
+
+Doors are installed into `bbs.doors_dir` (default `data/doors`), one
+directory each. A downloadable template is fetched, unpacked (only
+regular files, never outside its directory, size-limited) into a
+scratch directory and moved into place only once complete; an existing,
+non-empty door directory is never overwritten. For the others the page
+creates the empty directory -- unpack the game there yourself. Any
+one-time setup a door needs (running its config program) is done from
+the "DOS Shell (Doorway)" door; each template says what.
+
+The templates were adapted from
+[thewebexpert/bbs-door-server](https://github.com/thewebexpert/bbs-door-server)'s
+launchers, minus the BNU FOSSIL driver (DOSBox-X brings its own, see
+below). Judge Dredd was verified end to end here: installed from the
+page, played over Telnet.
 
 Doors don't ship in this repo (their assets are 5+ MB DOS-era binaries
 and game data, and one of them -- Usurper -- needs building from

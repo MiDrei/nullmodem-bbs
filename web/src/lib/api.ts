@@ -1238,3 +1238,64 @@ export function changeBBSPassword(token: string, currentPassword: string, newPas
 		token
 	);
 }
+
+// --- Doors (sysop) ---
+
+export interface Door {
+	name: string;
+	/** "" or "native" for a native Linux door, "dosbox" for a DOS door under DOSBox-X. */
+	kind: string;
+	min_sl: number;
+	exe: string;
+	dir: string;
+	args: string[];
+	dosbox_dir: string;
+	dosbox_launch_cmd: string;
+	/** "" = the kind's default (DOOR32.SYS native, DOOR.SYS dosbox). */
+	dropfile: string;
+	dropfile_in_door_dir: boolean;
+	lock_files: string[];
+	template: string;
+	/** Read-only: the door's directory exists and has files. */
+	installed: boolean;
+}
+
+export interface DoorsResponse {
+	doors: Door[];
+	dropfile_formats: string[];
+	doors_dir: string;
+}
+
+export interface DoorTemplate {
+	id: string;
+	name: string;
+	description: string;
+	license: string;
+	dir: string;
+	dosbox_launch_cmd: string;
+	dropfile: string;
+	dropfile_in_door_dir: boolean;
+	lock_files?: string[];
+	setup?: string;
+	source_url?: string;
+	downloadable: boolean;
+	installed: boolean;
+	configured: boolean;
+}
+
+export function listDoors(token: string): Promise<DoorsResponse> {
+	return request<DoorsResponse>('/api/doors', { method: 'GET' }, token);
+}
+
+export function putDoors(token: string, doors: Door[]): Promise<DoorsResponse> {
+	return request<DoorsResponse>('/api/doors', { method: 'PUT', body: JSON.stringify({ doors }) }, token);
+}
+
+export function listDoorTemplates(token: string): Promise<DoorTemplate[]> {
+	return request<DoorTemplate[]>('/api/doors/templates', { method: 'GET' }, token);
+}
+
+/** Installs (downloads, if the template allows) and adds a door from a template. */
+export function addDoorFromTemplate(token: string, id: string): Promise<DoorsResponse> {
+	return request<DoorsResponse>(`/api/doors/templates/${encodeURIComponent(id)}`, { method: 'POST' }, token);
+}

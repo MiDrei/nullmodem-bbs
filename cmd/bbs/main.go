@@ -68,18 +68,18 @@ func main() {
 		logger.Fatal("loading welcome screen: %v", err)
 	}
 
-	var doorList []doors.Door
-	for _, d := range cfg.Doors {
-		doorList = append(doorList, doors.Door{
-			Name:            d.Name,
-			Kind:            d.Kind,
-			MinSL:           d.MinSL,
-			Exe:             d.Exe,
-			Dir:             d.Dir,
-			Args:            d.Args,
-			DOSBoxDir:       d.DOSBoxDir,
-			DOSBoxLaunchCmd: d.DOSBoxLaunchCmd,
-		})
+	// The door list is re-read from the config file each time a caller
+	// opens the doors menu, so doors added or changed in the web admin
+	// work without restarting this daemon. The startup list stands in
+	// if the file can't be read at that moment.
+	startupDoors := doorsFromConfig(cfg.Doors)
+	loadDoors := func() []doors.Door {
+		c, err := config.Load(*configPath)
+		if err != nil {
+			logger.Warn("reloading doors from %s: %v", *configPath, err)
+			return startupDoors
+		}
+		return doorsFromConfig(c.Doors)
 	}
 
 	srv := bbs.NewServer(bbs.Options{
@@ -91,7 +91,8 @@ func main() {
 		Messages:      messages,
 		Files:         files,
 		Netmail:       netmailStore,
-		Doors:         doorList,
+		Doors:         startupDoors,
+		LoadDoors:     loadDoors,
 		Nodes:         nodes,
 		NewUserSL:     cfg.BBS.NewUserSL,
 		WelcomeScreen: welcomeScreen,
@@ -140,4 +141,26 @@ func main() {
 	}
 
 	logger.Fatal("%v", <-errCh)
+}
+
+// doorsFromConfig maps the config's door entries onto internal/doors'
+// own type.
+func doorsFromConfig(entries []config.DoorConfig) []doors.Door {
+	var list []doors.Door
+	for _, d := range entries {
+		list = append(list, doors.Door{
+			Name:              d.Name,
+			Kind:              d.Kind,
+			MinSL:             d.MinSL,
+			Exe:               d.Exe,
+			Dir:               d.Dir,
+			Args:              d.Args,
+			DOSBoxDir:         d.DOSBoxDir,
+			DOSBoxLaunchCmd:   d.DOSBoxLaunchCmd,
+			DropFile:          d.DropFile,
+			DropFileInDoorDir: d.DropFileInDoorDir,
+			LockFiles:         d.LockFiles,
+		})
+	}
+	return list
 }

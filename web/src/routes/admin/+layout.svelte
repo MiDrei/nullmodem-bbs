@@ -23,6 +23,7 @@
 		{ href: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' },
 		{ href: '/admin/message-areas', label: 'Message Areas', icon: 'areas' },
 		{ href: '/admin/file-areas', label: 'File Areas', icon: 'files' },
+		{ href: '/admin/doors', label: 'Doors', icon: 'doors' },
 		{ href: '/admin/designer', label: 'Designer', icon: 'designer' },
 		{ href: '/admin/screens', label: 'Screens', icon: 'screens' }
 	];

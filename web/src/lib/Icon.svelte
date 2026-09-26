@@ -20,7 +20,8 @@
 		| 'areafix'
 		| 'pending'
 		| 'undeliverable'
-		| 'archive';
+		| 'archive'
+		| 'doors';
 	let { name, size = 15 }: { name: Name; size?: number } = $props();
 </script>
 
@@ -103,5 +104,10 @@
 		<rect x="3" y="4" width="18" height="5" rx="1" />
 		<path d="M4 9v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
 		<path d="M10 13h4" />
+	{:else if name === 'doors'}
+		<rect x="2" y="7" width="20" height="11" rx="4" />
+		<path d="M7 10.5v4M5 12.5h4" />
+		<circle cx="15.5" cy="11.5" r="1" />
+		<circle cx="17.5" cy="13.5" r="1" />
 	{/if}
 </svg>

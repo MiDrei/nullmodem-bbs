@@ -32,13 +32,17 @@ const maxLoginAttempts = 3
 // Server drives BBS sessions handed to it by any transport (telnet,
 // SSH, ...) that implements Conn.
 type Server struct {
-	Nodes         *session.Store
-	Users         *user.Store
-	Menus         menu.Set
-	Messages      *message.Store
-	Files         *file.Store
-	Netmail       *netmail.Store
-	Doors         []doors.Door
+	Nodes    *session.Store
+	Users    *user.Store
+	Menus    menu.Set
+	Messages *message.Store
+	Files    *file.Store
+	Netmail  *netmail.Store
+	Doors    []doors.Door
+	// LoadDoors, if set, supplies the current door list each time the
+	// doors menu opens, instead of the fixed Doors above -- see
+	// cmd/bbs's loadDoors.
+	LoadDoors     func() []doors.Door
 	Logger        *applog.Logger
 	SysopName     string
 	BBSName       string
@@ -61,6 +65,7 @@ type Options struct {
 	Files         *file.Store
 	Netmail       *netmail.Store
 	Doors         []doors.Door
+	LoadDoors     func() []doors.Door
 	Nodes         *session.Store
 	Logger        *applog.Logger
 	NewUserSL     int
@@ -78,6 +83,7 @@ func NewServer(opts Options) *Server {
 		Files:         opts.Files,
 		Netmail:       opts.Netmail,
 		Doors:         opts.Doors,
+		LoadDoors:     opts.LoadDoors,
 		Logger:        opts.Logger,
 		BBSName:       opts.BBSName,
 		SysopName:     opts.SysopName,
@@ -124,6 +130,7 @@ func (s *Server) Handle(conn Conn) {
 	}()
 
 	term := NewTerminal(conn)
+	term.Node = node
 	defer func() { recover() }()
 
 	if err := s.welcome(term, node); err != nil {

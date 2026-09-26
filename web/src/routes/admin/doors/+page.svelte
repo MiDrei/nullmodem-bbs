@@ -1,0 +1,384 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { auth } from '$lib/auth.svelte';
+	import { toast } from '$lib/toast.svelte';
+	import {
+		listDoors,
+		putDoors,
+		listDoorTemplates,
+		addDoorFromTemplate,
+		ApiError,
+		type Door,
+		type DoorTemplate
+	} from '$lib/api';
+
+	const DROPFILE_LABELS: Record<string, string> = {
+		'door.sys': 'DOOR.SYS',
+		dorinfo: 'DORINFO1.DEF',
+		'doorfile.sr': 'DOORFILE.SR',
+		'door32.sys': 'DOOR32.SYS'
+	};
+
+	let doors = $state<Door[]>([]);
+	let formats = $state<string[]>([]);
+	let doorsDir = $state('');
+	let templates = $state<DoorTemplate[]>([]);
+	let loadError = $state<string | null>(null);
+	let loaded = $state(false);
+
+	// The door being edited: its index in doors, or -1 for a new one.
+	let editing = $state<number | null>(null);
+	let draft = $state<Door>(emptyDoor());
+	let argsText = $state('');
+	let lockText = $state('');
+	let saving = $state(false);
+	let installing = $state<string | null>(null);
+
+	function emptyDoor(): Door {
+		return {
+			name: '',
+			kind: 'dosbox',
+			min_sl: 0,
+			exe: '',
+			dir: '',
+			args: [],
+			dosbox_dir: '',
+			dosbox_launch_cmd: '',
+			dropfile: '',
+			dropfile_in_door_dir: false,
+			lock_files: [],
+			template: '',
+			installed: false
+		};
+	}
+
+	async function authFailed(err: unknown): Promise<boolean> {
+		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+			auth.clear();
+			await goto('/admin/login');
+			return true;
+		}
+		return false;
+	}
+
+	async function load() {
+		if (!auth.token) return;
+		try {
+			const [res, tmpls] = await Promise.all([listDoors(auth.token), listDoorTemplates(auth.token)]);
+			doors = res.doors;
+			formats = res.dropfile_formats;
+			doorsDir = res.doors_dir;
+			templates = tmpls;
+			loadError = null;
+		} catch (err) {
+			if (await authFailed(err)) return;
+			loadError = err instanceof ApiError ? err.message : 'Could not load doors.';
+		} finally {
+			loaded = true;
+		}
+	}
+
+	onMount(async () => {
+		if (!auth.token) {
+			await goto('/admin/login');
+			return;
+		}
+		await load();
+	});
+
+	function startEdit(i: number) {
+		editing = i;
+		draft = i >= 0 ? structuredClone($state.snapshot(doors[i])) : emptyDoor();
+		if (draft.kind === '') draft.kind = 'native';
+		argsText = draft.args.join(' ');
+		lockText = draft.lock_files.join('\n');
+	}
+
+	async function save(list: Door[], message: string) {
+		if (!auth.token) return false;
+		saving = true;
+		try {
+			const res = await putDoors(auth.token, list);
+			doors = res.doors;
+			templates = await listDoorTemplates(auth.token);
+			toast.push(message, 'success');
+			return true;
+		} catch (err) {
+			if (await authFailed(err)) return false;
+			toast.push(err instanceof ApiError ? err.message : 'Could not save doors.', 'error');
+			return false;
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function saveDraft() {
+		if (editing === null) return;
+		const door: Door = {
+			...$state.snapshot(draft),
+			args: argsText.split(/\s+/).filter(Boolean),
+			lock_files: lockText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+		};
+		const list = $state.snapshot(doors) as Door[];
+		if (editing >= 0) list[editing] = door;
+		else list.push(door);
+		if (await save(list, `Saved ${door.name}.`)) editing = null;
+	}
+
+	async function remove(i: number) {
+		const d = doors[i];
+		if (!confirm(`Remove "${d.name}" from the doors menu? Its files stay where they are.`)) return;
+		const list = ($state.snapshot(doors) as Door[]).filter((_, j) => j !== i);
+		await save(list, `Removed ${d.name}.`);
+		if (editing === i) editing = null;
+	}
+
+	async function addTemplate(t: DoorTemplate) {
+		if (!auth.token) return;
+		installing = t.id;
+		try {
+			const res = await addDoorFromTemplate(auth.token, t.id);
+			doors = res.doors;
+			templates = await listDoorTemplates(auth.token);
+			toast.push(
+				t.downloadable && !t.installed ? `${t.name} installed and added.` : `${t.name} added.`,
+				'success'
+			);
+		} catch (err) {
+			if (await authFailed(err)) return;
+			toast.push(err instanceof ApiError ? err.message : `Could not add ${t.name}.`, 'error');
+		} finally {
+			installing = null;
+		}
+	}
+
+	function doorDir(d: Door): string {
+		return d.kind === 'dosbox' ? d.dosbox_dir : d.dir;
+	}
+
+	function dropfileLabel(d: Door): string {
+		if (d.dropfile) return DROPFILE_LABELS[d.dropfile] ?? d.dropfile;
+		return d.kind === 'dosbox' ? 'DOOR.SYS' : 'DOOR32.SYS';
+	}
+</script>
+
+<div class="mb-6 flex items-start justify-between gap-4">
+	<div>
+		<h1 class="page-title">Doors</h1>
+		<p class="page-subtitle max-w-2xl leading-relaxed">
+			Games and programs callers start from the doors menu. Changes apply the next time someone
+			opens that menu — no restart needed.
+		</p>
+	</div>
+	{#if editing === null}
+		<button class="btn-primary shrink-0" onclick={() => startEdit(-1)}>+ New Door</button>
+	{/if}
+</div>
+
+{#snippet editor()}
+	<form
+		class="card mb-4 flex flex-col gap-4"
+		onsubmit={(e) => {
+			e.preventDefault();
+			saveDraft();
+		}}
+	>
+		<h2 class="card-label">{editing === -1 ? 'New door' : `Edit ${doors[editing ?? 0]?.name}`}</h2>
+		<div class="grid gap-3 sm:grid-cols-[1fr_10rem_7rem]">
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Name (as shown in the menu)</span>
+				<input class="field field-sm" bind:value={draft.name} required />
+			</label>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Kind</span>
+				<select class="field field-sm" bind:value={draft.kind}>
+					<option value="dosbox">DOS (DOSBox-X)</option>
+					<option value="native">Native Linux</option>
+				</select>
+			</label>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Min. SL</span>
+				<input class="field field-sm" type="number" min="0" max="255" bind:value={draft.min_sl} />
+			</label>
+		</div>
+
+		{#if draft.kind === 'dosbox'}
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Door directory (mounted as C:)</span>
+				<input
+					class="field field-sm font-mono"
+					bind:value={draft.dosbox_dir}
+					placeholder="{doorsDir}/mydoor"
+					required
+				/>
+			</label>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Launch command (one DOS command per line)</span>
+				<textarea
+					class="field field-sm h-20 resize-y font-mono"
+					bind:value={draft.dosbox_launch_cmd}
+					placeholder="GAME.EXE /P{'{dropfile_dir}'}"
+					required
+				></textarea>
+				<span class="text-xs leading-relaxed text-faint">
+					Placeholders: <code class="font-mono text-muted">{'{dropfile_dir}'}</code> (D:\),
+					<code class="font-mono text-muted">{'{dropfile}'}</code> (e.g. D:\DOOR.SYS),
+					<code class="font-mono text-muted">{'{node}'}</code> (node number). FOSSIL is built in — no BNU/X00
+					needed.
+				</span>
+			</label>
+		{:else}
+			<div class="grid gap-3 sm:grid-cols-2">
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Executable</span>
+					<input class="field field-sm font-mono" bind:value={draft.exe} required />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Working directory</span>
+					<input class="field field-sm font-mono" bind:value={draft.dir} required />
+				</label>
+			</div>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Extra arguments (before the drop file path)</span>
+				<input class="field field-sm font-mono" bind:value={argsText} />
+			</label>
+		{/if}
+
+		<div class="grid gap-3 sm:grid-cols-2">
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Drop file</span>
+				<select class="field field-sm" bind:value={draft.dropfile}>
+					<option value="">Default ({draft.kind === 'dosbox' ? 'DOOR.SYS' : 'DOOR32.SYS'})</option>
+					{#each formats as f (f)}
+						<option value={f}>{DROPFILE_LABELS[f] ?? f}</option>
+					{/each}
+				</select>
+			</label>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Lock files to clear (one per line, relative)</span>
+				<textarea
+					class="field field-sm h-[2.35rem] resize-y font-mono"
+					bind:value={lockText}
+					placeholder="OONODE.DAT"
+				></textarea>
+			</label>
+		</div>
+		<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
+			<input type="checkbox" class="check mt-0.5" bind:checked={draft.dropfile_in_door_dir} />
+			<span>
+				<span class="text-ink">Also write the drop file into the door's directory</span>
+				<span class="block text-xs text-faint">
+					For doors that look for it there instead of taking a path (LORD, TradeWars).
+				</span>
+			</span>
+		</label>
+
+		<div class="flex justify-end gap-2.5">
+			<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>Cancel</button>
+			<button type="submit" class="btn-primary btn-sm" disabled={saving}>
+				{saving ? 'Saving…' : 'Save door'}
+			</button>
+		</div>
+	</form>
+{/snippet}
+
+{#if loadError}
+	<p class="text-sm text-red-400">{loadError}</p>
+{:else if !loaded}
+	<p class="text-sm text-muted">Loading…</p>
+{:else}
+	{#if editing === -1}
+		{@render editor()}
+	{/if}
+
+	<h2 class="card-label mb-2 px-1">Configured · {doors.length}</h2>
+	{#if doors.length === 0}
+		<p class="mb-8 px-1 text-sm text-muted">No doors yet — add one below from a template.</p>
+	{:else}
+		<div class="mb-10 flex flex-col">
+			{#each doors as d, i (d.name + i)}
+				{#if editing === i}
+					<div class="py-2">{@render editor()}</div>
+				{:else}
+					<div class="list-row gap-4 py-3">
+						<div class="min-w-0 flex-1">
+							<div class="flex flex-wrap items-center gap-2">
+								<span class="text-[13.5px] font-medium text-slate-100">{d.name}</span>
+								<span
+									class="rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[10px] text-muted"
+								>
+									{d.kind === 'dosbox' ? 'DOS' : 'NATIVE'}
+								</span>
+								{#if !d.installed}
+									<span
+										class="rounded-md border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] text-amber-400"
+										title="The door's directory is missing or empty"
+									>
+										NOT INSTALLED
+									</span>
+								{/if}
+							</div>
+							<div class="mt-1 truncate font-mono text-[11px] text-faint">
+								{doorDir(d) || '—'} · {dropfileLabel(d)}{d.dropfile_in_door_dir ? ' (+door dir)' : ''} · SL {d.min_sl}+
+							</div>
+						</div>
+						<div class="flex shrink-0 gap-1.5">
+							<button class="btn-secondary btn-xs" onclick={() => startEdit(i)} disabled={editing !== null}>
+								Edit
+							</button>
+							<button class="btn-danger btn-xs" onclick={() => remove(i)} disabled={saving}>Remove</button>
+						</div>
+					</div>
+				{/if}
+			{/each}
+		</div>
+	{/if}
+
+	<h2 class="card-label mb-1 px-1">Templates</h2>
+	<p class="mb-3 px-1 text-[13px] text-muted">
+		Ready-made setups for well-known doors. Open-source ones are downloaded and installed into
+		<span class="font-mono text-ink-soft">{doorsDir}</span>; the others you unpack there yourself.
+	</p>
+	<div class="grid gap-3 md:grid-cols-2">
+		{#each templates as t (t.id)}
+			<div class="card flex flex-col gap-2.5 p-5">
+				<div class="flex items-start justify-between gap-3">
+					<div class="min-w-0">
+						<div class="text-[14px] font-semibold text-ink-strong">{t.name}</div>
+						<div class="mt-0.5 font-mono text-[10.5px] text-faint">
+							{t.license} · {t.dir}/
+						</div>
+					</div>
+					{#if t.configured}
+						<span class="shrink-0 font-mono text-[10.5px] text-accent">✓ SET UP</span>
+					{:else}
+						<button
+							class="{t.downloadable && !t.installed ? 'btn-primary' : 'btn-secondary'} btn-xs shrink-0"
+							disabled={installing !== null}
+							onclick={() => addTemplate(t)}
+						>
+							{#if installing === t.id}
+								{t.downloadable && !t.installed ? 'Installing…' : 'Adding…'}
+							{:else}
+								{t.downloadable && !t.installed ? 'Install' : 'Add'}
+							{/if}
+						</button>
+					{/if}
+				</div>
+				<p class="text-[12.5px] leading-relaxed text-muted">{t.description}</p>
+				<div class="font-mono text-[11px] text-faint">
+					{t.dosbox_launch_cmd.split('\n').join(' ⏎ ')} · {DROPFILE_LABELS[t.dropfile] ?? t.dropfile}
+				</div>
+				{#if t.setup}
+					<p class="border-l-2 border-line-strong pl-2.5 text-xs leading-relaxed text-faint">{t.setup}</p>
+				{/if}
+				{#if t.source_url}
+					<a href={t.source_url} target="_blank" rel="noopener" class="text-xs text-muted hover:text-accent">
+						{t.source_url.replace('https://', '')} ↗
+					</a>
+				{/if}
+			</div>
+		{/each}
+	</div>
+{/if}
