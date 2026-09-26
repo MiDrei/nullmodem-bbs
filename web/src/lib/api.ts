@@ -229,8 +229,15 @@ async function requestForm<T>(path: string, formData: FormData, token: string): 
 	return handleResponse<T>(res);
 }
 
-/** The BBS's own configured display name -- unauthenticated, shown in both the admin and BBS portal headers/login pages before anyone has a token. */
-export function getBBSInfo(): Promise<{ name: string }> {
+/** What the BBS shows before anyone has a token: its name, software version, and the Telnet/SSH ports on this same host (absent when that server is disabled). */
+export interface BBSInfo {
+	name: string;
+	version: string;
+	telnet_port?: string;
+	ssh_port?: string;
+}
+
+export function getBBSInfo(): Promise<BBSInfo> {
 	return request('/api/bbs/info', { method: 'GET' });
 }
 

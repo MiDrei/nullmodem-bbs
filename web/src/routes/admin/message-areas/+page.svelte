@@ -160,9 +160,9 @@
 </datalist>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="text-xl font-semibold text-slate-100">Message Areas</h1>
+	<h1 class="page-title">Message Areas</h1>
 	<button
-		class="rounded bg-cyan-600 px-3 py-1.5 text-sm text-white hover:bg-cyan-500"
+		class="btn-primary btn-sm"
 		onclick={() => (creating = !creating)}
 	>
 		{creating ? 'Cancel' : '+ New Area'}
@@ -170,13 +170,13 @@
 </div>
 
 {#if creating}
-	<div class="mb-6 rounded border border-slate-800 p-4">
-		<h2 class="mb-4 text-sm font-semibold tracking-wide text-cyan-400 uppercase">New Area</h2>
+	<div class="mb-6 rounded-xl border border-line p-4">
+		<h2 class="mb-4 card-label">New Area</h2>
 		<div class="grid grid-cols-2 gap-4">
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Tag</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm font-mono"
 					bind:value={newDraft.tag}
 					placeholder="general"
 				/>
@@ -184,21 +184,21 @@
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Name</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.name}
 				/>
 			</label>
 			<label class="col-span-2 flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Description</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.description}
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Group</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.network}
 					list="groups-list"
 					placeholder="fsxNet, FidoNet… (blank for ungrouped)"
@@ -210,7 +210,7 @@
 					type="number"
 					min="0"
 					max="255"
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.min_sl_read}
 				/>
 			</label>
@@ -220,13 +220,13 @@
 					type="number"
 					min="0"
 					max="255"
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.min_sl_write}
 				/>
 			</label>
 		</div>
 		<button
-			class="mt-4 rounded bg-cyan-600 px-3 py-1.5 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+			class="mt-4 btn-primary btn-sm"
 			disabled={saving}
 			onclick={createNew}
 		>
@@ -264,13 +264,13 @@
 	{/if}
 	<div class="flex flex-col gap-4">
 		{#each visibleAreas as area (area.id)}
-			<div class="rounded border border-slate-800 p-4">
+			<div class="rounded-xl border border-line p-4">
 				{#if editingId === area.id}
 					<div class="grid grid-cols-2 gap-4">
 						<label class="flex flex-col gap-1 text-sm">
 							<span class="text-slate-400">Name</span>
 							<input
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.name}
 							/>
 						</label>
@@ -278,21 +278,21 @@
 							<span class="text-slate-400">Sort order</span>
 							<input
 								type="number"
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.sort_order}
 							/>
 						</label>
 						<label class="col-span-2 flex flex-col gap-1 text-sm">
 							<span class="text-slate-400">Description</span>
 							<input
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.description}
 							/>
 						</label>
 						<label class="flex flex-col gap-1 text-sm">
 							<span class="text-slate-400">Group</span>
 							<input
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.network}
 								list="groups-list"
 								placeholder="fsxNet, FidoNet… (blank for ungrouped)"
@@ -304,7 +304,7 @@
 								type="number"
 								min="0"
 								max="255"
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.min_sl_read}
 							/>
 						</label>
@@ -314,21 +314,21 @@
 								type="number"
 								min="0"
 								max="255"
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.min_sl_write}
 							/>
 						</label>
 					</div>
 					<div class="mt-4 flex gap-2">
 						<button
-							class="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+							class="btn-primary btn-sm"
 							disabled={saving}
 							onclick={() => saveEdit(area.id)}
 						>
 							{saving ? 'Saving…' : 'Save'}
 						</button>
 						<button
-							class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+							class="btn-secondary btn-sm"
 							onclick={() => (editingId = null)}
 						>
 							Cancel
@@ -342,7 +342,7 @@
 								{area.name}
 								{#if area.network}
 									<span
-										class="ml-2 rounded bg-fuchsia-950 px-1.5 py-0.5 text-xs text-fuchsia-400"
+										class="ml-2 rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[10.5px] text-muted"
 										>{area.network}</span
 									>
 								{/if}
@@ -354,13 +354,13 @@
 						</div>
 						<div class="flex gap-2">
 							<button
-								class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+								class="btn-secondary btn-sm"
 								onclick={() => startEdit(area)}
 							>
 								Edit
 							</button>
 							<button
-								class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950"
+								class="btn-danger btn-sm"
 								onclick={() => remove(area)}
 							>
 								Delete

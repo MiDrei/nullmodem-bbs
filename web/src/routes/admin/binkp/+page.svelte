@@ -61,10 +61,10 @@
 </script>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="text-xl font-semibold text-slate-100">BinkP</h1>
+	<h1 class="page-title">BinkP</h1>
 	<a
 		href="/admin/binkp/uplinks"
-		class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+		class="btn-secondary btn-sm"
 	>
 		Uplinks (Nodes/Points) &rarr;
 	</a>
@@ -76,14 +76,14 @@
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
-		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">
+		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
 			<div class="flex items-center justify-between">
-				<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">
+				<h2 class="card-label">
 					FTN Address(es)
 				</h2>
 				<button
 					type="button"
-					class="rounded border border-slate-700 px-2 py-0.5 text-xs hover:bg-slate-800"
+					class="btn-secondary btn-xs"
 					onclick={addFTNAddress}
 				>
 					+ Add Address
@@ -102,13 +102,13 @@
 			{#each config.ftn_addresses as _, i (i)}
 				<div class="flex items-center gap-2">
 					<input
-						class="flex-1 rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+						class="flex-1 field font-mono"
 						bind:value={config.ftn_addresses[i]}
 						placeholder="e.g. 1:234/56.0"
 					/>
 					<button
 						type="button"
-						class="rounded border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950"
+						class="btn-danger btn-sm"
 						onclick={() => removeFTNAddress(i)}
 					>
 						Remove
@@ -127,7 +127,7 @@
 		<button
 			type="submit"
 			disabled={saving}
-			class="rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+			class="btn-primary"
 		>
 			{saving ? 'Saving…' : 'Save changes'}
 		</button>

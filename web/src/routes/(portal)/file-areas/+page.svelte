@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
-	import { avatarGradient, initials } from '$lib/avatar';
 	import { listBBSFileAreas, ApiError, type BBSFileArea } from '$lib/api';
 
 	const ALL_TAB = '__all__';
@@ -62,97 +61,67 @@
 	);
 </script>
 
-<div class="mb-6">
-	<h1 class="text-2xl font-bold tracking-tight text-slate-100">Files</h1>
-	<p class="mt-1 text-sm text-slate-500">File libraries you can browse and download from.</p>
+<div class="mb-4">
+	<h1 class="page-title">Files</h1>
+	<p class="page-subtitle">File libraries you can browse and download from</p>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-muted">Loading…</p>
 {:else if areas.length === 0}
-	<p class="text-sm text-slate-400">No file areas available to you yet.</p>
+	<p class="text-sm text-muted">No file areas available to you yet.</p>
 {:else}
 	{#if groups.length > 1}
-		<div class="mb-4 flex flex-wrap gap-1 border-b border-slate-800/60">
+		<!-- One pill per network, so hundreds of areas aren't one scroll. -->
+		<div class="mb-4 flex flex-wrap gap-1.5" role="tablist" aria-label="Networks">
 			<button
-				class="border-b-2 px-3 py-2 text-sm font-medium transition {activeNetwork === ALL_TAB
-					? 'border-fuchsia-400 text-slate-100'
-					: 'border-transparent text-slate-500 hover:text-slate-300'}"
+				role="tab"
+				aria-selected={activeNetwork === ALL_TAB}
+				class="pill {activeNetwork === ALL_TAB ? 'pill-active' : ''}"
 				onclick={() => (activeNetwork = ALL_TAB)}
 			>
-				All ({areas.length})
-				{#if totalNew > 0}
-					<span
-						class="ml-1 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-					>
-						{totalNew}
-					</span>
-				{/if}
+				All · {areas.length}{totalNew > 0 ? ` · ${totalNew} new` : ''}
 			</button>
 			{#each groups as group (group.network)}
 				<button
-					class="border-b-2 px-3 py-2 text-sm font-medium transition {activeNetwork ===
-					group.network
-						? 'border-fuchsia-400 text-slate-100'
-						: 'border-transparent text-slate-500 hover:text-slate-300'}"
+					role="tab"
+					aria-selected={activeNetwork === group.network}
+					class="pill {activeNetwork === group.network ? 'pill-active' : ''}"
 					onclick={() => (activeNetwork = group.network)}
 				>
-					{group.network} ({group.areas.length})
-					{#if group.newCount > 0}
-						<span
-							class="ml-1 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-						>
-							{group.newCount}
-						</span>
-					{/if}
+					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${group.newCount} new` : ''}
 				</button>
 			{/each}
 		</div>
 	{/if}
-	<div class="flex flex-col gap-6">
-		{#each visibleGroups as group (group.network)}
-			<div>
-				<h2 class="mb-2 px-1 text-xs font-semibold tracking-widest text-slate-500 uppercase">
-					{group.network}
-				</h2>
-				<div class="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/40">
-					{#each group.areas as area, i (area.id)}
-						<a
-							href="/file-areas/{area.id}"
-							class="group flex items-center gap-3 px-4 py-2.5 transition hover:bg-slate-800/60 {i > 0
-								? 'border-t border-slate-800/60'
-								: ''} {area.new > 0 ? 'border-l-2 border-l-fuchsia-400' : 'border-l-2 border-l-transparent'}"
+	<div class="flex flex-col">
+		{#each visibleGroups as group, gi (group.network)}
+			{#if activeNetwork === ALL_TAB && groups.length > 1}
+				<h2 class="card-label px-1 pb-1.5 {gi > 0 ? 'pt-5' : ''}">{group.network}</h2>
+			{/if}
+			{#each group.areas as area, i (area.id)}
+				<a
+					href="/file-areas/{area.id}"
+					class="list-row group {area.new > 0 ? 'list-row-unread' : ''}"
+				>
+					<span class="list-num">{String(i + 1).padStart(2, '0')}</span>
+					<div class="min-w-0 flex-1">
+						<div
+							class="truncate text-[13.5px] {area.new > 0
+								? 'font-semibold text-white'
+								: 'font-medium text-slate-100'} group-hover:text-accent"
 						>
-							<div
-								class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white {avatarGradient(
-									area.name
-								)}"
-							>
-								{initials(area.name)}
-							</div>
-							<div class="min-w-0 flex-1">
-								<div
-									class="truncate text-sm font-medium {area.new > 0
-										? 'text-slate-100'
-										: 'text-slate-300'} transition group-hover:text-white"
-								>
-									{area.name}
-								</div>
-							</div>
-							{#if area.new > 0}
-								<span
-									class="rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-2 py-0.5 text-xs font-semibold text-white"
-								>
-									{area.new} new
-								</span>
-							{/if}
-							<span class="w-12 shrink-0 text-right text-xs text-slate-500">{area.total}</span>
-						</a>
-					{/each}
-				</div>
-			</div>
+							{area.name}
+						</div>
+					</div>
+					{#if area.new > 0}
+						<span class="badge-new">{area.new} NEW</span>
+					{/if}
+					<span class="list-meta w-10 shrink-0 text-right">{area.total}</span>
+				</a>
+			{/each}
 		{/each}
 	</div>
 {/if}

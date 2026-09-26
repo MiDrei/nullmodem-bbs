@@ -50,7 +50,7 @@
 	}
 </script>
 
-<h1 class="mb-6 text-xl font-semibold text-slate-100">BBS Settings</h1>
+<h1 class="mb-6 page-title">BBS Settings</h1>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
@@ -58,12 +58,12 @@
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
-		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">
-			<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">General</h2>
+		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
+			<h2 class="card-label">General</h2>
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">BBS Name</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field"
 					bind:value={config.name}
 					required
 				/>
@@ -71,7 +71,7 @@
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Sysop Name</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field"
 					bind:value={config.sysop}
 					required
 				/>
@@ -82,39 +82,39 @@
 					type="number"
 					min="0"
 					max="255"
-					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field"
 					bind:value={config.new_user_sl}
 					required
 				/>
 			</label>
 		</section>
 
-		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">
-			<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">Telnet</h2>
+		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
+			<h2 class="card-label">Telnet</h2>
 			<label class="flex items-center gap-2 text-sm">
-				<input type="checkbox" bind:checked={config.telnet_enabled} />
+				<input type="checkbox" class="check" bind:checked={config.telnet_enabled} />
 				<span class="text-slate-400">Enabled</span>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Listen address</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field font-mono"
 					bind:value={config.telnet_addr}
 					placeholder=":2323"
 				/>
 			</label>
 		</section>
 
-		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">
-			<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">SSH</h2>
+		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
+			<h2 class="card-label">SSH</h2>
 			<label class="flex items-center gap-2 text-sm">
-				<input type="checkbox" bind:checked={config.ssh_enabled} />
+				<input type="checkbox" class="check" bind:checked={config.ssh_enabled} />
 				<span class="text-slate-400">Enabled</span>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Listen address</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field font-mono"
 					bind:value={config.ssh_addr}
 					placeholder=":2222"
 				/>
@@ -131,7 +131,7 @@
 		<button
 			type="submit"
 			disabled={saving}
-			class="rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+			class="btn-primary"
 		>
 			{saving ? 'Saving…' : 'Save changes'}
 		</button>

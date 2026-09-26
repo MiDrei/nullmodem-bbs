@@ -220,8 +220,8 @@
 </datalist>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="text-xl font-semibold text-slate-100">BinkP Uplinks</h1>
-	<a href="/admin/binkp" class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800">
+	<h1 class="page-title">BinkP Uplinks</h1>
+	<a href="/admin/binkp" class="btn-secondary btn-sm">
 		&larr; BinkP
 	</a>
 </div>
@@ -232,7 +232,7 @@
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
-		<section class="flex flex-col gap-4 rounded border border-slate-800 p-4">
+		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
 			<p class="text-xs text-slate-500">
 				Nodes/hubs/points this system exchanges netmail, echomail, and files with. The mailer
 				daemon polls each uplink automatically on its own schedule; "Test" connects and
@@ -244,7 +244,7 @@
 				<input
 					type="number"
 					min="1"
-					class="rounded border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field font-mono"
 					bind:value={config.binkp_default_poll_interval_seconds}
 					placeholder="900"
 				/>
@@ -292,14 +292,14 @@
 				</span>
 				<button
 					type="button"
-					class="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
+					class="btn-secondary btn-xs"
 					onclick={openNew}
 				>
 					+ Add {activeTab === 'hubs' ? 'Hub' : 'Node / Point'}
 				</button>
 			</div>
 
-			<div class="flex flex-col divide-y divide-slate-800 overflow-hidden rounded border border-slate-800">
+			<div class="flex flex-col divide-y divide-slate-800 overflow-hidden rounded-xl border border-line">
 				{#each (activeTab === 'hubs' ? hubRows : downlinkRows) as { u, i } (i)}
 					<div class="flex items-center gap-3 px-3 py-2 hover:bg-slate-800/40">
 						<div class="min-w-0 flex-1">
@@ -330,14 +330,14 @@
 						<div class="flex shrink-0 gap-2">
 							<button
 								type="button"
-								class="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
+								class="btn-secondary btn-xs"
 								onclick={() => openEdit(i)}
 							>
 								Edit
 							</button>
 							<button
 								type="button"
-								class="rounded border border-red-800 px-2 py-1 text-xs text-red-400 hover:bg-red-950"
+								class="btn-danger btn-xs"
 								onclick={() => removeUplink(i)}
 							>
 								Remove
@@ -358,7 +358,7 @@
 		<button
 			type="submit"
 			disabled={saving}
-			class="rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+			class="btn-primary"
 		>
 			{saving ? 'Saving…' : 'Save changes'}
 		</button>
@@ -374,14 +374,14 @@
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="max-h-[90vh] w-full max-w-2xl overflow-auto rounded border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+				class="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-2xl border border-line-strong bg-surface p-6 shadow-2xl shadow-black/50"
 				onclick={(e) => e.stopPropagation()}
 				role="dialog"
 				aria-modal="true"
 				tabindex="-1"
 			>
 				<div class="mb-4 flex items-center justify-between gap-4">
-					<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">
+					<h2 class="card-label">
 						{editingIndex === null ? 'Add' : 'Edit'}
 						{editingUplink.downlink ? 'Node / Point' : 'Hub'}
 					</h2>
@@ -398,7 +398,7 @@
 					<label class="flex flex-col gap-1 text-sm">
 						<span class="text-slate-400">Their FTN address</span>
 						<input
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm font-mono"
 							bind:value={editingUplink.address}
 							placeholder="21:3/194"
 						/>
@@ -406,7 +406,7 @@
 					<label class="flex flex-col gap-1 text-sm">
 						<span class="text-slate-400">Host:Port</span>
 						<input
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm font-mono"
 							bind:value={editingUplink.host}
 							placeholder="bbs.example.com:24554"
 						/>
@@ -415,7 +415,7 @@
 						<span class="text-slate-400">Session Password</span>
 						<input
 							type="password"
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm font-mono"
 							bind:value={editingUplink.password}
 							placeholder="(optional -- blank for an open/no-auth node)"
 						/>
@@ -426,7 +426,7 @@
 						<input
 							type="password"
 							maxlength="8"
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm font-mono"
 							bind:value={editingUplink.packet_password}
 							placeholder="(optional, max 8 chars)"
 						/>
@@ -439,7 +439,7 @@
 						<span class="text-slate-400">TIC Password</span>
 						<input
 							type="password"
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm font-mono"
 							bind:value={editingUplink.tic_password}
 							placeholder="(optional)"
 						/>
@@ -452,7 +452,7 @@
 						<span class="text-slate-400">Areafix Password</span>
 						<input
 							type="password"
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm font-mono"
 							bind:value={editingUplink.areafix_password}
 							placeholder="(optional)"
 						/>
@@ -466,7 +466,7 @@
 						<span class="text-slate-400">Filefix Password</span>
 						<input
 							type="password"
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm font-mono"
 							bind:value={editingUplink.filefix_password}
 							placeholder="(optional)"
 						/>
@@ -479,7 +479,7 @@
 						<span class="text-slate-400">Group / Network</span>
 						<input
 							list="groups-list"
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm"
 							bind:value={editingUplink.network}
 							placeholder="fsxNet, HobbyNet… (blank if this uplink never carries outgoing echomail)"
 						/>
@@ -493,7 +493,7 @@
 						<input
 							type="number"
 							min="0"
-							class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+							class="field field-sm font-mono"
 							bind:value={editingUplink.poll_interval_seconds}
 							placeholder={`0 = use default (${config.binkp_default_poll_interval_seconds || 900}s)`}
 						/>
@@ -503,14 +503,14 @@
 						</span>
 					</label>
 					<label class="col-span-2 flex items-center gap-2 text-sm">
-						<input type="checkbox" bind:checked={editingUplink.downlink} />
+						<input type="checkbox" class="check" bind:checked={editingUplink.downlink} />
 						<span class="text-slate-400">
 							This is one of our own nodes/points (we're their hub) -- lists it under "Nodes /
 							Points" instead of "Hubs". Purely organizational, no effect on how it's dialed.
 						</span>
 					</label>
 					<label class="flex items-center gap-2 text-sm">
-						<input type="checkbox" bind:checked={editingUplink.poll_disabled} />
+						<input type="checkbox" class="check" bind:checked={editingUplink.poll_disabled} />
 						<span class="text-slate-400">
 							Crash-only: exclude from the mailer's regular, interval-based scheduled poll --
 							still dialed immediately whenever there's netmail or echomail actually pending for
@@ -519,7 +519,7 @@
 						</span>
 					</label>
 					<label class="flex items-center gap-2 text-sm">
-						<input type="checkbox" bind:checked={editingUplink.hold} />
+						<input type="checkbox" class="check" bind:checked={editingUplink.hold} />
 						<span class="text-slate-400">
 							Hold: never dialed automatically for any reason at all, not even pending/Crash mail
 							-- only via "Send Now", or by this uplink polling us itself. Use this for a peer
@@ -528,7 +528,7 @@
 							every time there's mail pending for it.
 						</span>
 					</label>
-					<div class="col-span-2 flex flex-col gap-2 rounded border border-slate-800 p-3">
+					<div class="col-span-2 flex flex-col gap-2 rounded-xl border border-line p-3">
 						<span class="text-sm text-slate-400">Restrict to these of your own addresses</span>
 						<span class="text-xs text-slate-500">
 							Only checked addresses are presented to this uplink (M_ADR) and count as its own for
@@ -545,7 +545,7 @@
 						{#each config.ftn_addresses.filter((a) => a.trim()) as addr (addr)}
 							<label class="flex items-center gap-2 text-sm">
 								<input
-									type="checkbox"
+									type="checkbox" class="check"
 									checked={isAKAChecked(editingUplink, addr)}
 									onchange={() => toggleAKA(editingUplink!, addr)}
 								/>
@@ -558,7 +558,7 @@
 				<div class="mt-4 flex flex-wrap gap-2 border-t border-slate-800 pt-4">
 					<button
 						type="button"
-						class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800 disabled:opacity-50"
+						class="btn-secondary btn-sm"
 						disabled={testing}
 						onclick={testUplink}
 					>
@@ -566,7 +566,7 @@
 					</button>
 					<button
 						type="button"
-						class="rounded border border-cyan-700 px-3 py-1 text-sm text-cyan-400 hover:bg-cyan-950 disabled:opacity-50"
+						class="btn-secondary btn-sm"
 						disabled={sending}
 						onclick={sendNowUplink}
 					>
@@ -575,14 +575,14 @@
 					<div class="flex-1"></div>
 					<button
 						type="button"
-						class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+						class="btn-secondary btn-sm"
 						onclick={closeModal}
 					>
 						Cancel
 					</button>
 					<button
 						type="button"
-						class="rounded bg-cyan-600 px-3 py-1 text-sm font-medium text-white hover:bg-cyan-500"
+						class="btn-primary btn-sm"
 						onclick={saveModal}
 					>
 						{editingIndex === null ? 'Add' : 'Save'}

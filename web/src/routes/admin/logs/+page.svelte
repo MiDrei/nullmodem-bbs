@@ -191,11 +191,11 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-	<h1 class="text-xl font-semibold text-slate-100">Logs</h1>
+	<h1 class="page-title">Logs</h1>
 	{#if activeTab !== 'binkp'}
 		<select
 			bind:value={levelFilter}
-			class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+			class="field field-sm"
 		>
 			<option value="all">All levels</option>
 			<option value="info">Info</option>
@@ -205,7 +205,7 @@
 	{:else}
 		<button
 			type="button"
-			class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800 disabled:opacity-50"
+			class="btn-secondary btn-sm"
 			disabled={sessionsLoading}
 			onclick={loadSessions}
 		>
@@ -236,9 +236,9 @@
 	{:else if visibleEntries.length === 0}
 		<p class="text-sm text-slate-500">No log entries yet.</p>
 	{:else}
-		<div class="overflow-hidden rounded border border-slate-800">
+		<div class="overflow-hidden rounded-xl border border-line">
 			<table class="w-full text-left text-sm">
-				<thead class="bg-slate-900 text-xs tracking-wide text-slate-500 uppercase">
+				<thead class="bg-slate-900 card-label">
 					<tr>
 						<th class="px-3 py-2 font-medium">Time</th>
 						<th class="px-3 py-2 font-medium">Level</th>
@@ -267,7 +267,7 @@
 							<td class="px-3 py-2 text-right">
 								<button
 									type="button"
-									class="rounded border border-slate-700 px-2 py-0.5 text-xs hover:bg-slate-800"
+									class="btn-secondary btn-xs"
 									onclick={() => openLogDetail(entry)}
 								>
 									Detail
@@ -286,9 +286,9 @@
 {:else if sessions.length === 0}
 	<p class="text-sm text-slate-500">No BinkP sessions recorded yet.</p>
 {:else}
-	<div class="overflow-hidden rounded border border-slate-800">
+	<div class="overflow-hidden rounded-xl border border-line">
 		<table class="w-full text-left text-sm">
-			<thead class="bg-slate-900 text-xs tracking-wide text-slate-500 uppercase">
+			<thead class="bg-slate-900 card-label">
 				<tr>
 					<th class="px-3 py-2 font-medium">Time</th>
 					<th class="px-3 py-2 font-medium">Direction</th>
@@ -317,7 +317,7 @@
 						<td class="px-3 py-2 text-right">
 							<button
 								type="button"
-								class="rounded border border-slate-700 px-2 py-0.5 text-xs hover:bg-slate-800"
+								class="btn-secondary btn-xs"
 								onclick={() => openSessionDetail(s)}
 							>
 								Detail
@@ -337,14 +337,14 @@
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="max-h-[85vh] w-full max-w-3xl overflow-auto rounded border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+			class="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-2xl border border-line-strong bg-surface p-6 shadow-2xl shadow-black/50"
 			onclick={(e) => e.stopPropagation()}
 			role="dialog"
 			aria-modal="true"
 			tabindex="-1"
 		>
 			<div class="mb-4 flex items-center justify-between gap-4">
-				<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">
+				<h2 class="card-label">
 					{detailSession ? 'BinkP Session' : 'Log Entry'}
 				</h2>
 				<button
@@ -369,7 +369,7 @@
 					<dt class="text-slate-500">Source</dt>
 					<dd class="font-mono text-slate-300">{detailLog.source}</dd>
 				</dl>
-				<pre class="mt-3 overflow-x-auto rounded border border-slate-800 bg-black p-3 font-mono text-xs whitespace-pre-wrap text-slate-200">{detailLog.message}</pre>
+				<pre class="mt-3 overflow-x-auto rounded-xl border border-line bg-ansi p-3 font-mono text-xs whitespace-pre-wrap text-slate-200">{detailLog.message}</pre>
 			{:else if detailSession}
 				<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
 					<dt class="text-slate-500">Time</dt>
@@ -390,7 +390,7 @@
 				{:else if transcriptError}
 					<p class="mt-3 text-sm text-red-400">{transcriptError}</p>
 				{:else if transcript}
-					<pre class="mt-3 max-h-[50vh] overflow-auto rounded border border-slate-800 bg-black p-3 font-mono text-xs whitespace-pre-wrap text-slate-200">{transcript}</pre>
+					<pre class="mt-3 max-h-[50vh] overflow-auto rounded-xl border border-line bg-ansi p-3 font-mono text-xs whitespace-pre-wrap text-slate-200">{transcript}</pre>
 				{/if}
 			{/if}
 		</div>

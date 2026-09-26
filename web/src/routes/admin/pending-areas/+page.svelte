@@ -157,7 +157,7 @@
 	}
 </script>
 
-<h1 class="mb-2 text-xl font-semibold text-slate-100">Pending Areas</h1>
+<h1 class="mb-2 page-title">Pending Areas</h1>
 <p class="mb-6 text-sm text-slate-400">
 	Areas the BinkP tosser auto-created for an echo it hadn't seen before. They stay invisible
 	everywhere in the BBS -- and out of the normal Message Areas / File Areas lists -- until you
@@ -177,7 +177,7 @@
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
 	<section class="mb-8">
-		<h2 class="mb-4 text-sm font-semibold tracking-wide text-cyan-400 uppercase">
+		<h2 class="mb-4 card-label">
 			Message Areas
 		</h2>
 		{#if messageAreas.length === 0}
@@ -186,20 +186,20 @@
 			<div class="flex flex-col gap-4">
 				{#each messageAreas as area (area.id)}
 					{@const draft = messageDrafts[area.id]}
-					<div class="rounded border border-slate-800 p-4">
+					<div class="rounded-xl border border-line p-4">
 						<div class="mb-3 font-mono text-xs text-slate-500">{area.tag}</div>
 						<div class="grid grid-cols-2 gap-4">
 							<label class="flex flex-col gap-1 text-sm">
 								<span class="text-slate-400">Name</span>
 								<input
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.name}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
 								<span class="text-slate-400">Group</span>
 								<input
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.network}
 									list="groups-list"
 									placeholder="fsxNet, FidoNet… (blank for ungrouped)"
@@ -208,7 +208,7 @@
 							<label class="col-span-2 flex flex-col gap-1 text-sm">
 								<span class="text-slate-400">Description</span>
 								<input
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.description}
 								/>
 							</label>
@@ -218,7 +218,7 @@
 									type="number"
 									min="0"
 									max="255"
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.min_sl_read}
 								/>
 							</label>
@@ -228,21 +228,21 @@
 									type="number"
 									min="0"
 									max="255"
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.min_sl_write}
 								/>
 							</label>
 						</div>
 						<div class="mt-4 flex gap-2">
 							<button
-								class="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+								class="btn-primary btn-sm"
 								disabled={busyID === `m${area.id}`}
 								onclick={() => approveMessage(area)}
 							>
 								{busyID === `m${area.id}` ? 'Approving…' : 'Save & Approve'}
 							</button>
 							<button
-								class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
+								class="btn-danger btn-sm"
 								disabled={busyID === `m${area.id}`}
 								onclick={() => rejectMessage(area)}
 							>
@@ -256,27 +256,27 @@
 	</section>
 
 	<section>
-		<h2 class="mb-4 text-sm font-semibold tracking-wide text-cyan-400 uppercase">File Areas</h2>
+		<h2 class="mb-4 card-label">File Areas</h2>
 		{#if fileAreas.length === 0}
 			<p class="text-sm text-slate-500">No pending file areas.</p>
 		{:else}
 			<div class="flex flex-col gap-4">
 				{#each fileAreas as area (area.id)}
 					{@const draft = fileDrafts[area.id]}
-					<div class="rounded border border-slate-800 p-4">
+					<div class="rounded-xl border border-line p-4">
 						<div class="mb-3 font-mono text-xs text-slate-500">{area.tag}</div>
 						<div class="grid grid-cols-2 gap-4">
 							<label class="flex flex-col gap-1 text-sm">
 								<span class="text-slate-400">Name</span>
 								<input
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.name}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
 								<span class="text-slate-400">Group</span>
 								<input
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.network}
 									list="groups-list"
 									placeholder="fsxNet, FidoNet… (blank for ungrouped)"
@@ -285,7 +285,7 @@
 							<label class="col-span-2 flex flex-col gap-1 text-sm">
 								<span class="text-slate-400">Description</span>
 								<input
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.description}
 								/>
 							</label>
@@ -295,7 +295,7 @@
 									type="number"
 									min="0"
 									max="255"
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.min_sl_download}
 								/>
 							</label>
@@ -305,21 +305,21 @@
 									type="number"
 									min="0"
 									max="255"
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									bind:value={draft.min_sl_upload}
 								/>
 							</label>
 						</div>
 						<div class="mt-4 flex gap-2">
 							<button
-								class="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+								class="btn-primary btn-sm"
 								disabled={busyID === `f${area.id}`}
 								onclick={() => approveFile(area)}
 							>
 								{busyID === `f${area.id}` ? 'Approving…' : 'Save & Approve'}
 							</button>
 							<button
-								class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
+								class="btn-danger btn-sm"
 								disabled={busyID === `f${area.id}`}
 								onclick={() => rejectFile(area)}
 							>

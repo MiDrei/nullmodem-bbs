@@ -130,7 +130,7 @@
 	}
 </script>
 
-<h1 class="mb-2 text-xl font-semibold text-slate-100">Undeliverable Netmail</h1>
+<h1 class="mb-2 page-title">Undeliverable Netmail</h1>
 <p class="mb-6 text-sm text-slate-400">
 	Netmail addressed to a name that never resolved to a real local user, and with no remote FTN
 	address either -- a mistyped recipient, or a reply from an automated robot (Areafix/Filefix,
@@ -148,14 +148,14 @@
 	<div class="mb-3 flex items-center gap-3">
 		<label class="flex items-center gap-2 text-sm text-slate-400">
 			<input
-				type="checkbox"
+				type="checkbox" class="check"
 				checked={selected.size > 0 && selected.size === messages.length}
 				onchange={toggleSelectAll}
 			/>
 			Select all
 		</label>
 		<button
-			class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
+			class="btn-danger btn-sm"
 			disabled={selected.size === 0 || batchDeleting}
 			onclick={removeSelected}
 		>
@@ -165,11 +165,11 @@
 
 	<div class="flex flex-col gap-3">
 		{#each messages as m (m.id)}
-			<div class="rounded border border-slate-800 p-4">
+			<div class="rounded-xl border border-line p-4">
 				<div class="flex items-start gap-3">
 					<input
 						type="checkbox"
-						class="mt-1"
+						class="check mt-1"
 						checked={selected.has(m.id)}
 						onchange={() => toggleSelected(m.id)}
 					/>
@@ -204,7 +204,7 @@
 						{/if}
 						<div class="mt-3">
 							<button
-								class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50"
+								class="btn-danger btn-sm"
 								disabled={deletingID === m.id}
 								onclick={() => remove(m)}
 							>

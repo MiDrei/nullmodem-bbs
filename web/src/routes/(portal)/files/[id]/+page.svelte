@@ -143,74 +143,53 @@
 	}
 </script>
 
-<a
-	href={file ? `/file-areas/${file.area_id}` : '/file-areas'}
-	class="text-sm text-cyan-400 hover:text-cyan-300"
->
-	&larr; Files
-</a>
+<a href={file ? `/file-areas/${file.area_id}` : '/file-areas'} class="back-link">&larr; Files</a>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="mt-4 text-sm text-slate-400">Loading…</p>
+	<p class="mt-4 text-sm text-muted">Loading…</p>
 {:else if file}
 	{@const kind = guessFilePreviewKind(file.filename)}
-	<div class="mt-3 mb-5">
-		<h1 class="text-xl font-bold tracking-tight break-all text-slate-100">{file.filename}</h1>
-		<div class="mt-0.5 text-sm text-slate-500">
-			{file.size_human} &middot; uploaded by
-			<strong class="text-slate-300">{file.uploaded_by}</strong>
+	<div class="mt-1.5 mb-5">
+		<h1 class="font-mono text-xl font-semibold break-all text-ink-strong">{file.filename}</h1>
+		<div class="mt-1 text-[12.5px] text-muted">
+			<span class="font-mono">{file.size_human}</span> &middot; uploaded by
+			<span class="text-slate-400">{file.uploaded_by}</span>
 			&middot; {formatDateTime(file.uploaded_at)} &middot;
 			{file.download_count}
 			{file.download_count === 1 ? 'download' : 'downloads'}
 		</div>
 	</div>
 
-	<div class="mb-6 max-w-2xl rounded-2xl border border-slate-800/60 bg-slate-900/40 p-6">
-		{#if file.description}
-			<div class="text-sm leading-relaxed whitespace-pre-wrap text-slate-200">
-				{file.description}
-			</div>
-		{:else}
-			<p class="text-sm text-slate-500">No description.</p>
-		{/if}
+	<div class="body-panel mb-5 font-sans whitespace-pre-wrap">
+		{#if file.description}{file.description}{:else}<span class="text-faint">No description.</span>{/if}
 	</div>
 
-	<div class="mb-6 flex gap-2">
-		<button
-			class="rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-fuchsia-500/20 transition hover:shadow-fuchsia-500/40"
-			onclick={download}
-		>
-			Download
-		</button>
+	<div class="mb-7 flex gap-2.5">
+		<button class="btn-primary px-5" onclick={download}>Download</button>
 		{#if kind === 'image' || kind === 'text'}
-			<button
-				class="rounded-full border border-slate-700 px-4 py-1.5 text-sm font-semibold text-slate-300 hover:bg-slate-800"
-				onclick={openPreview}
-			>
-				Preview
-			</button>
+			<button class="btn-secondary" onclick={openPreview}>Preview</button>
 		{/if}
 	</div>
 
 	{#if kind === 'archive'}
-		<div class="max-w-2xl rounded-2xl border border-slate-800/60 bg-slate-900/40 p-4">
-			<h2 class="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Contents</h2>
+		<div class="card">
+			<h2 class="card-label mb-3">Contents</h2>
 			{#if archiveListing?.loading}
-				<p class="text-sm text-slate-500">Reading archive contents…</p>
+				<p class="text-sm text-faint">Reading archive contents…</p>
 			{:else if archiveListing?.error}
 				<p class="text-sm text-red-400">{archiveListing.error}</p>
 			{:else if archiveListing?.preview?.kind === 'archive'}
 				<ul class="flex flex-col gap-1.5">
 					{#each archiveListing.preview.entries ?? [] as entry}
-						<li class="flex items-center justify-between gap-4 text-sm">
-							<span class="truncate font-mono text-slate-300">{entry.name}</span>
+						<li class="flex items-center justify-between gap-4 text-[13px]">
+							<span class="truncate font-mono text-ink-soft">{entry.name}</span>
 							<div class="flex shrink-0 items-center gap-3">
-								<span class="text-slate-500">{entry.size_bytes.toLocaleString()} B</span>
+								<span class="list-meta">{entry.size_bytes.toLocaleString()} B</span>
 								{#if guessFilePreviewKind(entry.name) === 'image' || guessFilePreviewKind(entry.name) === 'text'}
 									<button
-										class="rounded-full border border-slate-700 px-2.5 py-0.5 text-xs text-slate-300 hover:bg-slate-800"
+										class="text-xs text-faint transition-colors hover:text-accent"
 										onclick={() => openEntryPreview(entry.name)}
 									>
 										Preview
@@ -221,7 +200,7 @@
 					{/each}
 				</ul>
 				{#if archiveListing.preview.entries_truncated}
-					<p class="mt-2 text-xs text-slate-500">List truncated.</p>
+					<p class="mt-2 text-xs text-faint">List truncated.</p>
 				{/if}
 			{/if}
 		</div>

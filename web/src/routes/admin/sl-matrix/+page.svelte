@@ -161,7 +161,7 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="text-xl font-semibold text-slate-100">SL Matrix</h1>
+	<h1 class="page-title">SL Matrix</h1>
 	<p class="mt-1 text-sm text-slate-500">
 		Every SL-gated resource in one place, sorted by required security level. New-user SL is
 		<span class="font-mono text-slate-300">{SL_NEW_USER}</span>, sysop SL is
@@ -175,9 +175,9 @@
 {:else if !loaded}
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
-	<div class="overflow-x-auto rounded border border-slate-800">
+	<div class="overflow-x-auto rounded-xl border border-line">
 		<table class="w-full text-left text-sm">
-			<thead class="text-xs tracking-wide text-slate-500 uppercase">
+			<thead class="card-label">
 				<tr class="border-b border-slate-800">
 					<th class="p-3">Min SL</th>
 					<th class="p-3">Type</th>
@@ -188,14 +188,14 @@
 			</thead>
 			<tbody>
 				{#each rows as row (row.editKey ?? `${row.kind}:${row.resource}:${row.detail}`)}
-					<tr class="border-b border-slate-900 align-top {row.sl >= SL_SYSOP ? 'bg-amber-950/20' : ''}">
+					<tr class="border-b border-line align-top {row.sl >= SL_SYSOP ? 'bg-amber-950/20' : ''}">
 						<td class="p-3">
 							{#if row.editKey}
 								<input
 									type="number"
 									min="0"
 									max="255"
-									class="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="w-20 field field-sm"
 									value={row.sl}
 									oninput={(e) =>
 										(edits = { ...edits, [row.editKey!]: Number((e.target as HTMLInputElement).value) })}
@@ -222,7 +222,7 @@
 						<td class="p-3">
 							{#if row.editKey}
 								<button
-									class="rounded bg-cyan-600 px-3 py-1 text-white hover:bg-cyan-500 disabled:opacity-50"
+									class="btn-primary btn-sm"
 									disabled={saving[row.editKey] || edits[row.editKey] === undefined}
 									onclick={() => saveMenuItem(row.editKey!)}
 								>

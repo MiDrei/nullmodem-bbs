@@ -78,16 +78,16 @@
 	}
 </script>
 
-<h1 class="mb-6 text-xl font-semibold text-slate-100">Users</h1>
+<h1 class="mb-6 page-title">Users</h1>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
-	<div class="overflow-x-auto rounded border border-slate-800">
+	<div class="overflow-x-auto rounded-xl border border-line">
 		<table class="w-full text-left text-sm">
-			<thead class="text-xs tracking-wide text-slate-500 uppercase">
+			<thead class="card-label">
 				<tr class="border-b border-slate-800">
 					<th class="p-3">Username</th>
 					<th class="p-3">Real Name</th>
@@ -100,7 +100,7 @@
 			</thead>
 			<tbody>
 				{#each rows as row (row.user.id)}
-					<tr class="border-b border-slate-900 align-top">
+					<tr class="border-b border-line align-top">
 						<td class="p-3 text-slate-100">
 							<div class="flex items-center gap-1.5">
 								{#if isSysop(row.user.security_level)}
@@ -121,7 +121,7 @@
 						</td>
 						<td class="p-3">
 							<input
-								class="w-40 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="w-40 field field-sm"
 								placeholder="—"
 								bind:value={row.realName}
 							/>
@@ -142,7 +142,7 @@
 						<td class="p-3 text-slate-400">{formatDate(row.user.created_at)}</td>
 						<td class="p-3">
 							<button
-								class="rounded bg-cyan-600 px-3 py-1 text-white hover:bg-cyan-500 disabled:opacity-50"
+								class="btn-primary btn-sm"
 								disabled={row.saving ||
 									(row.level === row.user.security_level && row.realName === row.user.real_name)}
 								onclick={() => save(row)}

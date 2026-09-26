@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { login, ApiError } from '$lib/api';
 	import { auth } from '$lib/auth.svelte';
+	import { site } from '$lib/site.svelte';
 
 	let username = $state('');
 	let password = $state('');
@@ -24,40 +25,41 @@
 	}
 </script>
 
-<div class="mx-auto mt-16 max-w-sm">
-	<h1 class="mb-6 text-xl font-semibold text-slate-100">Sysop Login</h1>
-	<form class="flex flex-col gap-4" onsubmit={handleSubmit}>
-		<label class="flex flex-col gap-1 text-sm">
-			<span class="text-slate-400">Username</span>
-			<input
-				class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
-				bind:value={username}
-				autocomplete="username"
-				required
-			/>
-		</label>
-		<label class="flex flex-col gap-1 text-sm">
-			<span class="text-slate-400">Password</span>
-			<input
-				type="password"
-				class="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 focus:border-cyan-500 focus:outline-none"
-				bind:value={password}
-				autocomplete="current-password"
-				required
-			/>
-		</label>
+<div class="flex flex-col items-center gap-7 py-14">
+	<div class="text-center">
+		<h1 class="text-3xl font-semibold tracking-tight text-ink-strong">Sysop Login</h1>
+		<p class="mt-1.5 text-[13.5px] text-muted">Administer {site.info.name}</p>
+	</div>
 
+	<form class="flex w-full max-w-[340px] flex-col gap-2.5" onsubmit={handleSubmit}>
+		<label class="sr-only" for="admin-user">Username</label>
+		<input
+			id="admin-user"
+			class="field py-3 text-sm"
+			bind:value={username}
+			placeholder="Username"
+			autocomplete="username"
+			required
+		/>
+		<label class="sr-only" for="admin-pass">Password</label>
+		<input
+			id="admin-pass"
+			type="password"
+			class="field py-3 text-sm"
+			bind:value={password}
+			placeholder="Password"
+			autocomplete="current-password"
+			required
+		/>
 		{#if error}
 			<p class="text-sm text-red-400">{error}</p>
 		{/if}
-
-		<button
-			type="submit"
-			disabled={submitting}
-			class="mt-2 rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
-		>
+		<button type="submit" disabled={submitting} class="btn-primary mt-1.5 w-full py-3 text-sm">
 			{submitting ? 'Signing in…' : 'Sign in'}
 		</button>
-		<p class="text-xs text-slate-500">Only accounts with sysop-level security may sign in here.</p>
 	</form>
+
+	<p class="max-w-[340px] text-center text-xs leading-relaxed text-faint">
+		Only accounts with sysop-level security may sign in here.
+	</p>
 </div>

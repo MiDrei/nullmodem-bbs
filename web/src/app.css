@@ -1,1 +1,354 @@
 @import 'tailwindcss';
+
+/* JetBrains Mono, served from our own build rather than Google Fonts:
+   a BBS portal has no business telling a third party who visits it. */
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/700.css';
+
+/*
+ * Design direction D, "Dark Minimal" (the BBS Redesign Explorations
+ * canvas): a warm near-black ground that ANSI art sits well on, warm
+ * greys for text, one blue accent.
+ *
+ * The existing pages are written against Tailwind's slate, cyan and
+ * fuchsia scales. Redefining those scales here is what moves every page
+ * onto D at once -- slate becomes D's warm greys, cyan and fuchsia its
+ * single accent -- while the semantic names below are what new markup
+ * should use.
+ */
+@theme {
+	--font-sans:
+		-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui,
+		sans-serif;
+	--font-mono:
+		'JetBrains Mono', 'SF Mono', 'Roboto Mono', ui-monospace, monospace;
+
+	/* Warm greys, light to dark. 950 is the page ground, 900 a raised
+	   surface (inputs), 800 the hairline between rows, 700 an input or
+	   outline-button border. */
+	--color-slate-50: #f5f4f0;
+	--color-slate-100: #efeee9;
+	--color-slate-200: #e8e6e0;
+	--color-slate-300: #d8d6d0;
+	--color-slate-400: #a09e97;
+	--color-slate-500: #8f8d87;
+	--color-slate-600: #6c6a63;
+	--color-slate-700: #2c2c2c;
+	--color-slate-800: #232323;
+	--color-slate-900: #202021;
+	--color-slate-950: #1b1b1c;
+
+	/* The accent. Both former accent scales map onto it, so leftovers of
+	   the old cyan-to-fuchsia look come out blue. */
+	--color-cyan-50: #eef5ff;
+	--color-cyan-100: #d9e8fe;
+	--color-cyan-200: #b9d4fd;
+	--color-cyan-300: #8ab8fb;
+	--color-cyan-400: #5b9dfa;
+	--color-cyan-500: #4a8ae6;
+	--color-cyan-600: #3b76d1;
+	--color-cyan-700: #2f60ad;
+	--color-cyan-800: #274f8c;
+	--color-cyan-900: #213f6e;
+	--color-cyan-950: #16284a;
+	--color-fuchsia-300: #8ab8fb;
+	--color-fuchsia-400: #5b9dfa;
+	--color-fuchsia-500: #5b9dfa;
+	--color-fuchsia-600: #4a8ae6;
+
+	/* Semantic names, for new markup. */
+	--color-ground: #1b1b1c;
+	--color-surface: #202021;
+	--color-sunken: #131314;
+	--color-ansi: #0a0a0a;
+	--color-line: #232323;
+	--color-line-strong: #2c2c2c;
+	--color-ink: #e8e6e0;
+	--color-ink-strong: #f5f4f0;
+	--color-ink-soft: #d8d6d0;
+	--color-muted: #8f8d87;
+	--color-faint: #6c6a63;
+	--color-dim: #55534d;
+	--color-accent: #5b9dfa;
+	--color-accent-hover: #74acfb;
+}
+
+@layer base {
+	html {
+		color-scheme: dark;
+	}
+	body {
+		background: var(--color-ground);
+		color: var(--color-ink);
+		font-family: var(--font-sans);
+		-webkit-font-smoothing: antialiased;
+	}
+	::selection {
+		background: var(--color-accent);
+		color: #ffffff;
+	}
+}
+
+/*
+ * D's building blocks, as classes so every page draws them the same way.
+ */
+@layer components {
+	/* Page heading: a title with an optional line under it. */
+	.page-title {
+		font-size: 1.625rem;
+		font-weight: 600;
+		letter-spacing: -0.015em;
+		color: var(--color-ink-strong);
+	}
+	.page-subtitle {
+		margin-top: 0.2rem;
+		font-size: 0.844rem;
+		color: var(--color-muted);
+	}
+	/* "← Back to …" above a heading. */
+	.back-link {
+		font-size: 0.78rem;
+		color: var(--color-muted);
+	}
+	.back-link:hover {
+		color: var(--color-accent);
+	}
+
+	/* Buttons: one filled accent action per view, outlined for the rest. */
+	.btn-primary {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		border-radius: 9px;
+		background: var(--color-accent);
+		padding: 0.625rem 1.15rem;
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: #ffffff;
+		transition: background-color 0.15s;
+	}
+	.btn-primary:hover:not(:disabled) {
+		background: var(--color-accent-hover);
+	}
+	.btn-secondary {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		border-radius: 9px;
+		border: 1px solid var(--color-line-strong);
+		background: transparent;
+		padding: 0.625rem 1.15rem;
+		font-size: 0.8125rem;
+		color: var(--color-ink);
+		transition:
+			border-color 0.15s,
+			color 0.15s;
+	}
+	.btn-secondary:hover:not(:disabled) {
+		border-color: var(--color-accent);
+		color: var(--color-accent);
+	}
+	.btn-primary:disabled,
+	.btn-secondary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* Destructive: outlined, red. */
+	.btn-danger {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		border-radius: 9px;
+		border: 1px solid rgba(248, 113, 113, 0.35);
+		background: transparent;
+		padding: 0.625rem 1.15rem;
+		font-size: 0.8125rem;
+		color: #f87171;
+		transition:
+			background-color 0.15s,
+			border-color 0.15s;
+	}
+	.btn-danger:hover:not(:disabled) {
+		border-color: #f87171;
+		background: rgba(248, 113, 113, 0.08);
+	}
+	.btn-danger:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* Compact sizes for dense admin forms and table rows. */
+	.btn-sm {
+		padding: 0.4375rem 0.875rem;
+		font-size: 0.78rem;
+	}
+	.btn-xs {
+		border-radius: 7px;
+		padding: 0.25rem 0.625rem;
+		font-size: 0.72rem;
+	}
+	/* Text input, select, textarea. */
+	.field {
+		width: 100%;
+		border-radius: 9px;
+		border: 1px solid var(--color-line-strong);
+		background: var(--color-surface);
+		padding: 0.6875rem 0.875rem;
+		font-size: 0.844rem;
+		color: var(--color-ink);
+		outline: none;
+		transition: border-color 0.15s;
+	}
+	.field::placeholder {
+		color: #57564f;
+	}
+	.field-sm {
+		border-radius: 8px;
+		padding: 0.375rem 0.625rem;
+		font-size: 0.8125rem;
+	}
+	.field:focus {
+		border-color: var(--color-accent);
+	}
+
+	/* A section: hairline border, generous radius, mono caps label. */
+	.card {
+		border-radius: 14px;
+		border: 1px solid var(--color-line);
+		padding: 1.5rem;
+	}
+	.card-label {
+		font-family: var(--font-mono);
+		font-size: 0.656rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--color-dim);
+	}
+
+	/* Filter pills (All · Local · fsxNet …). */
+	.pill {
+		border-radius: 8px;
+		padding: 0.4375rem 0.875rem;
+		font-size: 0.78rem;
+		color: var(--color-muted);
+		transition:
+			background-color 0.15s,
+			color 0.15s;
+	}
+	.pill:hover {
+		color: var(--color-ink);
+	}
+	.pill-active,
+	.pill-active:hover {
+		background: var(--color-accent);
+		color: #ffffff;
+	}
+
+	/* List rows: a hairline under each, unread ones marked on the left. */
+	.list-row {
+		display: flex;
+		align-items: center;
+		gap: 0.875rem;
+		border-bottom: 1px solid var(--color-line);
+		border-left: 3px solid transparent;
+		padding: 0.5rem 0.625rem 0.5rem 0.6875rem;
+		transition: background-color 0.15s;
+	}
+	a.list-row:hover,
+	button.list-row:hover {
+		background: rgba(255, 255, 255, 0.025);
+	}
+	.list-row-unread {
+		border-left-color: var(--color-accent);
+		background: rgba(91, 157, 250, 0.08);
+	}
+	.list-num {
+		width: 1.25rem;
+		flex-shrink: 0;
+		text-align: right;
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--color-dim);
+	}
+	.list-meta {
+		font-family: var(--font-mono);
+		font-size: 0.6875rem;
+		color: var(--color-dim);
+	}
+	.badge-new {
+		flex-shrink: 0;
+		border-radius: 6px;
+		background: var(--color-accent);
+		padding: 0.1875rem 0.4375rem;
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+		font-weight: 700;
+		letter-spacing: 0.03em;
+		color: #ffffff;
+	}
+
+	/* Message and file text, and the panel ANSI art is drawn on. */
+	.body-panel {
+		border-radius: 12px;
+		border: 1px solid var(--color-line);
+		background: var(--color-sunken);
+		padding: 1.375rem 1.5rem;
+		font-family: var(--font-mono);
+		font-size: 0.844rem;
+		line-height: 1.7;
+		color: var(--color-ink-soft);
+	}
+	.ansi-panel {
+		border-radius: 12px;
+		background: var(--color-ansi);
+		padding: 1.125rem 1.25rem;
+	}
+
+	/* Checkbox: an outlined square that fills with the accent. */
+	.check {
+		appearance: none;
+		display: inline-grid;
+		place-content: center;
+		width: 1rem;
+		height: 1rem;
+		flex-shrink: 0;
+		border-radius: 4px;
+		border: 1.5px solid #3a3a38;
+		background: transparent;
+		cursor: pointer;
+		transition:
+			background-color 0.15s,
+			border-color 0.15s;
+	}
+	.check:checked {
+		border-color: var(--color-accent);
+		background: var(--color-accent)
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-7'/%3E%3C/svg%3E")
+			center / 12px no-repeat;
+	}
+	.check:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 2px;
+	}
+
+	/* Underlined tabs (Inbox / Sent). */
+	.tab {
+		padding-bottom: 0.75rem;
+		font-size: 0.8125rem;
+		color: var(--color-muted);
+		border-bottom: 2px solid transparent;
+	}
+	.tab:hover {
+		color: var(--color-ink);
+	}
+	.tab-active,
+	.tab-active:hover {
+		color: var(--color-ink-strong);
+		border-bottom-color: var(--color-accent);
+	}
+}

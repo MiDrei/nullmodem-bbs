@@ -4,7 +4,6 @@
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { toast } from '$lib/toast.svelte';
-	import { avatarGradient, initials } from '$lib/avatar';
 	import {
 		listBBSNetmail,
 		listBBSNetmailSent,
@@ -108,81 +107,76 @@
 	}
 </script>
 
-<div class="mb-6 flex items-center justify-between">
+<div class="mb-5 flex items-center justify-between gap-4">
 	<div>
-		<h1 class="text-2xl font-bold tracking-tight text-slate-100">Netmail</h1>
-		<p class="mt-1 text-sm text-slate-500">Private mail, local or over FidoNet.</p>
+		<h1 class="page-title">Netmail</h1>
+		<p class="page-subtitle">Private mail, local or over FidoNet</p>
 	</div>
-	<button
-		class="rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-fuchsia-500/20 transition hover:shadow-fuchsia-500/40"
-		onclick={() => (composing = !composing)}
-	>
-		{composing ? 'Cancel' : '+ New Netmail'}
-	</button>
+	{#if !composing}
+		<button class="btn-primary" onclick={() => (composing = true)}>+ New Netmail</button>
+	{/if}
 </div>
 
 {#if composing}
-	<div class="mb-6 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-4">
-		<div class="flex flex-col gap-3">
-			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">To (username or FTN address, e.g. 1:234/56)</span>
-				<input
-					class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-100 focus:border-cyan-400 focus:outline-none"
-					bind:value={composeTo}
-				/>
+	<form
+		class="mb-7 flex flex-col gap-3.5"
+		onsubmit={(e) => {
+			e.preventDefault();
+			send();
+		}}
+	>
+		<label class="flex flex-col gap-2">
+			<span class="card-label">To · username or FTN address, e.g. 1:234/56</span>
+			<input class="field" bind:value={composeTo} />
+		</label>
+		{#if composeToIsFTN}
+			<label class="flex flex-col gap-2">
+				<span class="card-label">Recipient name · who at that address?</span>
+				<input class="field" placeholder={composeTo} bind:value={composeToName} />
 			</label>
-			{#if composeToIsFTN}
-				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">Recipient name (who at that address?)</span>
-					<input
-						class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-100 focus:border-cyan-400 focus:outline-none"
-						placeholder={composeTo}
-						bind:value={composeToName}
-					/>
-				</label>
-				<label class="flex items-center gap-2 text-sm text-slate-400">
-					<input type="checkbox" class="accent-fuchsia-500" bind:checked={composeCrash} />
-					Crash priority (immediate delivery)
-				</label>
-			{/if}
-			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">Subject</span>
-				<input
-					class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-100 focus:border-cyan-400 focus:outline-none"
-					bind:value={composeSubject}
-				/>
+			<label class="flex items-center gap-2 text-[13px] text-muted">
+				<input type="checkbox" class="accent-accent" bind:checked={composeCrash} />
+				Crash priority (immediate delivery)
 			</label>
-			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">Message</span>
-				<textarea
-					class="h-32 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-sm text-slate-100 focus:border-cyan-400 focus:outline-none"
-					bind:value={composeBody}
-				></textarea>
-			</label>
+		{/if}
+		<label class="flex flex-col gap-2">
+			<span class="card-label">Subject</span>
+			<input class="field" bind:value={composeSubject} />
+		</label>
+		<label class="flex flex-col gap-2">
+			<span class="card-label">Message</span>
+			<textarea
+				class="body-panel h-64 resize-y outline-none focus:border-accent"
+				bind:value={composeBody}
+				placeholder="Write your message…"
+			></textarea>
+		</label>
+		<div class="flex justify-end gap-2.5">
+			<button type="button" class="btn-secondary" onclick={() => (composing = false)}>Cancel</button>
+			<button
+				type="submit"
+				class="btn-primary"
+				disabled={sending || !composeTo || !composeSubject || !composeBody}
+			>
+				{sending ? 'Sending…' : 'Send netmail'}
+			</button>
 		</div>
-		<button
-			class="mt-4 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
-			disabled={sending || !composeTo || !composeSubject || !composeBody}
-			onclick={send}
-		>
-			{sending ? 'Sending…' : 'Send'}
-		</button>
-	</div>
+	</form>
 {/if}
 
-<div class="mb-4 flex gap-1 border-b border-slate-800/60">
+<div class="mb-1 flex gap-6 border-b border-line" role="tablist">
 	<button
-		class="border-b-2 px-3 py-2 text-sm font-medium transition {tab === 'inbox'
-			? 'border-fuchsia-400 text-slate-100'
-			: 'border-transparent text-slate-500 hover:text-slate-300'}"
+		role="tab"
+		aria-selected={tab === 'inbox'}
+		class="tab {tab === 'inbox' ? 'tab-active' : ''}"
 		onclick={() => (tab = 'inbox')}
 	>
-		Inbox
+		Inbox{inbox.some((m) => m.unread) ? ` · ${inbox.filter((m) => m.unread).length} new` : ''}
 	</button>
 	<button
-		class="border-b-2 px-3 py-2 text-sm font-medium transition {tab === 'sent'
-			? 'border-fuchsia-400 text-slate-100'
-			: 'border-transparent text-slate-500 hover:text-slate-300'}"
+		role="tab"
+		aria-selected={tab === 'sent'}
+		class="tab {tab === 'sent' ? 'tab-active' : ''}"
 		onclick={() => (tab = 'sent')}
 	>
 		Sent
@@ -190,44 +184,35 @@
 </div>
 
 {#if loadError}
-	<p class="text-sm text-red-400">{loadError}</p>
+	<p class="mt-4 text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="mt-4 text-sm text-muted">Loading…</p>
 {:else if (tab === 'inbox' ? inbox : sent).length === 0}
-	<p class="text-sm text-slate-400">
+	<p class="mt-4 text-sm text-muted">
 		{tab === 'inbox' ? 'No netmail yet.' : 'Nothing sent yet.'}
 	</p>
 {:else}
-	<div class="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/40">
+	<div class="flex flex-col">
 		{#each tab === 'inbox' ? inbox : sent as m, i (m.id)}
-			<a
-				href="/netmail/{m.id}"
-				class="group flex items-center gap-3 px-4 py-2.5 transition hover:bg-slate-800/60 {i > 0
-					? 'border-t border-slate-800/60'
-					: ''} {tab === 'inbox' && m.unread
-					? 'border-l-2 border-l-fuchsia-400'
-					: 'border-l-2 border-l-transparent'}"
-			>
-				<div
-					class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white {avatarGradient(
-						tab === 'inbox' ? m.from_name : m.to_name
-					)}"
-				>
-					{initials(tab === 'inbox' ? m.from_name : m.to_name)}
-				</div>
+			{@const unread = tab === 'inbox' && m.unread}
+			<a href="/netmail/{m.id}" class="list-row group {unread ? 'list-row-unread' : ''}">
+				<span class="list-num">{String(i + 1).padStart(2, '0')}</span>
 				<div class="min-w-0 flex-1">
 					<div
-						class="truncate text-sm {tab === 'inbox' && m.unread
-							? 'font-semibold text-slate-100'
-							: 'font-medium text-slate-400'} transition group-hover:text-white"
+						class="truncate text-[13.5px] {unread
+							? 'font-semibold text-white'
+							: 'font-medium text-slate-100'} group-hover:text-accent"
 					>
 						{m.subject}
 					</div>
-					<div class="truncate text-xs text-slate-500">
-						{tab === 'inbox' ? m.from_name : `To: ${m.to_name}`}
+					<div class="mt-0.5 truncate text-xs text-faint">
+						{tab === 'inbox' ? m.from_name : `To ${m.to_name}`}
 					</div>
 				</div>
-				<span class="shrink-0 text-xs text-slate-500">{relativeTime(m.posted_at)}</span>
+				{#if unread}
+					<span class="badge-new">NEW</span>
+				{/if}
+				<span class="list-meta w-16 shrink-0 text-right">{relativeTime(m.posted_at)}</span>
 			</a>
 		{/each}
 	</div>

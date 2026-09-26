@@ -60,7 +60,7 @@
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
 	<div class="mb-6">
-		<h1 class="text-xl font-semibold text-slate-100">{dashboard.bbs_name}</h1>
+		<h1 class="page-title">{dashboard.bbs_name}</h1>
 		<p class="font-mono text-sm text-slate-500">{dashboard.version}</p>
 	</div>
 
@@ -98,27 +98,27 @@
 	{/if}
 
 	<div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-		<div class="rounded border border-slate-800 p-4">
+		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-cyan-400">{dashboard.nodes.length}</div>
-			<div class="text-xs tracking-wide text-slate-500 uppercase">Nodes Online</div>
+			<div class="card-label">Nodes Online</div>
 		</div>
-		<div class="rounded border border-slate-800 p-4">
+		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.user_count}</div>
-			<div class="text-xs tracking-wide text-slate-500 uppercase">Users</div>
+			<div class="card-label">Users</div>
 		</div>
-		<div class="rounded border border-slate-800 p-4">
+		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.message_area_count}</div>
-			<div class="text-xs tracking-wide text-slate-500 uppercase">Message Areas</div>
+			<div class="card-label">Message Areas</div>
 		</div>
-		<div class="rounded border border-slate-800 p-4">
+		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.file_area_count}</div>
-			<div class="text-xs tracking-wide text-slate-500 uppercase">File Areas</div>
+			<div class="card-label">File Areas</div>
 		</div>
 	</div>
 
-	<section class="mb-8 rounded border border-slate-800 p-4">
+	<section class="mb-8 rounded-xl border border-line p-4">
 		<div class="mb-4 flex items-center justify-between">
-			<h2 class="text-sm font-semibold tracking-wide text-cyan-400 uppercase">BinkP</h2>
+			<h2 class="card-label">BinkP</h2>
 			<a href="/admin/binkp/uplinks" class="text-xs text-cyan-500 hover:text-cyan-300"
 				>Configure &rarr;</a
 			>
@@ -133,25 +133,25 @@
 			</p>
 		{/if}
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-5">
-			<div class="rounded border border-slate-800 p-3">
-				<div class="text-xl font-semibold text-slate-100">{dashboard.binkp.uplink_count}</div>
-				<div class="text-xs tracking-wide text-slate-500 uppercase">Uplinks</div>
+			<div class="rounded-xl border border-line p-3">
+				<div class="text-lg font-semibold text-ink-strong">{dashboard.binkp.uplink_count}</div>
+				<div class="card-label">Uplinks</div>
 			</div>
-			<div class="rounded border border-slate-800 p-3">
-				<div class="text-xl font-semibold text-slate-100">
+			<div class="rounded-xl border border-line p-3">
+				<div class="text-lg font-semibold text-ink-strong">
 					{dashboard.binkp.crash_only_uplink_count}
 				</div>
-				<div class="text-xs tracking-wide text-slate-500 uppercase">Crash-Only</div>
+				<div class="card-label">Crash-Only</div>
 			</div>
-			<div class="rounded border border-slate-800 p-3">
-				<div class="text-xl font-semibold text-slate-100">{dashboard.binkp.hold_uplink_count}</div>
-				<div class="text-xs tracking-wide text-slate-500 uppercase">Hold</div>
+			<div class="rounded-xl border border-line p-3">
+				<div class="text-lg font-semibold text-ink-strong">{dashboard.binkp.hold_uplink_count}</div>
+				<div class="card-label">Hold</div>
 			</div>
-			<div class="rounded border border-slate-800 p-3">
-				<div class="text-xl font-semibold text-slate-100">{dashboard.binkp.pending_outbound}</div>
-				<div class="text-xs tracking-wide text-slate-500 uppercase">Pending Netmail</div>
+			<div class="rounded-xl border border-line p-3">
+				<div class="text-lg font-semibold text-ink-strong">{dashboard.binkp.pending_outbound}</div>
+				<div class="card-label">Pending Netmail</div>
 			</div>
-			<div class="rounded border border-slate-800 p-3">
+			<div class="rounded-xl border border-line p-3">
 				<div
 					class="text-xl font-semibold {dashboard.binkp.pending_crash > 0
 						? 'text-amber-400'
@@ -159,19 +159,19 @@
 				>
 					{dashboard.binkp.pending_crash}
 				</div>
-				<div class="text-xs tracking-wide text-slate-500 uppercase">Pending Crash</div>
+				<div class="card-label">Pending Crash</div>
 			</div>
 		</div>
 	</section>
 
-	<section class="rounded border border-slate-800 p-4">
-		<h2 class="mb-4 text-sm font-semibold tracking-wide text-cyan-400 uppercase">Who's Online</h2>
+	<section class="rounded-xl border border-line p-4">
+		<h2 class="mb-4 card-label">Who's Online</h2>
 		{#if dashboard.nodes.length === 0}
 			<p class="text-sm text-slate-500">No active sessions.</p>
 		{:else}
 			<div class="overflow-x-auto">
 				<table class="w-full text-left text-sm">
-					<thead class="text-xs tracking-wide text-slate-500 uppercase">
+					<thead class="card-label">
 						<tr class="border-b border-slate-800">
 							<th class="py-2 pr-4">Node</th>
 							<th class="py-2 pr-4">Handle</th>
@@ -182,7 +182,7 @@
 					</thead>
 					<tbody>
 						{#each dashboard.nodes as node (node.node)}
-							<tr class="border-b border-slate-900">
+							<tr class="border-b border-line">
 								<td class="py-2 pr-4 font-mono text-yellow-400">{node.node}</td>
 								<td class="py-2 pr-4">{node.username}</td>
 								<td class="py-2 pr-4 text-slate-400">{node.term_type}</td>

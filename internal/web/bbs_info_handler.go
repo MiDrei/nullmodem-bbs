@@ -1,9 +1,11 @@
 package web
 
 import (
+	"net"
 	"net/http"
 	"path/filepath"
 
+	"git.maik.ch/nullmodem/bbs/internal/version"
 	"git.maik.ch/nullmodem/kit/ansi"
 )
 
@@ -19,7 +21,34 @@ func (s *Server) handleBBSInfo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load config")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"name": c.BBS.Name})
+	info := bbsInfoDTO{Name: c.BBS.Name, Version: version.Short()}
+	if c.Telnet.Enabled {
+		info.TelnetPort = portOf(c.Telnet.Addr)
+	}
+	if c.SSH.Enabled {
+		info.SSHPort = portOf(c.SSH.Addr)
+	}
+	writeJSON(w, http.StatusOK, info)
+}
+
+// bbsInfoDTO is what the portal and admin show before login: the
+// board's name, its software version and where to reach it by Telnet
+// and SSH (the page's own host, these ports). A port is empty when
+// that server is disabled.
+type bbsInfoDTO struct {
+	Name       string `json:"name"`
+	Version    string `json:"version"`
+	TelnetPort string `json:"telnet_port,omitempty"`
+	SSHPort    string `json:"ssh_port,omitempty"`
+}
+
+// portOf is the port part of a listen address like ":2323" or
+// "0.0.0.0:2323".
+func portOf(addr string) string {
+	if _, port, err := net.SplitHostPort(addr); err == nil {
+		return port
+	}
+	return ""
 }
 
 // welcomeScreenFile is the same fixed, convention-based filename

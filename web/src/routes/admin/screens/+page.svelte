@@ -61,7 +61,7 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="text-xl font-semibold text-slate-100">Screens</h1>
+	<h1 class="page-title">Screens</h1>
 	<p class="mt-1 text-sm text-slate-500">
 		Live preview of the ANSI/CP437 screen files under the configured screens directory, rendered
 		as a browser would see a real terminal client display them. Placeholders like {'{BBSNAME}'} are
@@ -96,7 +96,7 @@
 			{:else if previewError}
 				<p class="text-sm text-red-400">{previewError}</p>
 			{:else if html}
-				<div class="overflow-x-auto rounded border border-slate-800 bg-black p-4">
+				<div class="overflow-x-auto rounded-xl border border-line bg-ansi p-4">
 					<div class="inline-block font-mono text-sm leading-tight whitespace-pre">
 						{@html html}
 					</div>

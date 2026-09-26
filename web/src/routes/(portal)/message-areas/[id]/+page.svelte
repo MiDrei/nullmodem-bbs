@@ -5,7 +5,6 @@
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { toast } from '$lib/toast.svelte';
-	import { avatarGradient, initials } from '$lib/avatar';
 	import {
 		listBBSMessageAreas,
 		listBBSMessages,
@@ -142,106 +141,92 @@
 	}
 </script>
 
-<a href="/message-areas" class="text-sm text-cyan-400 hover:text-cyan-300">&larr; Message Areas</a>
+<a href="/message-areas" class="back-link">&larr; Message Areas</a>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="mt-4 text-sm text-slate-400">Loading…</p>
+	<p class="mt-4 text-sm text-muted">Loading…</p>
 {:else}
-	<div class="mt-2 mb-6 flex items-center justify-between">
-		<h1 class="text-2xl font-bold tracking-tight text-slate-100">{area?.name ?? 'Area'}</h1>
-		{#if area && area.min_sl_write <= 255}
-			<button
-				class="rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white shadow-lg shadow-fuchsia-500/20 transition hover:shadow-fuchsia-500/40"
-				onclick={() => (composing = !composing)}
-			>
-				{composing ? 'Cancel' : '+ New Message'}
-			</button>
+	<div class="mt-1.5 mb-4 flex items-center justify-between gap-4">
+		<h1 class="page-title">{area?.name ?? 'Area'}</h1>
+		{#if area && area.min_sl_write <= 255 && !composing}
+			<button class="btn-primary" onclick={() => (composing = true)}>+ New Message</button>
 		{/if}
 	</div>
 
 	{#if composing}
-		<div class="mb-6 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-4">
-			<div class="flex flex-col gap-3">
-				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">To</span>
-					<input
-						class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-100 focus:border-cyan-400 focus:outline-none"
-						bind:value={composeTo}
-					/>
-				</label>
-				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">Subject</span>
-					<input
-						class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-100 focus:border-cyan-400 focus:outline-none"
-						bind:value={composeSubject}
-					/>
-				</label>
-				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">Message</span>
-					<textarea
-						class="h-32 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-sm text-slate-100 focus:border-cyan-400 focus:outline-none"
-						bind:value={composeBody}
-					></textarea>
-				</label>
+		<!-- D's "New message": mono labels, the text on a sunken panel. -->
+		<form
+			class="mb-6 flex flex-col gap-3.5"
+			onsubmit={(e) => {
+				e.preventDefault();
+				post();
+			}}
+		>
+			<label class="flex flex-col gap-2">
+				<span class="card-label">To</span>
+				<input class="field" bind:value={composeTo} />
+			</label>
+			<label class="flex flex-col gap-2">
+				<span class="card-label">Subject</span>
+				<input class="field" bind:value={composeSubject} placeholder="Say something…" />
+			</label>
+			<label class="flex flex-col gap-2">
+				<span class="card-label">Message</span>
+				<textarea
+					class="body-panel h-64 resize-y outline-none focus:border-accent"
+					bind:value={composeBody}
+					placeholder="Write your message…"
+				></textarea>
+			</label>
+			<div class="flex justify-end gap-2.5">
+				<button type="button" class="btn-secondary" onclick={() => (composing = false)}>Cancel</button>
+				<button type="submit" class="btn-primary" disabled={posting || !composeSubject || !composeBody}>
+					{posting ? 'Posting…' : 'Post message'}
+				</button>
 			</div>
-			<button
-				class="mt-4 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
-				disabled={posting || !composeSubject || !composeBody}
-				onclick={post}
-			>
-				{posting ? 'Posting…' : 'Post'}
-			</button>
-		</div>
+		</form>
 	{/if}
 
 	{#if messagePage && messagePage.messages.length === 0}
-		<p class="text-sm text-slate-400">No messages in this area yet.</p>
+		<p class="text-sm text-muted">No messages in this area yet.</p>
 	{:else if messagePage}
-		<div class="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/40">
+		<div class="flex flex-col">
 			{#each messagePage.messages as m, i (m.id)}
-				<a
-					href="/messages/{m.id}"
-					class="group flex items-center gap-3 px-4 py-2.5 transition hover:bg-slate-800/60 {i > 0
-						? 'border-t border-slate-800/60'
-						: ''} {m.unread ? 'border-l-2 border-l-fuchsia-400' : 'border-l-2 border-l-transparent'}"
-				>
-					<div
-						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white {avatarGradient(
-							m.from_name
-						)}"
-					>
-						{initials(m.from_name)}
-					</div>
+				<a href="/messages/{m.id}" class="list-row group {m.unread ? 'list-row-unread' : ''}">
+					<span class="list-num">{String(offset + i + 1).padStart(2, '0')}</span>
 					<div class="min-w-0 flex-1">
 						<div
-							class="truncate text-sm {m.unread
-								? 'font-semibold text-slate-100'
-								: 'font-medium text-slate-400'} transition group-hover:text-white"
+							class="truncate text-[13.5px] {m.unread
+								? 'font-semibold text-white'
+								: 'font-medium text-slate-100'} group-hover:text-accent"
 						>
 							{m.subject}
 						</div>
-						<div class="truncate text-xs text-slate-500">{m.from_name}</div>
+						<div class="mt-0.5 truncate text-xs text-faint">{m.from_name}</div>
 					</div>
-					<span class="shrink-0 text-xs text-slate-500">{relativeTime(m.posted_at)}</span>
+					{#if m.unread}
+						<span class="badge-new">NEW</span>
+					{/if}
+					<span class="list-meta w-16 shrink-0 text-right">{relativeTime(m.posted_at)}</span>
 				</a>
 			{/each}
 		</div>
 
-		<div class="mt-4 flex items-center justify-between text-sm">
+		<div class="mt-2 flex items-center justify-between border-t border-line pt-4 text-xs">
 			<button
-				class="rounded-full border border-slate-700 px-3 py-1 text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300 disabled:opacity-30"
+				class="text-faint transition-colors hover:text-accent disabled:opacity-30 disabled:hover:text-faint"
 				disabled={offset === 0}
 				onclick={prevPage}
 			>
 				&larr; Older
 			</button>
-			<span class="text-slate-500">
+			<span class="list-meta">
 				{offset + 1}&ndash;{Math.min(offset + pageSize, messagePage.total)} of {messagePage.total}
 			</span>
 			<button
-				class="rounded-full border border-slate-700 px-3 py-1 text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300 disabled:opacity-30"
+				class="text-faint transition-colors hover:text-accent disabled:opacity-30 disabled:hover:text-faint"
 				disabled={offset + pageSize >= messagePage.total}
 				onclick={nextPage}
 			>

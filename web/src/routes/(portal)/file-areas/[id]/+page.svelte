@@ -185,126 +185,100 @@
 	}
 </script>
 
-<a href="/file-areas" class="text-sm text-cyan-400 hover:text-cyan-300">&larr; Files</a>
+<a href="/file-areas" class="back-link">&larr; Files</a>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="mt-4 text-sm text-slate-400">Loading…</p>
+	<p class="mt-4 text-sm text-muted">Loading…</p>
 {:else}
-	<h1 class="mt-2 mb-6 text-2xl font-bold tracking-tight text-slate-100">{area?.name ?? 'Area'}</h1>
+	<h1 class="page-title mt-1.5 mb-5">{area?.name ?? 'Area'}</h1>
 
-	<div class="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-4">
+	<div class="card mb-6 flex flex-wrap items-center gap-2.5 p-4">
 		<input
 			type="file"
 			bind:this={fileInput}
-			class="text-xs text-slate-400 file:mr-2 file:rounded-full file:border-0 file:bg-slate-800 file:px-3 file:py-1 file:text-slate-200"
+			class="text-xs text-muted file:mr-2.5 file:rounded-lg file:border file:border-line-strong file:bg-transparent file:px-3 file:py-1.5 file:text-xs file:text-ink hover:file:border-accent hover:file:text-accent"
 		/>
-		<input
-			class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 focus:border-cyan-400 focus:outline-none"
-			placeholder="Description"
-			bind:value={uploadDescription}
-		/>
-		<button
-			class="rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
-			disabled={uploading}
-			onclick={upload}
-		>
+		<input class="field w-auto flex-1 py-2" placeholder="Description" bind:value={uploadDescription} />
+		<button class="btn-primary py-2" disabled={uploading} onclick={upload}>
 			{uploading ? 'Uploading…' : 'Upload'}
 		</button>
 	</div>
 
 	{#if files.length === 0}
-		<p class="text-sm text-slate-400">No files in this area yet.</p>
+		<p class="text-sm text-muted">No files in this area yet.</p>
 	{:else}
-		<div class="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/40">
-			<table class="w-full text-left text-sm">
-				<thead class="text-xs tracking-widest text-slate-500 uppercase">
-					<tr class="border-b border-slate-800/60">
-						<th class="py-2.5 pl-4">Filename</th>
-						<th class="py-2.5">Size</th>
-						<th class="py-2.5">Description</th>
-						<th class="py-2.5">Uploaded By</th>
-						<th class="py-2.5 pr-4"></th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each files as f, i (f.id)}
-						{@const kind = guessFilePreviewKind(f.filename)}
-						{@const archiveEntry = archiveListings[f.id]}
-						<tr
-							class="{i > 0 ? 'border-t border-slate-800/60' : ''} {f.unread
-								? 'border-l-2 border-l-fuchsia-400'
-								: 'border-l-2 border-l-transparent'} transition hover:bg-slate-800/60"
+		<div class="flex flex-col">
+			{#each files as f, i (f.id)}
+				{@const kind = guessFilePreviewKind(f.filename)}
+				{@const archiveEntry = archiveListings[f.id]}
+				<div class="list-row {f.unread ? 'list-row-unread' : ''}">
+					<span class="list-num">{String(i + 1).padStart(2, '0')}</span>
+					<div class="min-w-0 flex-1">
+						<a
+							href="/files/{f.id}"
+							class="block truncate font-mono text-[13px] hover:text-accent {f.unread
+								? 'font-semibold text-white'
+								: 'text-slate-100'}"
 						>
-							<td class="py-2 pl-4 align-top {f.unread ? 'font-medium text-slate-100' : 'text-slate-300'}">
-								<a href="/files/{f.id}" class="hover:underline">{f.filename}</a>
-							</td>
-							<td class="py-2 align-top text-slate-500">{f.size_human}</td>
-							<td class="max-w-xs truncate py-2 align-top text-slate-500">{f.description}</td>
-							<td class="py-2 align-top text-slate-500">{f.uploaded_by}</td>
-							<td class="py-2 pr-4 align-top">
-								<div class="flex justify-end gap-2">
-									{#if kind === 'image' || kind === 'text'}
-										<button
-											class="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800"
-											onclick={() => openPreview(f)}
-										>
-											Preview
-										</button>
-									{:else if kind === 'archive'}
-										<button
-											class="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800"
-											onclick={() => toggleArchivePreview(f)}
-										>
-											{expandedArchiveId === f.id ? 'Hide' : 'Preview'}
-										</button>
-									{/if}
-									<button
-										class="rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-3 py-1 text-xs font-semibold text-white"
-										onclick={() => download(f)}
-									>
-										Download
-									</button>
-								</div>
-							</td>
-						</tr>
-						{#if kind === 'archive' && expandedArchiveId === f.id}
-							<tr class="border-t border-slate-800/40 bg-black/20">
-								<td colspan="5" class="py-2 pr-4 pl-4">
-									{#if archiveEntry?.loading}
-										<p class="text-xs text-slate-500">Reading archive contents…</p>
-									{:else if archiveEntry?.error}
-										<p class="text-xs text-red-400">{archiveEntry.error}</p>
-									{:else if archiveEntry?.preview?.kind === 'archive'}
-										<ul class="flex flex-col gap-1">
-											{#each archiveEntry.preview.entries ?? [] as entry}
-												<li class="flex items-center justify-between gap-4 text-xs">
-													<span class="truncate font-mono text-slate-400">{entry.name}</span>
-													<div class="flex shrink-0 items-center gap-3">
-														<span class="text-slate-600">{entry.size_bytes.toLocaleString()} B</span>
-														{#if guessFilePreviewKind(entry.name) === 'image' || guessFilePreviewKind(entry.name) === 'text'}
-															<button
-																class="rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-300 hover:bg-slate-800"
-																onclick={() => openEntryPreview(f, entry.name)}
-															>
-																Preview
-															</button>
-														{/if}
-													</div>
-												</li>
-											{/each}
-										</ul>
-										{#if archiveEntry.preview.entries_truncated}
-											<p class="mt-1 text-xs text-slate-600">List truncated.</p>
-										{/if}
-									{/if}
-								</td>
-							</tr>
+							{f.filename}
+						</a>
+						<div class="mt-0.5 truncate text-xs text-faint">
+							{f.description || '—'}<span class="text-dim">&nbsp;· {f.uploaded_by}</span>
+						</div>
+					</div>
+					{#if f.unread}
+						<span class="badge-new">NEW</span>
+					{/if}
+					<span class="list-meta w-16 shrink-0 text-right">{f.size_human}</span>
+					<div class="flex shrink-0 justify-end gap-1.5">
+						{#if kind === 'image' || kind === 'text'}
+							<button class="btn-secondary px-3 py-1.5 text-xs" onclick={() => openPreview(f)}>
+								Preview
+							</button>
+						{:else if kind === 'archive'}
+							<button class="btn-secondary px-3 py-1.5 text-xs" onclick={() => toggleArchivePreview(f)}>
+								{expandedArchiveId === f.id ? 'Hide' : 'Preview'}
+							</button>
 						{/if}
-					{/each}
-				</tbody>
-			</table>
+						<button class="btn-primary px-3 py-1.5 text-xs" onclick={() => download(f)}>
+							Download
+						</button>
+					</div>
+				</div>
+				{#if kind === 'archive' && expandedArchiveId === f.id}
+					<div class="border-b border-line bg-sunken py-2.5 pr-3 pl-12">
+						{#if archiveEntry?.loading}
+							<p class="text-xs text-faint">Reading archive contents…</p>
+						{:else if archiveEntry?.error}
+							<p class="text-xs text-red-400">{archiveEntry.error}</p>
+						{:else if archiveEntry?.preview?.kind === 'archive'}
+							<ul class="flex flex-col gap-1">
+								{#each archiveEntry.preview.entries ?? [] as entry}
+									<li class="flex items-center justify-between gap-4 text-xs">
+										<span class="truncate font-mono text-muted">{entry.name}</span>
+										<div class="flex shrink-0 items-center gap-3">
+											<span class="list-meta">{entry.size_bytes.toLocaleString()} B</span>
+											{#if guessFilePreviewKind(entry.name) === 'image' || guessFilePreviewKind(entry.name) === 'text'}
+												<button
+													class="text-faint transition-colors hover:text-accent"
+													onclick={() => openEntryPreview(f, entry.name)}
+												>
+													Preview
+												</button>
+											{/if}
+										</div>
+									</li>
+								{/each}
+							</ul>
+							{#if archiveEntry.preview.entries_truncated}
+								<p class="mt-1 text-xs text-faint">List truncated.</p>
+							{/if}
+						{/if}
+					</div>
+				{/if}
+			{/each}
 		</div>
 	{/if}
 {/if}

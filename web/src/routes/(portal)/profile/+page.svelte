@@ -39,13 +39,6 @@
 	let confirmPassword = $state('');
 	let savingPassword = $state(false);
 
-	const inputClass =
-		'rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-slate-100 focus:border-cyan-400 focus:outline-none';
-	const primaryButton =
-		'rounded-lg bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50';
-	const secondaryButton =
-		'rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:opacity-50';
-
 	async function handleAuthError(err: unknown): Promise<boolean> {
 		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
 			bbsAuth.clear();
@@ -129,142 +122,136 @@
 	}
 </script>
 
-<div class="mb-6">
-	<h1 class="text-2xl font-bold tracking-tight text-slate-100">Your Profile</h1>
-	<p class="mt-1 text-sm text-slate-500">
-		Your account and personal settings -- the same ones you can change over Telnet/SSH.
-	</p>
+<div class="mb-5">
+	<h1 class="page-title">Your Profile</h1>
+	<p class="page-subtitle">Your account and personal settings — the same ones you can change over Telnet/SSH</p>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !profile}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-muted">Loading…</p>
 {:else}
-	<div class="space-y-6">
-		<section class="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-5">
-			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Account</h2>
-			<dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-				<dt class="text-slate-500">Handle</dt>
-				<dd class="text-slate-200">{profile.username}</dd>
-				<dt class="text-slate-500">Real name</dt>
-				<dd class="text-slate-200">{profile.real_name || '—'}</dd>
-				<dt class="text-slate-500">Security level</dt>
-				<dd class="text-slate-200">{profile.security_level}</dd>
-				<dt class="text-slate-500">Total calls</dt>
-				<dd class="text-slate-200">{profile.total_calls}</dd>
-				<dt class="text-slate-500">Member since</dt>
-				<dd class="text-slate-200">{formatDate(profile.created_at)}</dd>
-				<dt class="text-slate-500">Time zone</dt>
-				<dd class="text-slate-200">
-					{profile.timezone || `not set (this browser: ${browserZone}; Telnet/SSH: UTC)`}
-				</dd>
+	{@const account = [
+		['Handle', profile.username],
+		['Real name', profile.real_name || '—'],
+		['Security level', String(profile.security_level)],
+		['Total calls', String(profile.total_calls)],
+		['Member since', formatDate(profile.created_at)],
+		['Time zone', profile.timezone || `not set (this browser: ${browserZone}; Telnet/SSH: UTC)`]
+	]}
+	<div class="flex flex-col gap-4">
+		<section class="card">
+			<h2 class="card-label mb-4">Account</h2>
+			<dl class="flex flex-col gap-3 text-[13.5px]">
+				{#each account as [label, value] (label)}
+					<div class="flex justify-between gap-6">
+						<dt class="text-[#7a786f]">{label}</dt>
+						<dd class="text-right text-ink">{value}</dd>
+					</div>
+				{/each}
 			</dl>
 		</section>
 
-		<section class="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-5">
-			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Real name</h2>
-			<form class="flex flex-wrap items-end gap-3" onsubmit={saveName}>
-				<label class="flex min-w-64 flex-1 flex-col gap-1 text-sm">
-					<span class="text-slate-400">Real name</span>
-					<input class={inputClass} bind:value={realName} required />
-				</label>
-				<button class={primaryButton} disabled={savingName || realName.trim() === profile.real_name}>
+		<section class="card">
+			<h2 class="card-label mb-3.5">Real name</h2>
+			<form class="flex flex-wrap gap-2.5" onsubmit={saveName}>
+				<label class="sr-only" for="profile-realname">Real name</label>
+				<input id="profile-realname" class="field min-w-56 flex-1" bind:value={realName} required />
+				<button class="btn-primary" disabled={savingName || realName.trim() === profile.real_name}>
 					{savingName ? 'Saving…' : 'Save'}
 				</button>
 			</form>
 		</section>
 
-		<section class="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-5">
-			<h2 class="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-400">Time zone</h2>
-			<p class="mb-3 text-sm text-slate-500">
+		<section class="card">
+			<h2 class="card-label mb-1.5">Time zone</h2>
+			<p class="mb-3.5 text-[13px] text-muted">
 				Dates and times are shown in this zone here and over Telnet/SSH.
 			</p>
-			<form class="flex flex-wrap items-end gap-3" onsubmit={saveZone}>
-				<label class="flex min-w-64 flex-1 flex-col gap-1 text-sm">
-					<span class="text-slate-400">Zone</span>
-					<select class={inputClass} bind:value={timezone}>
-						<option value="">Not set</option>
-						{#each zones as zone (zone)}
-							<option value={zone}>{zone}</option>
-						{/each}
-					</select>
-				</label>
+			<form class="flex flex-wrap gap-2.5" onsubmit={saveZone}>
+				<label class="sr-only" for="profile-zone">Zone</label>
+				<select id="profile-zone" class="field min-w-56 flex-1" bind:value={timezone}>
+					<option value="">Not set</option>
+					{#each zones as zone (zone)}
+						<option value={zone}>{zone}</option>
+					{/each}
+				</select>
 				<button
 					type="button"
-					class={secondaryButton}
+					class="btn-secondary"
 					disabled={timezone === browserZone}
 					onclick={() => (timezone = browserZone)}
 				>
 					Use this browser's ({browserZone})
 				</button>
-				<button class={primaryButton} disabled={savingZone || timezone === profile.timezone}>
+				<button class="btn-primary" disabled={savingZone || timezone === profile.timezone}>
 					{savingZone ? 'Saving…' : 'Save'}
 				</button>
 			</form>
 		</section>
 
-		<section class="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-5">
-			<h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Password</h2>
+		<section class="card">
+			<h2 class="card-label mb-3.5">Password</h2>
 			<form class="grid gap-3 sm:grid-cols-3" onsubmit={savePassword}>
-				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">Current password</span>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Current password</span>
 					<input
 						type="password"
 						autocomplete="current-password"
-						class={inputClass}
+						class="field"
 						bind:value={currentPassword}
 						required
 					/>
 				</label>
-				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">New password (min {MIN_PASSWORD_LENGTH})</span>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">New password (min {MIN_PASSWORD_LENGTH})</span>
 					<input
 						type="password"
 						autocomplete="new-password"
 						minlength={MIN_PASSWORD_LENGTH}
-						class={inputClass}
+						class="field"
 						bind:value={newPassword}
 						required
 					/>
 				</label>
-				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">Confirm new password</span>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Confirm new password</span>
 					<input
 						type="password"
 						autocomplete="new-password"
-						class={inputClass}
+						class="field"
 						bind:value={confirmPassword}
 						required
 					/>
 				</label>
-				<div class="sm:col-span-3 flex justify-end">
-					<button class={primaryButton} disabled={savingPassword}>
+				<div class="flex justify-end sm:col-span-3">
+					<button class="btn-primary" disabled={savingPassword}>
 						{savingPassword ? 'Changing…' : 'Change password'}
 					</button>
 				</div>
 			</form>
 		</section>
 
-		<section class="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-5">
+		<section class="card">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">QWK area selection</h2>
-					<p class="mt-1 text-sm text-slate-500">Choose which message areas your QWK packets include.</p>
+					<h2 class="card-label">QWK area selection</h2>
+					<p class="mt-1.5 text-[13px] text-muted">Choose which message areas your QWK packets include.</p>
 				</div>
-				<a href="/qwk" class={secondaryButton}>Open QWK settings</a>
+				<a href="/qwk" class="btn-secondary hover:text-accent">Open QWK settings</a>
 			</div>
-			<label class="mt-4 flex items-start gap-3 text-sm">
+			<label class="mt-4 flex cursor-pointer items-start gap-3 text-[13px]">
 				<input
 					type="checkbox"
-					class="mt-0.5 accent-fuchsia-500"
+					class="check mt-0.5"
 					checked={profile.qwk_routing}
 					disabled={savingRouting}
 					onchange={(e) => saveRouting((e.currentTarget as HTMLInputElement).checked)}
 				/>
 				<span>
-					<span class="text-slate-200">Include SEEN-BY/PATH lines in QWK packets</span>
-					<span class="block text-slate-500">
+					<span class="text-ink">Include SEEN-BY/PATH lines in QWK packets</span>
+					<span class="mt-0.5 block text-faint">
 						The routing of echomail, for a reader that hides it and can quote it into a reply
 						(NullModem Reader). Most other readers show it as text.
 					</span>

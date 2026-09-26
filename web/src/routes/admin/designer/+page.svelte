@@ -835,7 +835,7 @@
 		<div class="flex flex-col gap-4 lg:flex-row">
 			<div class="flex shrink-0 flex-col gap-4 lg:w-80">
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 text-xs font-semibold tracking-wide text-cyan-400 uppercase">Tools</h2>
+					<h2 class="mb-2 card-label">Tools</h2>
 					<div class="grid grid-cols-4 gap-1">
 						{#each [['pencil', '✎'], ['eraser', '⌫'], ['text', 'T'], ['rect', '▭'], ['line', '╱'], ['box', '▢'], ['select', '⛶'], ['paste', '📋']] as [t, icon]}
 							<button
@@ -856,7 +856,7 @@
 								<option value="double">Double</option>
 							</select>
 							<label class="flex items-center gap-1">
-								<input type="checkbox" bind:checked={fillInterior} class="accent-cyan-500" />
+								<input type="checkbox" bind:checked={fillInterior} class="check" />
 								Fill
 							</label>
 						</div>
@@ -872,7 +872,7 @@
 					{/if}
 					{#if tool === 'text'}
 						<label class="mt-2 flex items-center gap-1 text-xs text-slate-400">
-							<input type="checkbox" bind:checked={insertMode} class="accent-cyan-500" />
+							<input type="checkbox" bind:checked={insertMode} class="check" />
 							Insert mode (shift rest of the row)
 						</label>
 					{/if}
@@ -895,7 +895,7 @@
 				</section>
 
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 text-xs font-semibold tracking-wide text-cyan-400 uppercase">Rows</h2>
+					<h2 class="mb-2 card-label">Rows</h2>
 					<label class="mb-2 flex items-center gap-2 text-xs text-slate-400">
 						Row #
 						<input
@@ -931,7 +931,7 @@
 				</section>
 
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 text-xs font-semibold tracking-wide text-cyan-400 uppercase">Insert Field</h2>
+					<h2 class="mb-2 card-label">Insert Field</h2>
 					<p class="mb-2 text-xs text-slate-500">
 						Text tool + click a cell, then insert a placeholder or fill token there instead of
 						typing braces by hand.
@@ -999,7 +999,7 @@
 				</section>
 
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 text-xs font-semibold tracking-wide text-cyan-400 uppercase">Foreground</h2>
+					<h2 class="mb-2 card-label">Foreground</h2>
 					<div class="grid grid-cols-8 gap-1">
 						{#each DOS_PALETTE as color, i}
 							<button
@@ -1010,7 +1010,7 @@
 							></button>
 						{/each}
 					</div>
-					<h2 class="mt-3 mb-2 text-xs font-semibold tracking-wide text-cyan-400 uppercase">Background</h2>
+					<h2 class="mt-3 mb-2 card-label">Background</h2>
 					<div class="grid grid-cols-8 gap-1">
 						{#each DOS_PALETTE.slice(0, 8) as color, i}
 							<button
@@ -1024,7 +1024,7 @@
 				</section>
 
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 text-xs font-semibold tracking-wide text-cyan-400 uppercase">Character</h2>
+					<h2 class="mb-2 card-label">Character</h2>
 					<div class="mb-2 flex items-center gap-3 rounded border border-slate-800 bg-slate-950 p-2">
 						<span
 							class="flex h-16 w-12 shrink-0 items-center justify-center rounded"

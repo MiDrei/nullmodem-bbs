@@ -264,7 +264,7 @@
 	}
 </script>
 
-<h1 class="mb-2 text-xl font-semibold text-slate-100">Areafix / Filefix</h1>
+<h1 class="mb-2 page-title">Areafix / Filefix</h1>
 <p class="mb-6 text-sm text-slate-400">
 	Request echomail (Areafix) or file-echo (Filefix) area subscriptions from a configured uplink, or
 	control which local areas a downlink is allowed to request from us in turn.
@@ -332,7 +332,7 @@
 		<label class="flex flex-col gap-1 text-sm">
 			<span class="text-slate-400">{mode === 'outbound' ? 'Uplink' : 'Downlink'}</span>
 			<select
-				class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+				class="field field-sm"
 				bind:value={uplinkIndex}
 				onchange={loadForMode}
 			>
@@ -344,7 +344,7 @@
 		<label class="flex flex-col gap-1 text-sm">
 			<span class="text-slate-400">Kind</span>
 			<select
-				class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+				class="field field-sm"
 				bind:value={kind}
 				onchange={loadForMode}
 			>
@@ -355,7 +355,7 @@
 		{#if mode === 'outbound'}
 			<button
 				type="button"
-				class="rounded border border-cyan-700 px-3 py-1.5 text-sm text-cyan-400 hover:bg-cyan-950 disabled:opacity-50"
+				class="btn-secondary btn-sm"
 				disabled={requestingList}
 				onclick={requestList}
 			>
@@ -363,7 +363,7 @@
 			</button>
 			<button
 				type="button"
-				class="rounded border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800 disabled:opacity-50"
+				class="btn-secondary btn-sm"
 				disabled={refreshingReply}
 				onclick={refreshReply}
 			>
@@ -380,14 +380,14 @@
 				No local {kind === 'file' ? 'file' : 'echo'} areas exist yet.
 			</p>
 		{:else}
-			<div class="mb-4 max-h-96 overflow-auto rounded border border-slate-800">
+			<div class="mb-4 max-h-96 overflow-auto rounded-xl border border-line">
 				<table class="w-full text-left text-sm">
 					<tbody>
 						{#each grantEntries as entry (entry.tag)}
 							<tr class="border-b border-slate-800 last:border-0 hover:bg-slate-900">
 								<td class="w-8 px-3 py-1.5">
 									<input
-										type="checkbox"
+										type="checkbox" class="check"
 										checked={entry.granted}
 										onchange={() => toggleGrant(entry.tag)}
 									/>
@@ -402,7 +402,7 @@
 		{/if}
 		<button
 			type="button"
-			class="rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+			class="btn-primary"
 			disabled={savingGrants}
 			onclick={saveGrants}
 		>
@@ -418,7 +418,7 @@
 		</p>
 		{#if showRawReply}
 			<pre
-				class="mb-4 max-h-64 overflow-auto rounded border border-slate-800 bg-slate-950 p-3 font-mono text-xs whitespace-pre-wrap text-slate-300">{listReply.raw_body}</pre>
+				class="mb-4 max-h-64 overflow-auto rounded-xl border border-line bg-slate-950 p-3 font-mono text-xs whitespace-pre-wrap text-slate-300">{listReply.raw_body}</pre>
 		{/if}
 	{:else}
 		<p class="mb-3 text-xs text-slate-500">
@@ -434,7 +434,7 @@
 				<span class="text-slate-400">Add a tag by hand</span>
 				<input
 					type="text"
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm font-mono"
 					placeholder="AREA_TAG"
 					bind:value={manualTagInput}
 					onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addManualTag())}
@@ -442,7 +442,7 @@
 			</label>
 			<button
 				type="button"
-				class="rounded border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800"
+				class="btn-secondary btn-sm"
 				onclick={addManualTag}
 			>
 				Add
@@ -452,14 +452,14 @@
 		{#if entries.length === 0}
 			<p class="mb-4 text-sm text-slate-500">No areas to show yet.</p>
 		{:else}
-			<div class="mb-4 max-h-96 overflow-auto rounded border border-slate-800">
+			<div class="mb-4 max-h-96 overflow-auto rounded-xl border border-line">
 				<table class="w-full text-left text-sm">
 					<tbody>
 						{#each entries as entry (entry.tag)}
 							<tr class="border-b border-slate-800 last:border-0 hover:bg-slate-900">
 								<td class="w-8 px-3 py-1.5">
 									<input
-										type="checkbox"
+										type="checkbox" class="check"
 										checked={entry.checked}
 										onchange={() => toggleEntry(entry.tag)}
 									/>
@@ -475,7 +475,7 @@
 
 		<button
 			type="button"
-			class="rounded bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+			class="btn-primary"
 			disabled={applying}
 			onclick={applyChanges}
 		>

@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { bbsLogin, getWelcomeScreen, ApiError, type WelcomeScreen } from '$lib/api';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
+	import { site } from '$lib/site.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 
 	let username = $state('');
@@ -12,6 +13,7 @@
 	let welcome = $state<WelcomeScreen | null>(null);
 
 	onMount(async () => {
+		site.load();
 		try {
 			welcome = await getWelcomeScreen();
 		} catch {
@@ -34,58 +36,66 @@
 			submitting = false;
 		}
 	}
+
+	const host = typeof location === 'undefined' ? '' : location.hostname;
 </script>
 
-{#if welcome}
-	<div class="mx-auto mt-16 w-fit max-w-full overflow-x-auto rounded-xl border border-slate-800/60 bg-black p-4">
-		{#if welcome.preformatted && welcome.grid}
-			<AnsiArt grid={welcome.grid} />
-		{:else}
-			<div class="inline-block font-mono text-sm leading-tight whitespace-pre">
-				{@html welcome.html}
-			</div>
-		{/if}
-	</div>
-{/if}
-
-<div class="mx-auto max-w-md {welcome ? 'mt-12' : 'mt-16'}">
-	<h1 class="mb-3 text-lg font-semibold text-slate-100">Welcome back</h1>
-	<form
-		class="flex flex-col gap-3 rounded-xl border border-slate-800/60 bg-slate-900/40 p-4"
-		onsubmit={handleSubmit}
-	>
-		<div class="grid grid-cols-2 gap-3">
-			<input
-				class="min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 focus:border-cyan-400 focus:outline-none"
-				bind:value={username}
-				placeholder="Username"
-				autocomplete="username"
-				required
-			/>
-			<input
-				type="password"
-				class="min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 focus:border-cyan-400 focus:outline-none"
-				bind:value={password}
-				placeholder="Password"
-				autocomplete="current-password"
-				required
-			/>
+<div class="flex flex-col items-center gap-7 py-6">
+	{#if welcome}
+		<!-- The board's own welcome.ans, on D's black ANSI ground. -->
+		<div class="ansi-panel w-fit max-w-full overflow-x-auto">
+			{#if welcome.preformatted && welcome.grid}
+				<AnsiArt grid={welcome.grid} />
+			{:else}
+				<div class="inline-block font-mono text-sm leading-tight whitespace-pre">
+					{@html welcome.html}
+				</div>
+			{/if}
 		</div>
+	{/if}
 
+	<div class="text-center">
+		<h1 class="text-3xl font-semibold tracking-tight text-ink-strong">Welcome back</h1>
+		<p class="mt-1.5 text-[13.5px] text-muted">Sign in to continue to {site.info.name}</p>
+	</div>
+
+	<form class="flex w-full max-w-[340px] flex-col gap-2.5" onsubmit={handleSubmit}>
+		<label class="sr-only" for="login-user">Username</label>
+		<input
+			id="login-user"
+			class="field py-3 text-sm"
+			bind:value={username}
+			placeholder="Username"
+			autocomplete="username"
+			required
+		/>
+		<label class="sr-only" for="login-pass">Password</label>
+		<input
+			id="login-pass"
+			type="password"
+			class="field py-3 text-sm"
+			bind:value={password}
+			placeholder="Password"
+			autocomplete="current-password"
+			required
+		/>
 		{#if error}
 			<p class="text-sm text-red-400">{error}</p>
 		{/if}
-
-		<button
-			type="submit"
-			disabled={submitting}
-			class="rounded-lg bg-cyan-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-40"
-		>
+		<button type="submit" disabled={submitting} class="btn-primary mt-1.5 w-full py-3 text-sm">
 			{submitting ? 'Signing in…' : 'Sign in'}
 		</button>
-		<p class="text-xs text-slate-500">
-			New here? Connect via Telnet (<span class="font-mono text-slate-400">bbs.maik.ch:2323</span>) or SSH
-			(<span class="font-mono text-slate-400">ssh bbs.maik.ch -p 2222</span>) first to create an account.
-		</p>
 	</form>
+
+	{#if site.info.telnet_port || site.info.ssh_port}
+		<p class="max-w-[340px] text-center text-xs leading-relaxed text-faint">
+			New here? Create an account over
+			{#if site.info.telnet_port}
+				Telnet (<span class="font-mono text-muted">{host}:{site.info.telnet_port}</span>){/if}{#if site.info.telnet_port && site.info.ssh_port}
+				or{/if}
+			{#if site.info.ssh_port}
+				SSH (<span class="font-mono text-muted">ssh {host} -p {site.info.ssh_port}</span>){/if}
+			first.
+		</p>
+	{/if}
 </div>

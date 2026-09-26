@@ -171,7 +171,7 @@
 	}
 </script>
 
-<h1 class="mb-2 text-xl font-semibold text-slate-100">Packet Analyzer</h1>
+<h1 class="mb-2 page-title">Packet Analyzer</h1>
 <p class="mb-6 text-sm text-slate-400">
 	Every inbound BinkP file (a packet, a TIC descriptor, a file-echo payload, or anything
 	unsupported) this system has received recently, kept for a few days regardless of whether it
@@ -187,7 +187,7 @@
 {:else}
 	<div class="mb-4 flex items-center justify-between">
 		<button
-			class="rounded bg-cyan-600 px-3 py-1.5 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+			class="btn-primary btn-sm"
 			disabled={selected.size === 0 || retossing}
 			onclick={retossSelected}
 		>
@@ -196,14 +196,14 @@
 		<div class="flex items-center gap-2 text-sm text-slate-400">
 			<span>{total === 0 ? 0 : offset + 1}-{Math.min(offset + PAGE_SIZE, total)} of {total}</span>
 			<button
-				class="rounded border border-slate-700 px-2 py-1 hover:bg-slate-800 disabled:opacity-40"
+				class="btn-secondary btn-sm disabled:opacity-40"
 				disabled={offset === 0}
 				onclick={prevPage}
 			>
 				&larr; Prev
 			</button>
 			<button
-				class="rounded border border-slate-700 px-2 py-1 hover:bg-slate-800 disabled:opacity-40"
+				class="btn-secondary btn-sm disabled:opacity-40"
 				disabled={offset + PAGE_SIZE >= total}
 				onclick={nextPage}
 			>
@@ -217,11 +217,11 @@
 	{:else}
 		<div class="flex flex-col gap-2">
 			{#each entries as entry (entry.id)}
-				<div class="rounded border border-slate-800 p-3">
+				<div class="rounded-xl border border-line p-3">
 					<div class="flex items-start gap-3">
 						<input
 							type="checkbox"
-							class="mt-1"
+							class="check mt-1"
 							checked={selected.has(entry.id)}
 							onchange={() => toggleSelected(entry.id)}
 						/>
@@ -253,13 +253,13 @@
 						</button>
 						<div class="flex shrink-0 gap-2">
 							<button
-								class="rounded border border-slate-700 px-2 py-1 text-xs hover:bg-slate-800"
+								class="btn-secondary btn-xs"
 								onclick={() => download(entry)}
 							>
 								Download
 							</button>
 							<button
-								class="rounded border border-red-800 px-2 py-1 text-xs text-red-400 hover:bg-red-950 disabled:opacity-50"
+								class="btn-danger btn-xs"
 								disabled={busyID === entry.id}
 								onclick={() => remove(entry)}
 							>
@@ -282,7 +282,7 @@
 										</p>
 									{/if}
 									{#each inspection.packets ?? [] as p}
-										<div class="rounded border border-slate-800/70 bg-slate-900/40 p-2">
+										<div class="rounded-xl border border-line/70 bg-slate-900/40 p-2">
 											<div class="font-mono text-xs text-slate-400">
 												{p.name} &middot; {p.orig_addr} &rarr; {p.dest_addr} &middot; {new Date(
 													p.created

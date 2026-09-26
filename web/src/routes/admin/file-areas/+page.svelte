@@ -225,9 +225,9 @@
 </datalist>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="text-xl font-semibold text-slate-100">File Areas</h1>
+	<h1 class="page-title">File Areas</h1>
 	<button
-		class="rounded bg-cyan-600 px-3 py-1.5 text-sm text-white hover:bg-cyan-500"
+		class="btn-primary btn-sm"
 		onclick={() => (creating = !creating)}
 	>
 		{creating ? 'Cancel' : '+ New Area'}
@@ -235,13 +235,13 @@
 </div>
 
 {#if creating}
-	<div class="mb-6 rounded border border-slate-800 p-4">
-		<h2 class="mb-4 text-sm font-semibold tracking-wide text-cyan-400 uppercase">New Area</h2>
+	<div class="mb-6 rounded-xl border border-line p-4">
+		<h2 class="mb-4 card-label">New Area</h2>
 		<div class="grid grid-cols-2 gap-4">
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Tag</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm font-mono"
 					bind:value={newDraft.tag}
 					placeholder="general"
 				/>
@@ -249,21 +249,21 @@
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Name</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.name}
 				/>
 			</label>
 			<label class="col-span-2 flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Description</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.description}
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">Group</span>
 				<input
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.network}
 					list="groups-list"
 					placeholder="fsxNet, FidoNet… (blank for ungrouped)"
@@ -275,7 +275,7 @@
 					type="number"
 					min="0"
 					max="255"
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.min_sl_download}
 				/>
 			</label>
@@ -285,13 +285,13 @@
 					type="number"
 					min="0"
 					max="255"
-					class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+					class="field field-sm"
 					bind:value={newDraft.min_sl_upload}
 				/>
 			</label>
 		</div>
 		<button
-			class="mt-4 rounded bg-cyan-600 px-3 py-1.5 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+			class="mt-4 btn-primary btn-sm"
 			disabled={saving}
 			onclick={createNew}
 		>
@@ -329,13 +329,13 @@
 	{/if}
 	<div class="flex flex-col gap-4">
 		{#each visibleAreas as area (area.id)}
-			<div class="rounded border border-slate-800 p-4">
+			<div class="rounded-xl border border-line p-4">
 				{#if editingId === area.id}
 					<div class="grid grid-cols-2 gap-4">
 						<label class="flex flex-col gap-1 text-sm">
 							<span class="text-slate-400">Name</span>
 							<input
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.name}
 							/>
 						</label>
@@ -343,21 +343,21 @@
 							<span class="text-slate-400">Sort order</span>
 							<input
 								type="number"
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.sort_order}
 							/>
 						</label>
 						<label class="col-span-2 flex flex-col gap-1 text-sm">
 							<span class="text-slate-400">Description</span>
 							<input
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.description}
 							/>
 						</label>
 						<label class="flex flex-col gap-1 text-sm">
 							<span class="text-slate-400">Group</span>
 							<input
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.network}
 								list="groups-list"
 								placeholder="fsxNet, FidoNet… (blank for ungrouped)"
@@ -369,7 +369,7 @@
 								type="number"
 								min="0"
 								max="255"
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.min_sl_download}
 							/>
 						</label>
@@ -379,21 +379,21 @@
 								type="number"
 								min="0"
 								max="255"
-								class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
+								class="field field-sm"
 								bind:value={draft.min_sl_upload}
 							/>
 						</label>
 					</div>
 					<div class="mt-4 flex gap-2">
 						<button
-							class="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+							class="btn-primary btn-sm"
 							disabled={saving}
 							onclick={() => saveEdit(area.id)}
 						>
 							{saving ? 'Saving…' : 'Save'}
 						</button>
 						<button
-							class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+							class="btn-secondary btn-sm"
 							onclick={() => (editingId = null)}
 						>
 							Cancel
@@ -407,7 +407,7 @@
 								{area.name}
 								{#if area.network}
 									<span
-										class="ml-2 rounded bg-fuchsia-950 px-1.5 py-0.5 text-xs text-fuchsia-400"
+										class="ml-2 rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[10.5px] text-muted"
 										>{area.network}</span
 									>
 								{/if}
@@ -419,19 +419,19 @@
 						</div>
 						<div class="flex gap-2">
 							<button
-								class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+								class="btn-secondary btn-sm"
 								onclick={() => toggleFiles(area)}
 							>
 								{expandedAreaId === area.id ? 'Hide files' : 'Manage files'}
 							</button>
 							<button
-								class="rounded border border-slate-700 px-3 py-1 text-sm hover:bg-slate-800"
+								class="btn-secondary btn-sm"
 								onclick={() => startEdit(area)}
 							>
 								Edit
 							</button>
 							<button
-								class="rounded border border-red-800 px-3 py-1 text-sm text-red-400 hover:bg-red-950"
+								class="btn-danger btn-sm"
 								onclick={() => remove(area)}
 							>
 								Delete
@@ -448,12 +448,12 @@
 									class="text-xs text-slate-400 file:mr-2 file:rounded file:border-0 file:bg-slate-800 file:px-2 file:py-1 file:text-slate-200"
 								/>
 								<input
-									class="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 focus:border-cyan-500 focus:outline-none"
+									class="field field-sm"
 									placeholder="Description"
 									bind:value={uploadDescription}
 								/>
 								<button
-									class="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500 disabled:opacity-50"
+									class="btn-primary btn-sm"
 									disabled={uploading}
 									onclick={() => upload(area.id)}
 								>
@@ -468,7 +468,7 @@
 							{:else}
 								<div class="overflow-x-auto">
 									<table class="w-full text-left text-sm">
-										<thead class="text-xs tracking-wide text-slate-500 uppercase">
+										<thead class="card-label">
 											<tr class="border-b border-slate-800">
 												<th class="py-1 pr-3">Filename</th>
 												<th class="py-1 pr-3">Size</th>
@@ -480,7 +480,7 @@
 										</thead>
 										<tbody>
 											{#each filesByArea[area.id] as f (f.id)}
-												<tr class="border-b border-slate-900">
+												<tr class="border-b border-line">
 													<td class="py-1 pr-3 text-slate-100">{f.filename}</td>
 													<td class="py-1 pr-3 text-slate-400">{f.size_human}</td>
 													<td class="max-w-xs truncate py-1 pr-3 text-slate-400" title={f.description}
@@ -490,7 +490,7 @@
 													<td class="py-1 pr-3 text-slate-400">{f.download_count}</td>
 													<td class="py-1">
 														<button
-															class="rounded border border-red-800 px-2 py-0.5 text-xs text-red-400 hover:bg-red-950"
+															class="btn-danger btn-xs"
 															onclick={() => removeFile(area.id, f)}
 														>
 															Delete
