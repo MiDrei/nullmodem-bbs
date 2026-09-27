@@ -75,9 +75,12 @@ type Door struct {
 	// their own data files (art, saved games) relative to cwd rather
 	// than relative to the dropfile path. Kind "native" only.
 	Dir string
-	// Args are extra arguments passed before the dropfile path
-	// argument this package appends itself (see Run). Kind "native"
-	// only.
+	// Args are the door's command-line arguments. They may use the
+	// placeholders "{dropfile}" (the absolute path of DOOR32.SYS),
+	// "{dropfile_dir}" (its directory) and "{node}". Without any
+	// placeholder, "/P<dropfile dir>/" is appended -- Usurper's switch,
+	// and how doors were launched before placeholders existed. Kind
+	// "native" only.
 	Args []string
 
 	// DOSBoxDir is the door's own install directory, mounted as C: in
@@ -115,6 +118,13 @@ type Door struct {
 	// stale node locks a crashed session left behind (e.g. OO2's
 	// OONODE.DAT), which would otherwise lock everyone out.
 	LockFiles []string
+	// Stdio connects the door's stdin and stdout to the caller's
+	// connection as well, for "native" doors that talk over standard
+	// I/O the way Synchronet runs them (Usurper Reborn switches to that
+	// by itself once its output is redirected) instead of over the
+	// DOOR32.SYS socket handle. The BBS's own telnet layer then keeps
+	// handling the protocol, as it does for "dosbox" doors.
+	Stdio bool
 }
 
 // Session carries the caller-specific fields Run writes into the
@@ -193,7 +203,7 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 	// output would reach a real telnet connection completely
 	// unescaped.
 	isTelnet := false
-	if door.Kind != "dosbox" {
+	if door.Kind != "dosbox" && !door.Stdio {
 		if rs, ok := conn.(isTelnetConn); ok {
 			rs.SetRaw(true)
 			isTelnet = true
@@ -243,6 +253,10 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 	}
 	cmd.ExtraFiles = []*os.File{child}
 	cmd.Stdin = nil
+	if door.Stdio {
+		cmd.Stdin = child
+		cmd.Stdout = child
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
@@ -377,8 +391,7 @@ func buildNativeCmd(nodeDir string, door Door, sess Session) (*exec.Cmd, error) 
 		return nil, fmt.Errorf("doors: resolving %s's executable path: %w", door.Name, err)
 	}
 
-	args := append(append([]string{}, door.Args...), "/P"+nodeDir+"/")
-	cmd := exec.Command(exe, args...)
+	cmd := exec.Command(exe, nativeArgs(door.Args, nodeDir, sess.Node)...)
 	cmd.Dir = door.Dir
 	return cmd, nil
 }
@@ -591,4 +604,26 @@ func removeCaseInsensitive(base, rel string) error {
 		}
 	}
 	return nil
+}
+
+// nativeArgs expands a native door's Args (see Door.Args).
+func nativeArgs(args []string, nodeDir string, node int) []string {
+	r := strings.NewReplacer(
+		"{dropfile}", filepath.Join(nodeDir, "DOOR32.SYS"),
+		"{dropfile_dir}", nodeDir+string(filepath.Separator),
+		"{node}", strconv.Itoa(node),
+	)
+	out := make([]string, 0, len(args)+1)
+	placeholders := false
+	for _, a := range args {
+		if e := r.Replace(a); e != a {
+			placeholders = true
+			a = e
+		}
+		out = append(out, a)
+	}
+	if !placeholders {
+		out = append(out, "/P"+nodeDir+"/")
+	}
+	return out
 }

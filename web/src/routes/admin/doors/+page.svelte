@@ -48,6 +48,7 @@
 			dropfile: '',
 			dropfile_in_door_dir: false,
 			lock_files: [],
+			stdio: false,
 			template: '',
 			installed: false
 		};
@@ -240,8 +241,24 @@
 				</label>
 			</div>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Extra arguments (before the drop file path)</span>
-				<input class="field field-sm font-mono" bind:value={argsText} />
+				<span class="text-xs text-muted">Arguments</span>
+				<input class="field field-sm font-mono" bind:value={argsText} placeholder="-dropfile {'{dropfile}'}" />
+				<span class="text-xs leading-relaxed text-faint">
+					Placeholders: <code class="font-mono text-muted">{'{dropfile}'}</code> (path of DOOR32.SYS),
+					<code class="font-mono text-muted">{'{dropfile_dir}'}</code>,
+					<code class="font-mono text-muted">{'{node}'}</code>. Without any, Usurper's
+					<code class="font-mono text-muted">/P&lt;dir&gt;/</code> is appended.
+				</span>
+			</label>
+			<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
+				<input type="checkbox" class="check mt-0.5" bind:checked={draft.stdio} />
+				<span>
+					<span class="text-ink">Talk over standard I/O</span>
+					<span class="block text-xs text-faint">
+						For doors that use stdin/stdout like under Synchronet (Usurper Reborn) instead of the
+						DOOR32.SYS socket.
+					</span>
+				</span>
 			</label>
 		{/if}
 
@@ -320,7 +337,7 @@
 								{/if}
 							</div>
 							<div class="mt-1 truncate font-mono text-[11px] text-faint">
-								{doorDir(d) || '—'} · {dropfileLabel(d)}{d.dropfile_in_door_dir ? ' (+door dir)' : ''} · SL {d.min_sl}+
+								{doorDir(d) || '—'} · {dropfileLabel(d)}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''} · SL {d.min_sl}+
 							</div>
 						</div>
 						<div class="flex shrink-0 gap-1.5">
@@ -337,7 +354,7 @@
 
 	<h2 class="card-label mb-1 px-1">Templates</h2>
 	<p class="mb-3 px-1 text-[13px] text-muted">
-		Ready-made setups for well-known doors. Open-source ones are downloaded and installed into
+		Ready-made setups for well-known doors. Open-source ones are downloaded, set up and installed into
 		<span class="font-mono text-ink-soft">{doorsDir}</span>; the others you unpack there yourself.
 	</p>
 	<div class="grid gap-3 md:grid-cols-2">
@@ -347,7 +364,7 @@
 					<div class="min-w-0">
 						<div class="text-[14px] font-semibold text-ink-strong">{t.name}</div>
 						<div class="mt-0.5 font-mono text-[10.5px] text-faint">
-							{t.license} · {t.dir}/
+							{t.license} · {t.kind === 'native' ? 'Linux' : 'DOS'} · {t.dir}/
 						</div>
 					</div>
 					{#if t.configured}
@@ -368,7 +385,12 @@
 				</div>
 				<p class="text-[12.5px] leading-relaxed text-muted">{t.description}</p>
 				<div class="font-mono text-[11px] text-faint">
-					{t.dosbox_launch_cmd.split('\n').join(' ⏎ ')} · {DROPFILE_LABELS[t.dropfile] ?? t.dropfile}
+					{#if t.kind === 'native'}
+						{[t.exe, ...(t.args ?? [])].join(' ')} · {t.stdio ? 'stdio' : 'DOOR32.SYS'}
+					{:else}
+						{(t.dosbox_launch_cmd ?? '').split('\n').join(' ⏎ ')} ·
+						{DROPFILE_LABELS[t.dropfile] ?? t.dropfile}
+					{/if}
 				</div>
 				{#if t.setup}
 					<p class="border-l-2 border-line-strong pl-2.5 text-xs leading-relaxed text-faint">{t.setup}</p>

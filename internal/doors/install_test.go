@@ -153,8 +153,79 @@ func TestTemplatesAreValid(t *testing.T) {
 		if err := validateDropFile(Door{Name: tm.Name, DropFile: tm.DropFile}); err != nil {
 			t.Error(err)
 		}
-		if !filepath.IsLocal(tm.Dir) || tm.DOSBoxLaunchCmd == "" {
-			t.Errorf("template %s: bad dir or launch command", tm.ID)
+		if !filepath.IsLocal(tm.Dir) {
+			t.Errorf("template %s: bad dir %q", tm.ID, tm.Dir)
 		}
+		switch tm.Kind {
+		case "", "dosbox":
+			if tm.DOSBoxLaunchCmd == "" {
+				t.Errorf("template %s: DOS door without a launch command", tm.ID)
+			}
+		case "native":
+			if tm.Exe == "" || !filepath.IsLocal(tm.Exe) || tm.Download == nil {
+				t.Errorf("template %s: native door needs a local exe and a download", tm.ID)
+			}
+			if !tm.Download.Supports("amd64") {
+				t.Errorf("template %s: no amd64 build", tm.ID)
+			}
+		default:
+			t.Errorf("template %s: unknown kind %q", tm.ID, tm.Kind)
+		}
+	}
+}
+
+func TestDownloadResolvesArch(t *testing.T) {
+	d := &Download{URL: "https://x/game-{arch}.tgz", Subdir: "game-{arch}", Arch: map[string]string{"amd64": "x86_64"}}
+	url, sub, err := d.resolve("amd64")
+	if err != nil || url != "https://x/game-x86_64.tgz" || sub != "game-x86_64" {
+		t.Fatalf("resolve(amd64) = %q, %q, %v", url, sub, err)
+	}
+	if d.Supports("arm64") {
+		t.Fatal("arm64 has no build but Supports said yes")
+	}
+	plain := &Download{URL: "https://x/dos.zip"}
+	if !plain.Supports("riscv64") {
+		t.Fatal("an arch-independent download must be available everywhere")
+	}
+}
+
+func TestInstallKeepsExecutablesExecutable(t *testing.T) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	for name, mode := range map[string]int64{"pkg/game": 0o755, "pkg/README": 0o644, "pkg/tool": 0o644} {
+		tw.WriteHeader(&tar.Header{Name: name, Mode: mode, Size: 2, Typeflag: tar.TypeReg})
+		tw.Write([]byte("hi"))
+	}
+	tw.Close()
+	gz.Close()
+	tmpl := Template{Name: "Game", Dir: "game", Download: &Download{
+		URL: serve(t, buf.Bytes()), Format: "tar.gz", Subdir: "pkg", Executables: []string{"tool"},
+	}}
+	dir, err := Install(context.Background(), http.DefaultClient, tmpl, t.TempDir(), "B", "S")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, exec := range map[string]bool{"game": true, "README": false, "tool": true} {
+		fi, err := os.Stat(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := fi.Mode()&0o111 != 0; got != exec {
+			t.Errorf("%s executable = %v, want %v (mode %v)", name, got, exec, fi.Mode())
+		}
+	}
+}
+
+func TestSetCtlValuesReplacesAndAppends(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "USURP.CTL")
+	os.WriteFile(p, []byte(";BBSTYPE PCB15\r\nSYSOPFIRST Bob\r\nBBSTYPE DOORSYS\r\n"), 0o644)
+	if err := setCtlValues(p, map[string]string{"SYSOPFIRST": "Mike", "BBSTYPE": "DOOR32", "BBSNAME": "Maiks Place"}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(p)
+	want := ";BBSTYPE PCB15\r\nSYSOPFIRST Mike\r\nBBSTYPE DOOR32\r\nBBSNAME Maiks Place\r\n"
+	if string(got) != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

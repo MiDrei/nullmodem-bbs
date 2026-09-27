@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ type doorDTO struct {
 	DropFile          string   `json:"dropfile"`
 	DropFileInDoorDir bool     `json:"dropfile_in_door_dir"`
 	LockFiles         []string `json:"lock_files"`
+	Stdio             bool     `json:"stdio"`
 	Template          string   `json:"template"`
 	// Installed reports whether the door's directory exists and has
 	// files in it. Read-only.
@@ -85,6 +87,7 @@ func toDoorDTO(d config.DoorConfig) doorDTO {
 		DropFile:          d.DropFile,
 		DropFileInDoorDir: d.DropFileInDoorDir,
 		LockFiles:         orEmpty(d.LockFiles),
+		Stdio:             d.Stdio,
 		Template:          d.Template,
 		Installed:         nonEmptyDir(dir),
 	}
@@ -116,6 +119,7 @@ func fromDoorDTO(d doorDTO) config.DoorConfig {
 		DropFile:          d.DropFile,
 		DropFileInDoorDir: d.DropFileInDoorDir,
 		LockFiles:         trimmed(d.LockFiles),
+		Stdio:             d.Stdio && kind == "",
 		Template:          d.Template,
 	}
 }
@@ -226,11 +230,11 @@ func (s *Server) handleListDoorTemplates(w http.ResponseWriter, r *http.Request)
 	for i, t := range doors.Templates {
 		configured := false
 		for _, d := range c.Doors {
-			configured = configured || d.Template == t.ID
+			configured = configured || d.Template == t.ID || strings.EqualFold(d.Name, t.Name)
 		}
 		out[i] = doorTemplateDTO{
 			Template:     t,
-			Downloadable: t.Download != nil,
+			Downloadable: t.Download != nil && t.Download.Supports(runtime.GOARCH),
 			Installed:    nonEmptyDir(filepath.Join(c.BBS.DoorsDir, t.Dir)),
 			Configured:   configured,
 		}
@@ -262,12 +266,16 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 	}
 
 	dir := filepath.Join(c.BBS.DoorsDir, t.Dir)
+	if t.Kind == "native" && !nonEmptyDir(dir) && !t.Download.Supports(runtime.GOARCH) {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("%s has no build for this system (%s)", t.Name, runtime.GOARCH))
+		return
+	}
 	installed := false
 	switch {
 	case nonEmptyDir(dir):
 		// Already there (unpacked by hand, or installed before and
 		// removed from the list) -- keep it as it is.
-	case t.Download != nil:
+	case t.Download != nil && t.Download.Supports(runtime.GOARCH):
 		client := &http.Client{Timeout: doorInstallTimeout}
 		if _, err := doors.Install(r.Context(), client, t, c.BBS.DoorsDir, c.BBS.Name, c.BBS.Sysop); err != nil {
 			if errors.Is(err, doors.ErrAlreadyInstalled) {
@@ -286,17 +294,25 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	c.Doors = append(c.Doors, config.DoorConfig{
+	entry := config.DoorConfig{
 		Name:              t.Name,
-		Kind:              "dosbox",
 		MinSL:             0,
-		DOSBoxDir:         dir,
-		DOSBoxLaunchCmd:   t.DOSBoxLaunchCmd,
 		DropFile:          t.DropFile,
 		DropFileInDoorDir: t.DropFileInDoorDir,
 		LockFiles:         t.LockFiles,
 		Template:          t.ID,
-	})
+	}
+	if t.Kind == "native" {
+		entry.Exe = filepath.Join(dir, t.Exe)
+		entry.Dir = dir
+		entry.Args = t.Args
+		entry.Stdio = t.Stdio
+	} else {
+		entry.Kind = "dosbox"
+		entry.DOSBoxDir = dir
+		entry.DOSBoxLaunchCmd = t.DOSBoxLaunchCmd
+	}
+	c.Doors = append(c.Doors, entry)
 	if err := config.Save(s.BBSConfigPath, c); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save config")
 		return

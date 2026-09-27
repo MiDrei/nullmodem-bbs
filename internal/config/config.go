@@ -223,6 +223,9 @@ type DoorConfig struct {
 	// LockFiles are cleared before the door starts when nobody else is
 	// playing it -- see internal/doors.Door.LockFiles.
 	LockFiles []string `yaml:"lock_files,omitempty"`
+	// Stdio runs a native door over standard I/O -- see
+	// internal/doors.Door.Stdio.
+	Stdio bool `yaml:"stdio,omitempty"`
 	// Template names the door template (internal/doors.Templates) this
 	// entry was created from, if any -- informational, shown in the
 	// web admin.

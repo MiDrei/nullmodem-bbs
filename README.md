@@ -22,7 +22,7 @@ Teil der NullModem-Familie:
 - Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche
 - Datei-Download und -Upload per Zmodem (Synchronets `sexyz`)
 - QWK-Pakete holen und Antworten hochladen, Auswahl der Bereiche
-- Doors: native Linux-Doors per `DOOR32.SYS` und DOS-Doors unter DOSBox-X (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), verwaltet im Web-Admin mit Vorlagen (Judge Dredd per Klick installierbar, LORD, TradeWars, OO2, DoorMUD)
+- Doors: native Linux-Doors per `DOOR32.SYS` und DOS-Doors unter DOSBox-X (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), verwaltet im Web-Admin mit Vorlagen (per Klick installierbar: Immortal Barons, Usurper, Usurper Reborn, Judge Dredd; vorbereitet: LORD, TradeWars, OO2, DoorMUD)
 - Profil: Realname, Zeitzone, Passwort, QWK-Einstellungen
 - Wer sich als Erster registriert, wird Sysop
 

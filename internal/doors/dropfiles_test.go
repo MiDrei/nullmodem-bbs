@@ -184,3 +184,15 @@ func TestValidateDropFileRejectsUnknownFormats(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeArgsPlaceholdersOrLegacySwitch(t *testing.T) {
+	got := nativeArgs([]string{"-dropfile", "{dropfile}", "-data", "data", "-n", "{node}"}, "/tmp/n", 2)
+	want := []string{"-dropfile", "/tmp/n/DOOR32.SYS", "-data", "data", "-n", "2"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("nativeArgs = %q, want %q", got, want)
+	}
+	legacy := nativeArgs([]string{"-x"}, "/tmp/n", 1)
+	if strings.Join(legacy, " ") != "-x /P/tmp/n/" {
+		t.Fatalf("legacy nativeArgs = %q", legacy)
+	}
+}

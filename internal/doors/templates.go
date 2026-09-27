@@ -1,15 +1,19 @@
 package doors
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
-// Template is a ready-made door setup for a known classic door: how
-// to launch it under DOSBox-X, which drop file it wants and where,
+// Template is a ready-made door setup for a known door: how to launch
+// it (natively, or under DOSBox-X), which drop file it wants and where,
 // and -- for doors whose license allows redistribution -- where to
 // download it from. The web admin offers these so a sysop doesn't have
 // to work out each door's command line and drop file quirks by hand.
@@ -21,8 +25,15 @@ type Template struct {
 	// the sysop has to get it themselves.
 	License string `json:"license"`
 	// Dir is the directory under the doors dir the door lives in.
-	Dir               string   `json:"dir"`
-	DOSBoxLaunchCmd   string   `json:"dosbox_launch_cmd"`
+	Dir string `json:"dir"`
+	// Kind is "dosbox" (the default) or "native" -- see Door.Kind.
+	Kind string `json:"kind"`
+	// Exe (relative to Dir), Args and Stdio are a native door's; see
+	// Door.
+	Exe               string   `json:"exe,omitempty"`
+	Args              []string `json:"args,omitempty"`
+	Stdio             bool     `json:"stdio,omitempty"`
+	DOSBoxLaunchCmd   string   `json:"dosbox_launch_cmd,omitempty"`
 	DropFile          string   `json:"dropfile"`
 	DropFileInDoorDir bool     `json:"dropfile_in_door_dir"`
 	LockFiles         []string `json:"lock_files,omitempty"`
@@ -38,19 +49,28 @@ type Template struct {
 
 // Download says how Install fetches and unpacks a door.
 type Download struct {
+	// URL may contain "{arch}", filled from Arch.
 	URL string `json:"url"`
+	// Arch maps Go's GOARCH to the name the door's releases use for it
+	// ("amd64" -> "x86_64"), for URL and Subdir. Empty for a download
+	// that's the same everywhere (DOS doors); a GOARCH missing from a
+	// non-empty map has no build.
+	Arch map[string]string `json:"-"`
 	// Format is "zip" or "tar.gz".
 	Format string `json:"format"`
 	// Subdir, if set, is the directory inside the archive the door's
 	// files are in (e.g. "JudgeDredd-main/GAME"); only it is unpacked,
-	// flattened into the door's own directory.
+	// flattened into the door's own directory. May contain "{arch}".
 	Subdir string `json:"subdir,omitempty"`
+	// Executables are made executable after unpacking, for archives
+	// that don't record it (relative to the door's directory).
+	Executables []string `json:"-"`
 	// CtlFile is a DDPlus-style control file whose SYSOPFIRST,
 	// SYSOPLAST and BBSNAME lines are set to this board's own.
 	CtlFile string `json:"-"`
 	// Prepare, if set, runs last on the unpacked door directory, for
 	// door-specific setup the fields above don't cover.
-	Prepare func(dir, bbsName, sysopName string) error `json:"-"`
+	Prepare func(ctx context.Context, dir, bbsName, sysopName string) error `json:"-"`
 }
 
 // Templates are the doors the web admin offers ready-made. The DOS
@@ -58,6 +78,68 @@ type Download struct {
 // from DOSBox-X itself (see dosboxConfigTemplate), so none of them
 // load BNU or X00.
 var Templates = []Template{
+	{
+		ID:          "immortal-barons",
+		Name:        "Immortal Barons",
+		Description: "Build an empire and conquer your neighbours: a faithful remake of Barren Realms Elite, with inter-BBS leagues.",
+		License:     "MIT",
+		Dir:         "immortal-barons",
+		Kind:        "native",
+		Exe:         "immortal-barons",
+		Args:        []string{"-dropfile", "{dropfile}", "-data", "data"},
+		Download: &Download{
+			URL:     "https://github.com/andy5995/immortal-barons/releases/download/v0.2.0/immortal-barons-v0.2.0-linux-{arch}.tar.gz",
+			Arch:    map[string]string{"amd64": "amd64", "arm64": "arm64"},
+			Format:  "tar.gz",
+			Subdir:  "immortal-barons-v0.2.0-linux-{arch}",
+			Prepare: prepareImmortalBarons,
+		},
+		Setup:     `Installed with the default game settings. To change them later (turns per day and so on), run "immortal-barons -reset -data data" in the door's directory -- that also starts a new game.`,
+		SourceURL: "https://github.com/andy5995/immortal-barons",
+	},
+	{
+		ID:          "usurper-reborn",
+		Name:        "Usurper Reborn",
+		Description: "The big modern Usurper: a persistent fantasy RPG with 60+ NPCs who live, marry and die on their own.",
+		License:     "GPL-2.0",
+		Dir:         "usurper-reborn",
+		Kind:        "native",
+		Exe:         "UsurperReborn",
+		Args:        []string{"--door32", "{dropfile}"},
+		// It switches to standard I/O by itself once its output is
+		// redirected, so it's run that way.
+		Stdio: true,
+		Download: &Download{
+			URL:         "https://github.com/binary-knight/usurper-reborn/releases/download/v1.1.14/UsurperReborn-v1.1.14-Linux-{arch}.zip",
+			Arch:        map[string]string{"amd64": "x64", "arm64": "ARM64"},
+			Format:      "zip",
+			Executables: []string{"UsurperReborn"},
+		},
+		Setup:     `A large download (about 55 MB). Players can also reach the game's public online server from its menu.`,
+		SourceURL: "https://github.com/binary-knight/usurper-reborn",
+	},
+	{
+		ID:          "usurper",
+		Name:        "Usurper",
+		Description: "The 1993 original: dungeons, monsters, player combat, gods and marriages. Native Linux build of version 0.25.",
+		License:     "GPL-2.0",
+		Dir:         "usurper",
+		Kind:        "native",
+		Exe:         "USURPER.EXE",
+		// No placeholder: the door gets Usurper's own "/P<dir>/" switch.
+		// Its SYSOP.TXT: ONLINERS.DAT left over from a crashed session
+		// shows that caller as still playing, and is "perfectly safe to
+		// erase ... when nobody really is playing".
+		LockFiles: []string{"NODE/ONLINERS.DAT"},
+		Download: &Download{
+			URL:         "https://github.com/rickparrish/Usurper/releases/download/latest/usurper-{arch}-linux.zip",
+			Arch:        map[string]string{"amd64": "x86_64"},
+			Format:      "zip",
+			Executables: []string{"USURPER.EXE", "EDITOR.EXE"},
+			Prepare:     prepareUsurper,
+		},
+		SourceURL: "https://github.com/rickparrish/Usurper",
+	},
 	{
 		ID:          "judge-dredd",
 		Name:        "Judge Dredd",
@@ -136,7 +218,7 @@ func TemplateByID(id string) (Template, bool) {
 // shows the BBS and sysop name from DATA/REG.DAT's first line
 // ("BBS name,sysop,YYMMDD game start,999"), which ships with the
 // author's own board in it.
-func prepareJudgeDredd(dir, bbsName, sysopName string) error {
+func prepareJudgeDredd(_ context.Context, dir, bbsName, sysopName string) error {
 	p, ok := findCaseInsensitive(filepath.Join(dir, "DATA"), "REG.DAT")
 	if !ok {
 		return nil
@@ -150,6 +232,74 @@ func prepareJudgeDredd(dir, bbsName, sysopName string) error {
 	lines[0] = fmt.Sprintf("%s,%s,%s,999", clean(bbsName), clean(sysopName), time.Now().Format("060102"))
 	if err := os.WriteFile(p, []byte(strings.Join(lines, "\r\n")), 0o644); err != nil {
 		return fmt.Errorf("doors: writing REG.DAT: %w", err)
+	}
+	return nil
+}
+
+// prepareImmortalBarons tells the game its drop file is DOOR32.SYS
+// (what -set-dropfile would ask interactively) and creates the world
+// from the default settings, so the door is playable right away.
+func prepareImmortalBarons(ctx context.Context, dir, _, _ string) error {
+	data := filepath.Join(dir, "data")
+	if err := os.MkdirAll(data, 0o755); err != nil {
+		return fmt.Errorf("doors: %w", err)
+	}
+	cfg, _ := json.Marshal(map[string]string{"DropfileFormat": "door32"})
+	if err := os.WriteFile(filepath.Join(data, "door.json"), cfg, 0o644); err != nil {
+		return fmt.Errorf("doors: writing door.json: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, filepath.Join(dir, "immortal-barons"), "-reset-from-config", "-data", "data")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("doors: creating the Immortal Barons world: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// prepareUsurper puts the sample configuration in place, set to this
+// board and DOOR32.SYS, and runs "Reset Game" in Usurper's console
+// EDITOR -- the only way it creates its game data.
+func prepareUsurper(ctx context.Context, dir, bbsName, sysopName string) error {
+	for _, name := range []string{"USURPER.CFG", "USURP.CTL"} {
+		if _, ok := findCaseInsensitive(dir, name); ok {
+			continue
+		}
+		src, ok := findCaseInsensitive(filepath.Join(dir, "SAMPLES"), name)
+		if !ok {
+			return fmt.Errorf("doors: Usurper's SAMPLES/%s is missing", name)
+		}
+		b, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("doors: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), b, 0o644); err != nil {
+			return fmt.Errorf("doors: %w", err)
+		}
+	}
+	first, last := splitName(sysopName)
+	if err := setCtlValues(filepath.Join(dir, "USURP.CTL"), map[string]string{
+		"SYSOPFIRST": first, "SYSOPLAST": last, "BBSNAME": bbsName, "BBSTYPE": "DOOR32",
+	}); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	err := scriptConsole(ctx, dir, filepath.Join(dir, "EDITOR.EXE"), []consoleStep{
+		{Expect: "Reset Game", Send: "r"},
+		{Expect: "Reset Usurper?", Send: "y"},
+		{Expect: "really sure", Send: "y"},
+		// Confirming the message is all; scriptConsole then ends the
+		// editor, the data is written by now.
+		{Expect: "has been RESET", Send: "\r"},
+	})
+	if err != nil {
+		return fmt.Errorf("doors: resetting Usurper with EDITOR.EXE: %w", err)
+	}
+	if entries, err := os.ReadDir(filepath.Join(dir, "DATA")); err != nil || len(entries) == 0 {
+		return errors.New("doors: Usurper's EDITOR.EXE did not create its game data")
 	}
 	return nil
 }

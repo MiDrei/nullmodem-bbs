@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -45,7 +46,11 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 		return "", ErrAlreadyInstalled
 	}
 
-	data, err := download(ctx, client, t.Download.URL)
+	url, subdir, err := t.Download.resolve(runtime.GOARCH)
+	if err != nil {
+		return "", fmt.Errorf("doors: %s: %w", t.Name, err)
+	}
+	data, err := download(ctx, client, url)
 	if err != nil {
 		return "", err
 	}
@@ -60,12 +65,18 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 		return "", fmt.Errorf("doors: creating scratch dir: %w", err)
 	}
 	defer os.RemoveAll(tmp)
+	// Absolute, since Prepare steps run programs from it with it as
+	// their working directory too (exec.Cmd resolves a relative
+	// program path against Dir).
+	if tmp, err = filepath.Abs(tmp); err != nil {
+		return "", fmt.Errorf("doors: %w", err)
+	}
 
 	switch t.Download.Format {
 	case "zip":
-		err = unpackZip(data, tmp, t.Download.Subdir)
+		err = unpackZip(data, tmp, subdir)
 	case "tar.gz":
-		err = unpackTarGz(data, tmp, t.Download.Subdir)
+		err = unpackTarGz(data, tmp, subdir)
 	default:
 		err = fmt.Errorf("doors: unknown archive format %q", t.Download.Format)
 	}
@@ -73,6 +84,11 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 		return "", err
 	}
 
+	for _, exe := range t.Download.Executables {
+		if err := os.Chmod(filepath.Join(tmp, exe), 0o755); err != nil {
+			return "", fmt.Errorf("doors: %s: %w", t.Name, err)
+		}
+	}
 	if t.Download.CtlFile != "" {
 		if p, ok := findCaseInsensitive(tmp, t.Download.CtlFile); ok {
 			if err := setCtlNames(p, bbsName, sysopName); err != nil {
@@ -82,7 +98,7 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 	}
 
 	if t.Download.Prepare != nil {
-		if err := t.Download.Prepare(tmp, bbsName, sysopName); err != nil {
+		if err := t.Download.Prepare(ctx, tmp, bbsName, sysopName); err != nil {
 			return "", err
 		}
 	}
@@ -92,6 +108,25 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 		return "", fmt.Errorf("doors: moving %s into place: %w", t.Name, err)
 	}
 	return dest, nil
+}
+
+// resolve fills "{arch}" in the download's URL and Subdir for goarch,
+// or fails when the door has no build for it.
+func (d *Download) resolve(goarch string) (url, subdir string, err error) {
+	if len(d.Arch) == 0 {
+		return d.URL, d.Subdir, nil
+	}
+	name, ok := d.Arch[goarch]
+	if !ok {
+		return "", "", fmt.Errorf("no build for %s", goarch)
+	}
+	return strings.ReplaceAll(d.URL, "{arch}", name), strings.ReplaceAll(d.Subdir, "{arch}", name), nil
+}
+
+// Supports reports whether the download has a build for goarch.
+func (d *Download) Supports(goarch string) bool {
+	_, _, err := d.resolve(goarch)
+	return err == nil
 }
 
 func download(ctx context.Context, client *http.Client, url string) ([]byte, error) {
@@ -135,13 +170,18 @@ func unpackTarget(dest, name, subdir string) (string, bool) {
 	return filepath.Join(dest, filepath.FromSlash(name)), true
 }
 
-// writeEntry creates target with r's content, counting against the
-// unpacked-size budget.
-func writeEntry(target string, r io.Reader, budget *int64) error {
+// writeEntry creates target with r's content, executable if mode
+// (the archive's own) says so, counting against the unpacked-size
+// budget.
+func writeEntry(target string, r io.Reader, mode os.FileMode, budget *int64) error {
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	perm := os.FileMode(0o644)
+	if mode&0o111 != 0 {
+		perm = 0o755 // keep an executable executable, nothing else
+	}
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
 	if err != nil {
 		return err
 	}
@@ -180,7 +220,7 @@ func unpackZip(data []byte, dest, subdir string) error {
 		if err != nil {
 			return fmt.Errorf("doors: zip entry %s: %w", f.Name, err)
 		}
-		err = writeEntry(target, rc, &budget)
+		err = writeEntry(target, rc, f.Mode(), &budget)
 		rc.Close()
 		if err != nil {
 			return fmt.Errorf("doors: unpacking %s: %w", f.Name, err)
@@ -215,7 +255,7 @@ func unpackTarGz(data []byte, dest, subdir string) error {
 		if !ok {
 			continue
 		}
-		if err := writeEntry(target, tr, &budget); err != nil {
+		if err := writeEntry(target, tr, os.FileMode(h.Mode), &budget); err != nil {
 			return fmt.Errorf("doors: unpacking %s: %w", h.Name, err)
 		}
 	}
@@ -236,26 +276,39 @@ func findCaseInsensitive(dir, name string) (string, bool) {
 }
 
 // setCtlNames sets a DDPlus control file's SYSOPFIRST, SYSOPLAST and
-// BBSNAME lines (active, i.e. not ;-commented) to this board's own,
-// keeping everything else as it was.
+// BBSNAME lines to this board's own.
 func setCtlNames(path, bbsName, sysopName string) error {
+	first, last := splitName(sysopName)
+	return setCtlValues(path, map[string]string{"SYSOPFIRST": first, "SYSOPLAST": last, "BBSNAME": bbsName})
+}
+
+// setCtlValues sets keyword lines (active, i.e. not ;-commented) of a
+// DDPlus-style control file, keeping everything else as it was; a
+// keyword the file doesn't have yet is appended.
+func setCtlValues(path string, values map[string]string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("doors: reading %s: %w", filepath.Base(path), err)
 	}
-	first, last := splitName(sysopName)
-	values := map[string]string{"SYSOPFIRST": first, "SYSOPLAST": last, "BBSNAME": bbsName}
-	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	lines := strings.Split(strings.TrimRight(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n"), "\n")
+	seen := map[string]bool{}
 	for i, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) == 0 {
 			continue
 		}
-		if v, ok := values[strings.ToUpper(fields[0])]; ok {
-			lines[i] = strings.TrimSpace(strings.ToUpper(fields[0]) + " " + v)
+		key := strings.ToUpper(fields[0])
+		if v, ok := values[key]; ok {
+			lines[i] = strings.TrimSpace(key + " " + v)
+			seen[key] = true
 		}
 	}
-	out := strings.Join(lines, "\r\n")
+	for _, key := range []string{"SYSOPFIRST", "SYSOPLAST", "BBSNAME", "BBSTYPE"} {
+		if v, ok := values[key]; ok && !seen[key] {
+			lines = append(lines, strings.TrimSpace(key+" "+v))
+		}
+	}
+	out := strings.Join(lines, "\r\n") + "\r\n"
 	if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
 		return fmt.Errorf("doors: writing %s: %w", filepath.Base(path), err)
 	}

@@ -121,11 +121,32 @@ out:
 
 | Template | Install | Notes |
 | --- | --- | --- |
+| Immortal Barons (MIT, native) | downloaded from GitHub | Barren Realms Elite remake; `door.json` set to DOOR32.SYS and the world created with default settings (`-reset-from-config`) |
+| Usurper Reborn (GPL-2.0, native) | downloaded from GitHub (~55 MB) | runs with `stdio` (see below) |
+| Usurper (GPL-2.0, native) | downloaded from GitHub | Rick Parrish's Linux build; `USURPER.CFG`/`USURP.CTL` from its samples (`BBSTYPE DOOR32`), then EDITOR's "Reset Game" driven over a pseudo-terminal; `NODE/ONLINERS.DAT` as lock file |
 | Judge Dredd (MIT) | downloaded from GitHub | `JUDGE.CTL` and `DATA/REG.DAT` are set to this board's name and sysop |
 | Legend of the Red Dragon | by hand | `DORINFO1.DEF` in the door dir; run `LORDCFG` once |
 | TradeWars 2002 | by hand | `DORINFO1.DEF` in the door dir; run its setup once |
 | Operation: Overkill II | by hand | `OOINFO` + `OOII`; `OONODE.DAT`/`BBSINFO.OO` cleared as lock files |
 | DoorMUD | by hand | `DMUD.EXE -n {node} -d {dropfile_dir}` |
+
+Native templates pick the build for the machine's architecture
+(amd64, and arm64 where the door publishes one); a template without a
+build for it can't be installed there. All four downloadable doors
+were verified end to end here: installed from the page, played over
+Telnet.
+
+### Native doors: arguments and standard I/O
+
+A native door's `args` may use `{dropfile}` (the absolute path of
+DOOR32.SYS), `{dropfile_dir}` and `{node}`. Without any placeholder the
+old behaviour stays: `/P<dropfile dir>/` is appended, Usurper's switch.
+
+`stdio: true` also connects the door's stdin/stdout to the caller's
+connection, the way Synchronet runs doors, and leaves the BBS's telnet
+layer handling the protocol (as for `dosbox` doors). Usurper Reborn
+needs it: it switches to standard I/O by itself as soon as its output
+is redirected, which it always is here.
 
 Doors are installed into `bbs.doors_dir` (default `data/doors`), one
 directory each. A downloadable template is fetched, unpacked (only
@@ -139,8 +160,7 @@ the "DOS Shell (Doorway)" door; each template says what.
 The templates were adapted from
 [thewebexpert/bbs-door-server](https://github.com/thewebexpert/bbs-door-server)'s
 launchers, minus the BNU FOSSIL driver (DOSBox-X brings its own, see
-below). Judge Dredd was verified end to end here: installed from the
-page, played over Telnet.
+below).
 
 Doors don't ship in this repo (their assets are 5+ MB DOS-era binaries
 and game data, and one of them -- Usurper -- needs building from

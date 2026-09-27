@@ -1255,6 +1255,8 @@ export interface Door {
 	dropfile: string;
 	dropfile_in_door_dir: boolean;
 	lock_files: string[];
+	/** Native doors only: talk over stdin/stdout instead of the DOOR32.SYS socket. */
+	stdio: boolean;
 	template: string;
 	/** Read-only: the door's directory exists and has files. */
 	installed: boolean;
@@ -1272,7 +1274,12 @@ export interface DoorTemplate {
 	description: string;
 	license: string;
 	dir: string;
-	dosbox_launch_cmd: string;
+	/** "native" or "dosbox" (also when empty). */
+	kind: string;
+	exe?: string;
+	args?: string[];
+	stdio?: boolean;
+	dosbox_launch_cmd?: string;
 	dropfile: string;
 	dropfile_in_door_dir: boolean;
 	lock_files?: string[];
