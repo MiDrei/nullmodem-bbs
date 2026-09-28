@@ -62,7 +62,7 @@
 				{#if preview.preformatted && preview.grid}
 					<AnsiArt grid={preview.grid} />
 				{:else}
-					<div class="inline-block font-mono text-sm leading-tight whitespace-pre text-slate-200">
+					<div class="inline-block font-mono text-sm leading-tight whitespace-pre text-[#d8d6d0]">
 						{@html preview.body_html}
 					</div>
 				{/if}

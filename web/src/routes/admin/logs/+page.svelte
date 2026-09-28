@@ -369,7 +369,7 @@
 					<dt class="text-slate-500">Source</dt>
 					<dd class="font-mono text-slate-300">{detailLog.source}</dd>
 				</dl>
-				<pre class="mt-3 overflow-x-auto rounded-xl border border-line bg-ansi p-3 font-mono text-xs whitespace-pre-wrap text-slate-200">{detailLog.message}</pre>
+				<pre class="mt-3 overflow-x-auto rounded-xl border border-line bg-sunken p-3 font-mono text-xs whitespace-pre-wrap text-ink-soft">{detailLog.message}</pre>
 			{:else if detailSession}
 				<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
 					<dt class="text-slate-500">Time</dt>
@@ -390,7 +390,7 @@
 				{:else if transcriptError}
 					<p class="mt-3 text-sm text-red-400">{transcriptError}</p>
 				{:else if transcript}
-					<pre class="mt-3 max-h-[50vh] overflow-auto rounded-xl border border-line bg-ansi p-3 font-mono text-xs whitespace-pre-wrap text-slate-200">{transcript}</pre>
+					<pre class="mt-3 max-h-[50vh] overflow-auto rounded-xl border border-line bg-sunken p-3 font-mono text-xs whitespace-pre-wrap text-ink-soft">{transcript}</pre>
 				{/if}
 			{/if}
 		</div>
