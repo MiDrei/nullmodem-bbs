@@ -7,7 +7,7 @@ import "strings"
 
 // Version is shown on the BBS welcome screen, the [V]ersion menu
 // command, and the web admin dashboard.
-const Version = "NullModem BBS v0.30.1-dev"
+const Version = "NullModem BBS v0.30.2-dev"
 
 // Short is just the version number (e.g. "0.24.0-dev"), without the
 // "NullModem BBS v" prefix -- for contexts where that prefix is
