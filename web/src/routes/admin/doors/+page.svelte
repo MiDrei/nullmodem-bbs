@@ -49,6 +49,7 @@
 			dropfile_in_door_dir: false,
 			lock_files: [],
 			stdio: false,
+			ansi16: false,
 			template: '',
 			installed: false
 		};
@@ -282,6 +283,16 @@
 			</label>
 		</div>
 		<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
+			<input type="checkbox" class="check mt-0.5" bind:checked={draft.ansi16} />
+			<span>
+				<span class="text-ink">Reduce colours to the 16 ANSI colours</span>
+				<span class="block text-xs text-faint">
+					For doors drawn in 256 or true colours (Immortal Barons): classic BBS terminals like
+					SyncTERM or MuffinTerm show those as stripes.
+				</span>
+			</span>
+		</label>
+		<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
 			<input type="checkbox" class="check mt-0.5" bind:checked={draft.dropfile_in_door_dir} />
 			<span>
 				<span class="text-ink">Also write the drop file into the door's directory</span>
@@ -337,7 +348,7 @@
 								{/if}
 							</div>
 							<div class="mt-1 truncate font-mono text-[11px] text-faint">
-								{doorDir(d) || '—'} · {dropfileLabel(d)}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''} · SL {d.min_sl}+
+								{doorDir(d) || '—'} · {dropfileLabel(d)}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''}{d.ansi16 ? ' · 16 colours' : ''} · SL {d.min_sl}+
 							</div>
 						</div>
 						<div class="flex shrink-0 gap-1.5">
@@ -386,7 +397,7 @@
 				<p class="text-[12.5px] leading-relaxed text-muted">{t.description}</p>
 				<div class="font-mono text-[11px] text-faint">
 					{#if t.kind === 'native'}
-						{[t.exe, ...(t.args ?? [])].join(' ')} · {t.stdio ? 'stdio' : 'DOOR32.SYS'}
+						{[t.exe, ...(t.args ?? [])].join(' ')} · {t.stdio ? 'stdio' : 'DOOR32.SYS'}{t.ansi16 ? ' · 16 colours' : ''}
 					{:else}
 						{(t.dosbox_launch_cmd ?? '').split('\n').join(' ⏎ ')} ·
 						{DROPFILE_LABELS[t.dropfile] ?? t.dropfile}

@@ -33,6 +33,7 @@ type doorDTO struct {
 	DropFileInDoorDir bool     `json:"dropfile_in_door_dir"`
 	LockFiles         []string `json:"lock_files"`
 	Stdio             bool     `json:"stdio"`
+	ANSI16            bool     `json:"ansi16"`
 	Template          string   `json:"template"`
 	// Installed reports whether the door's directory exists and has
 	// files in it. Read-only.
@@ -88,6 +89,7 @@ func toDoorDTO(d config.DoorConfig) doorDTO {
 		DropFileInDoorDir: d.DropFileInDoorDir,
 		LockFiles:         orEmpty(d.LockFiles),
 		Stdio:             d.Stdio,
+		ANSI16:            d.ANSI16,
 		Template:          d.Template,
 		Installed:         nonEmptyDir(dir),
 	}
@@ -120,6 +122,7 @@ func fromDoorDTO(d doorDTO) config.DoorConfig {
 		DropFileInDoorDir: d.DropFileInDoorDir,
 		LockFiles:         trimmed(d.LockFiles),
 		Stdio:             d.Stdio && kind == "",
+		ANSI16:            d.ANSI16,
 		Template:          d.Template,
 	}
 }
@@ -307,6 +310,7 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		entry.Dir = dir
 		entry.Args = t.Args
 		entry.Stdio = t.Stdio
+		entry.ANSI16 = t.ANSI16
 	} else {
 		entry.Kind = "dosbox"
 		entry.DOSBoxDir = dir

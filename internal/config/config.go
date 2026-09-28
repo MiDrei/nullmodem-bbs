@@ -226,6 +226,9 @@ type DoorConfig struct {
 	// Stdio runs a native door over standard I/O -- see
 	// internal/doors.Door.Stdio.
 	Stdio bool `yaml:"stdio,omitempty"`
+	// ANSI16 reduces the door's colours to the 16 classic ones -- see
+	// internal/doors.Door.ANSI16.
+	ANSI16 bool `yaml:"ansi16,omitempty"`
 	// Template names the door template (internal/doors.Templates) this
 	// entry was created from, if any -- informational, shown in the
 	// web admin.

@@ -123,8 +123,14 @@ type Door struct {
 	// I/O the way Synchronet runs them (Usurper Reborn switches to that
 	// by itself once its output is redirected) instead of over the
 	// DOOR32.SYS socket handle. The BBS's own telnet layer then keeps
-	// handling the protocol, as it does for "dosbox" doors.
+	// handling the protocol, as it does for "dosbox" doors, and a bare
+	// LF in its output gets the CR a terminal driver would add.
 	Stdio bool
+	// ANSI16 rewrites the door's 256-colour and true-colour output into
+	// the 16 classic ANSI colours, for doors drawn for modern terminals
+	// (Immortal Barons) played from classic BBS terminals, which can't
+	// show more -- see outputFilter.
+	ANSI16 bool
 }
 
 // Session carries the caller-specific fields Run writes into the
@@ -274,6 +280,7 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 	if !isTelnet {
 		doorOut = &preambleStripper{r: parent}
 	}
+	doorOut = newOutputFilter(doorOut, door.Stdio, door.ANSI16)
 
 	// A door session can end from either side: the door process exits
 	// on its own (the caller quit the game from inside it -- the

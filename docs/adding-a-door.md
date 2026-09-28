@@ -121,7 +121,7 @@ out:
 
 | Template | Install | Notes |
 | --- | --- | --- |
-| Immortal Barons (MIT, native) | downloaded from GitHub | Barren Realms Elite remake; `door.json` set to DOOR32.SYS and the world created with default settings (`-reset-from-config`) |
+| Immortal Barons (MIT, native) | downloaded from GitHub | Barren Realms Elite remake; `door.json` set to DOOR32.SYS and the world created with default settings (`-reset-from-config`); `ansi16` on |
 | Usurper Reborn (GPL-2.0, native) | downloaded from GitHub (~55 MB) | runs with `stdio` (see below) |
 | Usurper (GPL-2.0, native) | downloaded from GitHub | Rick Parrish's Linux build; `USURPER.CFG`/`USURP.CTL` from its samples (`BBSTYPE DOOR32`), then EDITOR's "Reset Game" driven over a pseudo-terminal; `NODE/ONLINERS.DAT` as lock file |
 | Judge Dredd (MIT) | downloaded from GitHub | `JUDGE.CTL` and `DATA/REG.DAT` are set to this board's name and sysop |
@@ -146,7 +146,21 @@ old behaviour stays: `/P<dropfile dir>/` is appended, Usurper's switch.
 connection, the way Synchronet runs doors, and leaves the BBS's telnet
 layer handling the protocol (as for `dosbox` doors). Usurper Reborn
 needs it: it switches to standard I/O by itself as soon as its output
-is redirected, which it always is here.
+is redirected, which it always is here. A door on standard I/O writes bare LFs,
+trusting a terminal driver to add the CR; the BBS adds it instead
+(otherwise every line starts where the previous one ended).
+
+### 16 colours
+
+`ansi16: true` rewrites a door's 256-colour and true-colour SGR codes
+(and the aixterm bright colours 90-97/100-107) into the 16 classic ANSI
+colours on the way out. Classic BBS terminals (SyncTERM, MuffinTerm)
+don't know `ESC[38;5;nm` and read it as separate attributes -- `5` is
+blink -- which turns Immortal Barons' 256-colour title art into
+stripes. Colours are matched by hue and brightness rather than raw
+distance (the VGA palette's bright colours are washed out, so a vivid
+red would otherwise come out dark); backgrounds get the eight
+non-bright colours only. The Immortal Barons template turns it on.
 
 Doors are installed into `bbs.doors_dir` (default `data/doors`), one
 directory each. A downloadable template is fetched, unpacked (only

@@ -1257,6 +1257,8 @@ export interface Door {
 	lock_files: string[];
 	/** Native doors only: talk over stdin/stdout instead of the DOOR32.SYS socket. */
 	stdio: boolean;
+	/** Reduce the door's 256/true colours to the 16 classic ANSI colours. */
+	ansi16: boolean;
 	template: string;
 	/** Read-only: the door's directory exists and has files. */
 	installed: boolean;
@@ -1279,6 +1281,7 @@ export interface DoorTemplate {
 	exe?: string;
 	args?: string[];
 	stdio?: boolean;
+	ansi16?: boolean;
 	dosbox_launch_cmd?: string;
 	dropfile: string;
 	dropfile_in_door_dir: boolean;

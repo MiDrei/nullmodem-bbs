@@ -161,6 +161,7 @@ func doorsFromConfig(entries []config.DoorConfig) []doors.Door {
 			DropFileInDoorDir: d.DropFileInDoorDir,
 			LockFiles:         d.LockFiles,
 			Stdio:             d.Stdio,
+			ANSI16:            d.ANSI16,
 		})
 	}
 	return list

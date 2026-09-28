@@ -33,6 +33,7 @@ type Template struct {
 	Exe               string   `json:"exe,omitempty"`
 	Args              []string `json:"args,omitempty"`
 	Stdio             bool     `json:"stdio,omitempty"`
+	ANSI16            bool     `json:"ansi16,omitempty"`
 	DOSBoxLaunchCmd   string   `json:"dosbox_launch_cmd,omitempty"`
 	DropFile          string   `json:"dropfile"`
 	DropFileInDoorDir bool     `json:"dropfile_in_door_dir"`
@@ -87,6 +88,9 @@ var Templates = []Template{
 		Kind:        "native",
 		Exe:         "immortal-barons",
 		Args:        []string{"-dropfile", "{dropfile}", "-data", "data"},
+		// Its title art is drawn in 256 colours, which classic BBS
+		// terminals turn into stripes.
+		ANSI16: true,
 		Download: &Download{
 			URL:     "https://github.com/andy5995/immortal-barons/releases/download/v0.2.0/immortal-barons-v0.2.0-linux-{arch}.tar.gz",
 			Arch:    map[string]string{"amd64": "amd64", "arm64": "arm64"},
