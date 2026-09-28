@@ -78,6 +78,17 @@ type Session struct {
 	height int
 	term   string
 	raw    bool
+
+	// Option state, so a request that only confirms what's already
+	// agreed gets no reply (RFC 854: acknowledging it anyway is how
+	// two sides end up in an endless WILL/DO loop -- seen with a
+	// client that answers every WILL with DO). Only the Read path and
+	// negotiateInitial (before Read starts) touch these.
+	us         [256]bool // options we've offered or agreed to on our side
+	him        [256]bool // options we've asked for or accepted on the client's
+	refusedUs  [256]bool // DO we've already answered WONT to
+	refusedHim [256]bool // WILL we've already answered DONT to
+	ttypeAsked bool      // the TTYPE subnegotiation request is sent
 }
 
 func newSession(conn net.Conn) *Session {
@@ -262,58 +273,77 @@ func (s *Session) handleCommand(cmd byte) error {
 }
 
 func (s *Session) negotiate(cmd, opt byte) error {
-	switch opt {
-	case optBinary:
-		// Deliberately asymmetric -- see this file's top-of-file note
-		// for the full story. Short version: accepting BINARY in the
-		// server->client direction (client's "do" to our own "will")
-		// fixed a real bug (rz's CR-terminated hex headers arriving
-		// mangled), so that half stays accepted. But accepting it in
-		// the OTHER direction too (replying "do" to the client's own
-		// "will") caused a worse regression, confirmed live: a client
-		// that also stops IAC-doubling ITS OWN outgoing bytes once
-		// binary is active (RFC856 doesn't actually permit that, but a
-		// real client did it anyway) fed literal, undoubled 0xFF file
-		// bytes straight into Read's still-unconditional IAC handling,
-		// which ate them as bogus command sequences -- silent data
-		// corruption during a Zmodem upload, surfacing as repeated
-		// ZRPOS retries and CRC errors. So the client's own "will" is
-		// still declined ("dont"), keeping it escaping IAC exactly as
-		// Read already requires.
-		if cmd == will {
+	switch cmd {
+	case do: // the client asks us to enable opt on our side
+		if !offersUs(opt) {
+			if s.refusedUs[opt] {
+				return nil
+			}
+			s.refusedUs[opt] = true
+			return s.send(wont, opt)
+		}
+		if s.us[opt] {
+			return nil // confirms our own offer, or repeats itself
+		}
+		s.us[opt] = true
+		return s.send(will, opt)
+	case dont:
+		if !s.us[opt] {
+			return nil
+		}
+		s.us[opt] = false
+		return s.send(wont, opt)
+	case will: // the client offers to enable opt on its side
+		if !acceptsHim(opt) {
+			if s.refusedHim[opt] {
+				return nil
+			}
+			s.refusedHim[opt] = true
 			return s.send(dont, opt)
 		}
-		if cmd == do {
-			return s.send(will, opt)
-		}
-	case optNAWS:
-		if cmd == will {
-			return s.send(do, optNAWS)
-		}
-	case optTType:
-		if cmd == will {
-			if err := s.send(do, optTType); err != nil {
+		if !s.him[opt] {
+			s.him[opt] = true
+			if err := s.send(do, opt); err != nil {
 				return err
 			}
+		}
+		if opt == optTType && !s.ttypeAsked {
+			s.ttypeAsked = true
 			return s.requestTerminalType()
 		}
-	case optSGA, optEcho:
-		if cmd == will {
-			return s.send(do, opt)
-		}
-		if cmd == do {
-			return s.send(will, opt)
-		}
-	default:
-		if cmd == will || cmd == do {
-			neg := byte(wont)
-			if cmd == will {
-				neg = dont
-			}
-			return s.send(neg, opt)
-		}
+		return nil
+	case wont:
+		// Either a refusal of our DO or the client switching the option
+		// off; either way it's off now, and neither needs an answer.
+		s.him[opt] = false
 	}
 	return nil
+}
+
+// offersUs reports whether we enable opt on our side when asked.
+//
+// BINARY is deliberately asymmetric -- see this file's top-of-file note
+// for the full story. Short version: accepting BINARY in the
+// server->client direction (client's "do" to our own "will") fixed a
+// real bug (rz's CR-terminated hex headers arriving mangled), so that
+// half stays accepted. But accepting it in the OTHER direction too
+// (replying "do" to the client's own "will") caused a worse regression,
+// confirmed live: a client that also stops IAC-doubling ITS OWN
+// outgoing bytes once binary is active (RFC856 doesn't actually permit
+// that, but a real client did it anyway) fed literal, undoubled 0xFF
+// file bytes straight into Read's still-unconditional IAC handling,
+// which ate them as bogus command sequences -- silent data corruption
+// during a Zmodem upload, surfacing as repeated ZRPOS retries and CRC
+// errors. So the client's own "will" is still declined (see acceptsHim),
+// keeping it escaping IAC exactly as Read already requires.
+func offersUs(opt byte) bool {
+	return opt == optBinary || opt == optSGA || opt == optEcho
+}
+
+// acceptsHim reports whether we accept the client enabling opt on its
+// side -- never BINARY, see offersUs.
+func acceptsHim(opt byte) bool {
+	return opt == optNAWS || opt == optTType || opt == optSGA || opt == optEcho
 }
 
 func (s *Session) requestTerminalType() error {
@@ -381,6 +411,8 @@ func (s *Session) readSubnegotiation() error {
 // requested) -- a client that ignores the offer just keeps negotiating
 // NVT ASCII as before, so this is safe to send unconditionally.
 func (s *Session) negotiateInitial() error {
+	s.us[optSGA], s.us[optEcho], s.us[optBinary] = true, true, true
+	s.him[optNAWS], s.him[optTType] = true, true
 	seq := []byte{
 		iac, will, optSGA,
 		iac, will, optEcho,
