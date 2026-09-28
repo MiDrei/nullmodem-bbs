@@ -27,6 +27,9 @@
 	let loadError = $state<string | null>(null);
 	let loaded = $state(false);
 	let busyID = $state<string | null>(null);
+	// Which list is shown. Starts on whichever has something waiting
+	// (messages first) once loaded -- see load().
+	let tab = $state<'message' | 'file'>('message');
 
 	function messageDraftFrom(area: MessageArea): MessageAreaInput {
 		return {
@@ -69,6 +72,7 @@
 			fileAreas = res.file_areas;
 			messageDrafts = Object.fromEntries(messageAreas.map((a) => [a.id, messageDraftFrom(a)]));
 			fileDrafts = Object.fromEntries(fileAreas.map((a) => [a.id, fileDraftFrom(a)]));
+			if (!loaded && messageAreas.length === 0 && fileAreas.length > 0) tab = 'file';
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
@@ -176,10 +180,35 @@
 {:else if !loaded}
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
-	<section class="mb-8">
-		<h2 class="mb-4 card-label">
+	<div class="mb-5 flex gap-6 border-b border-line" role="tablist" aria-label="Area type">
+		<button
+			role="tab"
+			aria-selected={tab === 'message'}
+			class="tab {tab === 'message' ? 'tab-active' : ''}"
+			onclick={() => (tab = 'message')}
+		>
 			Message Areas
-		</h2>
+			<span class="ml-1.5 rounded-md px-1.5 py-0.5 font-mono text-[11px] {messageAreas.length > 0
+					? 'bg-accent text-white'
+					: 'text-faint'}">{messageAreas.length}</span
+			>
+		</button>
+		<button
+			role="tab"
+			aria-selected={tab === 'file'}
+			class="tab {tab === 'file' ? 'tab-active' : ''}"
+			onclick={() => (tab = 'file')}
+		>
+			File Areas
+			<span class="ml-1.5 rounded-md px-1.5 py-0.5 font-mono text-[11px] {fileAreas.length > 0
+					? 'bg-accent text-white'
+					: 'text-faint'}">{fileAreas.length}</span
+			>
+		</button>
+	</div>
+
+	{#if tab === 'message'}
+	<section>
 		{#if messageAreas.length === 0}
 			<p class="text-sm text-slate-500">No pending message areas.</p>
 		{:else}
@@ -255,8 +284,8 @@
 		{/if}
 	</section>
 
+	{:else}
 	<section>
-		<h2 class="mb-4 card-label">File Areas</h2>
 		{#if fileAreas.length === 0}
 			<p class="text-sm text-slate-500">No pending file areas.</p>
 		{:else}
@@ -331,4 +360,5 @@
 			</div>
 		{/if}
 	</section>
+	{/if}
 {/if}

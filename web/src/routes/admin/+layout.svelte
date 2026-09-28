@@ -2,12 +2,13 @@
 	// The sysop side wears the same design D chrome as the portal: the
 	// board's name (tagged ADMIN), icon links with the less-used tools
 	// folded into a System menu, the operator and "Log out" on the right.
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { auth } from '$lib/auth.svelte';
 	import { site } from '$lib/site.svelte';
+	import { adminTheme } from '$lib/theme.svelte';
 	import Icon from '$lib/Icon.svelte';
 	import Toaster from '$lib/Toaster.svelte';
 
@@ -15,6 +16,11 @@
 
 	onMount(() => {
 		site.load();
+		adminTheme.apply();
+	});
+	// The portal (reached via the "Portal" link) stays dark.
+	onDestroy(() => {
+		if (typeof document !== 'undefined') adminTheme.remove();
 	});
 
 	type IconName = import('svelte').ComponentProps<typeof Icon>['name'];
@@ -134,7 +140,7 @@
 									<a
 										href={l.href}
 										onclick={closeSystemMenu}
-										class="flex items-center gap-2.5 rounded-lg py-2 text-[13px] transition-colors hover:bg-white/[0.04] hover:text-accent {l.icon
+										class="flex items-center gap-2.5 rounded-lg py-2 text-[13px] transition-colors hover:bg-slate-800 hover:text-accent {l.icon
 											? 'px-2.5'
 											: 'pr-2.5 pl-[2.1rem] text-[12.5px]'} {active(l.href) &&
 										!(l.href === '/admin/binkp' && active('/admin/binkp/uplinks'))
@@ -153,6 +159,16 @@
 			</nav>
 
 			<div class="flex items-center gap-2.5 text-[13px] text-faint">
+				<button
+					type="button"
+					class="flex items-center transition-colors hover:text-accent"
+					onclick={() => adminTheme.toggle()}
+					title={adminTheme.mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+					aria-label={adminTheme.mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+				>
+					<Icon name={adminTheme.mode === 'light' ? 'moon' : 'sun'} />
+				</button>
+				<span class="text-line-strong" aria-hidden="true">·</span>
 				<a href="/message-areas" class="transition-colors hover:text-accent">Portal</a>
 				<span class="text-line-strong" aria-hidden="true">·</span>
 				<span>{auth.username}</span>

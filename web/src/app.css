@@ -91,6 +91,72 @@
 }
 
 /*
+ * Light mode (the sysop's choice in the admin -- see
+ * routes/admin/+layout.svelte): the same design with the greys turned
+ * around, a warm off-white ground, and deeper accent and signal colours
+ * so they still read on white. Only the variables change; every class
+ * above and every page draws with them as before. ANSI art keeps its
+ * black ground.
+ */
+@layer base {
+	:root[data-theme='light'] {
+		color-scheme: light;
+
+		--color-slate-50: #151514;
+		--color-slate-100: #1f1e1c;
+		--color-slate-200: #2a2926;
+		--color-slate-300: #3a3935;
+		--color-slate-400: #57554f;
+		--color-slate-500: #6b6962;
+		--color-slate-600: #8a877f;
+		--color-slate-700: #d3d0c8;
+		--color-slate-800: #e4e2dc;
+		--color-slate-900: #ffffff;
+		--color-slate-950: #f6f5f2;
+
+		--color-cyan-300: #1d4fb3;
+		--color-cyan-400: #2563d9;
+		--color-cyan-500: #2563d9;
+		--color-cyan-600: #2563d9;
+		--color-cyan-700: #1d4fb3;
+		--color-cyan-900: #d4e3fd;
+		--color-cyan-950: #e8f0fe;
+		--color-fuchsia-300: #1d4fb3;
+		--color-fuchsia-400: #2563d9;
+		--color-fuchsia-500: #2563d9;
+		--color-fuchsia-600: #1d4fb3;
+
+		--color-red-400: #c62828;
+		--color-red-900: #f0b4b4;
+		--color-red-950: #fdecec;
+		--color-amber-200: #92400e;
+		--color-amber-300: #a16207;
+		--color-amber-400: #b45309;
+		--color-amber-500: #d97706;
+		--color-amber-700: #e0b060;
+		--color-amber-800: #ecc98a;
+		--color-amber-950: #fff4e0;
+		--color-yellow-400: #a16207;
+		--color-emerald-400: #047857;
+		--color-emerald-950: #e6f6ee;
+
+		--color-ground: #f6f5f2;
+		--color-surface: #ffffff;
+		--color-sunken: #efeee9;
+		--color-line: #e4e2dc;
+		--color-line-strong: #d3d0c8;
+		--color-ink: #2a2926;
+		--color-ink-strong: #151514;
+		--color-ink-soft: #3a3935;
+		--color-muted: #6b6962;
+		--color-faint: #8a877f;
+		--color-dim: #a09d95;
+		--color-accent: #2563d9;
+		--color-accent-hover: #1d4fb3;
+	}
+}
+
+/*
  * D's building blocks, as classes so every page draws them the same way.
  */
 @layer components {
@@ -350,5 +416,18 @@
 	.tab-active:hover {
 		color: var(--color-ink-strong);
 		border-bottom-color: var(--color-accent);
+	}
+
+	/* Light mode's own touches to the classes above -- see the
+	   :root[data-theme='light'] variables. */
+	:root[data-theme='light'] .field::placeholder {
+		color: #a9a69e;
+	}
+	:root[data-theme='light'] .check {
+		border-color: #bdb9b0;
+	}
+	:root[data-theme='light'] a.list-row:hover,
+	:root[data-theme='light'] button.list-row:hover {
+		background: rgba(0, 0, 0, 0.035);
 	}
 }

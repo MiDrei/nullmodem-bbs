@@ -4,6 +4,17 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			// The admin's light/dark choice (see src/lib/theme.svelte.ts),
+			// applied before the first paint.
+			if (location.pathname.startsWith('/admin')) {
+				var t = 'light';
+				try {
+					if (localStorage.getItem('nullmodem.admin.theme') === 'dark') t = 'dark';
+				} catch (e) {}
+				document.documentElement.dataset.theme = t;
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
