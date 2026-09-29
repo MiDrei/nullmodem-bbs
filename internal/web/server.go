@@ -20,23 +20,28 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/file"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/session"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 // Server holds the dependencies shared by all admin API handlers.
 type Server struct {
-	Users         *user.Store
-	Messages      *message.Store
-	Files         *file.Store
-	Netmail       *netmail.Store
-	Nodes         *session.Store
-	Logs          *applog.Store
-	Logger        *applog.Logger
-	EchoAreafix   *areafix.EchoStore
-	FileAreafix   *areafix.FileStore
-	Archive       *archive.Store
-	BinkpLog      *binkplog.Store
+	Users       *user.Store
+	Messages    *message.Store
+	Files       *file.Store
+	Netmail     *netmail.Store
+	Nodes       *session.Store
+	Logs        *applog.Store
+	Logger      *applog.Logger
+	EchoAreafix *areafix.EchoStore
+	FileAreafix *areafix.FileStore
+	Archive     *archive.Store
+	BinkpLog    *binkplog.Store
+	// Services is the daemons' registry (see internal/services) -- the
+	// Services page, and where a saved change that needs a restart is
+	// recorded. May be nil in tests.
+	Services      *services.Store
 	BBSConfigPath string
 	// FTNAddress is this system's own primary FTN address (see
 	// config.Config.PrimaryFTNAddress), stamped on netmail the BBS
@@ -73,6 +78,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.Handle("GET /api/config", s.requireAuth(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.requireAuth(http.HandlerFunc(s.handlePutConfig)))
+	mux.Handle("GET /api/services", s.requireAuth(http.HandlerFunc(s.handleListServices)))
+	mux.Handle("POST /api/services/{name}/restart", s.requireAuth(http.HandlerFunc(s.handleRestartService)))
 	mux.Handle("GET /api/doors", s.requireAuth(http.HandlerFunc(s.handleListDoors)))
 	mux.Handle("PUT /api/doors", s.requireAuth(http.HandlerFunc(s.handlePutDoors)))
 	mux.Handle("GET /api/doors/templates", s.requireAuth(http.HandlerFunc(s.handleListDoorTemplates)))

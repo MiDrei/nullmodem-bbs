@@ -14,6 +14,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/binkp"
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/mail"
+	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/tosser"
 )
 
@@ -171,6 +172,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load config")
 		return
 	}
+	before := toDTO(c)
 
 	c.BBS.Name = dto.Name
 	c.BBS.Sysop = dto.Sysop
@@ -226,9 +228,10 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	s.markConfigRestarts(before, toDTO(c))
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"config": toDTO(c),
-		"note":   "Restart the bbs daemon for changes to take effect.",
 	})
 }
 
@@ -440,4 +443,32 @@ func networkRenames(dto configDTO) map[string]string {
 		}
 	}
 	return renames
+}
+
+// markConfigRestarts records which daemons need a restart to pick up
+// the difference between two saved configs -- each reads its part of
+// the config only at startup.
+func (s *Server) markConfigRestarts(before, after configDTO) {
+	same := func(a, b any) bool {
+		x, _ := json.Marshal(a)
+		y, _ := json.Marshal(b)
+		return string(x) == string(y)
+	}
+	if before.Name != after.Name || before.Sysop != after.Sysop {
+		s.markRestartNeeded("BBS name or sysop changed", services.BBS, services.Mailer)
+	}
+	if before.NewUserSL != after.NewUserSL {
+		s.markRestartNeeded("New-user security level changed", services.BBS)
+	}
+	if before.TelnetEnabled != after.TelnetEnabled || before.TelnetAddr != after.TelnetAddr ||
+		before.SSHEnabled != after.SSHEnabled || before.SSHAddr != after.SSHAddr {
+		s.markRestartNeeded("Telnet/SSH settings changed", services.BBS)
+	}
+	if !same(before.FTNAddresses, after.FTNAddresses) {
+		s.markRestartNeeded("FTN addresses changed", services.BBS, services.Mailer, services.Web)
+	}
+	if !same(before.BinkpUplinks, after.BinkpUplinks) || !same(before.Networks, after.Networks) ||
+		before.BinkpDefaultPollIntervalSeconds != after.BinkpDefaultPollIntervalSeconds {
+		s.markRestartNeeded("BinkP settings changed", services.Mailer)
+	}
 }

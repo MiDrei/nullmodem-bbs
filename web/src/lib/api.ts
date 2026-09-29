@@ -1325,3 +1325,30 @@ export function listDoorTemplates(token: string): Promise<DoorTemplate[]> {
 export function addDoorFromTemplate(token: string, id: string): Promise<DoorsResponse> {
 	return request<DoorsResponse>(`/api/doors/templates/${encodeURIComponent(id)}`, { method: 'POST' }, token);
 }
+
+// --- Services (sysop) ---
+
+export interface ServiceStatus {
+	name: 'bbs' | 'mailer' | 'web';
+	running: boolean;
+	version: string;
+	pid: number;
+	started_at?: string;
+	heartbeat_at?: string;
+	/** A restart was asked for and hasn't happened yet. */
+	restart_pending: boolean;
+	restart_mode?: string;
+	/** Why a restart is due -- saved changes the daemon only reads at startup. */
+	restart_needed: string[];
+	/** Callers online (bbs only). */
+	online: number;
+}
+
+export function listServices(token: string): Promise<ServiceStatus[]> {
+	return request<ServiceStatus[]>('/api/services', { method: 'GET' }, token);
+}
+
+/** mode "idle" (bbs only) waits until no caller is online. */
+export function restartService(token: string, name: string, mode: 'now' | 'idle' = 'now'): Promise<void> {
+	return request<void>(`/api/services/${encodeURIComponent(name)}/restart`, { method: 'POST', body: JSON.stringify({ mode }) }, token);
+}

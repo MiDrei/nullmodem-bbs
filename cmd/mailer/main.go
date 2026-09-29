@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -36,8 +37,10 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/file"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/tosser"
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/version"
 )
 
 // checkInterval is how often the daemon checks which uplinks are due
@@ -110,6 +113,15 @@ func main() {
 		}
 	}
 
+	// A restart asked for in the web admin (see internal/services) is
+	// taken between two rounds of polls, never in the middle of one.
+	restartCh := make(chan struct{})
+	if inst, err := services.NewStore(sqlDB).Register(services.Mailer, version.Short()); err != nil {
+		logger.Warn("registering with the service list: %v", err)
+	} else {
+		go inst.Run(ctx, func(string) { close(restartCh) })
+	}
+
 	logger.Info("mailer daemon starting, checking every %s which uplinks are due (default interval %s)", checkInterval, defaultInterval)
 	checkUplinks(ctx, cfg, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, sessionLog, logger)
 
@@ -119,6 +131,10 @@ func main() {
 		select {
 		case <-ctx.Done():
 			logger.Info("mailer daemon shutting down")
+			return
+		case <-restartCh:
+			waitForInbound(logger)
+			logger.Info("mailer daemon restarting, as asked in the web admin")
 			return
 		case <-ticker.C:
 			checkUplinks(ctx, cfg, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, sessionLog, logger)
@@ -160,7 +176,11 @@ func startInboundListener(ctx context.Context, cfg *config.Config, netmailStore 
 				logger.Warn("inbound BinkP listener: accept: %v", err)
 				continue
 			}
-			go handleInboundConn(ctx, conn, cfg, netmailStore, messages, users, robot, ticCfg, sessionLog, logger)
+			activeInbound.Add(1)
+			go func() {
+				defer activeInbound.Add(-1)
+				handleInboundConn(ctx, conn, cfg, netmailStore, messages, users, robot, ticCfg, sessionLog, logger)
+			}()
 		}
 	}()
 
@@ -353,4 +373,20 @@ func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config
 	}
 	logger.Info("crash-dialed %s (%s) for pending mail: sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
 	return true
+}
+
+// activeInbound counts inbound BinkP sessions in progress, so a
+// requested restart can let them finish first.
+var activeInbound atomic.Int32
+
+// waitForInbound waits for inbound sessions in progress to end -- at
+// most inboundSessionTimeout, which bounds every one of them anyway.
+func waitForInbound(logger *applog.Logger) {
+	deadline := time.Now().Add(inboundSessionTimeout)
+	if activeInbound.Load() > 0 {
+		logger.Info("restart asked for: waiting for %d inbound BinkP session(s) to finish", activeInbound.Load())
+	}
+	for activeInbound.Load() > 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Second)
+	}
 }

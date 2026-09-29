@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"git.maik.ch/nullmodem/bbs/internal/menu"
+	"git.maik.ch/nullmodem/bbs/internal/services"
 )
 
 type menuItemDTO struct {
@@ -108,6 +109,7 @@ func (s *Server) handleSetMenuItemSL(w http.ResponseWriter, r *http.Request) {
 		s.logInfo("%s set %s menu item %q's minimum SL to %d", claims.Subject, menuName, itemKey, body.MinSL)
 	}
 
+	s.markRestartNeeded("Menus changed", services.BBS)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"menu": toMenuDTO(m),
 		"note": "Restart the bbs daemon for changes to take effect.",

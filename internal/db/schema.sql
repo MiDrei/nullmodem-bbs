@@ -362,3 +362,21 @@ CREATE TABLE IF NOT EXISTS binkp_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_binkp_sessions_started_at ON binkp_sessions(started_at);
+
+-- services is internal/services' registry of the daemons (bbs, mailer,
+-- web): each keeps its row's heartbeat fresh while it runs, the web
+-- admin asks one to restart by setting restart_requested_at, and marks
+-- restart_needed when a change it saved only takes effect after one.
+-- Times are Unix milliseconds, compared as plain integers.
+CREATE TABLE IF NOT EXISTS services (
+    name                 TEXT PRIMARY KEY,
+    version              TEXT NOT NULL DEFAULT '',
+    pid                  INTEGER NOT NULL DEFAULT 0,
+    started_at           INTEGER NOT NULL DEFAULT 0,
+    heartbeat_at         INTEGER NOT NULL DEFAULT 0,
+    restart_requested_at INTEGER NOT NULL DEFAULT 0,
+    -- restart_mode is "now" or "idle" (bbs: once no caller is online).
+    restart_mode         TEXT NOT NULL DEFAULT '',
+    -- restart_needed lists why a restart is due, "; "-separated.
+    restart_needed       TEXT NOT NULL DEFAULT ''
+);

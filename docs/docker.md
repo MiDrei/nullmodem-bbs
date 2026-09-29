@@ -81,6 +81,25 @@ If `./data` already has content owned by root from an earlier run
 without PUID/PGID set (or from a migration off a named volume), fix
 ownership once with `sudo chown -R $(id -u):$(id -g) data`.
 
+## Restarting from the web admin
+
+**Admin → System → Services** lists the three daemons (bbs, mailer,
+web) with their version and uptime, and restarts them. There's no
+Docker socket involved: each daemon keeps a heartbeat in the database
+and watches it for a restart request, then exits on its own -- and the
+containers' `restart: unless-stopped` starts it again within seconds.
+The mailer finishes its poll round and any inbound sessions first; the
+BBS can wait until nobody is online ("Restart when idle").
+
+Settings a daemon only reads at startup mark it when saved (BinkP
+settings and networks -> mailer; Telnet/SSH, the new-user level, menus
+and `welcome.ans` -> bbs; the FTN addresses -> all three), and a banner
+in the admin offers the restart. Everything else -- doors, areas, other
+screens -- applies right away.
+
+Without Docker (running the binaries by hand), a daemon stopped this
+way has to be started again yourself.
+
 ## Image size and DOS door support
 
 The runtime image is `debian:trixie-slim`, not alpine -- classic DOS

@@ -9,6 +9,7 @@
 	import { auth } from '$lib/auth.svelte';
 	import { site } from '$lib/site.svelte';
 	import { adminTheme } from '$lib/theme.svelte';
+	import { servicesState, SERVICE_INFO } from '$lib/services.svelte';
 	import Icon from '$lib/Icon.svelte';
 	import Toaster from '$lib/Toaster.svelte';
 
@@ -18,6 +19,24 @@
 		site.load();
 		adminTheme.apply();
 	});
+
+	// Keep the daemons' status fresh while signed in, for the "restart
+	// needed" banner below the header.
+	$effect(() => {
+		if (auth.username) return servicesState.start();
+	});
+
+	let restarting = $state(false);
+	async function restartFromBanner(name: string) {
+		restarting = true;
+		try {
+			await servicesState.restart(name, name === 'bbs' ? 'idle' : 'now');
+		} catch {
+			// The Services page shows the details.
+		} finally {
+			restarting = false;
+		}
+	}
 	// The portal (reached via the "Portal" link) stays dark.
 	onDestroy(() => {
 		if (typeof document !== 'undefined') adminTheme.remove();
@@ -39,6 +58,7 @@
 	const systemLinks: ({ href: string; label: string; icon?: IconName } | null)[] = [
 		{ href: '/admin/users', label: 'Users', icon: 'users' },
 		{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'shield' },
+		{ href: '/admin/services', label: 'Services', icon: 'dashboard' },
 		{ href: '/admin/logs', label: 'Logs', icon: 'logs' },
 		{ href: '/admin/binkp', label: 'BinkP', icon: 'binkp' },
 		{ href: '/admin/binkp/uplinks', label: 'Uplinks (Nodes/Points)' },
@@ -177,6 +197,31 @@
 			</div>
 		{/if}
 	</header>
+
+	{#if auth.username && servicesState.needingRestart.length > 0}
+		<div class="border-b border-amber-500/30 bg-amber-950 px-6 py-2.5 text-[13px] md:px-10">
+			<div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2">
+				<span class="text-amber-300">Saved changes wait for a restart:</span>
+				{#each servicesState.needingRestart as svc (svc.name)}
+					<span class="flex items-center gap-2">
+						<span class="text-ink" title={svc.restart_needed.join('; ')}>
+							<strong>{SERVICE_INFO[svc.name].title}</strong>
+							<span class="text-muted">({svc.restart_needed.join(', ')})</span>
+						</span>
+						<button
+							class="btn-primary btn-xs"
+							disabled={restarting}
+							onclick={() => restartFromBanner(svc.name)}
+							title={svc.name === 'bbs' ? 'Restarts as soon as no caller is online' : ''}
+						>
+							{svc.name === 'bbs' ? 'Restart when idle' : 'Restart'}
+						</button>
+					</span>
+				{/each}
+				<a href="/admin/services" class="ml-auto text-xs text-muted hover:text-accent">Services →</a>
+			</div>
+		</div>
+	{/if}
 
 	<main class="mx-auto w-full max-w-6xl flex-1 px-6 py-7 md:px-10">
 		{@render children()}

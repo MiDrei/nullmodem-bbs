@@ -722,7 +722,7 @@
 		<h1 class="text-xl font-semibold text-slate-100">ANSI Designer</h1>
 	<p class="mt-1 text-sm text-slate-500">
 		Draw and edit .ans screen files directly in the browser. Changes are saved back to the
-		screens directory; restart the bbs daemon to see them live.
+		screens directory and show up the next time a caller sees the screen (welcome.ans after a BBS restart -- see Services).
 	</p>
 	<p class="mt-1 text-sm text-slate-500">
 		Pick a tool, a foreground/background color and a character on the left, then click or drag on

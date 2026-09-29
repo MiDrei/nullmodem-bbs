@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/version"
 	"git.maik.ch/nullmodem/kit/ansi"
 )
@@ -204,6 +205,7 @@ func (s *Server) handleSaveScreenGrid(w http.ResponseWriter, r *http.Request) {
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s saved screen %q via the ANSI designer", claims.Subject, name)
 	}
+	s.screenChanged(name)
 	writeJSON(w, http.StatusOK, map[string]string{"name": name})
 }
 
@@ -268,6 +270,7 @@ func (s *Server) handleCreateScreen(w http.ResponseWriter, r *http.Request) {
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s created screen %q (%dx%d)", claims.Subject, body.Name, width, height)
 	}
+	s.screenChanged(body.Name)
 	writeJSON(w, http.StatusCreated, screenSummaryDTO{Name: body.Name})
 }
 
@@ -320,6 +323,7 @@ func (s *Server) handleImportScreen(w http.ResponseWriter, r *http.Request) {
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s imported screen %q via the ANSI designer", claims.Subject, name)
 	}
+	s.screenChanged(name)
 	writeJSON(w, http.StatusCreated, screenSummaryDTO{Name: name})
 }
 
@@ -345,5 +349,15 @@ func (s *Server) handleDeleteScreen(w http.ResponseWriter, r *http.Request) {
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s deleted screen %q", claims.Subject, name)
 	}
+	s.screenChanged(name)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// screenChanged records a bbs restart for a changed welcome.ans -- the
+// one screen the bbs daemon reads once at startup; every other screen
+// is read fresh each time it's shown.
+func (s *Server) screenChanged(name string) {
+	if strings.EqualFold(name, welcomeScreenFile) {
+		s.markRestartNeeded("welcome.ans changed", services.BBS)
+	}
 }

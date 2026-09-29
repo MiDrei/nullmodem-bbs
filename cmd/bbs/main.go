@@ -2,12 +2,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/applog"
 	"git.maik.ch/nullmodem/bbs/internal/bbs"
@@ -19,10 +21,12 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/menu"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/session"
 	"git.maik.ch/nullmodem/bbs/internal/ssh"
 	"git.maik.ch/nullmodem/bbs/internal/telnet"
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/version"
 	"git.maik.ch/nullmodem/kit/ansi"
 )
 
@@ -110,6 +114,26 @@ func main() {
 	// once, loudly, where the sysop looks -- not only per attempt.
 	if _, err := exec.LookPath("sexyz"); err != nil {
 		logger.Warn("sexyz not found on PATH: Zmodem file and QWK transfers over Telnet/SSH will fail (see docs/building-sexyz.md)")
+	}
+
+	// A restart asked for in the web admin (see internal/services):
+	// "idle" waits until no caller is online, "now" doesn't.
+	if inst, err := services.NewStore(sqlDB).Register(services.BBS, version.Short()); err != nil {
+		logger.Warn("registering with the service list: %v", err)
+	} else {
+		go inst.Run(context.Background(), func(mode string) {
+			if mode == services.ModeIdle {
+				for {
+					online, err := nodes.List()
+					if err == nil && len(online) == 0 {
+						break
+					}
+					time.Sleep(2 * time.Second)
+				}
+			}
+			logger.Info("bbs daemon restarting, as asked in the web admin (%s)", mode)
+			os.Exit(0)
+		})
 	}
 
 	errCh := make(chan error, 2)

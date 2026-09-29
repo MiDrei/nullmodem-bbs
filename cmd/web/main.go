@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"flag"
@@ -23,8 +24,10 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/file"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/session"
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/bbs/internal/version"
 	"git.maik.ch/nullmodem/bbs/internal/web"
 )
 
@@ -68,6 +71,18 @@ func main() {
 		log.Fatalf("migrating networks: %v", err)
 	}
 
+	// A restart asked for in the web admin (see internal/services) --
+	// the request that asked for it has been answered by the time Run
+	// sees it.
+	if inst, err := services.NewStore(sqlDB).Register(services.Web, version.Short()); err != nil {
+		logger.Warn("registering with the service list: %v", err)
+	} else {
+		go inst.Run(context.Background(), func(string) {
+			logger.Info("web daemon restarting, as asked in the web admin")
+			os.Exit(0)
+		})
+	}
+
 	srv := &web.Server{
 		Users:    user.NewStore(sqlDB),
 		Messages: message.NewStore(sqlDB),
@@ -77,6 +92,7 @@ func main() {
 		// live session state just by starting or restarting.
 		Nodes:         session.NewStore(sqlDB),
 		Logs:          logs,
+		Services:      services.NewStore(sqlDB),
 		Logger:        logger,
 		EchoAreafix:   areafix.NewEchoStore(sqlDB),
 		FileAreafix:   areafix.NewFileStore(sqlDB),

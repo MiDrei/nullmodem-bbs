@@ -20,6 +20,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/file"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/session"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 )
@@ -84,6 +85,7 @@ func newTestServer(t *testing.T) (*Server, *user.Store, string) {
 		FileAreafix:   areafix.NewFileStore(sqlDB),
 		Archive:       archive.NewStore(sqlDB, filepath.Join(dir, "archive")),
 		BinkpLog:      binkplog.NewStore(sqlDB, filepath.Join(dir, "binkp-sessions")),
+		Services:      services.NewStore(sqlDB),
 		BBSConfigPath: configPath,
 		JWTSecret:     []byte("test-secret"),
 	}
