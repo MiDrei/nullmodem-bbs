@@ -43,11 +43,15 @@ import (
 type RobotConfig struct {
 	OurAddresses []string
 	BBSName      string
-	Uplinks      []config.BinkpUplink
-	EchoStore    *areafix.EchoStore
-	FileStore    *areafix.FileStore
-	Files        *file.Store
-	Archive      *archive.Store
+	// Sysop and Location are sent to BinkP peers in the handshake
+	// (ZYZ and LOC), next to BBSName (SYS).
+	Sysop     string
+	Location  string
+	Uplinks   []config.BinkpUplink
+	EchoStore *areafix.EchoStore
+	FileStore *areafix.FileStore
+	Files     *file.Store
+	Archive   *archive.Store
 }
 
 // handleAreafixRequest processes msg if it's an inbound netmail

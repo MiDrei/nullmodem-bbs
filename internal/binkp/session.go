@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -372,7 +374,8 @@ func (s *session) sendData(data []byte) error {
 }
 
 // sendInfoAndAddress emits this side's informational M_NUL lines
-// (VER/SYS/ZYZ/LOC/TIME) immediately followed by M_ADR, as a single
+// (SYS/ZYZ/LOC/NDL/TIME/VER/BUILD, what binkd and Mystic send about
+// themselves) immediately followed by M_ADR, as a single
 // underlying Write call rather than one Write per frame.
 //
 // None is required by the protocol, but Mystic (1.12A48/A49, both our
@@ -396,7 +399,8 @@ func (s *session) sendData(data []byte) error {
 // contribution to the problem regardless of whose behavior is
 // technically "correct".
 func (s *session) sendInfoAndAddress(ourAddresses []string) error {
-	lines := []string{"VER NullModem-BinkP/" + version.Short() + " binkp/1.1"}
+	// The FTS-1026 info lines, in binkd's order, plus Mystic's BUILD.
+	var lines []string
 	if s.cfg.SysName != "" {
 		lines = append(lines, "SYS "+s.cfg.SysName)
 	}
@@ -406,7 +410,12 @@ func (s *session) sendInfoAndAddress(ourAddresses []string) error {
 	if s.cfg.Location != "" {
 		lines = append(lines, "LOC "+s.cfg.Location)
 	}
-	lines = append(lines, "TIME "+time.Now().Format("Mon, 02 Jan 2006 15:04:05 -0700"))
+	lines = append(lines,
+		"NDL 115200,TCP,BINKP",
+		"TIME "+time.Now().Format("Mon, 02 Jan 2006 15:04:05 -0700"),
+		"VER NullModem-BinkP/"+version.Short()+" binkp/1.1",
+		"BUILD "+buildLine(),
+	)
 
 	var buf bytes.Buffer
 	for _, l := range lines {
@@ -967,4 +976,21 @@ func (s *session) receiveOneFile(arg string) (aborted bool, err error) {
 	s.mu.Unlock()
 
 	return false, nil
+}
+
+// buildLine is the BUILD info line's value, in Mystic's style: when
+// this binary was built (from its VCS stamp, if it has one) and for
+// which system, e.g. "2026/09/29 19:40:59 Linux/64".
+func buildLine() string {
+	platform := strings.ToUpper(runtime.GOOS[:1]) + runtime.GOOS[1:] + "/" + strconv.Itoa(strconv.IntSize)
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range info.Settings {
+			if s.Key == "vcs.time" {
+				if t, err := time.Parse(time.RFC3339, s.Value); err == nil {
+					return t.UTC().Format("2006/01/02 15:04:05") + " " + platform
+				}
+			}
+		}
+	}
+	return version.Short() + " " + platform
 }

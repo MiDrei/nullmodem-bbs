@@ -77,6 +77,13 @@
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">Location</span>
+				<input class="field" bind:value={config.location} placeholder="Neunkirch, Switzerland" />
+				<span class="text-xs text-slate-500">
+					Sent to other systems in the BinkP handshake, next to the BBS and sysop name.
+				</span>
+			</label>
+			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">New User Security Level (0-255)</span>
 				<input
 					type="number"

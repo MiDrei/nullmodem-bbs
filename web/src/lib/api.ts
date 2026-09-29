@@ -33,6 +33,8 @@ export interface BinkpUplink {
 export interface BBSConfig {
 	name: string;
 	sysop: string;
+	/** Where the board is, sent to BinkP peers (LOC). */
+	location: string;
 	new_user_sl: number;
 	/** This system's own FTN addresses/AKAs (zone:net/node.point), if any. The first is "primary": stamped on outgoing netmail. Most systems have exactly one; more than one is for a point reachable through the same uplink under multiple FTN networks. */
 	ftn_addresses: string[];

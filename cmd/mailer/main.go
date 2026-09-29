@@ -87,6 +87,8 @@ func main() {
 	robot := &tosser.RobotConfig{
 		OurAddresses: cfg.BBS.FTNAddresses,
 		BBSName:      cfg.BBS.Name,
+		Sysop:        cfg.BBS.Sysop,
+		Location:     cfg.BBS.Location,
 		Uplinks:      cfg.Binkp.Uplinks,
 		EchoStore:    areafix.NewEchoStore(sqlDB),
 		FileStore:    areafix.NewFileStore(sqlDB),

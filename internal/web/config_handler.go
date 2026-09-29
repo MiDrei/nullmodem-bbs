@@ -76,6 +76,7 @@ type networkDTO struct {
 type configDTO struct {
 	Name                            string           `json:"name"`
 	Sysop                           string           `json:"sysop"`
+	Location                        string           `json:"location"`
 	NewUserSL                       int              `json:"new_user_sl"`
 	FTNAddresses                    []string         `json:"ftn_addresses"`
 	Networks                        []networkDTO     `json:"networks"`
@@ -124,6 +125,7 @@ func toDTO(c *config.Config) configDTO {
 		Networks:                        networks,
 		Name:                            c.BBS.Name,
 		Sysop:                           c.BBS.Sysop,
+		Location:                        c.BBS.Location,
 		NewUserSL:                       c.BBS.NewUserSL,
 		FTNAddresses:                    addrs,
 		TelnetEnabled:                   c.Telnet.Enabled,
@@ -187,6 +189,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 
 	c.BBS.Name = dto.Name
 	c.BBS.Sysop = dto.Sysop
+	c.BBS.Location = strings.TrimSpace(dto.Location)
 	c.BBS.NewUserSL = dto.NewUserSL
 	c.BBS.FTNAddresses = dto.FTNAddresses
 	c.Networks = make([]config.Network, len(dto.Networks))
@@ -293,6 +296,7 @@ func (s *Server) handleTestBinkpConnection(w http.ResponseWriter, r *http.Reques
 		NoCRAM:       req.NoCRAM,
 		SysName:      c.BBS.Name,
 		Sysop:        c.BBS.Sysop,
+		Location:     c.BBS.Location,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadGateway, fmt.Sprintf("connection failed: %v", err))
@@ -342,6 +346,8 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 	robot := &tosser.RobotConfig{
 		OurAddresses: c.BBS.FTNAddresses,
 		BBSName:      c.BBS.Name,
+		Sysop:        c.BBS.Sysop,
+		Location:     c.BBS.Location,
 		Uplinks:      c.Binkp.Uplinks,
 		EchoStore:    s.EchoAreafix,
 		FileStore:    s.FileAreafix,
@@ -471,6 +477,9 @@ func (s *Server) markConfigRestarts(before, after configDTO) {
 	}
 	if before.Name != after.Name || before.Sysop != after.Sysop {
 		s.markRestartNeeded("BBS name or sysop changed", services.BBS, services.Mailer)
+	}
+	if before.Location != after.Location {
+		s.markRestartNeeded("Location changed", services.Mailer)
 	}
 	if before.NewUserSL != after.NewUserSL {
 		s.markRestartNeeded("New-user security level changed", services.BBS)

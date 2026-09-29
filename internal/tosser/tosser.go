@@ -188,6 +188,8 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	sessionResult, err := binkp.Dial(ctx, uplink.Host, binkp.Config{
 		OurAddresses:  presentedAddresses,
 		SysName:       bbsName,
+		Sysop:         robotSysop(robot),
+		Location:      robotLocation(robot),
 		Password:      uplink.Password,
 		NoCRAM:        uplink.NoCRAM,
 		OutboundFiles: bundle.outFiles,
@@ -462,6 +464,8 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 	sessionResult, err := binkp.Answer(ctx, conn, binkp.Config{
 		OurAddresses: ourAddresses,
 		SysName:      bbsName,
+		Sysop:        robotSysop(robot),
+		Location:     robotLocation(robot),
 		Recorder:     binkpRecorder,
 		PasswordForAddresses: func(peerAddrs []string) (string, bool) {
 			u, ok := matchUplink(peerAddrs, uplinks)
@@ -1377,4 +1381,19 @@ func containsString(ss []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// robotSysop and robotLocation are robot's handshake details, if any.
+func robotSysop(robot *RobotConfig) string {
+	if robot == nil {
+		return ""
+	}
+	return robot.Sysop
+}
+
+func robotLocation(robot *RobotConfig) string {
+	if robot == nil {
+		return ""
+	}
+	return robot.Location
 }

@@ -130,18 +130,23 @@ func TestSendInfoAndAddressUsesASingleWrite(t *testing.T) {
 		}
 		got = append(got, fmt.Sprintf("%s %s", Command(payload[0]), string(payload[1:])))
 	}
-	// TIME carries the clock; only its presence is checked here.
+	// TIME and BUILD carry the clock and the build; only their
+	// presence is checked here.
 	for i, l := range got {
-		if strings.HasPrefix(l, "M_NUL TIME ") {
-			got[i] = "M_NUL TIME"
+		for _, k := range []string{"M_NUL TIME ", "M_NUL BUILD "} {
+			if strings.HasPrefix(l, k) {
+				got[i] = strings.TrimSpace(k)
+			}
 		}
 	}
 	want := []string{
-		"M_NUL VER NullModem-BinkP/" + version.Short() + " binkp/1.1",
 		"M_NUL SYS Test BBS",
 		"M_NUL ZYZ Ops",
 		"M_NUL LOC Zurich",
+		"M_NUL NDL 115200,TCP,BINKP",
 		"M_NUL TIME",
+		"M_NUL VER NullModem-BinkP/" + version.Short() + " binkp/1.1",
+		"M_NUL BUILD",
 		"M_ADR 1:234/56.0 21:1/100@fsxnet",
 	}
 	if !reflect.DeepEqual(got, want) {

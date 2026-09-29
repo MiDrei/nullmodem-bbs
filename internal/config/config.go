@@ -11,8 +11,11 @@ import (
 // Config holds settings for cmd/bbs.
 type Config struct {
 	BBS struct {
-		Name       string `yaml:"name"`
-		Sysop      string `yaml:"sysop"`
+		Name  string `yaml:"name"`
+		Sysop string `yaml:"sysop"`
+		// Location is where the board is ("Neunkirch, Switzerland"),
+		// sent to BinkP peers in the handshake's LOC line.
+		Location   string `yaml:"location,omitempty"`
 		NewUserSL  int    `yaml:"new_user_sl"`
 		MenusDir   string `yaml:"menus_dir"`
 		ScreensDir string `yaml:"screens_dir"`

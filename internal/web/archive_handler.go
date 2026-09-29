@@ -296,6 +296,8 @@ func (s *Server) handleRetossArchiveEntries(w http.ResponseWriter, r *http.Reque
 	robot := &tosser.RobotConfig{
 		OurAddresses: c.BBS.FTNAddresses,
 		BBSName:      c.BBS.Name,
+		Sysop:        c.BBS.Sysop,
+		Location:     c.BBS.Location,
 		Uplinks:      c.Binkp.Uplinks,
 		EchoStore:    s.EchoAreafix,
 		FileStore:    s.FileAreafix,
