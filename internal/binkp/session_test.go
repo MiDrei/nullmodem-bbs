@@ -1667,3 +1667,106 @@ func TestNoCRAMSendsPlaintextPasswordDespiteChallenge(t *testing.T) {
 		t.Fatalf("want a CRAM offer answered with a plaintext M_PWD, got lines %v", origRec.lines)
 	}
 }
+
+// TestCommandsBetweenAFilesDataFramesAreHandledAfterIt replays what a
+// Mystic hub (Pweck's Retreat, Mystic 1.12A48) does when it calls us
+// and we have a packet for it: right after announcing its own file it
+// sends M_GOT for ours -- before its file's data. FTS-1026 allows
+// commands at any time; failing the session on them meant never
+// taking that hub's mail. Both files must count, and the session end
+// normally.
+func TestCommandsBetweenAFilesDataFramesAreHandledAfterIt(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+
+	peerErrCh := make(chan error, 1)
+	go func() { peerErrCh <- runInterleavingPeer(ln) }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	var got []byte
+	result, err := Dial(ctx, ln.Addr().String(), Config{
+		OurAddresses: []string{"1:234/56.0"},
+		OutboundFiles: []OutboundFile{
+			{Name: "ours.pkt", Size: 3, ModTime: time.Unix(1700000000, 0), Data: strings.NewReader("abc")},
+		},
+		ReceiveFile: func(f InboundFile, r io.Reader) error {
+			got, err = io.ReadAll(r)
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if err := <-peerErrCh; err != nil {
+		t.Fatalf("peer: %v", err)
+	}
+	if len(result.FilesSent) != 1 || result.FilesSent[0] != "ours.pkt" {
+		t.Fatalf("FilesSent = %v, want [ours.pkt] (the interleaved M_GOT must still count)", result.FilesSent)
+	}
+	if len(result.FilesReceived) != 1 || string(got) != "hello" {
+		t.Fatalf("FilesReceived = %v, content %q", result.FilesReceived, got)
+	}
+}
+
+func runInterleavingPeer(ln net.Listener) error {
+	conn, err := ln.Accept()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	// Our address once theirs is in, then everything up to their M_EOB.
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if !isData && len(payload) > 0 && Command(payload[0]) == MADR {
+			break
+		}
+	}
+	if err := writeCommandFrame(conn, MADR, "1:234/99.0"); err != nil {
+		return err
+	}
+	for {
+		isData, payload, err := readFrame(conn)
+		if err != nil {
+			return err
+		}
+		if !isData && len(payload) > 0 && Command(payload[0]) == MEOB {
+			break
+		}
+	}
+	for _, f := range []struct {
+		cmd Command
+		arg string
+	}{
+		{MNUL, "QSIZE 1 files 5 bytes"},
+		{MFILE, "theirs.tu3 5 1700000001 0"},
+		{MGOT, "ours.pkt 3 1700000000"},
+	} {
+		if err := writeCommandFrame(conn, f.cmd, f.arg); err != nil {
+			return err
+		}
+	}
+	if err := writeDataFrame(conn, []byte("hel")); err != nil {
+		return err
+	}
+	if err := writeCommandFrame(conn, MNUL, "a comment between data frames"); err != nil {
+		return err
+	}
+	if err := writeDataFrame(conn, []byte("lo")); err != nil {
+		return err
+	}
+	isData, payload, err := readFrame(conn)
+	if err != nil {
+		return err
+	}
+	if isData || len(payload) == 0 || Command(payload[0]) != MGOT {
+		return fmt.Errorf("expected M_GOT for theirs.tu3, got isData=%v payload=%q", isData, payload)
+	}
+	return writeCommandFrame(conn, MEOB, "")
+}

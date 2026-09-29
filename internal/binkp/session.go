@@ -242,6 +242,10 @@ type session struct {
 	// consumed there (see pushback) -- the transfer phase's
 	// nextFrame calls must check it before reading the connection.
 	pending *pendingFrame
+	// deferred holds command frames that arrived between a file's
+	// M_FILE and the end of its data (see receiveOneFile), for
+	// receiveBatch to handle once the file is complete.
+	deferred [][]byte
 
 	// peerBinkp11 records whether the peer's own M_NUL "VER ..." line
 	// (seen anywhere from the address exchange through the end of
@@ -759,8 +763,11 @@ func (s *session) receiveBatch(gotCount *int, expectedGot int) (peerFiles int, p
 			return peerFiles, false, nil
 		}
 
-		isData, payload, err := s.nextFrame()
-		if err != nil {
+		var isData bool
+		var payload []byte
+		if len(s.deferred) > 0 {
+			payload, s.deferred = s.deferred[0], s.deferred[1:]
+		} else if isData, payload, err = s.nextFrame(); err != nil {
 			if err == io.EOF && *gotCount >= expectedGot {
 				return peerFiles, true, nil
 			}
@@ -825,6 +832,15 @@ func (s *session) receiveBatch(gotCount *int, expectedGot int) (peerFiles int, p
 // receiveBatch's own loop processes it as this round's actual end
 // marker rather than losing it. Any other command frame arriving
 // mid-transfer is still a hard error, exactly as before.
+//
+// Other commands may arrive between a file's data frames: FTS-1026
+// lets a side send M_GOT, M_NUL and the like at any time, and Mystic
+// does -- its M_GOT for the file we just sent comes right after its
+// own M_FILE, before that file's data. They're kept in s.deferred for
+// receiveBatch to handle once this file is done (an earlier version
+// failed the session on them, and never took mail from such a hub).
+// M_ERR and M_BSY still end the session, a second M_FILE is still an
+// error.
 func (s *session) receiveOneFile(arg string) (aborted bool, err error) {
 	fields := strings.Fields(arg)
 	if len(fields) < 2 {
@@ -876,6 +892,21 @@ func (s *session) receiveOneFile(arg string) (aborted bool, err error) {
 				<-doneCh
 				s.pushback(isData, payload)
 				return true, nil
+			}
+			if len(payload) > 0 {
+				switch cmd := Command(payload[0]); cmd {
+				case MERR, MBSY:
+					pw.CloseWithError(fmt.Errorf("peer ended the session during %s", name))
+					<-doneCh
+					if cmd == MBSY {
+						return false, fmt.Errorf("peer busy: %s", payload[1:])
+					}
+					return false, fmt.Errorf("peer reported error: %s", payload[1:])
+				case MFILE:
+				default:
+					s.deferred = append(s.deferred, payload)
+					continue
+				}
 			}
 			pw.CloseWithError(fmt.Errorf("unexpected command frame mid-file"))
 			<-doneCh
