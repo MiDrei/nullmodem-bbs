@@ -14,8 +14,20 @@ func TestParseCRAMChallengeRecognizesOptLine(t *testing.T) {
 	}
 }
 
+// TestParseCRAMChallengeAmongOtherOptions: a hub may offer CRAM-MD5
+// next to other options on one OPT line (clrghouz sends "OPT
+// CRAM-MD5-<hex> CRYPT") -- missing it there meant sending that hub
+// the plaintext password.
+func TestParseCRAMChallengeAmongOtherOptions(t *testing.T) {
+	for _, arg := range []string{"OPT CRAM-MD5-1ad0 CRYPT", "OPT NR CRAM-MD5-1ad0", "OPT ND  CRAM-MD5-1ad0  CRYPT"} {
+		if ch, ok := parseCRAMChallenge(arg); !ok || ch != "1ad0" {
+			t.Errorf("parseCRAMChallenge(%q) = (%q, %v), want (1ad0, true)", arg, ch, ok)
+		}
+	}
+}
+
 func TestParseCRAMChallengeRejectsUnrelatedNulLines(t *testing.T) {
-	cases := []string{"SYS Test BBS", "OPT SOMETHING-ELSE", "VER binkp/1.0", ""}
+	cases := []string{"SYS Test BBS", "OPT SOMETHING-ELSE", "OPT NR CRYPT", "OPT CRAM-MD5-", "VER binkp/1.0", ""}
 	for _, arg := range cases {
 		if _, ok := parseCRAMChallenge(arg); ok {
 			t.Fatalf("parseCRAMChallenge(%q) = ok, want not-ok", arg)
