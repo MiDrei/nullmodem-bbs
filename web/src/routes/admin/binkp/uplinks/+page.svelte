@@ -115,23 +115,63 @@
 	function closeModal() {
 		editingUplink = null;
 		editingIndex = null;
+		modalError = null;
 	}
 
-	function saveModal() {
-		if (!config || !editingUplink) return;
-		if (editingIndex === null) {
-			config.binkp_uplinks = [...config.binkp_uplinks, editingUplink];
-		} else {
-			config.binkp_uplinks = config.binkp_uplinks.map((u, i) =>
-				i === editingIndex ? editingUplink! : u
-			);
+	let modalError = $state<string | null>(null);
+	let modalSaving = $state(false);
+
+	// Saves the uplink list right away -- a staged change that only a
+	// second "Save changes" click would persist got lost too easily.
+	async function saveUplinks(list: BinkpUplink[]): Promise<boolean> {
+		if (!config || !auth.token) return false;
+		saveError = null;
+		saveNote = null;
+		try {
+			const res = await putConfig(auth.token, { ...$state.snapshot(config), binkp_uplinks: list });
+			config = res.config;
+			saveNote = res.note;
+			return true;
+		} catch (err) {
+			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+				auth.clear();
+				await goto('/admin/login');
+				return false;
+			}
+			throw err;
 		}
-		closeModal();
 	}
 
-	function removeUplink(index: number) {
+	async function saveModal() {
+		if (!config || !editingUplink) return;
+		const edited = $state.snapshot(editingUplink) as BinkpUplink;
+		const current = $state.snapshot(config.binkp_uplinks) as BinkpUplink[];
+		const list =
+			editingIndex === null ? [...current, edited] : current.map((u, i) => (i === editingIndex ? edited : u));
+		modalError = null;
+		modalSaving = true;
+		try {
+			if (await saveUplinks(list)) {
+				toast.push(`Saved ${edited.address || 'the uplink'}.`, 'success');
+				closeModal();
+			}
+		} catch (err) {
+			modalError = err instanceof ApiError ? err.message : 'Could not save.';
+		} finally {
+			modalSaving = false;
+		}
+	}
+
+	async function removeUplink(index: number) {
 		if (!config) return;
-		config.binkp_uplinks = config.binkp_uplinks.filter((_, i) => i !== index);
+		const u = config.binkp_uplinks[index];
+		if (!confirm(`Remove ${u.address || u.host}?`)) return;
+		const list = ($state.snapshot(config.binkp_uplinks) as BinkpUplink[]).filter((_, i) => i !== index);
+		try {
+			if (await saveUplinks(list)) toast.push(`Removed ${u.address || u.host}.`, 'success');
+		} catch (err) {
+			saveError = err instanceof ApiError ? err.message : 'Could not save.';
+		}
 	}
 
 	async function testUplink() {
@@ -403,7 +443,7 @@
 			disabled={saving}
 			class="btn-primary"
 		>
-			{saving ? 'Saving…' : 'Save changes'}
+			{saving ? 'Saving…' : 'Save poll interval'}
 		</button>
 	</form>
 
@@ -674,15 +714,15 @@
 					<button
 						type="button"
 						class="btn-primary btn-sm"
+						disabled={modalSaving}
 						onclick={saveModal}
 					>
-						{editingIndex === null ? 'Add' : 'Save'}
+						{modalSaving ? 'Saving…' : editingIndex === null ? 'Add' : 'Save'}
 					</button>
 				</div>
-				<p class="mt-3 text-xs text-slate-500">
-					Changes here apply to this page's own working copy -- use "Save changes" on the main
-					page to actually persist them.
-				</p>
+				{#if modalError}
+					<p class="mt-3 text-sm text-red-400">{modalError}</p>
+				{/if}
 			</div>
 		</div>
 	{/if}
