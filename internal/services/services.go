@@ -117,8 +117,11 @@ func (st *Store) List() ([]Status, error) {
 
 // RequestRestart asks daemon name to restart in mode.
 func (st *Store) RequestRestart(name, mode string) error {
+	// Always later than the daemon's own start, even within the same
+	// millisecond -- a request that isn't counts as already handled.
 	_, err := st.db.Exec(`INSERT INTO services (name, restart_requested_at, restart_mode) VALUES (?, ?, ?)
-		ON CONFLICT(name) DO UPDATE SET restart_requested_at = excluded.restart_requested_at, restart_mode = excluded.restart_mode`,
+		ON CONFLICT(name) DO UPDATE SET restart_requested_at = MAX(excluded.restart_requested_at, services.started_at + 1),
+			restart_mode = excluded.restart_mode`,
 		name, now(), mode)
 	if err != nil {
 		return fmt.Errorf("services: requesting restart of %s: %w", name, err)
