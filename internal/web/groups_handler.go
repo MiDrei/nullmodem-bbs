@@ -5,8 +5,9 @@ import (
 	"sort"
 )
 
-// handleListGroups returns every distinct "network" value already in
-// use across message and file areas combined, sorted -- what the web
+// handleListGroups returns the configured networks' names and every
+// distinct "network" value already in use across message and file
+// areas combined, sorted -- what the web
 // admin's area forms offer as suggestions for that field (labeled
 // "Group" in the UI: grouping areas isn't limited to a strict FTN
 // network the way the underlying field name suggests).
@@ -24,6 +25,16 @@ func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 
 	seen := make(map[string]bool, len(msgNetworks)+len(fileNetworks))
 	var groups []string
+	// The configured networks are offered even before any area uses
+	// them.
+	if c, err := s.loadBBSConfig(); err == nil {
+		for _, n := range c.Networks {
+			if !seen[n.Name] {
+				seen[n.Name] = true
+				groups = append(groups, n.Name)
+			}
+		}
+	}
 	for _, n := range msgNetworks {
 		if !seen[n] {
 			seen[n] = true

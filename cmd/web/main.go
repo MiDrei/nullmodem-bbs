@@ -3,12 +3,16 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/applog"
 	"git.maik.ch/nullmodem/bbs/internal/archive"
@@ -60,6 +64,10 @@ func main() {
 		bbsCfg = config.Default()
 	}
 
+	if err := migrateNetworks(cfg.BBSConfigPath, filepath.Dir(cfg.DatabasePath), bbsCfg, sqlDB, logger); err != nil {
+		log.Fatalf("migrating networks: %v", err)
+	}
+
 	srv := &web.Server{
 		Users:    user.NewStore(sqlDB),
 		Messages: message.NewStore(sqlDB),
@@ -82,4 +90,39 @@ func main() {
 
 	logger.Info("web admin API listening on %s", cfg.Addr)
 	logger.Fatal("%v", http.ListenAndServe(cfg.Addr, srv.Routes()))
+}
+
+// migrateNetworks finishes what config.Load started for a config
+// written before networks had short names (see config.Config.
+// NetworkRenames): it renames the area groups in the database and, as
+// the one daemon that writes bbs.yaml, saves the config with its new
+// networks section -- keeping a copy of the old file in dataDir first
+// (not next to bbs.yaml: in Docker only the file itself is mounted,
+// its directory isn't writable).
+func migrateNetworks(path, dataDir string, c *config.Config, sqlDB *sql.DB, logger *applog.Logger) error {
+	if len(c.NetworkRenames) == 0 {
+		return nil
+	}
+	n, err := c.ApplyNetworkRenames(message.NewStore(sqlDB), file.NewStore(sqlDB, c.BBS.FilesDir))
+	if err != nil {
+		return err
+	}
+	old, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading %s for its backup: %w", path, err)
+	}
+	backup := filepath.Join(dataDir, filepath.Base(path)+".bak-networks-"+time.Now().Format("20060102-150405"))
+	if err := os.WriteFile(backup, old, 0o644); err != nil {
+		return fmt.Errorf("backing up %s: %w", path, err)
+	}
+	if err := config.Save(path, c); err != nil {
+		return err
+	}
+	names := make([]string, 0, len(c.Networks))
+	for _, nw := range c.Networks {
+		names = append(names, nw.Name+"@"+nw.Domain)
+	}
+	logger.Info("networks set up from the uplinks (%s), %d area group(s) renamed; previous config kept as %s",
+		strings.Join(names, ", "), n, filepath.Base(backup))
+	return nil
 }

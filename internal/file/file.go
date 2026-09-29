@@ -362,6 +362,17 @@ func (s *Store) MarkFileRead(userID, fileID int64) error {
 	return nil
 }
 
+// RenameNetwork moves every area whose network is from (compared
+// without regard to case) to network to, returning how many -- see
+// config.Config.NetworkRenames.
+func (s *Store) RenameNetwork(from, to string) (int64, error) {
+	res, err := s.db.Exec(`UPDATE file_areas SET network = ? WHERE LOWER(network) = LOWER(?) AND network != ?`, to, from, to)
+	if err != nil {
+		return 0, fmt.Errorf("file: renaming network %q to %q: %w", from, to, err)
+	}
+	return res.RowsAffected()
+}
+
 // UpdateArea changes an existing area's editable fields (not its tag,
 // which is treated as a stable identifier once created).
 func (s *Store) UpdateArea(id int64, name, description, network string, minSLDownload, minSLUpload, sortOrder int) (*Area, error) {

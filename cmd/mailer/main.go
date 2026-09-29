@@ -72,6 +72,11 @@ func main() {
 	messages := message.NewStore(sqlDB)
 	files := file.NewStore(sqlDB, cfg.BBS.FilesDir)
 	users := user.NewStore(sqlDB)
+	if n, err := cfg.ApplyNetworkRenames(messages, files); err != nil {
+		logger.Fatal("renaming area groups to network names: %v", err)
+	} else if n > 0 {
+		logger.Info("renamed %d area group(s) to their network's short name", n)
+	}
 	pollStore := tosser.NewUplinkPollStore(sqlDB)
 	archiveDir := filepath.Join(filepath.Dir(cfg.Database.Path), "inbound-archive")
 	sessionLogDir := filepath.Join(filepath.Dir(cfg.Database.Path), "binkp-sessions")

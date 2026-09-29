@@ -33,6 +33,17 @@ type Config struct {
 		FTNAddresses []string `yaml:"ftn_addresses"`
 	} `yaml:"bbs"`
 
+	// Networks are the FTN networks this system belongs to, each a
+	// short name (shown as the group of its areas, and what an uplink's
+	// and an area's Network refer to) and its FTN domain -- see
+	// Network.
+	Networks []Network `yaml:"networks"`
+	// NetworkRenames is filled by Load when it derived Networks from an
+	// older config (see migrateLegacyNetworks): old group name -> new
+	// short name, for renaming the areas in the database to match. Not
+	// part of the file.
+	NetworkRenames map[string]string `yaml:"-"`
+
 	// Doors are external door programs callers can launch from the
 	// BBS menu (see internal/doors) -- each one an already-installed
 	// executable on this host, not managed by this project itself.
@@ -279,6 +290,7 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("config: parse %s: %w", path, err)
 	}
 	migrateLegacyFTNAddress(data, c)
+	migrateLegacyNetworks(c)
 	return c, nil
 }
 

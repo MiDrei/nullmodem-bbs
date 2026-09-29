@@ -576,3 +576,33 @@ func TestRecordDownloadIncrementsCounter(t *testing.T) {
 		t.Fatalf("DownloadCount = %d, want 2", reloaded.DownloadCount)
 	}
 }
+
+func TestRenameNetworkMatchesWithoutCaseAndLeavesOthers(t *testing.T) {
+	s, _ := newTestStore(t)
+	for tag, network := range map[string]string{"a": "fsxNet Echo Areas", "b": "FSXNET ECHO AREAS", "c": "HobbyNet Echo Areas", "d": ""} {
+		if _, err := s.CreateArea(tag, tag, "", network, 0, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := s.RenameNetwork("fsxNet Echo Areas", "fsxNet")
+	if err != nil || n != 2 {
+		t.Fatalf("RenameNetwork = %d, %v; want 2", n, err)
+	}
+	if again, _ := s.RenameNetwork("fsxNet Echo Areas", "fsxNet"); again != 0 {
+		t.Fatalf("second RenameNetwork changed %d rows, want 0", again)
+	}
+	areas, err := s.ListAreas(255)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, a := range areas {
+		got[a.Tag] = a.Network
+	}
+	want := map[string]string{"a": "fsxNet", "b": "fsxNet", "c": "HobbyNet Echo Areas", "d": ""}
+	for tag, net := range want {
+		if got[tag] != net {
+			t.Errorf("area %s network = %q, want %q", tag, got[tag], net)
+		}
+	}
+}

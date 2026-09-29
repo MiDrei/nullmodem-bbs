@@ -9,6 +9,7 @@
 		testBinkpConnection,
 		sendNowBinkp,
 		listGroups,
+		addressDomain,
 		ApiError,
 		type BBSConfig,
 		type BinkpUplink
@@ -50,6 +51,25 @@
 
 	function isAKAChecked(uplink: BinkpUplink, addr: string): boolean {
 		return uplink.aka_addresses.includes(addr);
+	}
+
+	// The network (short name) an own address belongs to, by domain.
+	function networkOf(addr: string): string {
+		const d = addressDomain(addr);
+		return config?.networks.find((n) => n.domain.toLowerCase() === d)?.name ?? '';
+	}
+
+	// Our own addresses in the uplink's network.
+	function networkAddresses(uplink: BinkpUplink): string[] {
+		const n = config?.networks.find((x) => x.name.toLowerCase() === uplink.network.toLowerCase());
+		if (!n) return [];
+		return (config?.ftn_addresses ?? []).filter((a) => addressDomain(a) === n.domain.toLowerCase());
+	}
+
+	// Picking a network for an uplink that isn't restricted to any of
+	// our addresses yet restricts it to that network's.
+	function networkChanged(uplink: BinkpUplink) {
+		if (uplink.aka_addresses.length === 0) uplink.aka_addresses = networkAddresses(uplink);
 	}
 
 	function toggleAKA(uplink: BinkpUplink, addr: string) {
@@ -476,16 +496,23 @@
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Group / Network</span>
-						<input
-							list="groups-list"
+						<span class="text-slate-400">Network</span>
+						<select
 							class="field field-sm"
 							bind:value={editingUplink.network}
-							placeholder="fsxNet, HobbyNet… (blank if this uplink never carries outgoing echomail)"
-						/>
+							onchange={() => networkChanged(editingUplink!)}
+						>
+							<option value="">— none (never carries outgoing echomail) —</option>
+							{#each config.networks as n (n.name)}
+								<option value={n.name}>{n.name} (@{n.domain})</option>
+							{/each}
+							{#if editingUplink.network && !config.networks.some((n) => n.name.toLowerCase() === editingUplink!.network.toLowerCase())}
+								<option value={editingUplink.network}>{editingUplink.network} (not defined)</option>
+							{/if}
+						</select>
 						<span class="text-xs text-slate-500">
-							Matched against a message area's own Group to decide which uplink a locally-posted
-							echo message goes out through.
+							Locally posted echomail in this network's areas goes out through this uplink. Networks
+							are defined on the BinkP page.
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
@@ -550,8 +577,22 @@
 									onchange={() => toggleAKA(editingUplink!, addr)}
 								/>
 								<span class="font-mono text-slate-300">{addr}</span>
+								{#if networkOf(addr)}
+									<span class="rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[10.5px] text-muted"
+										>{networkOf(addr)}</span
+									>
+								{/if}
 							</label>
 						{/each}
+						{#if networkAddresses(editingUplink).length > 0}
+							<button
+								type="button"
+								class="btn-secondary btn-xs self-start"
+								onclick={() => (editingUplink!.aka_addresses = networkAddresses(editingUplink!))}
+							>
+								Only {editingUplink.network}'s address{networkAddresses(editingUplink).length > 1 ? 'es' : ''}
+							</button>
+						{/if}
 					</div>
 				</div>
 

@@ -32,6 +32,8 @@ export interface BBSConfig {
 	new_user_sl: number;
 	/** This system's own FTN addresses/AKAs (zone:net/node.point), if any. The first is "primary": stamped on outgoing netmail. Most systems have exactly one; more than one is for a point reachable through the same uplink under multiple FTN networks. */
 	ftn_addresses: string[];
+	/** The FTN networks this system belongs to: short name (the group of their areas, what an uplink names) and FTN domain. */
+	networks: FTNNetwork[];
 	telnet_enabled: boolean;
 	telnet_addr: string;
 	ssh_enabled: boolean;
@@ -39,6 +41,20 @@ export interface BBSConfig {
 	binkp_uplinks: BinkpUplink[];
 	/** Default poll interval (seconds) for an uplink that doesn't set its own poll_interval_seconds. */
 	binkp_default_poll_interval_seconds: number;
+}
+
+export interface FTNNetwork {
+	name: string;
+	/** As after the @ in 21:3/100@fsxnet. */
+	domain: string;
+	/** The name it was loaded under -- send back unchanged so a rename carries over to uplinks and areas. */
+	original_name?: string;
+}
+
+/** The domain of an FTN address ("21:3/194@fsxnet" -> "fsxnet"), or "". */
+export function addressDomain(addr: string): string {
+	const i = addr.lastIndexOf('@');
+	return i >= 0 ? addr.slice(i + 1).trim().toLowerCase() : '';
 }
 
 export interface LoginResponse {

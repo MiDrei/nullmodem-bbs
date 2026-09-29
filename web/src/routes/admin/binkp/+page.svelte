@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
-	import { getConfig, putConfig, ApiError, type BBSConfig } from '$lib/api';
+	import { getConfig, putConfig, addressDomain, ApiError, type BBSConfig } from '$lib/api';
 
 	let config = $state<BBSConfig | null>(null);
 	let loadError = $state<string | null>(null);
@@ -18,6 +18,22 @@
 	function removeFTNAddress(index: number) {
 		if (!config) return;
 		config.ftn_addresses = config.ftn_addresses.filter((_, i) => i !== index);
+	}
+
+	function addNetwork() {
+		if (!config) return;
+		config.networks = [...config.networks, { name: '', domain: '' }];
+	}
+
+	function removeNetwork(index: number) {
+		if (!config) return;
+		config.networks = config.networks.filter((_, i) => i !== index);
+	}
+
+	// This system's own addresses in a network, by domain.
+	function addressesIn(domain: string): string[] {
+		const d = domain.trim().toLowerCase();
+		return d ? (config?.ftn_addresses ?? []).filter((a) => addressDomain(a) === d) : [];
 	}
 
 	onMount(async () => {
@@ -76,6 +92,37 @@
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
+		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
+			<div class="flex items-center justify-between">
+				<h2 class="card-label">Networks</h2>
+				<button type="button" class="btn-secondary btn-xs" onclick={addNetwork}>+ Add Network</button>
+			</div>
+			<p class="text-xs text-muted">
+				The FTN networks you belong to. The short name is what an uplink and its areas are grouped
+				under (the tabs in the admin and portal, the dividers in the Telnet area lists); the domain
+				ties your own addresses to the network (<span class="font-mono">21:3/194@fsxnet</span>).
+				Renaming a network renames it on its uplinks and areas too.
+			</p>
+			{#if config.networks.length === 0}
+				<p class="text-sm text-muted">None configured.</p>
+			{:else}
+				<div class="grid grid-cols-[minmax(8rem,12rem)_minmax(6rem,10rem)_1fr_auto] items-center gap-x-3 gap-y-2">
+					<span class="card-label">Name</span>
+					<span class="card-label">Domain</span>
+					<span class="card-label">Your addresses</span>
+					<span></span>
+					{#each config.networks as n, i (i)}
+						<input class="field field-sm" bind:value={n.name} placeholder="fsxNet" required />
+						<input class="field field-sm font-mono" bind:value={n.domain} placeholder="fsxnet" required />
+						<span class="truncate font-mono text-xs text-muted">
+							{addressesIn(n.domain).join(', ') || '—'}
+						</span>
+						<button type="button" class="btn-danger btn-xs" onclick={() => removeNetwork(i)}>Remove</button>
+					{/each}
+				</div>
+			{/if}
+		</section>
+
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
 			<div class="flex items-center justify-between">
 				<h2 class="card-label">

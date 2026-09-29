@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -57,11 +58,21 @@ type binkpUplinkDTO struct {
 	Downlink bool `json:"downlink"`
 }
 
+// networkDTO is one config.Network. OriginalName is the name it was
+// loaded under, sent back unchanged by the UI, so a rename can be
+// carried over to the uplinks and areas that use the network.
+type networkDTO struct {
+	Name         string `json:"name"`
+	Domain       string `json:"domain"`
+	OriginalName string `json:"original_name,omitempty"`
+}
+
 type configDTO struct {
 	Name                            string           `json:"name"`
 	Sysop                           string           `json:"sysop"`
 	NewUserSL                       int              `json:"new_user_sl"`
 	FTNAddresses                    []string         `json:"ftn_addresses"`
+	Networks                        []networkDTO     `json:"networks"`
 	TelnetEnabled                   bool             `json:"telnet_enabled"`
 	TelnetAddr                      string           `json:"telnet_addr"`
 	SSHEnabled                      bool             `json:"ssh_enabled"`
@@ -97,7 +108,12 @@ func toDTO(c *config.Config) configDTO {
 	if addrs == nil {
 		addrs = []string{}
 	}
+	networks := make([]networkDTO, len(c.Networks))
+	for i, n := range c.Networks {
+		networks[i] = networkDTO{Name: n.Name, Domain: n.Domain, OriginalName: n.Name}
+	}
 	return configDTO{
+		Networks:                        networks,
 		Name:                            c.BBS.Name,
 		Sysop:                           c.BBS.Sysop,
 		NewUserSL:                       c.BBS.NewUserSL,
@@ -137,6 +153,14 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	renames := networkRenames(dto)
+	for i, u := range dto.BinkpUplinks {
+		for from, to := range renames {
+			if strings.EqualFold(u.Network, from) {
+				dto.BinkpUplinks[i].Network = to
+			}
+		}
+	}
 	if msg := validateConfigDTO(dto); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
 		return
@@ -152,6 +176,10 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	c.BBS.Sysop = dto.Sysop
 	c.BBS.NewUserSL = dto.NewUserSL
 	c.BBS.FTNAddresses = dto.FTNAddresses
+	c.Networks = make([]config.Network, len(dto.Networks))
+	for i, n := range dto.Networks {
+		c.Networks[i] = config.Network{Name: strings.TrimSpace(n.Name), Domain: strings.ToLower(strings.TrimSpace(n.Domain))}
+	}
 	c.Telnet.Enabled = dto.TelnetEnabled
 	c.Telnet.Addr = dto.TelnetAddr
 	c.SSH.Enabled = dto.SSHEnabled
@@ -180,9 +208,22 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not save config")
 		return
 	}
+	// The areas follow a renamed network only once the config naming it
+	// is saved.
+	for from, to := range renames {
+		for _, st := range []config.NetworkRenamer{s.Messages, s.Files} {
+			if _, err := st.RenameNetwork(from, to); err != nil {
+				writeError(w, http.StatusInternalServerError, "could not rename the network's areas")
+				return
+			}
+		}
+	}
 
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s updated the BBS configuration", claims.Subject)
+		for from, to := range renames {
+			s.logInfo("%s renamed network %s to %s", claims.Subject, from, to)
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -354,7 +395,24 @@ func validateConfigDTO(dto configDTO) string {
 	if dto.BinkpDefaultPollIntervalSeconds < 0 {
 		return "binkp_default_poll_interval_seconds must not be negative"
 	}
+	seen := map[string]bool{}
+	for i, n := range dto.Networks {
+		name := strings.TrimSpace(n.Name)
+		if name == "" {
+			return fmt.Sprintf("network %d: name must not be empty", i+1)
+		}
+		if seen[strings.ToLower(name)] {
+			return fmt.Sprintf("network %q is defined twice", name)
+		}
+		seen[strings.ToLower(name)] = true
+		if !domainPattern.MatchString(strings.ToLower(strings.TrimSpace(n.Domain))) {
+			return fmt.Sprintf("network %s: domain must be 1-20 letters, digits, - or _ (as after the @ in 21:3/100@fsxnet)", name)
+		}
+	}
 	for i, u := range dto.BinkpUplinks {
+		if u.Network != "" && len(dto.Networks) > 0 && !seen[strings.ToLower(u.Network)] {
+			return fmt.Sprintf("binkp uplink %d: network %q is not defined", i+1, u.Network)
+		}
 		if strings.TrimSpace(u.Host) == "" {
 			return fmt.Sprintf("binkp uplink %d: host must not be empty", i+1)
 		}
@@ -366,4 +424,20 @@ func validateConfigDTO(dto configDTO) string {
 		}
 	}
 	return ""
+}
+
+// domainPattern is what an FTN domain may look like.
+var domainPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,19}$`)
+
+// networkRenames maps each network the UI renamed from its original
+// name to its new one.
+func networkRenames(dto configDTO) map[string]string {
+	renames := map[string]string{}
+	for _, n := range dto.Networks {
+		from, to := strings.TrimSpace(n.OriginalName), strings.TrimSpace(n.Name)
+		if from != "" && to != "" && from != to {
+			renames[from] = to
+		}
+	}
+	return renames
 }
