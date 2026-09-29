@@ -372,10 +372,16 @@ func (s *session) sendData(data []byte) error {
 }
 
 // sendInfoAndAddress emits this side's informational M_NUL lines
-// (VER/SYS/ZYZ/LOC -- none required by the protocol; a real peer logs
-// them but doesn't act on them, so a missing SysName/Sysop/Location is
-// harmless) immediately followed by M_ADR, as a single underlying
-// Write call rather than one Write per frame.
+// (VER/SYS/ZYZ/LOC/TIME) immediately followed by M_ADR, as a single
+// underlying Write call rather than one Write per frame.
+//
+// None is required by the protocol, but Mystic (1.12A48/A49, both our
+// Mystic hubs) silently hangs up right after accepting our password
+// when VER is the only one: with any one more (SYS, ZYZ, LOC or TIME)
+// it answers M_OK. Found by probing both hubs line by line after binkd
+// -- which sends them all -- got in where we didn't; outbound polls
+// had sent only VER, since Poll never set SysName/Sysop. TIME is now
+// always sent, as binkd does, so there always is one.
 //
 // This matters: a real peer's own log (Mystic BBS, SysopNet) showed
 // it sometimes receiving only our very first frame (VER) and nothing
@@ -400,6 +406,7 @@ func (s *session) sendInfoAndAddress(ourAddresses []string) error {
 	if s.cfg.Location != "" {
 		lines = append(lines, "LOC "+s.cfg.Location)
 	}
+	lines = append(lines, "TIME "+time.Now().Format("Mon, 02 Jan 2006 15:04:05 -0700"))
 
 	var buf bytes.Buffer
 	for _, l := range lines {

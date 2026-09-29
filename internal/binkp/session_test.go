@@ -130,11 +130,18 @@ func TestSendInfoAndAddressUsesASingleWrite(t *testing.T) {
 		}
 		got = append(got, fmt.Sprintf("%s %s", Command(payload[0]), string(payload[1:])))
 	}
+	// TIME carries the clock; only its presence is checked here.
+	for i, l := range got {
+		if strings.HasPrefix(l, "M_NUL TIME ") {
+			got[i] = "M_NUL TIME"
+		}
+	}
 	want := []string{
 		"M_NUL VER NullModem-BinkP/" + version.Short() + " binkp/1.1",
 		"M_NUL SYS Test BBS",
 		"M_NUL ZYZ Ops",
 		"M_NUL LOC Zurich",
+		"M_NUL TIME",
 		"M_ADR 1:234/56.0 21:1/100@fsxnet",
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -1769,4 +1776,40 @@ func runInterleavingPeer(ln net.Listener) error {
 		return fmt.Errorf("expected M_GOT for theirs.tu3, got isData=%v payload=%q", isData, payload)
 	}
 	return writeCommandFrame(conn, MEOB, "")
+}
+
+// TestInfoLinesAlwaysIncludeMoreThanVER locks in what two Mystic hubs
+// (1.12A48/A49) need: with VER as the only M_NUL line before our
+// password they hang up silently after accepting it; with any one
+// more they answer M_OK. A poll sets no SysName/Sysop, so TIME must
+// be there on its own.
+func TestInfoLinesAlwaysIncludeMoreThanVER(t *testing.T) {
+	conn := &countingConn{}
+	s := &session{conn: conn}
+	if err := s.sendInfoAndAddress([]string{"23:1/107@sysopnet"}); err != nil {
+		t.Fatal(err)
+	}
+	r := bytes.NewReader(conn.buf.Bytes())
+	var nul []string
+	for {
+		isData, payload, err := readFrame(r)
+		if err != nil {
+			break
+		}
+		if !isData && Command(payload[0]) == MNUL {
+			nul = append(nul, string(payload[1:]))
+		}
+	}
+	hasTime := false
+	for _, l := range nul {
+		if strings.HasPrefix(l, "TIME ") {
+			if _, err := time.Parse("Mon, 02 Jan 2006 15:04:05 -0700", l[len("TIME "):]); err != nil {
+				t.Fatalf("TIME line %q: %v", l, err)
+			}
+			hasTime = true
+		}
+	}
+	if len(nul) < 2 || !hasTime {
+		t.Fatalf("M_NUL lines = %q, want VER plus TIME at least", nul)
+	}
 }

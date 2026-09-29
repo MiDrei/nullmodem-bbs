@@ -187,6 +187,7 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 
 	sessionResult, err := binkp.Dial(ctx, uplink.Host, binkp.Config{
 		OurAddresses:  presentedAddresses,
+		SysName:       bbsName,
 		Password:      uplink.Password,
 		NoCRAM:        uplink.NoCRAM,
 		OutboundFiles: bundle.outFiles,
@@ -460,6 +461,7 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 
 	sessionResult, err := binkp.Answer(ctx, conn, binkp.Config{
 		OurAddresses: ourAddresses,
+		SysName:      bbsName,
 		Recorder:     binkpRecorder,
 		PasswordForAddresses: func(peerAddrs []string) (string, bool) {
 			u, ok := matchUplink(peerAddrs, uplinks)
