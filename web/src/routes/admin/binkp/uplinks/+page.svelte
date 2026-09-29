@@ -44,6 +44,7 @@
 			filefix_password: '',
 			network: '',
 			hold: false,
+			no_cram: false,
 			aka_addresses: [],
 			downlink
 		};
@@ -337,6 +338,14 @@
 										Hold
 									</span>
 								{/if}
+								{#if u.no_cram}
+									<span
+										class="rounded-full bg-red-950 px-2 py-0.5 text-[10px] text-red-400"
+										title="Session password sent in the clear"
+									>
+										No CRAM
+									</span>
+								{/if}
 								{#if u.poll_disabled}
 									<span class="rounded-full bg-amber-950 px-2 py-0.5 text-[10px] text-amber-400">
 										Crash-only
@@ -553,6 +562,14 @@
 							that can't be reached back either way (e.g. a point behind NAT with no port
 							forwarding), where Crash-only above still isn't enough to stop a doomed dial attempt
 							every time there's mail pending for it.
+						</span>
+					</label>
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" class="check" bind:checked={editingUplink.no_cram} />
+						<span class="text-slate-400">
+							No CRAM-MD5: send the session password in the clear even when this uplink offers
+							CRAM-MD5. Only for diagnosing a hub -- anyone on the path can read the password.
+							Leave off otherwise.
 						</span>
 					</label>
 					<div class="col-span-2 flex flex-col gap-2 rounded-xl border border-line p-3">

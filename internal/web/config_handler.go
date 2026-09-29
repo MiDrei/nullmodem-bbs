@@ -48,6 +48,8 @@ type binkpUplinkDTO struct {
 	// dialed automatically at all, not even for pending/Crash mail,
 	// only via "Send Now".
 	Hold bool `json:"hold"`
+	// NoCRAM -- see config.BinkpUplink.NoCRAM.
+	NoCRAM bool `json:"no_cram"`
 	// AKAAddresses -- see config.BinkpUplink.AKAAddresses' own doc
 	// comment: which of this system's own FTN addresses this uplink
 	// is restricted to (M_ADR presentation and Crash routing alike).
@@ -101,6 +103,7 @@ func toDTO(c *config.Config) configDTO {
 			FilefixPassword:     u.FilefixPassword,
 			Network:             u.Network,
 			Hold:                u.Hold,
+			NoCRAM:              u.NoCRAM,
 			AKAAddresses:        akaAddrs,
 			Downlink:            u.Downlink,
 		}
@@ -200,6 +203,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			FilefixPassword:     u.FilefixPassword,
 			Network:             u.Network,
 			Hold:                u.Hold,
+			NoCRAM:              u.NoCRAM,
 			AKAAddresses:        u.AKAAddresses,
 			Downlink:            u.Downlink,
 		}
@@ -277,6 +281,7 @@ func (s *Server) handleTestBinkpConnection(w http.ResponseWriter, r *http.Reques
 	result, err := binkp.Dial(ctx, req.Host, binkp.Config{
 		OurAddresses: presentedAddresses,
 		Password:     req.Password,
+		NoCRAM:       req.NoCRAM,
 		SysName:      c.BBS.Name,
 		Sysop:        c.BBS.Sysop,
 	})
@@ -339,6 +344,7 @@ func (s *Server) handleSendNowBinkp(w http.ResponseWriter, r *http.Request) {
 		Address:        req.Address,
 		Host:           req.Host,
 		Password:       req.Password,
+		NoCRAM:         req.NoCRAM,
 		PacketPassword: req.PacketPassword,
 		Network:        req.Network,
 		AKAAddresses:   req.AKAAddresses,

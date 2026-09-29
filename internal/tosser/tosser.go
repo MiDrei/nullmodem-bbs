@@ -184,6 +184,7 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	sessionResult, err := binkp.Dial(ctx, uplink.Host, binkp.Config{
 		OurAddresses:  presentedAddresses,
 		Password:      uplink.Password,
+		NoCRAM:        uplink.NoCRAM,
 		OutboundFiles: bundle.outFiles,
 		ReceiveFile:   receiveFile,
 		Recorder:      binkpRecorder,

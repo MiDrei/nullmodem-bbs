@@ -1633,3 +1633,37 @@ func TestFrameLineRedactsPassword(t *testing.T) {
 		}
 	}
 }
+
+// TestNoCRAMSendsPlaintextPasswordDespiteChallenge: with NoCRAM set,
+// the originator ignores the answerer's CRAM-MD5 offer and sends the
+// password in the clear, which the answerer still accepts.
+func TestNoCRAMSendsPlaintextPasswordDespiteChallenge(t *testing.T) {
+	origRec := &fakeRecorder{}
+	_, _, origErr, ansErr := runPair(t,
+		Config{
+			OurAddresses: []string{"1:234/56.0"},
+			Password:     "super-secret",
+			NoCRAM:       true,
+			Recorder:     origRec,
+		},
+		Config{
+			OurAddresses: []string{"21:1/100"},
+			Password:     "super-secret",
+		},
+	)
+	if origErr != nil || ansErr != nil {
+		t.Fatalf("runPair: origErr=%v ansErr=%v", origErr, ansErr)
+	}
+	sawOffer, sawPlain := false, false
+	for _, l := range origRec.lines {
+		if strings.HasPrefix(l, "recv: M_NUL OPT CRAM-MD5-") {
+			sawOffer = true
+		}
+		if l == "send: M_PWD ***" {
+			sawPlain = true
+		}
+	}
+	if !sawOffer || !sawPlain {
+		t.Fatalf("want a CRAM offer answered with a plaintext M_PWD, got lines %v", origRec.lines)
+	}
+}

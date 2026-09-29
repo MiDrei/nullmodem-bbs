@@ -170,6 +170,10 @@ type BinkpUplink struct {
 	// enough: pending mail -- Crash-flagged or not -- would still
 	// trigger a doomed dial attempt on every check tick.
 	Hold bool `yaml:"hold"`
+	// NoCRAM sends Password in the clear even when the uplink offers
+	// CRAM-MD5 (see internal/binkp.Config.NoCRAM). Off by default; only
+	// for testing whether a hub's trouble is tied to CRAM logins.
+	NoCRAM bool `yaml:"no_cram"`
 	// AKAAddresses restricts which of this system's own FTN
 	// addresses/AKAs (Config.BBS.FTNAddresses) belong to this uplink
 	// specifically: only these are presented via BinkP's M_ADR when

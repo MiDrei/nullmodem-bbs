@@ -48,6 +48,10 @@ type Config struct {
 	// empty Password on the answerer side means "open node, no auth"
 	// -- unless PasswordForAddresses is set, which takes over instead.
 	Password string
+	// NoCRAM makes an originator send Password in the clear even when
+	// the answerer offers CRAM-MD5 -- only for diagnosing a peer that
+	// misbehaves after a CRAM login. Ignored on the answerer side.
+	NoCRAM bool
 	// PasswordForAddresses, set only on the answerer side, overrides
 	// Password once the caller's M_ADR has been read (received before
 	// their M_PWD, so this is called in time): it's handed the
@@ -465,7 +469,7 @@ func (s *session) originatorHandshake() error {
 	}
 
 	pwArg := s.cfg.Password
-	if challenge != "" {
+	if challenge != "" && !s.cfg.NoCRAM {
 		pwArg = cramOptPrefix + cramDigest(s.cfg.Password, challenge)
 	}
 	if err := s.send(MPWD, pwArg); err != nil {
