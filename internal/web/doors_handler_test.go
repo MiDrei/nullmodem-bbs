@@ -3,11 +3,14 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/doors"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
@@ -107,5 +110,64 @@ func TestDoorsRequireAuth(t *testing.T) {
 	h, _, _, _ := doorsTestSetup(t)
 	if rec := doJSON(t, h, http.MethodGet, "/api/doors", nil, ""); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", rec.Code)
+	}
+}
+
+// TestMRCDoorSettingsAndBridgeRestart: adding MRC Chat over a door
+// directory that's already there writes the given mrc.cfg and sets up
+// umrc-bridge as the door's background program; saving the settings
+// later asks that program to restart, which the restart API allows.
+func TestMRCDoorSettingsAndBridgeRestart(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	users.Register("root", "supersecret", user.SLSysop)
+	c, _ := config.Load(configPath)
+	c.BBS.DoorsDir = t.TempDir()
+	config.Save(configPath, c)
+	h := srv.Routes()
+	token := loginAsSysop(t, h, "root", "supersecret")
+
+	if rec := doJSON(t, h, http.MethodGet, "/api/doors/mrc", nil, token); rec.Code != http.StatusNotFound {
+		t.Fatalf("GET without the door: status = %d, want 404", rec.Code)
+	}
+
+	dir := filepath.Join(c.BBS.DoorsDir, "umrc")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, "umrc-client"), []byte("x"), 0o755)
+	mrc := doors.DefaultMRCConfig("Test BBS", "Sysop")
+	mrc.Website = "https://bbs.example"
+	rec := doJSON(t, h, http.MethodPost, "/api/doors/templates/umrc", map[string]any{"mrc": mrc}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("add: status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if got, err := doors.ReadMRCConfig(dir); err != nil || got != mrc {
+		t.Fatalf("mrc.cfg = %+v, %v", got, err)
+	}
+	c, _ = config.Load(configPath)
+	if len(c.Doors) != 1 || strings.Join(c.Doors[0].Program, " ") != "umrc-bridge" || c.Doors[0].Template != "umrc" {
+		t.Fatalf("door = %+v", c.Doors)
+	}
+
+	name := doors.Program{Door: c.Doors[0].Name}.ServiceName()
+	started, _ := srv.Services.RegisterProcess(name, "umrc-bridge", 99)
+	mrc.Description = "A test board"
+	if rec := doJSON(t, h, http.MethodPut, "/api/doors/mrc", mrc, token); rec.Code != http.StatusOK {
+		t.Fatalf("PUT: status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if got, _ := doors.ReadMRCConfig(dir); got.Description != "A test board" {
+		t.Fatalf("mrc.cfg after PUT = %+v", got)
+	}
+	if !srv.Services.RestartRequested(name, started) {
+		t.Fatal("saving the settings did not ask umrc-bridge to restart")
+	}
+	mrc.Port = "123456"
+	if rec := doJSON(t, h, http.MethodPut, "/api/doors/mrc", mrc, token); rec.Code != http.StatusBadRequest {
+		t.Fatalf("too-long port: status = %d, want 400", rec.Code)
+	}
+
+	if rec := doJSON(t, h, http.MethodPost, "/api/services/"+url.PathEscape(name)+"/restart", nil, token); rec.Code != http.StatusAccepted {
+		t.Fatalf("restarting the door program: status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	if rec := doJSON(t, h, http.MethodPost, "/api/services/door:nope/restart", nil, token); rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown door program: status = %d, want 404", rec.Code)
 	}
 }

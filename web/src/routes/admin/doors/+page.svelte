@@ -8,10 +8,16 @@
 		putDoors,
 		listDoorTemplates,
 		addDoorFromTemplate,
+		getMRCConfig,
+		putMRCConfig,
+		getBBSInfo,
+		getConfig,
 		ApiError,
 		type Door,
-		type DoorTemplate
+		type DoorTemplate,
+		type MRCConfig
 	} from '$lib/api';
+	import Modal from '$lib/Modal.svelte';
 
 	const DROPFILE_LABELS: Record<string, string> = {
 		'door.sys': 'DOOR.SYS',
@@ -32,6 +38,7 @@
 	let draft = $state<Door>(emptyDoor());
 	let argsText = $state('');
 	let lockText = $state('');
+	let programText = $state('');
 	let saving = $state(false);
 	let installing = $state<string | null>(null);
 
@@ -51,6 +58,7 @@
 			stdio: false,
 			ansi16: false,
 			template: '',
+			program: [],
 			installed: false
 		};
 	}
@@ -95,6 +103,7 @@
 		if (draft.kind === '') draft.kind = 'native';
 		argsText = draft.args.join(' ');
 		lockText = draft.lock_files.join('\n');
+		programText = draft.program.join(' ');
 	}
 
 	async function save(list: Door[], message: string) {
@@ -120,7 +129,8 @@
 		const door: Door = {
 			...$state.snapshot(draft),
 			args: argsText.split(/\s+/).filter(Boolean),
-			lock_files: lockText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+			lock_files: lockText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean),
+			program: draft.kind === 'dosbox' ? [] : programText.split(/\s+/).filter(Boolean)
 		};
 		const list = $state.snapshot(doors) as Door[];
 		if (editing >= 0) list[editing] = door;
@@ -136,11 +146,73 @@
 		if (editing === i) editing = null;
 	}
 
-	async function addTemplate(t: DoorTemplate) {
+	// MRC Chat's settings dialog: before installing it (mrcTemplate set)
+	// or for the door already set up.
+	let mrc = $state<MRCConfig | null>(null);
+	let mrcTemplate = $state<DoorTemplate | null>(null);
+	let mrcSaving = $state(false);
+
+	async function openMRC(t: DoorTemplate | null) {
 		if (!auth.token) return;
+		try {
+			if (t) {
+				// Suggest this board's own addresses, as callers reach it.
+				const [info, cfg] = await Promise.all([getBBSInfo(), getConfig(auth.token)]);
+				const host = location.hostname;
+				mrc = {
+					host: 'na-multi.relaychat.net',
+					port: '5001',
+					ssl: true,
+					bbs_name: cfg.name,
+					software: 'NullModem BBS',
+					website: location.origin,
+					telnet: info.telnet_port ? `${host}:${info.telnet_port}` : '',
+					ssh: info.ssh_port ? `${host}:${info.ssh_port}` : '',
+					sysop: cfg.sysop,
+					description: ''
+				};
+			} else {
+				mrc = await getMRCConfig(auth.token);
+			}
+			mrcTemplate = t;
+		} catch (err) {
+			if (await authFailed(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not load the MRC settings.', 'error');
+		}
+	}
+
+	async function saveMRC() {
+		if (!auth.token || !mrc) return;
+		const settings = $state.snapshot(mrc) as MRCConfig;
+		if (mrcTemplate) {
+			const t = mrcTemplate;
+			mrc = null;
+			mrcTemplate = null;
+			await addTemplate(t, settings);
+			return;
+		}
+		mrcSaving = true;
+		try {
+			await putMRCConfig(auth.token, settings);
+			mrc = null;
+			toast.push('Saved. The chat connection restarts with the new settings.', 'success');
+		} catch (err) {
+			if (await authFailed(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not save the MRC settings.', 'error');
+		} finally {
+			mrcSaving = false;
+		}
+	}
+
+	async function addTemplate(t: DoorTemplate, mrcSettings?: MRCConfig) {
+		if (!auth.token) return;
+		if (t.mrc && !mrcSettings && !t.installed) {
+			await openMRC(t);
+			return;
+		}
 		installing = t.id;
 		try {
-			const res = await addDoorFromTemplate(auth.token, t.id);
+			const res = await addDoorFromTemplate(auth.token, t.id, mrcSettings);
 			doors = res.doors;
 			templates = await listDoorTemplates(auth.token);
 			toast.push(
@@ -247,7 +319,8 @@
 				<span class="text-xs leading-relaxed text-faint">
 					Placeholders: <code class="font-mono text-muted">{'{dropfile}'}</code> (path of DOOR32.SYS),
 					<code class="font-mono text-muted">{'{dropfile_dir}'}</code>,
-					<code class="font-mono text-muted">{'{node}'}</code>. Without any, Usurper's
+					<code class="font-mono text-muted">{'{node}'}</code>,
+					<code class="font-mono text-muted">{'{ip}'}</code> (the caller's IP). Without any, Usurper's
 					<code class="font-mono text-muted">/P&lt;dir&gt;/</code> is appended.
 				</span>
 			</label>
@@ -259,6 +332,15 @@
 						For doors that use stdin/stdout like under Synchronet (Usurper Reborn) instead of the
 						DOOR32.SYS socket.
 					</span>
+				</span>
+			</label>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Background program (optional)</span>
+				<input class="field field-sm font-mono" bind:value={programText} placeholder="umrc-bridge" />
+				<span class="text-xs leading-relaxed text-faint">
+					Kept running in the working directory as long as the door is set up, restarted if it
+					exits — for doors that need a connection of their own (MRC Chat's umrc-bridge). Shown
+					under Services.
 				</span>
 			</label>
 		{/if}
@@ -348,10 +430,13 @@
 								{/if}
 							</div>
 							<div class="mt-1 truncate font-mono text-[11px] text-faint">
-								{doorDir(d) || '—'} · {dropfileLabel(d)}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''}{d.ansi16 ? ' · 16 colours' : ''} · SL {d.min_sl}+
+								{doorDir(d) || '—'} · {dropfileLabel(d)}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''}{d.ansi16 ? ' · 16 colours' : ''}{d.program.length ? ` · runs ${d.program[0]}` : ''} · SL {d.min_sl}+
 							</div>
 						</div>
 						<div class="flex shrink-0 gap-1.5">
+							{#if d.template === 'umrc'}
+								<button class="btn-secondary btn-xs" onclick={() => openMRC(null)}>Chat settings</button>
+							{/if}
 							<button class="btn-secondary btn-xs" onclick={() => startEdit(i)} disabled={editing !== null}>
 								Edit
 							</button>
@@ -414,4 +499,94 @@
 			</div>
 		{/each}
 	</div>
+{/if}
+
+{#if mrc}
+	<Modal
+		title={mrcTemplate ? 'Install MRC Chat' : 'MRC Chat settings'}
+		onclose={() => {
+			mrc = null;
+			mrcTemplate = null;
+		}}
+	>
+		<form
+			class="flex flex-col gap-3"
+			onsubmit={(e) => {
+				e.preventDefault();
+				saveMRC();
+			}}
+		>
+			<p class="text-[13px] leading-relaxed text-muted">
+				What the Multi-Relay Chat network shows about your board. Pipe colour codes (<code
+					class="font-mono">|01</code
+				>–<code class="font-mono">|23</code>) are allowed.
+			</p>
+			<div class="grid gap-3 sm:grid-cols-2">
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">BBS name</span>
+					<input class="field field-sm" bind:value={mrc.bbs_name} maxlength="139" required />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Sysop</span>
+					<input class="field field-sm" bind:value={mrc.sysop} maxlength="139" required />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Website</span>
+					<input class="field field-sm font-mono" bind:value={mrc.website} maxlength="139" placeholder="https://" />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Software</span>
+					<input class="field field-sm" bind:value={mrc.software} maxlength="139" />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Telnet address</span>
+					<input class="field field-sm font-mono" bind:value={mrc.telnet} maxlength="139" placeholder="host:port" />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">SSH address</span>
+					<input class="field field-sm font-mono" bind:value={mrc.ssh} maxlength="139" placeholder="host:port" />
+				</label>
+			</div>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Short description</span>
+				<input class="field field-sm" bind:value={mrc.description} maxlength="139" />
+			</label>
+			<details class="text-[13px]">
+				<summary class="cursor-pointer text-xs text-muted">Chat host</summary>
+				<div class="mt-3 grid gap-3 sm:grid-cols-[1fr_6rem]">
+					<label class="flex flex-col gap-1.5">
+						<span class="text-xs text-muted">MRC host</span>
+						<input class="field field-sm font-mono" bind:value={mrc.host} maxlength="79" required />
+					</label>
+					<label class="flex flex-col gap-1.5">
+						<span class="text-xs text-muted">Port</span>
+						<input class="field field-sm font-mono" bind:value={mrc.port} maxlength="5" required />
+					</label>
+				</div>
+				<label class="mt-3 flex cursor-pointer items-center gap-2.5">
+					<input type="checkbox" class="check" bind:checked={mrc.ssl} />
+					<span class="text-ink">SSL (port 5001; plain is 5000)</span>
+				</label>
+			</details>
+			{#if mrcTemplate}
+				<p class="text-xs leading-relaxed text-faint">
+					Installing starts the chat connection (umrc-bridge) right away. Only one connection per
+					board is allowed, so don't run MRC for this board anywhere else.
+				</p>
+			{/if}
+			<div class="flex justify-end gap-2.5">
+				<button
+					type="button"
+					class="btn-secondary btn-sm"
+					onclick={() => {
+						mrc = null;
+						mrcTemplate = null;
+					}}>Cancel</button
+				>
+				<button type="submit" class="btn-primary btn-sm" disabled={mrcSaving}>
+					{mrcTemplate ? 'Install' : mrcSaving ? 'Saving…' : 'Save'}
+				</button>
+			</div>
+		</form>
+	</Modal>
 {/if}

@@ -121,6 +121,7 @@ out:
 
 | Template | Install | Notes |
 | --- | --- | --- |
+| MRC Chat (uMRC, MIT, native) | downloaded from GitHub | Multi-Relay Chat client; installing asks what the chat network shows about the board (written to `mrc.cfg`), `umrc-bridge` runs as its background program (see below) |
 | Immortal Barons (MIT, native) | downloaded from GitHub | Barren Realms Elite remake; `door.json` set to DOOR32.SYS and the world created with default settings (`-reset-from-config`); `ansi16` on |
 | Usurper Reborn (GPL-2.0, native) | downloaded from GitHub (~55 MB) | runs with `stdio` (see below) |
 | Usurper (GPL-2.0, native) | downloaded from GitHub | Rick Parrish's Linux build; `USURPER.CFG`/`USURP.CTL` from its samples (`BBSTYPE DOOR32`), then EDITOR's "Reset Game" driven over a pseudo-terminal; `NODE/ONLINERS.DAT` as lock file |
@@ -132,15 +133,48 @@ out:
 
 Native templates pick the build for the machine's architecture
 (amd64, and arm64 where the door publishes one); a template without a
-build for it can't be installed there. All four downloadable doors
-were verified end to end here: installed from the page, played over
-Telnet.
+build for it can't be installed there. All downloadable doors were
+verified end to end here: installed from the page, played over Telnet.
 
 ### Native doors: arguments and standard I/O
 
 A native door's `args` may use `{dropfile}` (the absolute path of
-DOOR32.SYS), `{dropfile_dir}` and `{node}`. Without any placeholder the
-old behaviour stays: `/P<dropfile dir>/` is appended, Usurper's switch.
+DOOR32.SYS), `{dropfile_dir}`, `{node}` and `{ip}` (the caller's IP
+address; an argument using it is left out when that isn't known).
+Without any placeholder the old behaviour stays: `/P<dropfile dir>/` is
+appended, Usurper's switch.
+
+### Background programs (MRC Chat)
+
+A native door's `program` is a command kept running in the door's
+directory for as long as the door is set up -- uMRC needs one:
+`umrc-bridge` holds the single connection to the Multi-Relay Chat host
+that all the chat sessions on the board go through.
+
+```yaml
+doors:
+    - name: MRC Chat
+      exe: data/doors/umrc/umrc-client
+      dir: data/doors/umrc
+      args: [-D, '{dropfile}', '-IP{ip}']
+      template: umrc
+      program: [umrc-bridge]
+```
+
+The bbs daemon starts it (`internal/doors.Supervisor`), logs its output,
+starts it again when it exits (after 5 s, doubling up to 5 minutes
+while it keeps failing), and stops it when the door is removed or its
+`program` changes -- the config is re-read every 10 seconds. It runs on
+a pseudo-terminal, since C programs hold back pipe output until they
+exit, and ends with the bbs daemon. **Admin → Services** lists it as
+`door:<name>` with a restart button.
+
+uMRC's `mrc.cfg` is the C struct its `setup` program writes; the
+installer and **Chat settings** on the Doors page write it directly
+(`internal/doors/mrc.go`), and saving restarts `umrc-bridge`, which
+only reads it at startup. The MRC host allows one connection per board:
+don't run a second bridge for the same board (a development copy
+included) under the same BBS name.
 
 `stdio: true` also connects the door's stdin/stdout to the caller's
 connection, the way Synchronet runs doors, and leaves the BBS's telnet

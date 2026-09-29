@@ -12,6 +12,16 @@ export const SERVICE_INFO: Record<string, { title: string; description: string }
 	web: { title: 'Web', description: 'This admin and the web portal' }
 };
 
+/** Title and description of a daemon or a door's background program ("door:<door name>"). */
+export function serviceInfo(name: string): { title: string; description: string } {
+	if (SERVICE_INFO[name]) return SERVICE_INFO[name];
+	if (name.startsWith('door:')) {
+		const door = name.slice('door:'.length);
+		return { title: door, description: `Background program of the door ${door}` };
+	}
+	return { title: name, description: '' };
+}
+
 class ServicesState {
 	list = $state<ServiceStatus[]>([]);
 	loaded = $state(false);

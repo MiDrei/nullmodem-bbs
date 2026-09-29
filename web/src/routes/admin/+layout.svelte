@@ -9,7 +9,7 @@
 	import { auth } from '$lib/auth.svelte';
 	import { site } from '$lib/site.svelte';
 	import { adminTheme } from '$lib/theme.svelte';
-	import { servicesState, SERVICE_INFO } from '$lib/services.svelte';
+	import { servicesState, serviceInfo } from '$lib/services.svelte';
 	import Icon from '$lib/Icon.svelte';
 	import Toaster from '$lib/Toaster.svelte';
 
@@ -205,7 +205,7 @@
 				{#each servicesState.needingRestart as svc (svc.name)}
 					<span class="flex items-center gap-2">
 						<span class="text-ink" title={svc.restart_needed.join('; ')}>
-							<strong>{SERVICE_INFO[svc.name].title}</strong>
+							<strong>{serviceInfo(svc.name).title}</strong>
 							<span class="text-muted">({svc.restart_needed.join(', ')})</span>
 						</span>
 						<button

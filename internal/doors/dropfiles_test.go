@@ -186,13 +186,22 @@ func TestValidateDropFileRejectsUnknownFormats(t *testing.T) {
 }
 
 func TestNativeArgsPlaceholdersOrLegacySwitch(t *testing.T) {
-	got := nativeArgs([]string{"-dropfile", "{dropfile}", "-data", "data", "-n", "{node}"}, "/tmp/n", 2)
+	got := nativeArgs([]string{"-dropfile", "{dropfile}", "-data", "data", "-n", "{node}"}, "/tmp/n", 2, "")
 	want := []string{"-dropfile", "/tmp/n/DOOR32.SYS", "-data", "data", "-n", "2"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Fatalf("nativeArgs = %q, want %q", got, want)
 	}
-	legacy := nativeArgs([]string{"-x"}, "/tmp/n", 1)
+	legacy := nativeArgs([]string{"-x"}, "/tmp/n", 1, "")
 	if strings.Join(legacy, " ") != "-x /P/tmp/n/" {
 		t.Fatalf("legacy nativeArgs = %q", legacy)
+	}
+	withIP := nativeArgs([]string{"-D", "{dropfile}", "-IP{ip}"}, "/tmp/n", 1, "192.0.2.7")
+	if strings.Join(withIP, " ") != "-D /tmp/n/DOOR32.SYS -IP192.0.2.7" {
+		t.Fatalf("nativeArgs with ip = %q", withIP)
+	}
+	// Unknown IP: the argument is left out, not passed as a bare "-IP".
+	noIP := nativeArgs([]string{"-D", "{dropfile}", "-IP{ip}"}, "/tmp/n", 1, "")
+	if strings.Join(noIP, " ") != "-D /tmp/n/DOOR32.SYS" {
+		t.Fatalf("nativeArgs without ip = %q", noIP)
 	}
 }

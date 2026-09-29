@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 )
@@ -23,6 +24,10 @@ const (
 
 // Names lists the daemons in display order.
 var Names = []string{BBS, Mailer, Web}
+
+// DoorPrefix starts the name of a door's background program (see
+// internal/doors.Supervisor), listed after the daemons: "door:uMRC".
+const DoorPrefix = "door:"
 
 // Restart modes.
 const (
@@ -104,7 +109,7 @@ func (st *Store) List() ([]Status, error) {
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("services: listing: %w", err)
 	}
-	out := make([]Status, 0, len(Names))
+	out := make([]Status, 0, len(byName))
 	for _, n := range Names {
 		s, ok := byName[n]
 		if !ok {
@@ -112,7 +117,29 @@ func (st *Store) List() ([]Status, error) {
 		}
 		out = append(out, s)
 	}
+	var extra []string
+	for n := range byName {
+		if strings.HasPrefix(n, DoorPrefix) {
+			extra = append(extra, n)
+		}
+	}
+	slices.Sort(extra)
+	for _, n := range extra {
+		out = append(out, byName[n])
+	}
 	return out, nil
+}
+
+// Known reports whether name is a daemon or a registered door program.
+func (st *Store) Known(name string) (bool, error) {
+	if slices.Contains(Names, name) {
+		return true, nil
+	}
+	var n int
+	if err := st.db.QueryRow(`SELECT COUNT(*) FROM services WHERE name = ?`, name).Scan(&n); err != nil {
+		return false, fmt.Errorf("services: looking up %s: %w", name, err)
+	}
+	return n > 0, nil
 }
 
 // RequestRestart asks daemon name to restart in mode.
@@ -150,6 +177,60 @@ func (st *Store) MarkRestartNeeded(name, reason string) error {
 		ON CONFLICT(name) DO UPDATE SET restart_needed = excluded.restart_needed`, name, needed)
 	if err != nil {
 		return fmt.Errorf("services: marking %s: %w", name, err)
+	}
+	return nil
+}
+
+// RegisterProcess records a door's background program (name starting
+// with DoorPrefix) as just started with pid; the caller keeps it fresh
+// with Heartbeat and watches RestartRequested. It returns the start
+// time to pass to RestartRequested.
+func (st *Store) RegisterProcess(name, version string, pid int) (int64, error) {
+	t := now()
+	_, err := st.db.Exec(`INSERT INTO services (name, version, pid, started_at, heartbeat_at, restart_needed, restart_mode)
+		VALUES (?, ?, ?, ?, ?, '', '')
+		ON CONFLICT(name) DO UPDATE SET version = excluded.version, pid = excluded.pid, started_at = excluded.started_at,
+			heartbeat_at = excluded.heartbeat_at, restart_needed = '', restart_mode = ''`,
+		name, version, pid, t, t)
+	if err != nil {
+		return 0, fmt.Errorf("services: registering %s: %w", name, err)
+	}
+	return t, nil
+}
+
+// Heartbeat marks name as still running.
+func (st *Store) Heartbeat(name string) error {
+	_, err := st.db.Exec(`UPDATE services SET heartbeat_at = ? WHERE name = ?`, now(), name)
+	return err
+}
+
+// RestartRequested reports whether a restart of name was asked for
+// after startedAt.
+func (st *Store) RestartRequested(name string, startedAt int64) bool {
+	var requested int64
+	err := st.db.QueryRow(`SELECT restart_requested_at FROM services WHERE name = ?`, name).Scan(&requested)
+	return err == nil && requested > startedAt
+}
+
+// RemoveDoorPrograms deletes the rows of door programs not in keep --
+// doors removed (or whose program was) while the bbs daemon was down.
+func (st *Store) RemoveDoorPrograms(keep []string) error {
+	rows, err := st.db.Query(`SELECT name FROM services WHERE name LIKE ?`, DoorPrefix+"%")
+	if err != nil {
+		return fmt.Errorf("services: listing door programs: %w", err)
+	}
+	var drop []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err == nil && !slices.Contains(keep, n) {
+			drop = append(drop, n)
+		}
+	}
+	rows.Close()
+	for _, n := range drop {
+		if _, err := st.db.Exec(`DELETE FROM services WHERE name = ?`, n); err != nil {
+			return fmt.Errorf("services: removing %s: %w", n, err)
+		}
 	}
 	return nil
 }

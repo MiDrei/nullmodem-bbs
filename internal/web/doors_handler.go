@@ -13,6 +13,7 @@ import (
 
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/doors"
+	"git.maik.ch/nullmodem/bbs/internal/services"
 )
 
 // doorInstallTimeout bounds downloading and unpacking one door.
@@ -35,6 +36,9 @@ type doorDTO struct {
 	Stdio             bool     `json:"stdio"`
 	ANSI16            bool     `json:"ansi16"`
 	Template          string   `json:"template"`
+	// Program is the door's background program -- see
+	// config.DoorConfig.Program.
+	Program []string `json:"program"`
 	// Installed reports whether the door's directory exists and has
 	// files in it. Read-only.
 	Installed bool `json:"installed"`
@@ -91,6 +95,7 @@ func toDoorDTO(d config.DoorConfig) doorDTO {
 		Stdio:             d.Stdio,
 		ANSI16:            d.ANSI16,
 		Template:          d.Template,
+		Program:           orEmpty(d.Program),
 		Installed:         nonEmptyDir(dir),
 	}
 }
@@ -124,6 +129,7 @@ func fromDoorDTO(d doorDTO) config.DoorConfig {
 		Stdio:             d.Stdio && kind == "",
 		ANSI16:            d.ANSI16,
 		Template:          d.Template,
+		Program:           trimmed(d.Program),
 	}
 }
 
@@ -162,6 +168,9 @@ func validateDoors(list []config.DoorConfig) string {
 			if !ok {
 				return fmt.Sprintf("%s: unknown drop file format %q", d.Name, d.DropFile)
 			}
+		}
+		if len(d.Program) > 0 && d.Kind != "" {
+			return fmt.Sprintf("%s: only a native door can have a background program", d.Name)
 		}
 		for _, lf := range d.LockFiles {
 			if !filepath.IsLocal(lf) {
@@ -256,6 +265,22 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusNotFound, "no such door template")
 		return
 	}
+	// uMRC's settings come with the request (see handlePutMRCConfig).
+	var req struct {
+		MRC *doors.MRCConfig `json:"mrc"`
+	}
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+	}
+	if t.MRC && req.MRC != nil {
+		if err := req.MRC.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	c, err := s.loadBBSConfig()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load config")
@@ -297,6 +322,21 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// A door directory kept from before keeps its mrc.cfg, unless new
+	// settings were given.
+	if t.MRC && nonEmptyDir(dir) {
+		if _, err := doors.ReadMRCConfig(dir); err != nil || req.MRC != nil {
+			mrc := doors.DefaultMRCConfig(c.BBS.Name, c.BBS.Sysop)
+			if req.MRC != nil {
+				mrc = *req.MRC
+			}
+			if err := doors.WriteMRCConfig(dir, mrc); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+	}
+
 	entry := config.DoorConfig{
 		Name:              t.Name,
 		MinSL:             0,
@@ -311,6 +351,7 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		entry.Args = t.Args
 		entry.Stdio = t.Stdio
 		entry.ANSI16 = t.ANSI16
+		entry.Program = t.Program
 	} else {
 		entry.Kind = "dosbox"
 		entry.DOSBoxDir = dir
@@ -329,4 +370,69 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	writeJSON(w, http.StatusOK, s.doorsResponse(c))
+}
+
+// mrcDoor finds the uMRC door and its directory.
+func (s *Server) mrcDoor(c *config.Config) (config.DoorConfig, bool) {
+	for _, d := range c.Doors {
+		if d.Template == "umrc" && d.Dir != "" {
+			return d, true
+		}
+	}
+	return config.DoorConfig{}, false
+}
+
+// handleGetMRCConfig returns the uMRC door's mrc.cfg (404 without the
+// door).
+func (s *Server) handleGetMRCConfig(w http.ResponseWriter, r *http.Request) {
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	d, ok := s.mrcDoor(c)
+	if !ok {
+		writeError(w, http.StatusNotFound, "the MRC Chat door is not set up")
+		return
+	}
+	mrc, err := doors.ReadMRCConfig(d.Dir)
+	if err != nil {
+		// Not written yet: offer what installing would write.
+		mrc = doors.DefaultMRCConfig(c.BBS.Name, c.BBS.Sysop)
+	}
+	writeJSON(w, http.StatusOK, mrc)
+}
+
+// handlePutMRCConfig saves the uMRC door's mrc.cfg and restarts its
+// umrc-bridge, which only reads it when starting.
+func (s *Server) handlePutMRCConfig(w http.ResponseWriter, r *http.Request) {
+	var mrc doors.MRCConfig
+	if err := json.NewDecoder(r.Body).Decode(&mrc); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	d, ok := s.mrcDoor(c)
+	if !ok {
+		writeError(w, http.StatusNotFound, "the MRC Chat door is not set up")
+		return
+	}
+	if err := doors.WriteMRCConfig(d.Dir, mrc); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if s.Services != nil && len(d.Program) > 0 {
+		name := doors.Program{Door: d.Name}.ServiceName()
+		if err := s.Services.RequestRestart(name, services.ModeNow); err != nil {
+			s.logWarn("restarting %s: %v", name, err)
+		}
+	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s changed the MRC Chat settings", claims.Subject)
+	}
+	writeJSON(w, http.StatusOK, mrc)
 }

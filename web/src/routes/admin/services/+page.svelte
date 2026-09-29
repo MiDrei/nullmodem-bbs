@@ -4,7 +4,7 @@
 	import { auth } from '$lib/auth.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import { ApiError, type ServiceStatus } from '$lib/api';
-	import { servicesState, SERVICE_INFO } from '$lib/services.svelte';
+	import { servicesState, serviceInfo } from '$lib/services.svelte';
 
 	let busy = $state<string | null>(null);
 
@@ -46,7 +46,7 @@
 		try {
 			await servicesState.restart(s.name, mode);
 			toast.push(
-				mode === 'idle' ? 'The BBS restarts as soon as nobody is online.' : `Restarting ${SERVICE_INFO[s.name].title}…`,
+				mode === 'idle' ? 'The BBS restarts as soon as nobody is online.' : `Restarting ${serviceInfo(s.name).title}…`,
 				'success'
 			);
 		} catch (err) {
@@ -65,7 +65,7 @@
 <div class="mb-6">
 	<h1 class="page-title">Services</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
-		The three daemons behind the BBS. Some settings are only read when a daemon starts -- after
+		The three daemons behind the BBS, and the background programs of doors that need one. Some settings are only read when a daemon starts -- after
 		saving those, the daemon is marked here and a banner offers the restart. A restarted daemon is
 		back within a few seconds.
 	</p>
@@ -90,12 +90,12 @@
 										: 'bg-slate-600'}"
 							aria-hidden="true"
 						></span>
-						<span class="text-[15px] font-semibold text-ink-strong">{SERVICE_INFO[s.name].title}</span>
+						<span class="text-[15px] font-semibold text-ink-strong">{serviceInfo(s.name).title}</span>
 						<span class="text-[13px] text-muted">{st.label}</span>
 					</div>
-					<p class="mt-1 text-[13px] text-muted">{SERVICE_INFO[s.name].description}</p>
+					<p class="mt-1 text-[13px] text-muted">{serviceInfo(s.name).description}</p>
 					<div class="mt-2 font-mono text-[11px] text-faint">
-						{s.version ? `v${s.version}` : '—'} · up {since(s.started_at)} · pid {s.pid || '—'}{s.name ===
+						{s.version ? (s.name.startsWith('door:') ? s.version : `v${s.version}`) : '—'} · up {since(s.started_at)} · pid {s.pid || '—'}{s.name ===
 						'bbs'
 							? ` · ${s.online} online`
 							: ''}
@@ -134,7 +134,8 @@
 		{/each}
 	</div>
 	<p class="mt-5 text-xs leading-relaxed text-faint">
-		A daemon restarts by ending itself; Docker (restart policy "unless-stopped") starts it again. The
+		A daemon restarts by ending itself; Docker (restart policy "unless-stopped") starts it again. A
+		door's background program is restarted by the BBS daemon, which runs it. The
 		mailer finishes a poll round and inbound sessions in progress first. Without Docker, a daemon
 		stopped this way has to be started again by hand.
 	</p>

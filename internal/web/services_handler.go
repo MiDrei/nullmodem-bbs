@@ -3,7 +3,6 @@ package web
 import (
 	"encoding/json"
 	"net/http"
-	"slices"
 	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/services"
@@ -89,7 +88,11 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 // and Docker starts it again (see internal/services).
 func (s *Server) handleRestartService(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	if !slices.Contains(services.Names, name) || s.Services == nil {
+	if s.Services == nil {
+		writeError(w, http.StatusNotFound, "no such service")
+		return
+	}
+	if known, err := s.Services.Known(name); err != nil || !known {
 		writeError(w, http.StatusNotFound, "no such service")
 		return
 	}
@@ -110,7 +113,7 @@ func (s *Server) handleRestartService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if claims, ok := claimsFromContext(r.Context()); ok {
-		s.logInfo("%s asked the %s daemon to restart (%s)", claims.Subject, name, mode)
+		s.logInfo("%s asked %s to restart (%s)", claims.Subject, name, mode)
 	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "requested"})
 }

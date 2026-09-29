@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -44,4 +45,27 @@ func openPTY() (master, slave *os.File, err error) {
 func attachPTY(cmd *exec.Cmd, slave *os.File) {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = slave, slave, slave
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
+}
+
+// stopWithParent has the kernel end cmd when this process dies, so a
+// door's background program never outlives the bbs daemon (and ends
+// up connected twice after its restart). Call after attachPTY.
+func stopWithParent(cmd *exec.Cmd) {
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Pdeathsig = syscall.SIGTERM
+}
+
+// terminate ends cmd's process group: SIGTERM, then SIGKILL if it
+// hasn't exited after killGrace.
+func terminate(cmd *exec.Cmd, exited <-chan error) {
+	pid := cmd.Process.Pid
+	syscall.Kill(-pid, syscall.SIGTERM)
+	select {
+	case <-exited:
+	case <-time.After(killGrace):
+		syscall.Kill(-pid, syscall.SIGKILL)
+		<-exited
+	}
 }

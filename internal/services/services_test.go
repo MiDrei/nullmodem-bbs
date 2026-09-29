@@ -86,3 +86,39 @@ func TestRunReportsARestartRequestedAfterStart(t *testing.T) {
 		t.Fatal("restart request not noticed")
 	}
 }
+
+func TestDoorProgramsAreListedRestartedAndRemoved(t *testing.T) {
+	st := newStore(t)
+	started, err := st.RegisterProcess(DoorPrefix+"MRC Chat", "umrc-bridge", 4242)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.RegisterProcess(DoorPrefix+"Another", "x", 1)
+
+	list, _ := st.List()
+	if len(list) != 5 || list[3].Name != DoorPrefix+"Another" || list[4].Name != DoorPrefix+"MRC Chat" || list[4].PID != 4242 || !list[4].Running() {
+		t.Fatalf("List = %+v", list)
+	}
+	if ok, _ := st.Known(DoorPrefix + "MRC Chat"); !ok {
+		t.Fatal("registered door program not known")
+	}
+	if ok, _ := st.Known(DoorPrefix + "nope"); ok {
+		t.Fatal("unregistered door program known")
+	}
+
+	if st.RestartRequested(DoorPrefix+"MRC Chat", started) {
+		t.Fatal("restart requested before anyone asked")
+	}
+	st.RequestRestart(DoorPrefix+"MRC Chat", ModeNow)
+	if !st.RestartRequested(DoorPrefix+"MRC Chat", started) {
+		t.Fatal("restart request not seen")
+	}
+
+	if err := st.RemoveDoorPrograms([]string{DoorPrefix + "MRC Chat"}); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = st.List()
+	if len(list) != 4 || list[3].Name != DoorPrefix+"MRC Chat" {
+		t.Fatalf("after RemoveDoorPrograms: %+v", list)
+	}
+}

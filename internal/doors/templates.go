@@ -46,6 +46,12 @@ type Template struct {
 	Download *Download `json:"download,omitempty"`
 	// SourceURL is where the door comes from, for the admin to link.
 	SourceURL string `json:"source_url,omitempty"`
+	// Program is the door's background program, if it has one -- see
+	// Program and Supervisor.
+	Program []string `json:"program,omitempty"`
+	// MRC marks uMRC: installing it asks for what the chat network
+	// shows about this board (see MRCConfig).
+	MRC bool `json:"mrc,omitempty"`
 }
 
 // Download says how Install fetches and unpacks a door.
@@ -79,6 +85,28 @@ type Download struct {
 // from DOSBox-X itself (see dosboxConfigTemplate), so none of them
 // load BNU or X00.
 var Templates = []Template{
+	{
+		ID:          "umrc",
+		Name:        "MRC Chat",
+		Description: "Multi-Relay Chat: live chat with the callers of 180+ other BBSes, through uMRC.",
+		License:     "MIT",
+		Dir:         "umrc",
+		Kind:        "native",
+		Exe:         "umrc-client",
+		// -IP lets the chat network ban a single troublemaker instead
+		// of the whole board.
+		Args:    []string{"-D", "{dropfile}", "-IP{ip}"},
+		Program: []string{"umrc-bridge"},
+		MRC:     true,
+		Download: &Download{
+			URL:         "https://github.com/codefenix-dev/uMRC/releases/download/106/umrc-106-linux-{arch}.tar.gz",
+			Arch:        map[string]string{"amd64": "x64", "arm64": "arm64"},
+			Format:      "tar.gz",
+			Executables: []string{"umrc-client", "umrc-bridge", "setup"},
+		},
+		Setup:     `Its background program umrc-bridge keeps the connection to the chat network and runs as long as the door is set up (see Services). Only one such connection per board is allowed: don't run uMRC for the same board anywhere else.`,
+		SourceURL: "https://github.com/codefenix-dev/uMRC",
+	},
 	{
 		ID:          "immortal-barons",
 		Name:        "Immortal Barons",

@@ -77,7 +77,9 @@ type Door struct {
 	Dir string
 	// Args are the door's command-line arguments. They may use the
 	// placeholders "{dropfile}" (the absolute path of DOOR32.SYS),
-	// "{dropfile_dir}" (its directory) and "{node}". Without any
+	// "{dropfile_dir}" (its directory), "{node}" and "{ip}" (the
+	// caller's IP address; an argument using it is left out when that
+	// isn't known). Without any
 	// placeholder, "/P<dropfile dir>/" is appended -- Usurper's switch,
 	// and how doors were launched before placeholders existed. Kind
 	// "native" only.
@@ -151,6 +153,9 @@ type Session struct {
 	// formats that carry them.
 	BBSName   string
 	SysopName string
+	// RemoteIP is the caller's IP address, for the "{ip}" placeholder;
+	// empty if unknown.
+	RemoteIP string
 }
 
 // isTelnetConn is implemented by a conn that can suspend its own
@@ -398,7 +403,7 @@ func buildNativeCmd(nodeDir string, door Door, sess Session) (*exec.Cmd, error) 
 		return nil, fmt.Errorf("doors: resolving %s's executable path: %w", door.Name, err)
 	}
 
-	cmd := exec.Command(exe, nativeArgs(door.Args, nodeDir, sess.Node)...)
+	cmd := exec.Command(exe, nativeArgs(door.Args, nodeDir, sess.Node, sess.RemoteIP)...)
 	cmd.Dir = door.Dir
 	return cmd, nil
 }
@@ -614,15 +619,20 @@ func removeCaseInsensitive(base, rel string) error {
 }
 
 // nativeArgs expands a native door's Args (see Door.Args).
-func nativeArgs(args []string, nodeDir string, node int) []string {
+func nativeArgs(args []string, nodeDir string, node int, ip string) []string {
 	r := strings.NewReplacer(
 		"{dropfile}", filepath.Join(nodeDir, "DOOR32.SYS"),
 		"{dropfile_dir}", nodeDir+string(filepath.Separator),
 		"{node}", strconv.Itoa(node),
+		"{ip}", ip,
 	)
 	out := make([]string, 0, len(args)+1)
 	placeholders := false
 	for _, a := range args {
+		if ip == "" && strings.Contains(a, "{ip}") {
+			placeholders = true
+			continue
+		}
 		if e := r.Replace(a); e != a {
 			placeholders = true
 			a = e

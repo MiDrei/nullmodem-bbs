@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -98,6 +99,7 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 		TotalCalls:      u.TotalCalls,
 		BBSName:         s.BBSName,
 		SysopName:       s.SysopName,
+		RemoteIP:        remoteIP(term.Raw().RemoteAddr()),
 	}
 	if u.LastLoginAt.Valid {
 		sess.LastCall = u.LastLoginAt.Time
@@ -106,4 +108,19 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 		s.logWarn("door %s ended abnormally for %s: %v", door.Name, u.Username, err)
 	}
 	return term.Println(ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) + fmt.Sprintf("Returned from %s.", door.Name))
+}
+
+// remoteIP is addr's IP address, or "" if it has none.
+func remoteIP(addr net.Addr) string {
+	if addr == nil {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return ""
+	}
+	if ip := net.ParseIP(host); ip != nil && !ip.IsUnspecified() {
+		return ip.String()
+	}
+	return ""
 }

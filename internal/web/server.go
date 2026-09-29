@@ -84,6 +84,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/doors", s.requireAuth(http.HandlerFunc(s.handlePutDoors)))
 	mux.Handle("GET /api/doors/templates", s.requireAuth(http.HandlerFunc(s.handleListDoorTemplates)))
 	mux.Handle("POST /api/doors/templates/{id}", s.requireAuth(http.HandlerFunc(s.handleAddDoorFromTemplate)))
+	mux.Handle("GET /api/doors/mrc", s.requireAuth(http.HandlerFunc(s.handleGetMRCConfig)))
+	mux.Handle("PUT /api/doors/mrc", s.requireAuth(http.HandlerFunc(s.handlePutMRCConfig)))
 	mux.Handle("POST /api/binkp/test-connection", s.requireAuth(http.HandlerFunc(s.handleTestBinkpConnection)))
 	mux.Handle("POST /api/binkp/send-now", s.requireAuth(http.HandlerFunc(s.handleSendNowBinkp)))
 	mux.Handle("POST /api/binkp/areafix/changes", s.requireAuth(http.HandlerFunc(s.handleRequestAreafixChanges)))

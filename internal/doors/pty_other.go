@@ -13,3 +13,10 @@ func openPTY() (master, slave *os.File, err error) {
 }
 
 func attachPTY(cmd *exec.Cmd, slave *os.File) {}
+
+func stopWithParent(cmd *exec.Cmd) {}
+
+func terminate(cmd *exec.Cmd, exited <-chan error) {
+	cmd.Process.Kill()
+	<-exited
+}

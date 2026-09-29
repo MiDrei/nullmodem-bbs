@@ -248,6 +248,10 @@ type DoorConfig struct {
 	// entry was created from, if any -- informational, shown in the
 	// web admin.
 	Template string `yaml:"template,omitempty"`
+	// Program is a background program the door needs running all the
+	// time (uMRC's umrc-bridge), started in the door's directory -- see
+	// internal/doors.Supervisor. Native doors only.
+	Program []string `yaml:"program,omitempty"`
 }
 
 // PrimaryFTNAddress returns c's first configured FTN address, or "" if

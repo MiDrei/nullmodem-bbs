@@ -118,7 +118,8 @@ func main() {
 
 	// A restart asked for in the web admin (see internal/services):
 	// "idle" waits until no caller is online, "now" doesn't.
-	if inst, err := services.NewStore(sqlDB).Register(services.BBS, version.Short()); err != nil {
+	serviceStore := services.NewStore(sqlDB)
+	if inst, err := serviceStore.Register(services.BBS, version.Short()); err != nil {
 		logger.Warn("registering with the service list: %v", err)
 	} else {
 		go inst.Run(context.Background(), func(mode string) {
@@ -135,6 +136,22 @@ func main() {
 			os.Exit(0)
 		})
 	}
+
+	// Doors' background programs (uMRC's umrc-bridge) run as long as
+	// their door is set up, re-read from the config like the door list.
+	supervisor := &doors.Supervisor{
+		Programs: func() []doors.Program {
+			c, err := config.Load(*configPath)
+			if err != nil {
+				logger.Warn("reloading doors from %s: %v", *configPath, err)
+				return programsFromConfig(cfg.Doors)
+			}
+			return programsFromConfig(c.Doors)
+		},
+		Store:  serviceStore,
+		Logger: logger,
+	}
+	go supervisor.Run(context.Background())
 
 	errCh := make(chan error, 2)
 
@@ -192,6 +209,22 @@ func doorsFromConfig(entries []config.DoorConfig) []doors.Door {
 			Stdio:             d.Stdio,
 			ANSI16:            d.ANSI16,
 		})
+	}
+	return list
+}
+
+// programsFromConfig lists the background programs of the native
+// doors that have one and are installed.
+func programsFromConfig(entries []config.DoorConfig) []doors.Program {
+	var list []doors.Program
+	for _, d := range entries {
+		if len(d.Program) == 0 || d.Kind != "" || d.Dir == "" {
+			continue
+		}
+		if _, err := os.Stat(d.Dir); err != nil {
+			continue
+		}
+		list = append(list, doors.Program{Door: d.Name, Dir: d.Dir, Command: d.Program})
 	}
 	return list
 }

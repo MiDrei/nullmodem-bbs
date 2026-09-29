@@ -1278,6 +1278,8 @@ export interface Door {
 	/** Reduce the door's 256/true colours to the 16 classic ANSI colours. */
 	ansi16: boolean;
 	template: string;
+	/** Native doors only: a background program kept running while the door is set up (uMRC's umrc-bridge). */
+	program: string[];
 	/** Read-only: the door's directory exists and has files. */
 	installed: boolean;
 }
@@ -1306,6 +1308,9 @@ export interface DoorTemplate {
 	lock_files?: string[];
 	setup?: string;
 	source_url?: string;
+	program?: string[];
+	/** uMRC: installing asks for what the chat network shows about this board. */
+	mrc?: boolean;
 	downloadable: boolean;
 	installed: boolean;
 	configured: boolean;
@@ -1324,8 +1329,35 @@ export function listDoorTemplates(token: string): Promise<DoorTemplate[]> {
 }
 
 /** Installs (downloads, if the template allows) and adds a door from a template. */
-export function addDoorFromTemplate(token: string, id: string): Promise<DoorsResponse> {
-	return request<DoorsResponse>(`/api/doors/templates/${encodeURIComponent(id)}`, { method: 'POST' }, token);
+export function addDoorFromTemplate(token: string, id: string, mrc?: MRCConfig): Promise<DoorsResponse> {
+	return request<DoorsResponse>(
+		`/api/doors/templates/${encodeURIComponent(id)}`,
+		{ method: 'POST', body: mrc ? JSON.stringify({ mrc }) : undefined },
+		token
+	);
+}
+
+/** uMRC's mrc.cfg: the Multi-Relay Chat host, and what the chat network shows about this board. */
+export interface MRCConfig {
+	host: string;
+	port: string;
+	ssl: boolean;
+	bbs_name: string;
+	software: string;
+	website: string;
+	telnet: string;
+	ssh: string;
+	sysop: string;
+	description: string;
+}
+
+export function getMRCConfig(token: string): Promise<MRCConfig> {
+	return request<MRCConfig>('/api/doors/mrc', { method: 'GET' }, token);
+}
+
+/** Saves mrc.cfg; the door's umrc-bridge restarts to pick it up. */
+export function putMRCConfig(token: string, mrc: MRCConfig): Promise<MRCConfig> {
+	return request<MRCConfig>('/api/doors/mrc', { method: 'PUT', body: JSON.stringify(mrc) }, token);
 }
 
 // --- Services (sysop) ---
