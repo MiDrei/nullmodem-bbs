@@ -31,7 +31,13 @@ func frameLine(isData bool, payload []byte) string {
 	cmd := Command(payload[0])
 	arg := string(payload[1:])
 	if cmd == MPWD {
-		arg = "***"
+		// Keep the CRAM-MD5 prefix visible: a bare "***" reads like a
+		// plaintext password to anyone looking at a transcript.
+		if _, ok := parseCRAMResponse(arg); ok {
+			arg = cramOptPrefix + "***"
+		} else {
+			arg = "***"
+		}
 	}
 	if arg == "" {
 		return cmd.String()

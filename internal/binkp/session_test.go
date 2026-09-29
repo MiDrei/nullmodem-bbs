@@ -1293,9 +1293,9 @@ func (r *fakeRecorder) RecordFrame(direction, line string) {
 
 // TestSessionRecorderRedactsPasswordAndSummarizesDataFrames locks in
 // SessionRecorder's two safety properties: M_PWD's argument never
-// reaches the recorder (redacted to "***" on both the sending and
-// receiving side, regardless of whether it's plaintext or a CRAM-MD5
-// digest), and a data frame is summarized by its byte count only,
+// reaches the recorder (redacted on both the sending and receiving
+// side; a CRAM-MD5 digest keeps its "CRAM-MD5-" prefix, see
+// TestFrameLineRedactsPassword), and a data frame is summarized by its byte count only,
 // never its actual content.
 func TestSessionRecorderRedactsPasswordAndSummarizesDataFrames(t *testing.T) {
 	origRec := &fakeRecorder{}
@@ -1339,11 +1339,11 @@ func TestSessionRecorderRedactsPasswordAndSummarizesDataFrames(t *testing.T) {
 		}
 		return false
 	}
-	if !wantLine(origRec.lines, "send: M_PWD ***") {
-		t.Fatalf("originator lines = %v, want a redacted \"send: M_PWD ***\"", origRec.lines)
+	if !wantLine(origRec.lines, "send: M_PWD CRAM-MD5-***") {
+		t.Fatalf("originator lines = %v, want a redacted \"send: M_PWD CRAM-MD5-***\"", origRec.lines)
 	}
-	if !wantLine(ansRec.lines, "recv: M_PWD ***") {
-		t.Fatalf("answerer lines = %v, want a redacted \"recv: M_PWD ***\"", ansRec.lines)
+	if !wantLine(ansRec.lines, "recv: M_PWD CRAM-MD5-***") {
+		t.Fatalf("answerer lines = %v, want a redacted \"recv: M_PWD CRAM-MD5-***\"", ansRec.lines)
 	}
 	if !wantLine(origRec.lines, "send: DATA 5 bytes") {
 		t.Fatalf("originator lines = %v, want \"send: DATA 5 bytes\" (content summarized, not embedded)", origRec.lines)
@@ -1617,5 +1617,19 @@ func TestFileNameWithSpaceSurvivesTheWireRoundTrip(t *testing.T) {
 	}
 	if receivedName != name {
 		t.Fatalf("received file name = %q, want %q", receivedName, name)
+	}
+}
+
+// TestFrameLineRedactsPassword checks both M_PWD forms: a plaintext
+// password becomes "***", a CRAM-MD5 response keeps its prefix so a
+// transcript shows which kind was sent -- without the digest.
+func TestFrameLineRedactsPassword(t *testing.T) {
+	for _, tc := range []struct{ arg, want string }{
+		{"super-secret", "M_PWD ***"},
+		{"CRAM-MD5-0123456789abcdef", "M_PWD CRAM-MD5-***"},
+	} {
+		if got := frameLine(false, append([]byte{byte(MPWD)}, tc.arg...)); got != tc.want {
+			t.Errorf("frameLine(M_PWD %q) = %q, want %q", tc.arg, got, tc.want)
+		}
 	}
 }

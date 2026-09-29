@@ -1646,7 +1646,7 @@ func TestPollAndAnswerRecordSessionTranscriptsWhenSessionLogConfigured(t *testin
 		if !strings.Contains(text, "M_ADR") {
 			t.Fatalf("%s transcript missing M_ADR: %q", e.Direction, text)
 		}
-		if !strings.Contains(text, "M_PWD ***") {
+		if !strings.Contains(text, "M_PWD CRAM-MD5-***") {
 			t.Fatalf("%s transcript missing redacted M_PWD: %q", e.Direction, text)
 		}
 		if strings.Contains(text, "sess3cret") {
