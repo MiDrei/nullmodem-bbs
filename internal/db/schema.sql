@@ -380,3 +380,23 @@ CREATE TABLE IF NOT EXISTS services (
     -- restart_needed lists why a restart is due, "; "-separated.
     restart_needed       TEXT NOT NULL DEFAULT ''
 );
+
+-- echo_point_deliveries and netmail_point_deliveries record what a
+-- point of this system (a downlink with a point address, e.g. a
+-- reader app like FidoMail -- see internal/tosser's points.go) has
+-- already been sent, keyed by its uplink entry's host: SEEN-BY can't
+-- name points, and a point shares its net/node with this system, so
+-- the SEEN-BY tracking used for nodes doesn't work for them.
+-- netmail_point_deliveries holds copies of netmail to a point's
+-- "post as" user, which stay in that user's inbox as well.
+CREATE TABLE IF NOT EXISTS echo_point_deliveries (
+    message_id  INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    uplink_host TEXT NOT NULL,
+    PRIMARY KEY (message_id, uplink_host)
+);
+
+CREATE TABLE IF NOT EXISTS netmail_point_deliveries (
+    message_id  INTEGER NOT NULL REFERENCES netmail_messages(id) ON DELETE CASCADE,
+    uplink_host TEXT NOT NULL,
+    PRIMARY KEY (message_id, uplink_host)
+);

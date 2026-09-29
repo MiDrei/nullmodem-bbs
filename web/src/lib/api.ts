@@ -24,8 +24,10 @@ export interface BinkpUplink {
 	no_cram: boolean;
 	/** Restricts this uplink to a subset of this system's own FTN addresses (BBSConfig.ftn_addresses): only these are presented via M_ADR when polling it, and only their zones count as this uplink's own for Crash-mail routing -- lets one hub's M_ADR handshake not leak AKAs that belong to a different network entirely. Empty means unrestricted (every configured address applies, the old default). */
 	aka_addresses: string[];
-	/** Purely a UI grouping: true for one of this system's own points/nodes it feeds (shown under "Nodes / Points"), false for an upstream hub/network feed (shown under "Hubs", the default). No effect on polling, dialing, or routing. */
+	/** True for one of this system's own points/nodes it feeds (shown under "Nodes / Points"), false for an upstream hub/network feed (shown under "Hubs", the default). A downlink with a point address is a point: it only gets netmail addressed to it and its subscribed areas. */
 	downlink: boolean;
+	/** Points only: the local user whose mail this point (the sysop's reader app) reads and writes -- its mail goes out as if written on the BBS, and that user's netmail is copied to it. Empty = an ordinary point. */
+	post_as: string;
 }
 
 export interface BBSConfig {

@@ -749,3 +749,70 @@ func (s *Store) Neighbors(areaID, id int64) (before, after *int64, err error) {
 func isUniqueConstraintErr(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint")
 }
+
+// PostEcho stores an echomail message written by local user
+// fromUserID somewhere other than the BBS itself -- a point's reader
+// app posting as that user (see internal/tosser's points.go) -- so it
+// goes out like any local post, under this system's own address.
+// msgID is the point's own MSGID, kept only to recognize the point
+// resending the same packet (created is false then, as in
+// ReceiveEcho); outbound, the message gets this system's MSGID.
+func (s *Store) PostEcho(areaID, fromUserID int64, toName, subject, body, msgID string, postedAt time.Time) (msg *Message, created bool, err error) {
+	if toName == "" {
+		toName = "All"
+	}
+	res, err := s.db.Exec(
+		`INSERT OR IGNORE INTO messages (area_id, from_user_id, to_name, subject, body, msgid, posted_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		areaID, fromUserID, toName, subject, body, msgID, postedAt,
+	)
+	if err != nil {
+		return nil, false, fmt.Errorf("message: post echo to area %d: %w", areaID, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return nil, false, fmt.Errorf("message: post echo to area %d: %w", areaID, err)
+	} else if n == 0 {
+		var id int64
+		if err := s.db.QueryRow(`SELECT id FROM messages WHERE area_id = ? AND msgid = ?`, areaID, msgID).Scan(&id); err != nil {
+			return nil, false, fmt.Errorf("message: locating duplicate msgid %q in area %d: %w", msgID, areaID, err)
+		}
+		existing, err := s.MessageByID(id)
+		return existing, false, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, false, fmt.Errorf("message: last insert id: %w", err)
+	}
+	if err := s.MarkMessageRead(fromUserID, id); err != nil {
+		return nil, false, err
+	}
+	msg, err = s.MessageByID(id)
+	return msg, err == nil, err
+}
+
+// DeliveredToPoint returns the IDs of the messages already sent to the
+// point whose uplink entry has host uplinkHost.
+func (s *Store) DeliveredToPoint(uplinkHost string) (map[int64]bool, error) {
+	rows, err := s.db.Query(`SELECT message_id FROM echo_point_deliveries WHERE uplink_host = ?`, uplinkHost)
+	if err != nil {
+		return nil, fmt.Errorf("message: point deliveries for %s: %w", uplinkHost, err)
+	}
+	defer rows.Close()
+	out := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("message: point deliveries for %s: %w", uplinkHost, err)
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}
+
+// MarkDeliveredToPoint records that messageID reached (or came from)
+// the point with host uplinkHost. Idempotent.
+func (s *Store) MarkDeliveredToPoint(messageID int64, uplinkHost string) error {
+	if _, err := s.db.Exec(`INSERT OR IGNORE INTO echo_point_deliveries (message_id, uplink_host) VALUES (?, ?)`, messageID, uplinkHost); err != nil {
+		return fmt.Errorf("message: mark %d delivered to %s: %w", messageID, uplinkHost, err)
+	}
+	return nil
+}

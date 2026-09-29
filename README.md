@@ -40,6 +40,8 @@ Teil der NullModem-Familie:
   AKAs
 - Tosser für Echomail, Netmail und TIC-Datei-Echos
 - Areafix/Filefix, auch für eigene Downlinks
+- Points, z. B. ein Reader wie FidoMail; wahlweise schreibt er als dein
+  BBS-User, als käme die Post direkt von der BBS
 
 ## Aufbau
 
@@ -91,6 +93,7 @@ go test ./...
 - [docs/docker.md](docs/docker.md) — Betrieb mit Docker
 - [docs/adding-a-door.md](docs/adding-a-door.md) — Doors einrichten, nativ und
   unter DOSBox-X
+- [docs/points.md](docs/points.md) — Points und eigene Reader-Apps (FidoMail)
 - [docs/building-sexyz.md](docs/building-sexyz.md) — `sexyz` bauen, warum nicht
   lrzsz
 - [docs/third-party.md](docs/third-party.md) — Fremdsoftware im Image und ihre

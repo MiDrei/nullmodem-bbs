@@ -46,8 +46,14 @@
 			hold: false,
 			no_cram: false,
 			aka_addresses: [],
-			downlink
+			downlink,
+			post_as: ''
 		};
+	}
+
+	// A point of this system: a downlink with a point address.
+	function isPoint(u: BinkpUplink): boolean {
+		return u.downlink && /^\s*\d+:\d+\/\d+\.[1-9]\d*/.test(u.address);
 	}
 
 	function isAKAChecked(uplink: BinkpUplink, addr: string): boolean {
@@ -338,6 +344,14 @@
 										Hold
 									</span>
 								{/if}
+								{#if u.post_as}
+									<span
+										class="rounded-full bg-sky-950 px-2 py-0.5 text-[10px] text-sky-300"
+										title="Its mail goes out as if {u.post_as} wrote it on the BBS"
+									>
+										Posts as {u.post_as}
+									</span>
+								{/if}
 								{#if u.no_cram}
 									<span
 										class="rounded-full bg-red-950 px-2 py-0.5 text-[10px] text-red-400"
@@ -542,9 +556,28 @@
 						<input type="checkbox" class="check" bind:checked={editingUplink.downlink} />
 						<span class="text-slate-400">
 							This is one of our own nodes/points (we're their hub) -- lists it under "Nodes /
-							Points" instead of "Hubs". Purely organizational, no effect on how it's dialed.
+							Points" instead of "Hubs". With a point address (21:3/194.1) it is treated as a point:
+							it only gets netmail addressed to it and the areas it subscribed to.
 						</span>
 					</label>
+					{#if isPoint(editingUplink)}
+						<label class="col-span-2 flex flex-col gap-1 text-sm">
+							<span class="text-slate-400">Post as BBS user (for your own reader app)</span>
+							<input
+								class="field field-sm"
+								bind:value={editingUplink.post_as}
+								placeholder="(empty: an ordinary point)"
+								autocomplete="off"
+							/>
+							<span class="text-xs text-slate-500">
+								For a reader like FidoMail that you use as this point: its echomail and netmail go out
+								as if this user wrote them on the BBS -- this system's address, MSGID and origin line --
+								and netmail to this user is copied to the point too (the last two weeks when first
+								set up). Give each network's point address its own entry, all with the same host
+								label, password and user.
+							</span>
+						</label>
+					{/if}
 					<label class="flex items-center gap-2 text-sm">
 						<input type="checkbox" class="check" bind:checked={editingUplink.poll_disabled} />
 						<span class="text-slate-400">

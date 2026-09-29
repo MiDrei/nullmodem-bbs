@@ -189,14 +189,23 @@ type BinkpUplink struct {
 	// every configured address is presented to every uplink, and only
 	// Address's own zone is used for Crash routing.
 	AKAAddresses []string `yaml:"aka_addresses,omitempty"`
-	// Downlink is purely a web admin UI grouping: true for one of this
-	// system's own points/nodes it feeds (shown under "Nodes / Points"
-	// in the uplinks page), false for an upstream hub/network feed
-	// this system itself depends on (shown under "Hubs", the
-	// default). Has no effect on polling, dialing, or routing --
-	// internal/tosser/cmd/mailer treat every entry identically either
-	// way, same as before this field existed.
+	// Downlink is true for one of this system's own points/nodes it
+	// feeds (shown under "Nodes / Points" in the uplinks page), false
+	// for an upstream hub/network feed this system itself depends on
+	// (shown under "Hubs", the default). For a node that's all it
+	// does. A downlink with a point address (21:3/194.1) is a point of
+	// this system, which internal/tosser treats as such: it only gets
+	// netmail addressed to it and the areas it subscribed to, never
+	// this system's own outgoing mail (see internal/tosser's
+	// points.go).
 	Downlink bool `yaml:"downlink,omitempty"`
+	// PostAs, for a point, names the local user whose mail the point
+	// reads and writes -- the sysop's own reader app (FidoMail and the
+	// like). Its echomail and netmail then go out as if that user had
+	// written them on the BBS itself, under this system's address, and
+	// netmail to that user is copied to the point too. Empty means an
+	// ordinary point.
+	PostAs string `yaml:"post_as,omitempty"`
 }
 
 // DoorConfig is one entry in Config.Doors -- see internal/doors.Door,

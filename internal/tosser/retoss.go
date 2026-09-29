@@ -59,7 +59,7 @@ func Retoss(files []RetossFile, allUplinks []config.BinkpUplink, netmailStore *n
 
 	for _, rf := range files {
 		f := binkp.InboundFile{Name: rf.Name, Size: int64(len(rf.Data)), ModTime: time.Now()}
-		if err := handleInboundFile(f, bytes.NewReader(rf.Data), acceptedPackets, netmailStore, messages, users, robot, ticSess, res, rf.UplinkAddress, rf.UplinkHost); err != nil {
+		if err := handleInboundFile(f, bytes.NewReader(rf.Data), acceptedPackets, netmailStore, messages, users, robot, ticSess, res, rf.UplinkAddress, rf.UplinkHost, nil); err != nil {
 			return res, err
 		}
 	}
