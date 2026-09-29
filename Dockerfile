@@ -60,6 +60,11 @@ RUN git init -q sbbs && cd sbbs && \
         /src/smblib/ /src/encode/ /docs/gpl.txt /docs/lgpl.txt && \
     git fetch -q --depth 1 --filter=blob:none origin "$SBBS_COMMIT" && \
     git checkout -q FETCH_HEAD
+# One local fix on top (see the patch's header): sexyz could exit
+# before its output thread had sent the session's last bytes. Applied
+# before the source archive is made, so the archive is what was built.
+COPY third_party/sexyz/output-flush.patch /src/
+RUN cd sbbs && git apply /src/output-flush.patch
 WORKDIR /src/sbbs/src/sbbs3
 # The version headers need git; generated first, they go into the
 # source archive too, so it rebuilds without git or network.
@@ -68,7 +73,7 @@ RUN make git_branch.h git_hash.h && \
         src/build src/sbbs3 src/xpdev src/hash src/smblib src/encode
 RUN make RELEASE=1 sexyz && \
     install -m 0755 */sexyz /usr/local/bin/sexyz
-COPY third_party/sexyz/NOTICE /out/doc/NOTICE
+COPY third_party/sexyz/NOTICE third_party/sexyz/output-flush.patch /out/doc/
 RUN cp /src/sbbs/docs/gpl.txt /out/doc/COPYING && \
     cp /src/sbbs/docs/lgpl.txt /out/doc/COPYING.LESSER && \
     sed -n '1,/\*\//p' zmodem.c > /out/doc/LICENSE.zmodem && \

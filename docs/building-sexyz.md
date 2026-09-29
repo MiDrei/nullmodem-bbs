@@ -12,9 +12,16 @@ account runs the `bbs` daemon.
 ```sh
 git clone --depth 1 https://gitlab.synchro.net/main/sbbs.git
 cd sbbs/src/sbbs3
+git -C ../.. apply /path/to/bbs/third_party/sexyz/output-flush.patch
 make git_branch.h git_hash.h   # generates version headers `make sexyz` alone won't on its own
 make RELEASE=1 sexyz
 ```
+
+The patch fixes an exit race in upstream sexyz: it could exit before
+its output thread had sent the session's last bytes, leaving the other
+end waiting for a ZFIN that never came (intermittent, mostly under
+load). The container image applies it too; see
+[third-party.md](third-party.md).
 
 Needs a C toolchain (`build-essential` on Debian/Ubuntu: `gcc`, `make`).
 The result is `gcc.linux.x64.exe.release/sexyz` (path varies by

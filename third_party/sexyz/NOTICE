@@ -9,7 +9,12 @@ Upstream:  Synchronet BBS, https://www.synchro.net/
 Source:    https://gitlab.synchro.net/main/sbbs
 Commit:    7cf7f2fc56d8383aeb6cd35639977f3815afe7ce (2026-09-19)
 Built from src/sbbs3 (sexyz.c, xmodem.c, zmodem.c, ringbuf.c, nopen.c,
-date_str.c, telnet.c) with the xpdev and hash libraries, unmodified.
+date_str.c, telnet.c) with the xpdev and hash libraries.
+
+Modified: sexyz.c carries one change by NullModem BBS (2026-09-29),
+output-flush.patch next to this file: before exiting, sexyz now waits
+until its output thread has sent everything, instead of possibly
+dropping a session's last bytes. Everything else is unmodified.
 
 Licenses
 --------
@@ -33,11 +38,12 @@ version 2 or (at your option) any later version -- see COPYING.
 Corresponding source
 --------------------
 
-The complete source sexyz was built from, with the build files, lies
-next to this file as sexyz-source-7cf7f2fc.tar.gz. To rebuild it on
+The complete source sexyz was built from (with the patch applied),
+with the build files, lies next to this file as
+sexyz-source-7cf7f2fc.tar.gz. To rebuild it on
 Debian (build-essential):
 
     tar xzf sexyz-source-7cf7f2fc.tar.gz
     cd src/sbbs3 && make RELEASE=1 sexyz
 
-The same tree is also at the upstream commit above.
+The same tree is the upstream commit above plus output-flush.patch.

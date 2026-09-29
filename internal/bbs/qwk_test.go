@@ -54,13 +54,13 @@ func TestDownloadQWKSendsRealPacketToRealRZOverTheBBSConnection(t *testing.T) {
 	term := NewTerminal(pipeConn{serverSide})
 
 	recvDir := t.TempDir()
-	cmd := startRZ(t, clientSide, recvDir)
+	cmd, rzOut := startRZ(t, clientSide, recvDir)
 
 	downloadDone := make(chan error, 1)
 	go func() { downloadDone <- s.downloadQWK(term, u) }()
 
 	waitErr := make(chan error, 1)
-	go func() { waitErr <- cmd.Wait() }()
+	go func() { <-rzOut; waitErr <- cmd.Wait() }()
 
 	select {
 	case err := <-waitErr:

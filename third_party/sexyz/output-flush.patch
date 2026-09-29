@@ -1,0 +1,76 @@
+sexyz: drain the output buffers before exiting
+
+main() waited only for the ring buffer to empty, then set `terminate`
+and exited. output_thread copies ring-buffer data into a local linear
+buffer before sending it, so the last bytes of a session (the
+receiver's ZFIN, the sender's "OO") could still sit there, unsent,
+when the process exited -- the other end then waited out its timeouts.
+Seen as intermittent Zmodem failures under load.
+
+The output thread now keeps sending after `terminate` until both
+buffers are empty, and main() wakes it and waits (up to 5 s) for it
+to finish before exiting.
+
+Modified for NullModem BBS, 2026-09-29.
+
+--- a/src/sbbs3/sexyz.c
++++ b/src/sbbs3/sexyz.c
+@@ -137,6 +137,7 @@
+ xpevent_t outbuf_empty;
+ #endif
+ unsigned outbuf_drain_timeout;
++xpevent_t output_done; /* NullModem: set when output_thread has exited */
+ long     outbuf_size;
+ 
+ uchar    inbuf[INBUF_SIZE];
+@@ -839,7 +840,10 @@
+ 	fprintf(statfp, "output thread started\n");
+ #endif
+ 
+-	while (sock != INVALID_SOCKET && !terminate) {
++	/* NullModem: keep sending after terminate until both the ring buffer
++	 * and the linear buffer are drained, so the final ZFIN/"OO" is not
++	 * lost when main() exits. */
++	while (sock != INVALID_SOCKET) {
+ 
+ 		if (bufbot == buftop)
+ 			avail = RingBufFull(&outbuf);
+@@ -847,6 +851,8 @@
+ 			avail = buftop - bufbot;
+ 
+ 		if (!avail) {
++			if (terminate)
++				break;
+ 			WaitForEvent(outbuf.data_event, INFINITE);
+ 			if (outbuf.highwater_mark)
+ 				WaitForEvent(outbuf.highwater_event, outbuf_drain_timeout);
+@@ -896,6 +902,7 @@
+ 		stats[0] = 0;
+ 
+ 	lprintf(LOG_DEBUG, "output thread terminated\n%s", stats);
++	SetEvent(output_done);
+ }
+ 
+ /* Flush output buffer */
+@@ -2143,6 +2150,7 @@
+ #endif
+ 
+ #if !SINGLE_THREADED
++	output_done = CreateEvent(NULL, /* ManualReset */ TRUE, /* InitialState */ FALSE, NULL);
+ 	_beginthread(output_thread, 0, NULL);
+ #endif
+ 
+@@ -2163,6 +2171,13 @@
+ #endif
+ 
+ 	terminate = TRUE; /* stop output thread */
++#if !SINGLE_THREADED
++	/* NullModem: wake the output thread and wait until it has sent
++	 * everything it still holds before exiting. */
++	SetEvent(outbuf.data_event);
++	if (WaitForEvent(output_done, 5000) != WAIT_OBJECT_0)
++		lprintf(LOG_DEBUG, "output thread did not finish");
++#endif
+ 
+ 	lprintf(LOG_INFO, "Exiting - Error level: %d, flows: %u, select_errors=%u"
+ 	        , retval, flows, select_errors);

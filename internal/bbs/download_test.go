@@ -45,7 +45,14 @@ func (c pipeConn) WindowSize() (int, int) { return 80, 24 }
 // every download before it was fixed to manage its pipes directly,
 // and reusing the simpler assignment here hit the identical hang in
 // this test itself.
-func startRZ(t *testing.T, conn net.Conn, dir string) *exec.Cmd {
+//
+// The returned channel is closed once everything rz wrote has been
+// passed on to conn. Callers wait for it before cmd.Wait: Wait closes
+// the stdout pipe as soon as rz has exited, and under load that
+// dropped rz's last words -- its ZFIN answer to the sender -- leaving
+// the BBS's sexyz sz waiting out its own timeouts (this file's long-
+// flaky keystroke test).
+func startRZ(t *testing.T, conn net.Conn, dir string) (*exec.Cmd, <-chan struct{}) {
 	t.Helper()
 	cmd := exec.Command("sexyz", "rz", dir+"/")
 	stdin, err := cmd.StdinPipe()
@@ -71,8 +78,12 @@ func startRZ(t *testing.T, conn net.Conn, dir string) *exec.Cmd {
 		// the test forever waiting for a reader that quit existing.
 		io.Copy(io.Discard, conn)
 	}()
-	go io.Copy(conn, stdout)
-	return cmd
+	stdoutDone := make(chan struct{})
+	go func() {
+		defer close(stdoutDone)
+		io.Copy(conn, stdout)
+	}()
+	return cmd, stdoutDone
 }
 
 // TestDownloadFileSendsRealFileToRealRZOverTheBBSConnection is an
@@ -107,7 +118,7 @@ func TestDownloadFileSendsRealFileToRealRZOverTheBBSConnection(t *testing.T) {
 	term := NewTerminal(pipeConn{serverSide})
 
 	recvDir := t.TempDir()
-	cmd := startRZ(t, clientSide, recvDir)
+	cmd, rzOut := startRZ(t, clientSide, recvDir)
 
 	downloadDone := make(chan error, 1)
 	go func() {
@@ -115,7 +126,7 @@ func TestDownloadFileSendsRealFileToRealRZOverTheBBSConnection(t *testing.T) {
 	}()
 
 	waitErr := make(chan error, 1)
-	go func() { waitErr <- cmd.Wait() }()
+	go func() { <-rzOut; waitErr <- cmd.Wait() }()
 
 	select {
 	case err := <-waitErr:
@@ -192,7 +203,7 @@ func TestDownloadFileDoesNotLoseAKeystrokeRightAfterTheTransferEnds(t *testing.T
 	term := NewTerminal(pipeConn{serverSide})
 
 	recvDir := t.TempDir()
-	cmd := startRZ(t, clientSide, recvDir)
+	cmd, rzOut := startRZ(t, clientSide, recvDir)
 
 	downloadDone := make(chan error, 1)
 	go func() {
@@ -200,7 +211,7 @@ func TestDownloadFileDoesNotLoseAKeystrokeRightAfterTheTransferEnds(t *testing.T
 	}()
 
 	waitErr := make(chan error, 1)
-	go func() { waitErr <- cmd.Wait() }()
+	go func() { <-rzOut; waitErr <- cmd.Wait() }()
 
 	select {
 	case err := <-waitErr:
