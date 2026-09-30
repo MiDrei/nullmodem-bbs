@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -55,6 +56,9 @@ type Area struct {
 	// seen before (see EnsureArea), the same way its echomail toss
 	// does for message areas.
 	Pending bool
+	// KeepDays is this area's own cleanup limit (internal/maintenance):
+	// 0 the configured default, -1 keep everything, more a limit in days.
+	KeepDays int
 }
 
 // CanDownload reports whether an account at securityLevel may browse
@@ -88,6 +92,9 @@ type File struct {
 	// embedded in Body instead, since this system has nowhere else to
 	// put it for a file).
 	SeenBy string
+	// Replaces are the TIC "Replaces" patterns the file arrived with,
+	// passed on when it's forwarded (see internal/tosser's encodeTIC).
+	Replaces []string
 }
 
 // IsFromRemote reports whether f arrived from a remote FTN system via
@@ -132,7 +139,7 @@ func (s *Store) CreateArea(tag, name, description, network string, minSLDownload
 // AreaByID loads a single area by primary key.
 func (s *Store) AreaByID(id int64) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
+		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
 		 FROM file_areas WHERE id = ?`, id,
 	))
 }
@@ -140,14 +147,14 @@ func (s *Store) AreaByID(id int64) (*Area, error) {
 // AreaByTag loads a single area by its short tag (case-insensitive).
 func (s *Store) AreaByTag(tag string) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
+		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
 		 FROM file_areas WHERE tag = ?`, tag,
 	))
 }
 
 func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	var a Area
-	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending); err != nil {
+	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.KeepDays); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAreaNotFound
 		}
@@ -194,7 +201,7 @@ func (s *Store) Networks() ([]string, error) {
 // Network -- sort first) then ordered for menu display within each
 // group. A pending area (see EnsureArea) never appears here.
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
 		 FROM file_areas WHERE min_sl_download <= ? AND pending = 0 ORDER BY network, sort_order, name`, securityLevel)
 }
 
@@ -203,14 +210,14 @@ func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
 // a file into), in the same network-grouped order as ListAreas. See
 // PendingAreas for the areas this excludes.
 func (s *Store) AllAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
 		 FROM file_areas WHERE pending = 0 ORDER BY network, sort_order, name`)
 }
 
 // PendingAreas returns every area awaiting sysop review (see
 // EnsureArea), oldest first.
 func (s *Store) PendingAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
 		 FROM file_areas WHERE pending = 1 ORDER BY created_at`)
 }
 
@@ -261,7 +268,7 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	var areas []Area
 	for rows.Next() {
 		var a Area
-		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending); err != nil {
+		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.KeepDays); err != nil {
 			return nil, fmt.Errorf("file: scan area: %w", err)
 		}
 		areas = append(areas, a)
@@ -288,7 +295,7 @@ type AreaWithStats struct {
 // a pending area never appears here.
 func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats, error) {
 	rows, err := s.db.Query(
-		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at, a.pending,
+		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at, a.pending, a.keep_days,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id AND f.uploaded_by = ?) AS yours,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id
@@ -308,7 +315,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	for rows.Next() {
 		var st AreaWithStats
 		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description, &st.Area.Network,
-			&st.Area.MinSLDownload, &st.Area.MinSLUpload, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending,
+			&st.Area.MinSLDownload, &st.Area.MinSLUpload, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending, &st.Area.KeepDays,
 			&st.Total, &st.Yours, &st.New); err != nil {
 			return nil, fmt.Errorf("file: scan area stats: %w", err)
 		}
@@ -575,17 +582,19 @@ func (s *Store) RecordDownload(id int64) error {
 func (s *Store) FileByID(id int64) (*File, error) {
 	row := s.db.QueryRow(
 		`SELECT f.id, f.area_id, f.filename, f.description, f.size_bytes, f.storage_path,
-		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count, f.seen_by
+		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count, f.seen_by, f.replaces
 		 FROM files f LEFT JOIN users u ON u.id = f.uploaded_by WHERE f.id = ?`, id,
 	)
 	var f File
+	var replaces string
 	if err := row.Scan(&f.ID, &f.AreaID, &f.Filename, &f.Description, &f.SizeBytes, &f.StoragePath,
-		&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount, &f.SeenBy); err != nil {
+		&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount, &f.SeenBy, &replaces); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrFileNotFound
 		}
 		return nil, fmt.Errorf("file: load %d: %w", id, err)
 	}
+	f.Replaces = splitReplaces(replaces)
 	return &f, nil
 }
 
@@ -595,7 +604,7 @@ func (s *Store) FileByID(id int64) (*File, error) {
 func (s *Store) ListFiles(areaID int64) ([]File, error) {
 	rows, err := s.db.Query(
 		`SELECT f.id, f.area_id, f.filename, f.description, f.size_bytes, f.storage_path,
-		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count, f.seen_by
+		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count, f.seen_by, f.replaces
 		 FROM files f LEFT JOIN users u ON u.id = f.uploaded_by
 		 WHERE f.area_id = ? ORDER BY f.uploaded_at, f.id`, areaID,
 	)
@@ -607,10 +616,12 @@ func (s *Store) ListFiles(areaID int64) ([]File, error) {
 	var files []File
 	for rows.Next() {
 		var f File
+		var replaces string
 		if err := rows.Scan(&f.ID, &f.AreaID, &f.Filename, &f.Description, &f.SizeBytes, &f.StoragePath,
-			&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount, &f.SeenBy); err != nil {
+			&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount, &f.SeenBy, &replaces); err != nil {
 			return nil, fmt.Errorf("file: scan file: %w", err)
 		}
+		f.Replaces = splitReplaces(replaces)
 		files = append(files, f)
 	}
 	if err := rows.Err(); err != nil {
@@ -621,4 +632,57 @@ func (s *Store) ListFiles(areaID int64) ([]File, error) {
 
 func isUniqueConstraintErr(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint")
+}
+
+func splitReplaces(v string) []string {
+	if v == "" {
+		return nil
+	}
+	return strings.Split(v, "\n")
+}
+
+// SetReplaces records the TIC "Replaces" patterns a file arrived with
+// (see File.Replaces).
+func (s *Store) SetReplaces(id int64, patterns []string) error {
+	if _, err := s.db.Exec(`UPDATE files SET replaces = ? WHERE id = ?`, strings.Join(patterns, "\n"), id); err != nil {
+		return fmt.Errorf("file: set replaces of %d: %w", id, err)
+	}
+	return nil
+}
+
+// ReplaceMatching deletes the files in areaID matching pattern (a TIC
+// "Replaces" value: a filename, or a shell pattern like "NODELIST.*";
+// case-insensitive), except keepID -- the file replacing them. It
+// returns the names deleted.
+func (s *Store) ReplaceMatching(areaID int64, pattern string, keepID int64) ([]string, error) {
+	pattern = strings.ToLower(strings.TrimSpace(pattern))
+	if pattern == "" || strings.ContainsAny(pattern, "/\\") {
+		return nil, nil
+	}
+	files, err := s.ListFiles(areaID)
+	if err != nil {
+		return nil, err
+	}
+	var deleted []string
+	for _, f := range files {
+		if f.ID == keepID {
+			continue
+		}
+		if ok, err := path.Match(pattern, strings.ToLower(f.Filename)); err != nil || !ok {
+			continue
+		}
+		if err := s.DeleteFile(f.ID); err != nil {
+			return deleted, err
+		}
+		deleted = append(deleted, f.Filename)
+	}
+	return deleted, nil
+}
+
+// SetAreaKeepDays sets an area's own cleanup limit (Area.KeepDays).
+func (s *Store) SetAreaKeepDays(id int64, days int) error {
+	if _, err := s.db.Exec(`UPDATE file_areas SET keep_days = ? WHERE id = ?`, days, id); err != nil {
+		return fmt.Errorf("file: set area %d limit: %w", id, err)
+	}
+	return nil
 }

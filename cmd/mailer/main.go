@@ -18,6 +18,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/maintenance"
 	"log"
 	"net"
 	"os"
@@ -124,6 +125,24 @@ func main() {
 		go inst.Run(ctx, func(string) { close(restartCh) })
 	}
 
+	// The nightly cleanup (internal/maintenance), by the config as it
+	// is each night.
+	maintenance.ApplyLimits(cfg.Maintenance)
+	go maintenance.Nightly(ctx, func() config.MaintenanceConfig {
+		c, err := config.Load(*configPath)
+		if err != nil {
+			return cfg.Maintenance
+		}
+		return c.Maintenance
+	}, maintenance.Deps{
+		DB:         sqlDB,
+		Files:      files,
+		Logs:       applog.NewStore(sqlDB),
+		SessionLog: sessionLog,
+		Archive:    robot.Archive,
+		DBPath:     cfg.Database.Path,
+	}, logger)
+
 	logger.Info("mailer daemon starting, checking every %s which uplinks are due (default interval %s)", checkInterval, defaultInterval)
 	checkUplinks(ctx, cfg, netmailStore, messages, users, robot, ticCfg, pollStore, defaultInterval, sessionLog, logger)
 
@@ -203,7 +222,7 @@ func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, n
 		logger.Warn("inbound BinkP session from %s: %v", remote, err)
 		return
 	}
-	logger.Info("inbound BinkP session from %s (%v): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", remote, res.RemoteAddresses, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
+	logger.Info("inbound BinkP session from %s (%v): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", remote, res.RemoteAddresses, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles)+replacedSuffix(res.ReplacedFiles))
 }
 
 // checkUplinks visits every configured uplink once: a Hold uplink
@@ -305,7 +324,7 @@ func pollIfDue(ctx context.Context, cfg *config.Config, uplink config.BinkpUplin
 		logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
 		return true
 	}
-	logger.Info("polled %s (%s): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
+	logger.Info("polled %s (%s): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles)+replacedSuffix(res.ReplacedFiles))
 	return true
 }
 
@@ -373,7 +392,7 @@ func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config
 		logger.Warn("crash-dialing %s (%s) for pending mail: %v", uplink.Address, uplink.Host, err)
 		return true
 	}
-	logger.Info("crash-dialed %s (%s) for pending mail: sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles))
+	logger.Info("crash-dialed %s (%s) for pending mail: sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles)+replacedSuffix(res.ReplacedFiles))
 	return true
 }
 
@@ -391,4 +410,12 @@ func waitForInbound(logger *applog.Logger) {
 	for activeInbound.Load() > 0 && time.Now().Before(deadline) {
 		time.Sleep(time.Second)
 	}
+}
+
+// replacedSuffix notes files a TIC "Replaces" line deleted, if any.
+func replacedSuffix(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf(", replaced %d old file(s)", n)
 }

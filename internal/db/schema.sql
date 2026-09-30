@@ -400,3 +400,11 @@ CREATE TABLE IF NOT EXISTS netmail_point_deliveries (
     uplink_host TEXT NOT NULL,
     PRIMARY KEY (message_id, uplink_host)
 );
+
+-- maintenance_runs records each cleanup run (internal/maintenance):
+-- when (Unix milliseconds) and its report as JSON.
+CREATE TABLE IF NOT EXISTS maintenance_runs (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    ran_at INTEGER NOT NULL,
+    report TEXT NOT NULL
+);

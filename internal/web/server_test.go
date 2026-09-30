@@ -88,6 +88,7 @@ func newTestServer(t *testing.T) (*Server, *user.Store, string) {
 		Services:      services.NewStore(sqlDB),
 		BBSConfigPath: configPath,
 		JWTSecret:     []byte("test-secret"),
+		DB:            sqlDB,
 	}
 	return srv, users, configPath
 }

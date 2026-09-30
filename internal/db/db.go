@@ -102,6 +102,18 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "files", "replaces", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	for _, col := range [][2]string{
+		{"message_areas", "keep_days"}, {"message_areas", "keep_max"}, {"file_areas", "keep_days"},
+	} {
+		if err := ensureColumn(sqlDB, col[0], col[1], "INTEGER NOT NULL DEFAULT 0"); err != nil {
+			sqlDB.Close()
+			return nil, err
+		}
+	}
 	if err := ensureColumn(sqlDB, "file_areas", "pending", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		sqlDB.Close()
 		return nil, err

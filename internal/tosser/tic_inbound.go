@@ -172,12 +172,27 @@ func (ts *ticSession) toss(desc tic.File, payload []byte, res *Result) error {
 	if description == "" {
 		description = descriptionFromZipDIZ(payload)
 	}
-	_, created, err := ts.files.Receive(area.ID, origin, desc.Name, description, bytes.NewReader(payload))
+	f, created, err := ts.files.Receive(area.ID, origin, desc.Name, description, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("tosser: storing tossed file %q in area %q: %w", desc.Name, desc.Area, err)
 	}
-	if created {
-		res.ReceivedFiles++
+	if !created {
+		return nil
+	}
+	res.ReceivedFiles++
+	if len(desc.Replaces) > 0 {
+		if err := ts.files.SetReplaces(f.ID, desc.Replaces); err != nil {
+			return err
+		}
+		// The file says which older ones it supersedes (apod0930.zip
+		// replaces apod0929.zip): those go.
+		for _, pattern := range desc.Replaces {
+			gone, err := ts.files.ReplaceMatching(area.ID, pattern, f.ID)
+			if err != nil {
+				return fmt.Errorf("tosser: replacing %q in area %q: %w", pattern, desc.Area, err)
+			}
+			res.ReplacedFiles += len(gone)
+		}
 	}
 	return nil
 }

@@ -45,6 +45,11 @@ type Area struct {
 	// area list (Telnet/SSH, portal, reader, QWK), so its traffic never
 	// shows as unread. The web admin still lists it.
 	Hidden bool
+	// KeepDays and KeepMax are this area's own cleanup limits (see
+	// internal/maintenance): 0 means the configured default, -1 keep
+	// everything, more a limit in days / messages.
+	KeepDays int
+	KeepMax  int
 }
 
 // CanRead reports whether an account at securityLevel may read this
@@ -113,7 +118,7 @@ func (s *Store) CreateArea(tag, name, description, network string, minSLRead, mi
 // AreaByID loads a single area by primary key.
 func (s *Store) AreaByID(id int64) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
+		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden, keep_days, keep_max
 		 FROM message_areas WHERE id = ?`, id,
 	))
 }
@@ -121,14 +126,14 @@ func (s *Store) AreaByID(id int64) (*Area, error) {
 // AreaByTag loads a single area by its short tag (case-insensitive).
 func (s *Store) AreaByTag(tag string) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
+		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden, keep_days, keep_max
 		 FROM message_areas WHERE tag = ?`, tag,
 	))
 }
 
 func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	var a Area
-	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.Hidden); err != nil {
+	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.Hidden, &a.KeepDays, &a.KeepMax); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAreaNotFound
 		}
@@ -178,7 +183,7 @@ func (s *Store) Networks() ([]string, error) {
 // area (see EnsureArea) never appears here, however low
 // securityLevel's threshold -- it's invisible until approved.
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden, keep_days, keep_max
 		 FROM message_areas WHERE min_sl_read <= ? AND pending = 0 AND hidden = 0 ORDER BY network, sort_order, name`, securityLevel)
 }
 
@@ -186,7 +191,7 @@ func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
 // for the web admin area management UI, in the same network-grouped
 // order as ListAreas. See PendingAreas for the areas this excludes.
 func (s *Store) AllAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden, keep_days, keep_max
 		 FROM message_areas WHERE pending = 0 ORDER BY network, sort_order, name`)
 }
 
@@ -194,7 +199,7 @@ func (s *Store) AllAreas() ([]Area, error) {
 // EnsureArea), oldest first -- what the web admin's Pending Areas page
 // lists for approval.
 func (s *Store) PendingAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden, keep_days, keep_max
 		 FROM message_areas WHERE pending = 1 ORDER BY created_at`)
 }
 
@@ -253,7 +258,7 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	var areas []Area
 	for rows.Next() {
 		var a Area
-		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.Hidden); err != nil {
+		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.Hidden, &a.KeepDays, &a.KeepMax); err != nil {
 			return nil, fmt.Errorf("message: scan area: %w", err)
 		}
 		areas = append(areas, a)
@@ -280,7 +285,7 @@ type AreaWithStats struct {
 // a pending area never appears here.
 func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats, error) {
 	rows, err := s.db.Query(
-		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_read, a.min_sl_write, a.sort_order, a.created_at, a.pending, a.hidden,
+		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_read, a.min_sl_write, a.sort_order, a.created_at, a.pending, a.hidden, a.keep_days, a.keep_max,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id AND m.from_user_id = ?) AS yours,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id
@@ -300,7 +305,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	for rows.Next() {
 		var st AreaWithStats
 		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description, &st.Area.Network,
-			&st.Area.MinSLRead, &st.Area.MinSLWrite, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending, &st.Area.Hidden,
+			&st.Area.MinSLRead, &st.Area.MinSLWrite, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending, &st.Area.Hidden, &st.Area.KeepDays, &st.Area.KeepMax,
 			&st.Total, &st.Yours, &st.New); err != nil {
 			return nil, fmt.Errorf("message: scan area stats: %w", err)
 		}
@@ -896,4 +901,12 @@ func (s *Store) SubjectBodies(areaID int64, subjects []string, limit int) ([]Mes
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// SetAreaKeep sets an area's own cleanup limits (see Area.KeepDays).
+func (s *Store) SetAreaKeep(id int64, days, max int) error {
+	if _, err := s.db.Exec(`UPDATE message_areas SET keep_days = ?, keep_max = ? WHERE id = ?`, days, max, id); err != nil {
+		return fmt.Errorf("message: set area %d limits: %w", id, err)
+	}
+	return nil
 }

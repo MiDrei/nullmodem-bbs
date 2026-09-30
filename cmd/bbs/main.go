@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"git.maik.ch/nullmodem/bbs/internal/maintenance"
 	"log"
 	"os"
 	"os/exec"
@@ -50,6 +51,7 @@ func main() {
 	defer sqlDB.Close()
 
 	logs := applog.NewStore(sqlDB)
+	maintenance.ApplyLimits(cfg.Maintenance)
 	logger := applog.NewLogger(logs, "bbs")
 
 	users := user.NewStore(sqlDB)

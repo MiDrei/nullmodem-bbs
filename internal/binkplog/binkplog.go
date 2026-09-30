@@ -25,7 +25,7 @@ import (
 // internal/archive.RetentionPeriod's own reasoning: long enough to
 // notice and investigate something odd, not so long it accumulates
 // unbounded on a live system with hourly-ish uplink polls.
-const RetentionPeriod = 5 * 24 * time.Hour
+var RetentionPeriod = 5 * 24 * time.Hour // settable: config maintenance
 
 // Entry is one recorded session's metadata -- Store.Open returns its
 // actual transcript text separately, kept on disk rather than in the
@@ -205,9 +205,17 @@ func (s *Store) Open(id int64) (io.ReadCloser, error) {
 // full scan of what's meant to be a small, bounded table, so this
 // costs nothing worth avoiding.
 func (s *Store) Prune(now time.Time) error {
+	_, err := s.PruneOlderThan(now, RetentionPeriod, false)
+	return err
+}
+
+// PruneOlderThan deletes (or with dry, only counts) the entries older
+// than age as of now, with their files -- Prune with a given age, for
+// internal/maintenance.
+func (s *Store) PruneOlderThan(now time.Time, age time.Duration, dry bool) (int, error) {
 	rows, err := s.db.Query(`SELECT id, storage_path, started_at FROM binkp_sessions`)
 	if err != nil {
-		return fmt.Errorf("binkplog: finding entries to prune: %w", err)
+		return 0, fmt.Errorf("binkplog: finding entries to prune: %w", err)
 	}
 	type victim struct {
 		id   int64
@@ -220,27 +228,30 @@ func (s *Store) Prune(now time.Time) error {
 		var startedAt time.Time
 		if err := rows.Scan(&id, &path, &startedAt); err != nil {
 			rows.Close()
-			return fmt.Errorf("binkplog: scanning entry to prune: %w", err)
+			return 0, fmt.Errorf("binkplog: scanning entry to prune: %w", err)
 		}
-		if now.Sub(startedAt) > RetentionPeriod {
+		if now.Sub(startedAt) > age {
 			victims = append(victims, victim{id, path})
 		}
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return fmt.Errorf("binkplog: finding entries to prune: %w", err)
+		return 0, fmt.Errorf("binkplog: finding entries to prune: %w", err)
 	}
 	rows.Close()
 
+	if dry {
+		return len(victims), nil
+	}
 	for _, v := range victims {
 		if _, err := s.db.Exec(`DELETE FROM binkp_sessions WHERE id = ?`, v.id); err != nil {
-			return fmt.Errorf("binkplog: pruning entry %d: %w", v.id, err)
+			return 0, fmt.Errorf("binkplog: pruning entry %d: %w", v.id, err)
 		}
 		if err := os.Remove(v.path); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("binkplog: removing pruned file %s: %w", v.path, err)
+			return 0, fmt.Errorf("binkplog: removing pruned file %s: %w", v.path, err)
 		}
 	}
-	return nil
+	return len(victims), nil
 }
 
 // sanitizeForFilename strips anything that isn't a plain ASCII

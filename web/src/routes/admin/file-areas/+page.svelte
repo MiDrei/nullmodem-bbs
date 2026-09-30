@@ -27,7 +27,8 @@
 			network: '',
 			min_sl_download: 0,
 			min_sl_upload: 0,
-			sort_order: 0
+			sort_order: 0,
+			keep_days: 0
 		};
 	}
 
@@ -125,7 +126,8 @@
 			network: area.network,
 			min_sl_download: area.min_sl_download,
 			min_sl_upload: area.min_sl_upload,
-			sort_order: area.sort_order
+			sort_order: area.sort_order,
+			keep_days: area.keep_days ?? 0
 		};
 	}
 
@@ -301,6 +303,14 @@
 				<input type="number" class="field field-sm" bind:value={d.sort_order} />
 			</label>
 		</div>
+		<label class="col-span-2 flex flex-col gap-1.5">
+			<span class="text-xs text-muted">Keep days</span>
+			<input type="number" min="-1" class="field field-sm max-w-40" bind:value={d.keep_days} />
+			<span class="text-xs text-faint"
+				>Cleanup limit (Maintenance): 0 = the default, -1 = keep everything. Files a TIC "Replaces"
+				supersedes go right away.</span
+			>
+		</label>
 	</div>
 {/snippet}
 

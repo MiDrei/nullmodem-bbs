@@ -87,6 +87,9 @@ func encodeTIC(pf PendingFileForward, ourAddr mail.Address, password string, siz
 			fmt.Fprintf(&b, "Ldesc %s\r\n", extra)
 		}
 	}
+	for _, r := range pf.Replaces {
+		fmt.Fprintf(&b, "Replaces %s\r\n", r)
+	}
 	if password != "" {
 		fmt.Fprintf(&b, "Pw %s\r\n", password)
 	}

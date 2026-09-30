@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/maintenance"
 	"log"
 	"net/http"
 	"os"
@@ -66,6 +67,7 @@ func main() {
 		log.Printf("no bbs config at %s, using defaults", cfg.BBSConfigPath)
 		bbsCfg = config.Default()
 	}
+	maintenance.ApplyLimits(bbsCfg.Maintenance)
 
 	if err := migrateNetworks(cfg.BBSConfigPath, filepath.Dir(cfg.DatabasePath), bbsCfg, sqlDB, logger); err != nil {
 		log.Fatalf("migrating networks: %v", err)
@@ -102,6 +104,8 @@ func main() {
 		FTNAddress:    bbsCfg.PrimaryFTNAddress(),
 		JWTSecret:     secret,
 		StaticDir:     cfg.StaticDir,
+		DB:            sqlDB,
+		DBPath:        cfg.DatabasePath,
 	}
 
 	logger.Info("web admin API listening on %s", cfg.Addr)

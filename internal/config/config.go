@@ -88,6 +88,8 @@ type Config struct {
 		ListenEnabled bool   `yaml:"listen_enabled"`
 		ListenAddr    string `yaml:"listen_addr"`
 	} `yaml:"binkp"`
+	// Maintenance is the nightly cleanup (see internal/maintenance).
+	Maintenance MaintenanceConfig `yaml:"maintenance"`
 	// InterBBS is taking part in inter-BBS lists carried in data echoes.
 	InterBBS struct {
 		LastCallers LastCallersConfig `yaml:"last_callers"`
@@ -388,3 +390,53 @@ func (c LastCallersConfig) SystemName() string {
 	}
 	return c.System
 }
+
+// MaintenanceConfig is the nightly cleanup (internal/maintenance). A
+// value left out of the file takes its default (see the accessors); 0
+// means "keep everything" wherever a limit is optional.
+type MaintenanceConfig struct {
+	// Enabled runs it every night in the mailer; off, it only runs
+	// when asked in the web admin.
+	Enabled bool `yaml:"enabled"`
+	// Hour is when (0-23, the server's clock); default 4.
+	Hour *int `yaml:"hour,omitempty"`
+	// MessageKeepDays and MessageKeepMax limit every echomail area
+	// (default 365 days, no count limit); an area can set its own.
+	MessageKeepDays *int `yaml:"message_keep_days,omitempty"`
+	MessageKeepMax  *int `yaml:"message_keep_max,omitempty"`
+	// DataAreaKeepDays is the limit for data areas (message.Area.
+	// Hidden: FSX_DAT) without one of their own; default 30.
+	DataAreaKeepDays *int `yaml:"data_area_keep_days,omitempty"`
+	// FileKeepDays limits file areas without a limit of their own;
+	// default 0 (keep).
+	FileKeepDays *int `yaml:"file_keep_days,omitempty"`
+	// NetmailKeepDays deletes read netmail this old; default 0 (keep).
+	NetmailKeepDays *int `yaml:"netmail_keep_days,omitempty"`
+	// LogKeepRows is how many log entries are kept; default 5000.
+	LogKeepRows *int `yaml:"log_keep_rows,omitempty"`
+	// TranscriptKeepDays and ArchiveKeepDays keep BinkP session
+	// transcripts and the inbound archive; default 5 days each.
+	TranscriptKeepDays *int `yaml:"transcript_keep_days,omitempty"`
+	ArchiveKeepDays    *int `yaml:"archive_keep_days,omitempty"`
+	// Vacuum compacts the database afterwards; default on.
+	Vacuum *bool `yaml:"vacuum,omitempty"`
+}
+
+func intOr(p *int, def int) int {
+	if p == nil {
+		return def
+	}
+	return *p
+}
+
+// The effective values, defaults filled in.
+func (m MaintenanceConfig) RunHour() int        { return intOr(m.Hour, 4) }
+func (m MaintenanceConfig) MessageDays() int    { return intOr(m.MessageKeepDays, 365) }
+func (m MaintenanceConfig) MessageMax() int     { return intOr(m.MessageKeepMax, 0) }
+func (m MaintenanceConfig) DataAreaDays() int   { return intOr(m.DataAreaKeepDays, 30) }
+func (m MaintenanceConfig) FileDays() int       { return intOr(m.FileKeepDays, 0) }
+func (m MaintenanceConfig) NetmailDays() int    { return intOr(m.NetmailKeepDays, 0) }
+func (m MaintenanceConfig) LogRows() int        { return intOr(m.LogKeepRows, 5000) }
+func (m MaintenanceConfig) TranscriptDays() int { return intOr(m.TranscriptKeepDays, 5) }
+func (m MaintenanceConfig) ArchiveDays() int    { return intOr(m.ArchiveKeepDays, 5) }
+func (m MaintenanceConfig) VacuumAfter() bool   { return m.Vacuum == nil || *m.Vacuum }

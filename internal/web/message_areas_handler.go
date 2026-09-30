@@ -36,6 +36,11 @@ type messageAreaDTO struct {
 	// Hidden marks a data area, left out of callers' area lists (see
 	// message.Area.Hidden). On update, absent means unchanged.
 	Hidden *bool `json:"hidden,omitempty"`
+	// KeepDays and KeepMax are the area's own cleanup limits (see
+	// message.Area.KeepDays): 0 default, -1 keep all. On update, absent
+	// means unchanged.
+	KeepDays *int `json:"keep_days,omitempty"`
+	KeepMax  *int `json:"keep_max,omitempty"`
 }
 
 func toMessageAreaDTO(a message.Area) messageAreaDTO {
@@ -50,6 +55,8 @@ func toMessageAreaDTO(a message.Area) messageAreaDTO {
 		SortOrder:   a.SortOrder,
 		Pending:     a.Pending,
 		Hidden:      &a.Hidden,
+		KeepDays:    &a.KeepDays,
+		KeepMax:     &a.KeepMax,
 	}
 }
 
@@ -119,6 +126,24 @@ func (s *Server) handleUpdateMessageArea(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		area.Hidden = *dto.Hidden
+	}
+	if dto.KeepDays != nil || dto.KeepMax != nil {
+		days, max := area.KeepDays, area.KeepMax
+		if dto.KeepDays != nil {
+			days = *dto.KeepDays
+		}
+		if dto.KeepMax != nil {
+			max = *dto.KeepMax
+		}
+		if days < -1 || max < -1 {
+			writeError(w, http.StatusBadRequest, "keep limits: -1 keeps all, 0 is the default")
+			return
+		}
+		if err := s.Messages.SetAreaKeep(id, days, max); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not update message area")
+			return
+		}
+		area.KeepDays, area.KeepMax = days, max
 	}
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s updated message area %q (%s)", claims.Subject, area.Name, area.Tag)

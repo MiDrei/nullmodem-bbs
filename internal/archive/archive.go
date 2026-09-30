@@ -27,7 +27,7 @@ import (
 // pruned (see Capture.Finish) -- 5 days chosen as "long enough to
 // notice and investigate something odd, not so long it accumulates
 // unbounded" for a live BBS with real day-to-day FTN traffic.
-const RetentionPeriod = 5 * 24 * time.Hour
+var RetentionPeriod = 5 * 24 * time.Hour // settable: config maintenance
 
 // Entry is one archived inbound file's metadata -- Store.Open returns
 // its actual bytes separately, kept on disk rather than in the
@@ -211,9 +211,17 @@ func (s *Store) Delete(id int64) error {
 // what's meant to be a small, bounded table, so this costs nothing
 // worth avoiding.
 func (s *Store) Prune(now time.Time) error {
+	_, err := s.PruneOlderThan(now, RetentionPeriod, false)
+	return err
+}
+
+// PruneOlderThan deletes (or with dry, only counts) the entries older
+// than age as of now, with their files -- Prune with a given age, for
+// internal/maintenance.
+func (s *Store) PruneOlderThan(now time.Time, age time.Duration, dry bool) (int, error) {
 	rows, err := s.db.Query(`SELECT id, storage_path, received_at FROM inbound_archive`)
 	if err != nil {
-		return fmt.Errorf("archive: finding entries to prune: %w", err)
+		return 0, fmt.Errorf("archive: finding entries to prune: %w", err)
 	}
 	type victim struct {
 		id   int64
@@ -226,27 +234,30 @@ func (s *Store) Prune(now time.Time) error {
 		var receivedAt time.Time
 		if err := rows.Scan(&id, &path, &receivedAt); err != nil {
 			rows.Close()
-			return fmt.Errorf("archive: scanning entry to prune: %w", err)
+			return 0, fmt.Errorf("archive: scanning entry to prune: %w", err)
 		}
-		if now.Sub(receivedAt) > RetentionPeriod {
+		if now.Sub(receivedAt) > age {
 			victims = append(victims, victim{id, path})
 		}
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return fmt.Errorf("archive: finding entries to prune: %w", err)
+		return 0, fmt.Errorf("archive: finding entries to prune: %w", err)
 	}
 	rows.Close()
 
+	if dry {
+		return len(victims), nil
+	}
 	for _, v := range victims {
 		if _, err := s.db.Exec(`DELETE FROM inbound_archive WHERE id = ?`, v.id); err != nil {
-			return fmt.Errorf("archive: pruning entry %d: %w", v.id, err)
+			return 0, fmt.Errorf("archive: pruning entry %d: %w", v.id, err)
 		}
 		if err := os.Remove(v.path); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("archive: removing pruned file %s: %w", v.path, err)
+			return 0, fmt.Errorf("archive: removing pruned file %s: %w", v.path, err)
 		}
 	}
-	return nil
+	return len(victims), nil
 }
 
 // sanitizeFilename strips path separators and NUL from a peer-

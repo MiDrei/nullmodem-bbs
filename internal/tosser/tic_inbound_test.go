@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/mail"
 	"hash/crc32"
 	"strings"
 	"testing"
@@ -360,5 +361,54 @@ func TestPollTossesFileFromRealBinkpSession(t *testing.T) {
 	}
 	if len(stored) != 1 || stored[0].Filename != "readme.zip" {
 		t.Fatalf("stored files = %+v, want exactly one named readme.zip", stored)
+	}
+}
+
+// TestTICReplacesDeletesTheOlderFiles replays fsxNet's daily
+// apodNNNN.zip, whose TIC says "Replaces apod0929.zip", plus a
+// wildcard pattern: the older files go, unrelated ones stay, and the
+// pattern is kept for forwarding.
+func TestTICReplacesDeletesTheOlderFiles(t *testing.T) {
+	_, _, files, _, _, _ := newTestStoresWithRobot(t)
+	toss := func(name, replaces string) *Result {
+		ts := newTICSession(files, nil)
+		res := &Result{}
+		lines := []string{"Area FSX_ART", "File " + name}
+		if replaces != "" {
+			lines = append(lines, "Replaces "+replaces)
+		}
+		if err := ts.receive(name+".tic", bytes.NewReader(buildTICBytes(lines...)), res); err != nil {
+			t.Fatal(err)
+		}
+		if err := ts.receive(name, strings.NewReader("data "+name), res); err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+	toss("apod0929.zip", "apod0928.zip")
+	toss("nodelist.271", "")
+	toss("readme.txt", "")
+	if res := toss("apod0930.zip", "APOD0929.ZIP"); res.ReplacedFiles != 1 {
+		t.Fatalf("ReplacedFiles = %d, want 1", res.ReplacedFiles)
+	}
+	if res := toss("nodelist.272", "NODELIST.*"); res.ReplacedFiles != 1 {
+		t.Fatalf("wildcard: ReplacedFiles = %d, want 1", res.ReplacedFiles)
+	}
+
+	area, _ := files.AreaByTag("FSX_ART")
+	stored, _ := files.ListFiles(area.ID)
+	var names []string
+	for _, f := range stored {
+		names = append(names, f.Filename)
+		if f.Filename == "apod0930.zip" && (len(f.Replaces) != 1 || f.Replaces[0] != "APOD0929.ZIP") {
+			t.Fatalf("Replaces kept = %q", f.Replaces)
+		}
+	}
+	if got := strings.Join(names, " "); got != "readme.txt apod0930.zip nodelist.272" {
+		t.Fatalf("files left = %q", got)
+	}
+	pf := PendingFileForward{File: stored[1], AreaTag: "FSX_ART"}
+	if tic := string(encodeTIC(pf, mail.Address{Zone: 21, Net: 3, Node: 194}, "", 4, 0)); !strings.Contains(tic, "Replaces APOD0929.ZIP\r\n") {
+		t.Fatalf("forwarded TIC lacks Replaces:\n%s", tic)
 	}
 }

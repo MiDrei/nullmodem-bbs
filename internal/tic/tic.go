@@ -54,6 +54,11 @@ type File struct {
 	// Password is this TIC's own "Pw" line, checked the same way a
 	// packet password is (see config.BinkpUplink.TICPassword).
 	Password string
+	// Replaces lists the files this one replaces ("Replaces", one per
+	// line, wildcards allowed: "NODELIST.*") -- fsxNet's daily
+	// apodNNNN.zip replaces the day before's. The toss deletes them
+	// from the area.
+	Replaces []string
 }
 
 // Parse parses a .tic file's contents: simple line-based "Keyword
@@ -103,6 +108,10 @@ func Parse(data []byte) (File, error) {
 			f.Origin = value
 		case "pw":
 			f.Password = value
+		case "replaces":
+			if value != "" {
+				f.Replaces = append(f.Replaces, value)
+			}
 		}
 	}
 

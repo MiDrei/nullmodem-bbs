@@ -138,6 +138,9 @@ export interface MessageArea {
 	pending: boolean;
 	/** A data area (e.g. FSX_DAT): tossed and forwarded, but left out of callers' area lists. */
 	hidden?: boolean;
+	/** Own cleanup limits: 0 = the default, -1 = keep everything, else days / messages. */
+	keep_days?: number;
+	keep_max?: number;
 }
 
 export interface FileArea {
@@ -152,6 +155,8 @@ export interface FileArea {
 	sort_order: number;
 	/** Mirrors MessageArea.pending -- set when a TIC/file-echo toss auto-created this area for a tag not seen before (see /pending-areas). */
 	pending: boolean;
+	/** Own cleanup limit: 0 = the default, -1 = keep everything, else days. */
+	keep_days?: number;
 }
 
 export interface PendingAreas {
@@ -1421,4 +1426,57 @@ export interface LastCaller {
 
 export function listLastCallers(token: string): Promise<LastCaller[]> {
 	return request<LastCaller[]>('/api/bbs/last-callers', { method: 'GET' }, token);
+}
+
+// --- Maintenance (sysop) ---
+
+/** The nightly cleanup's settings; 0 keeps everything where a limit is optional. */
+export interface MaintenanceSettings {
+	enabled: boolean;
+	hour: number;
+	message_keep_days: number;
+	message_keep_max: number;
+	data_area_keep_days: number;
+	file_keep_days: number;
+	netmail_keep_days: number;
+	log_keep_rows: number;
+	transcript_keep_days: number;
+	archive_keep_days: number;
+	vacuum: boolean;
+}
+
+/** What a cleanup deleted -- or, as a preview (dry_run), would delete. */
+export interface MaintenanceReport {
+	dry_run: boolean;
+	started_at: string;
+	seconds: number;
+	messages: number;
+	message_areas: { tag: string; count: number }[];
+	files: number;
+	file_bytes: number;
+	netmail: number;
+	logs: number;
+	transcripts: number;
+	archive: number;
+	db_bytes_before: number;
+	db_bytes_after: number;
+	errors: string[];
+}
+
+export interface MaintenanceState {
+	settings: MaintenanceSettings;
+	last: MaintenanceReport | null;
+}
+
+export function getMaintenance(token: string): Promise<MaintenanceState> {
+	return request<MaintenanceState>('/api/maintenance', { method: 'GET' }, token);
+}
+
+export function putMaintenance(token: string, settings: MaintenanceSettings): Promise<MaintenanceState> {
+	return request<MaintenanceState>('/api/maintenance', { method: 'PUT', body: JSON.stringify(settings) }, token);
+}
+
+/** Runs the cleanup now, or with dry only counts what it would delete. */
+export function runMaintenance(token: string, dry: boolean): Promise<MaintenanceReport> {
+	return request<MaintenanceReport>('/api/maintenance/run', { method: 'POST', body: JSON.stringify({ dry }) }, token);
 }

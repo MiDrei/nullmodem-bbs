@@ -24,7 +24,9 @@
 			min_sl_read: 0,
 			min_sl_write: 0,
 			sort_order: 0,
-			hidden: false
+			hidden: false,
+			keep_days: 0,
+			keep_max: 0
 		};
 	}
 
@@ -116,7 +118,9 @@
 			min_sl_read: area.min_sl_read,
 			min_sl_write: area.min_sl_write,
 			sort_order: area.sort_order,
-			hidden: !!area.hidden
+			hidden: !!area.hidden,
+			keep_days: area.keep_days ?? 0,
+			keep_max: area.keep_max ?? 0
 		};
 	}
 
@@ -235,6 +239,19 @@
 				<span class="text-xs text-muted">Sort order</span>
 				<input type="number" class="field field-sm" bind:value={d.sort_order} />
 			</label>
+		</div>
+		<div class="col-span-2 grid grid-cols-2 gap-3.5">
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Keep days</span>
+				<input type="number" min="-1" class="field field-sm" bind:value={d.keep_days} />
+			</label>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Keep at most (messages)</span>
+				<input type="number" min="-1" class="field field-sm" bind:value={d.keep_max} />
+			</label>
+			<span class="col-span-2 -mt-1.5 text-xs text-faint"
+				>Cleanup limits (Maintenance): 0 = the default, -1 = keep everything.</span
+			>
 		</div>
 		<label class="col-span-2 flex cursor-pointer items-start gap-2.5 text-[13px]">
 			<input type="checkbox" class="check mt-0.5" bind:checked={d.hidden} />

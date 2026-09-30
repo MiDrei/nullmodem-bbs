@@ -53,6 +53,34 @@ var (
 	maxRows   = 5000
 )
 
+// SetMaxRows changes how many log entries are kept (config
+// maintenance.log_keep_rows); n <= 0 leaves it as it is.
+func SetMaxRows(n int) {
+	if n > 0 {
+		maxRows = n
+	}
+}
+
+// Trim deletes (or with dry, only counts) the entries beyond the
+// newest keep -- for internal/maintenance.
+func (s *Store) Trim(keep int, dry bool) (int, error) {
+	var total int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM logs`).Scan(&total); err != nil {
+		return 0, fmt.Errorf("applog: count: %w", err)
+	}
+	n := total - keep
+	if n <= 0 {
+		return 0, nil
+	}
+	if dry {
+		return n, nil
+	}
+	if _, err := s.db.Exec(`DELETE FROM logs WHERE id NOT IN (SELECT id FROM logs ORDER BY id DESC LIMIT ?)`, keep); err != nil {
+		return 0, fmt.Errorf("applog: trim: %w", err)
+	}
+	return n, nil
+}
+
 func (s *Store) insert(source string, level Level, message string) error {
 	if _, err := s.db.Exec(
 		`INSERT INTO logs (source, level, message) VALUES (?, ?, ?)`,

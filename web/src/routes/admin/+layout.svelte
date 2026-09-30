@@ -59,6 +59,7 @@
 		{ href: '/admin/users', label: 'Users', icon: 'users' },
 		{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'shield' },
 		{ href: '/admin/services', label: 'Services', icon: 'dashboard' },
+		{ href: '/admin/maintenance', label: 'Maintenance', icon: 'archive' },
 		{ href: '/admin/logs', label: 'Logs', icon: 'logs' },
 		{ href: '/admin/binkp', label: 'BinkP', icon: 'binkp' },
 		{ href: '/admin/binkp/uplinks', label: 'Uplinks (Nodes/Points)' },

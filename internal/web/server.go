@@ -9,6 +9,7 @@
 package web
 
 import (
+	"database/sql"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -53,6 +54,10 @@ type Server struct {
 	FTNAddress string
 	JWTSecret  []byte
 	StaticDir  string
+	// DB and DBPath are for the maintenance page (internal/maintenance),
+	// which works on the database directly. May be nil in tests.
+	DB     *sql.DB
+	DBPath string
 }
 
 // logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
@@ -79,6 +84,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/config", s.requireAuth(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.requireAuth(http.HandlerFunc(s.handlePutConfig)))
 	mux.Handle("GET /api/services", s.requireAuth(http.HandlerFunc(s.handleListServices)))
+	mux.Handle("GET /api/maintenance", s.requireAuth(http.HandlerFunc(s.handleGetMaintenance)))
+	mux.Handle("PUT /api/maintenance", s.requireAuth(http.HandlerFunc(s.handlePutMaintenance)))
+	mux.Handle("POST /api/maintenance/run", s.requireAuth(http.HandlerFunc(s.handleRunMaintenance)))
 	mux.Handle("POST /api/services/{name}/restart", s.requireAuth(http.HandlerFunc(s.handleRestartService)))
 	mux.Handle("GET /api/doors", s.requireAuth(http.HandlerFunc(s.handleListDoors)))
 	mux.Handle("PUT /api/doors", s.requireAuth(http.HandlerFunc(s.handlePutDoors)))

@@ -43,6 +43,11 @@ Teil der NullModem-Familie:
   AKAs
 - Tosser für Echomail, Netmail und TIC-Datei-Echos
 - Areafix/Filefix, auch für eigene Downlinks
+- TIC „Replaces“: eine Datei ersetzt ältere in der Area (auch mit Platzhaltern),
+  weitergeleitet wird die Angabe mit
+- Maintenance (Admin → Maintenance): räumt nachts alte Echomail, Dateien, gelesene
+  Netmail, Log, BinkP-Mitschnitte und Eingangsarchiv auf und verdichtet die
+  Datenbank; Grenzen pro Area, Vorschau vor dem Löschen
 - InterBBS Last Callers: liest die Liste aus FSX_DAT (beide gängigen Formate),
   zeigt sie nach dem Login und im Portal und meldet die eigenen Anrufer;
   Daten-Areas wie FSX_DAT lassen sich für Anrufer ausblenden

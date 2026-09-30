@@ -80,6 +80,9 @@ type Result struct {
 	// file.Store.Receive). Always 0 when TICConfig is nil (TIC
 	// handling disabled).
 	ReceivedFiles int
+	// ReplacedFiles is how many older files a tossed file's TIC
+	// "Replaces" line deleted (see file.Store.ReplaceMatching).
+	ReplacedFiles int
 	// ForwardedFiles is how many files -- via a freshly generated TIC
 	// descriptor (see RoutedOutboundFileForward/encodeTIC) -- were
 	// handed off and acknowledged (M_GOT on both the TIC and the

@@ -26,6 +26,9 @@ type fileAreaDTO struct {
 	// Pending mirrors messageAreaDTO.Pending -- see its doc comment.
 	// Nothing sets this on a file area yet (no TIC/file-echo tossing).
 	Pending bool `json:"pending"`
+	// KeepDays is the area's own cleanup limit (file.Area.KeepDays): 0
+	// default, -1 keep all. On update, absent means unchanged.
+	KeepDays *int `json:"keep_days,omitempty"`
 }
 
 func toFileAreaDTO(a file.Area) fileAreaDTO {
@@ -39,6 +42,7 @@ func toFileAreaDTO(a file.Area) fileAreaDTO {
 		MinSLUpload:   a.MinSLUpload,
 		SortOrder:     a.SortOrder,
 		Pending:       a.Pending,
+		KeepDays:      &a.KeepDays,
 	}
 }
 
@@ -127,6 +131,17 @@ func (s *Server) handleUpdateFileArea(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update file area")
 		return
+	}
+	if dto.KeepDays != nil && *dto.KeepDays != area.KeepDays {
+		if *dto.KeepDays < -1 {
+			writeError(w, http.StatusBadRequest, "keep days: -1 keeps all, 0 is the default")
+			return
+		}
+		if err := s.Files.SetAreaKeepDays(id, *dto.KeepDays); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not update file area")
+			return
+		}
+		area.KeepDays = *dto.KeepDays
 	}
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s updated file area %q (%s)", claims.Subject, area.Name, area.Tag)
