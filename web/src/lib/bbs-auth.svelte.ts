@@ -10,6 +10,8 @@ interface Session {
 	username: string;
 	/** Profile time zone (IANA name); "" or absent = the browser's own zone. See $lib/datetime. */
 	timezone?: string;
+	/** Security level, for showing the sysop the way to the admin. */
+	securityLevel?: number;
 }
 
 function readStoredSession(): Session | null {
@@ -47,6 +49,18 @@ class BBSAuthState {
 	}
 
 	/** Updates the stored profile time zone -- after a profile save, or when a refresh finds it changed (e.g. set via Telnet/SSH). */
+	/** Sysop access (SL 255): the portal links to the admin. */
+	get isSysop() {
+		return (this.session?.securityLevel ?? 0) >= 255;
+	}
+
+	/** Updates the stored security level (after a profile refresh). */
+	setSecurityLevel(level: number) {
+		if (this.session && this.session.securityLevel !== level) {
+			this.set({ ...this.session, securityLevel: level });
+		}
+	}
+
 	setTimezone(timezone: string) {
 		if (this.session && this.session.timezone !== timezone) {
 			this.set({ ...this.session, timezone });

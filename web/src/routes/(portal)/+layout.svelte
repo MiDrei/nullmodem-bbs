@@ -41,6 +41,7 @@
 			try {
 				const profile = await getBBSProfile(bbsAuth.token);
 				bbsAuth.setTimezone(profile.timezone);
+				bbsAuth.setSecurityLevel(profile.security_level);
 			} catch {
 				// Non-critical: keep the stored zone; pages handle auth errors.
 			}
@@ -81,6 +82,10 @@
 			</nav>
 			<div class="flex items-center gap-2.5 text-[13px] text-faint">
 				<span>{bbsAuth.username}</span>
+				{#if bbsAuth.isSysop}
+					<span class="text-line-strong" aria-hidden="true">·</span>
+					<a href="/admin" class="transition-colors hover:text-accent">Admin</a>
+				{/if}
 				<span class="text-line-strong" aria-hidden="true">·</span>
 				<button class="transition-colors hover:text-accent" onclick={logout}>Log out</button>
 			</div>

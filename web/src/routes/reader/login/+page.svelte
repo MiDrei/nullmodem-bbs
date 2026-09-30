@@ -15,7 +15,12 @@
 		busy = true;
 		try {
 			const res = await bbsLogin(username, password);
-			bbsAuth.set({ token: res.token, username: res.username, timezone: res.timezone ?? '' });
+			bbsAuth.set({
+				token: res.token,
+				username: res.username,
+				timezone: res.timezone ?? '',
+				securityLevel: res.security_level
+			});
 			await goto('/reader', { replaceState: true });
 		} catch (err) {
 			error = errorText(err, 'Login failed.');
