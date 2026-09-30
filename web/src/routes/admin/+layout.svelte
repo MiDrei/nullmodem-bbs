@@ -1,7 +1,8 @@
 <script lang="ts">
 	// The sysop side wears the same design D chrome as the portal: the
-	// board's name (tagged ADMIN), icon links with the less-used tools
-	// folded into a System menu, the operator and "Log out" on the right.
+	// board's name (tagged ADMIN), Dashboard and the grouped menus
+	// (Areas, Screens, FTN, Users, System), the operator and "Log out"
+	// on the right.
 	import { onMount, onDestroy } from 'svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
@@ -44,48 +45,83 @@
 
 	type IconName = import('svelte').ComponentProps<typeof Icon>['name'];
 
-	const mainLinks: { href: string; label: string; icon: IconName }[] = [
-		{ href: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' },
-		{ href: '/admin/message-areas', label: 'Message Areas', icon: 'areas' },
-		{ href: '/admin/file-areas', label: 'File Areas', icon: 'files' },
-		{ href: '/admin/doors', label: 'Doors', icon: 'doors' },
-		{ href: '/admin/designer', label: 'Designer', icon: 'designer' },
-		{ href: '/admin/screens', label: 'Screens', icon: 'screens' }
+	// The admin menu: Dashboard, then groups that open as dropdowns --
+	// what belongs together in one place (the FTN side apart from the
+	// BBS's own content, users apart from running the system).
+	type NavLink = { href: string; label: string; icon: IconName; exact?: boolean };
+	type NavGroup = { label: string; icon: IconName; links: NavLink[] };
+
+	const dashboard: NavLink = { href: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' };
+
+	const groups: NavGroup[] = [
+		{
+			label: 'Areas',
+			icon: 'areas',
+			links: [
+				{ href: '/admin/message-areas', label: 'Message Areas', icon: 'areas' },
+				{ href: '/admin/file-areas', label: 'File Areas', icon: 'files' },
+				{ href: '/admin/pending-areas', label: 'Pending Areas', icon: 'pending' },
+				{ href: '/admin/doors', label: 'Doors', icon: 'doors' }
+			]
+		},
+		{
+			label: 'Screens',
+			icon: 'screens',
+			links: [
+				{ href: '/admin/screens', label: 'Screens', icon: 'screens' },
+				{ href: '/admin/designer', label: 'ANSI Designer', icon: 'designer' }
+			]
+		},
+		{
+			label: 'FTN',
+			icon: 'binkp',
+			links: [
+				{ href: '/admin/binkp', label: 'Networks & Addresses', icon: 'binkp', exact: true },
+				{ href: '/admin/binkp/uplinks', label: 'Uplinks (Nodes/Points)', icon: 'binkp' },
+				{ href: '/admin/areafix', label: 'Areafix / Filefix', icon: 'areafix' },
+				{ href: '/admin/netmail', label: 'Undeliverable Netmail', icon: 'undeliverable' },
+				{ href: '/admin/archive', label: 'Packet Analyzer', icon: 'archive' }
+			]
+		},
+		{
+			label: 'Users',
+			icon: 'users',
+			links: [
+				{ href: '/admin/users', label: 'Users', icon: 'users' },
+				{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'shield' }
+			]
+		},
+		{
+			label: 'System',
+			icon: 'system',
+			links: [
+				{ href: '/admin/settings', label: 'Settings', icon: 'system' },
+				{ href: '/admin/services', label: 'Services', icon: 'dashboard' },
+				{ href: '/admin/maintenance', label: 'Maintenance', icon: 'archive' },
+				{ href: '/admin/logs', label: 'Logs', icon: 'logs' }
+			]
+		}
 	];
 
-	// null marks a divider; an entry without an icon is indented under
-	// the one above it.
-	const systemLinks: ({ href: string; label: string; icon?: IconName } | null)[] = [
-		{ href: '/admin/users', label: 'Users', icon: 'users' },
-		{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'shield' },
-		{ href: '/admin/services', label: 'Services', icon: 'dashboard' },
-		{ href: '/admin/maintenance', label: 'Maintenance', icon: 'archive' },
-		{ href: '/admin/logs', label: 'Logs', icon: 'logs' },
-		{ href: '/admin/binkp', label: 'BinkP', icon: 'binkp' },
-		{ href: '/admin/binkp/uplinks', label: 'Uplinks (Nodes/Points)' },
-		{ href: '/admin/areafix', label: 'Areafix / Filefix', icon: 'areafix' },
-		{ href: '/admin/pending-areas', label: 'Pending Areas', icon: 'pending' },
-		{ href: '/admin/netmail', label: 'Undeliverable Netmail', icon: 'undeliverable' },
-		{ href: '/admin/archive', label: 'Packet Analyzer', icon: 'archive' },
-		null,
-		{ href: '/admin/settings', label: 'Settings', icon: 'system' }
-	];
-
-	function active(href: string): boolean {
-		return page.url.pathname === href || page.url.pathname.startsWith(href + '/');
+	function active(l: NavLink): boolean {
+		const path = page.url.pathname;
+		return path === l.href || (!l.exact && path.startsWith(l.href + '/'));
 	}
 
-	let systemActive = $derived(systemLinks.some((l) => l && active(l.href)));
+	function groupActive(g: NavGroup): boolean {
+		return g.links.some(active);
+	}
 
-	let systemMenuOpen = $state(false);
+	// The open dropdown's label, or null.
+	let openGroup = $state<string | null>(null);
 
 	function logout() {
 		auth.clear();
 		goto('/admin/login');
 	}
 
-	function closeSystemMenu() {
-		systemMenuOpen = false;
+	function closeMenus() {
+		openGroup = null;
 	}
 
 	// clickOutside closes the System dropdown on any click that lands
@@ -126,57 +162,54 @@
 		</a>
 
 		{#if auth.username}
-			<nav class="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-muted">
-				{#each mainLinks as l (l.href)}
-					<a
-						href={l.href}
-						class="flex items-center gap-1.5 transition-colors hover:text-accent {active(l.href)
-							? 'text-accent'
-							: ''}"
-						aria-current={active(l.href) ? 'page' : undefined}
-					>
-						<Icon name={l.icon} />{l.label}
-					</a>
-				{/each}
-				<div class="relative" use:clickOutside={closeSystemMenu}>
-					<button
-						type="button"
-						class="flex items-center gap-1.5 transition-colors hover:text-accent {systemActive ||
-						systemMenuOpen
-							? 'text-accent'
-							: ''}"
-						aria-expanded={systemMenuOpen}
-						onclick={() => (systemMenuOpen = !systemMenuOpen)}
-					>
-						<Icon name="system" />System<Icon name="chevron" size={12} />
-					</button>
-					{#if systemMenuOpen}
-						<div
-							class="absolute top-full left-1/2 z-20 mt-3 w-56 -translate-x-1/2 rounded-xl border border-line-strong bg-surface p-1.5 shadow-2xl shadow-black/50 md:right-0 md:left-auto md:translate-x-0"
+			<nav
+				class="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-muted"
+				use:clickOutside={closeMenus}
+			>
+				<a
+					href={dashboard.href}
+					class="flex items-center gap-1.5 transition-colors hover:text-accent {active(dashboard)
+						? 'text-accent'
+						: ''}"
+					aria-current={active(dashboard) ? 'page' : undefined}
+				>
+					<Icon name={dashboard.icon} />{dashboard.label}
+				</a>
+				{#each groups as g (g.label)}
+					<div class="relative">
+						<button
+							type="button"
+							class="flex items-center gap-1.5 transition-colors hover:text-accent {groupActive(g) ||
+							openGroup === g.label
+								? 'text-accent'
+								: ''}"
+							aria-expanded={openGroup === g.label}
+							onclick={() => (openGroup = openGroup === g.label ? null : g.label)}
 						>
-							{#each systemLinks as l, i (l?.href ?? `divider-${i}`)}
-								{#if l === null}
-									<div class="my-1.5 border-t border-line"></div>
-								{:else}
+							<Icon name={g.icon} />{g.label}<Icon name="chevron" size={12} />
+						</button>
+						{#if openGroup === g.label}
+							<div
+								class="absolute top-full left-0 z-20 mt-3 w-60 rounded-xl border border-line-strong bg-surface p-1.5 shadow-2xl shadow-black/50"
+							>
+								{#each g.links as l (l.href)}
 									<a
 										href={l.href}
-										onclick={closeSystemMenu}
-										class="flex items-center gap-2.5 rounded-lg py-2 text-[13px] transition-colors hover:bg-slate-800 hover:text-accent {l.icon
-											? 'px-2.5'
-											: 'pr-2.5 pl-[2.1rem] text-[12.5px]'} {active(l.href) &&
-										!(l.href === '/admin/binkp' && active('/admin/binkp/uplinks'))
+										onclick={closeMenus}
+										class="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors hover:bg-slate-800 hover:text-accent {active(
+											l
+										)
 											? 'text-accent'
-											: l.icon
-												? 'text-ink-soft'
-												: 'text-muted'}"
+											: 'text-ink-soft'}"
+										aria-current={active(l) ? 'page' : undefined}
 									>
-										{#if l.icon}<Icon name={l.icon} />{/if}{l.label}
+										<Icon name={l.icon} />{l.label}
 									</a>
-								{/if}
-							{/each}
-						</div>
-					{/if}
-				</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/each}
 			</nav>
 
 			<div class="flex items-center gap-2.5 text-[13px] text-faint">

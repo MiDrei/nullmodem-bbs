@@ -132,7 +132,7 @@
 			<h2 class="card-label">InterBBS Last Callers</h2>
 			<p class="text-xs leading-relaxed text-slate-500">
 				Boards of a network post a record to a data echo whenever a caller logs off, and show who was
-				on where lately. Mark that echo as a data area (Message Areas) so it doesn't show as unread.
+				on where lately. Mark that echo as a data area (Areas → Message Areas) so it doesn't show as unread.
 			</p>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={config.last_callers.enabled} />

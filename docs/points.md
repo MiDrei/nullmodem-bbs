@@ -7,7 +7,7 @@ the areas they subscribed to and hand over what was written in them.
 
 ## Setting one up
 
-In **Admin → BinkP → Uplinks → Nodes / Points**, add one entry per
+In **Admin → FTN → Uplinks (Nodes/Points) → Nodes / Points**, add one entry per
 network the reader should take part in:
 
 | Field | Value |

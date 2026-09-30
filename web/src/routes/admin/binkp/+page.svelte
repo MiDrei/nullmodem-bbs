@@ -158,7 +158,7 @@
 </script>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="page-title">BinkP</h1>
+	<h1 class="page-title">Networks &amp; Addresses</h1>
 	<a href="/admin/binkp/uplinks" class="btn-secondary btn-sm">Uplinks (Nodes/Points) &rarr;</a>
 </div>
 

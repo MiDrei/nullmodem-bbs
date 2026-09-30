@@ -181,7 +181,7 @@
 			return;
 		}
 		if (config.ftn_addresses.length === 0) {
-			toast.push('Set this system’s own FTN address on the BinkP page first.', 'error');
+			toast.push('Set this system’s own FTN address under FTN → Networks & Addresses first.', 'error');
 			return;
 		}
 		testing = true;
@@ -207,7 +207,7 @@
 			return;
 		}
 		if (config.ftn_addresses.length === 0) {
-			toast.push('Set this system’s own FTN address on the BinkP page first.', 'error');
+			toast.push('Set this system’s own FTN address under FTN → Networks & Addresses first.', 'error');
 			return;
 		}
 		sending = true;
@@ -287,9 +287,9 @@
 </datalist>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="page-title">BinkP Uplinks</h1>
+	<h1 class="page-title">Uplinks (Nodes/Points)</h1>
 	<a href="/admin/binkp" class="btn-secondary btn-sm">
-		&larr; BinkP
+		&larr; Networks &amp; Addresses
 	</a>
 </div>
 
@@ -575,7 +575,7 @@
 						</select>
 						<span class="text-xs text-slate-500">
 							Locally posted echomail in this network's areas goes out through this uplink. Networks
-							are defined on the BinkP page.
+							are defined under FTN → Networks & Addresses.
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
@@ -656,7 +656,7 @@
 						</span>
 						{#if config.ftn_addresses.filter((a) => a.trim()).length === 0}
 							<p class="text-sm text-slate-500">
-								No addresses configured yet -- add one on the BinkP page.
+								No addresses configured yet -- add one under FTN → Networks & Addresses.
 							</p>
 						{/if}
 						{#each config.ftn_addresses.filter((a) => a.trim()) as addr (addr)}
