@@ -15,7 +15,12 @@ export function initials(name: string): string {
 
 const QUOTED = /^ ?[\p{L}\p{N}]{0,4}>/u;
 
-export function quoteText(body: string, from: string): string {
+/**
+ * The quoted original for a reply, headed by who wrote it to whom --
+ * " -=> Mortar M. wrote to poindexter FORTRAN <=-", as GoldED and most
+ * FTN editors do.
+ */
+export function quoteText(body: string, from: string, to = ''): string {
 	const prefix = ` ${initials(from)}> `;
 	const lines = body.replace(/\r\n?/g, '\n').split('\n');
 	const out: string[] = [];
@@ -29,5 +34,6 @@ export function quoteText(body: string, from: string): string {
 	}
 	while (out.length && out[out.length - 1] === '') out.pop();
 	while (out.length && out[0] === '') out.shift();
-	return out.join('\n');
+	const head = ` -=> ${from} wrote to ${to.trim() || 'All'} <=-`;
+	return out.length ? `${head}\n\n${out.join('\n')}` : head;
 }

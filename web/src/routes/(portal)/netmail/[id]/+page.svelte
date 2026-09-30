@@ -70,7 +70,7 @@
 	function startReply() {
 		if (!message) return;
 		replySubject = message.subject.startsWith('Re: ') ? message.subject : `Re: ${message.subject}`;
-		replyBody = quoteText(message.body, message.from_name) + '\n\n';
+		replyBody = quoteText(message.body, message.from_name, message.to_name) + '\n\n';
 		replying = true;
 	}
 

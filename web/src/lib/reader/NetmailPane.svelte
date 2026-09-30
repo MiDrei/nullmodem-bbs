@@ -51,7 +51,7 @@
 		// To an FTN sender: its address, with the name alongside.
 		to = mail.from_address ? `${mail.from_name} @ ${mail.from_address}` : mail.from_name;
 		subject = mail.subject.startsWith('Re: ') ? mail.subject : `Re: ${mail.subject}`;
-		body = quoteText(mail.body, mail.from_name) + '\n\n';
+		body = quoteText(mail.body, mail.from_name, mail.to_name) + '\n\n';
 		replying = true;
 	}
 

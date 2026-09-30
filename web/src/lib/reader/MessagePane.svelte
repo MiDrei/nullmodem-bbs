@@ -57,7 +57,7 @@
 		if (!message) return;
 		to = message.from_name;
 		subject = message.subject.startsWith('Re: ') ? message.subject : `Re: ${message.subject}`;
-		body = quoteText(message.body, message.from_name) + '\n\n';
+		body = quoteText(message.body, message.from_name, message.to_name) + '\n\n';
 		replying = true;
 	}
 
