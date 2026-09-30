@@ -13,7 +13,7 @@ network the reader should take part in:
 | Field | Value |
 | --- | --- |
 | Address | the point address, e.g. `21:3/194.1` (fsxNet) or `954:700/14.1` (HobbyNet) |
-| Host | a label, the **same** for all entries of this reader (e.g. `fidomail`); the reader calls in, it's never dialed |
+| Host | a label (e.g. `fidomail`); the reader calls in, it's never dialed. Area grants are kept per label: one label for all entries shares one area list, one per entry gives each network its own |
 | Session password | the reader's BinkP password -- the same on every entry |
 | Areafix password | for the reader's Areafix requests (`+AREA`, `%LIST`) |
 | Network | the network of that address |
@@ -23,7 +23,7 @@ The reader is configured the other way round: this BBS as its boss
 node (host and BinkP port, e.g. `bbs.maik.ch:24554`), its point
 addresses, the same password. Its areas are subscribed through
 Areafix, or ticked for it in the web admin (area grants, which are
-kept per host label -- hence one label for all its entries).
+kept per host label).
 
 A point, unlike a node, only gets what's its own:
 
@@ -47,8 +47,9 @@ on the BBS itself.
   destination's zone; netmail to someone on this BBS lands in their
   inbox, from you.
 - Netmail to that user is also copied to the reader (the last two
-  weeks when first set up), to its point address in the sender's zone.
-  The original stays in the BBS inbox.
+  weeks when first set up) -- once, to its point address in the
+  sender's zone (else its first one), whatever the host labels. The
+  original stays in the BBS inbox.
 - The areas ticked for it in the web admin (area grants) are its
   subscriptions: no Areafix request needed. Unticking one ends it.
   Areafix still works as well.
