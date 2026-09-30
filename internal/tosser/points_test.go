@@ -59,7 +59,8 @@ func TestPointEchomailIsPostedAsItsUserAndGoesUpNotBack(t *testing.T) {
 		t.Fatalf("newPointPoster = %+v, %v", poster, err)
 	}
 	body := "AREA:FSX_GEN\n\x01MSGID: 21:3/194.1 0000abcd\n\x01PID: FidoMail 1.0\nHello from the iPad.\nSecond line.\n\n--- FidoMail 1.0\n * Origin: My iPad (21:3/194.1)\nSEEN-BY: 3/194\n\x01PATH: 3/194\n"
-	msg := mail.Message{OrigAddr: mustAddr(t, "21:3/194.1"), DestAddr: mustAddr(t, "21:3/194"), Written: time.Now(), FromName: "Mike", ToName: "All", Subject: "Test", Body: body}
+	// Written by the reader's clock, two hours ahead and without a zone.
+	msg := mail.Message{OrigAddr: mustAddr(t, "21:3/194.1"), DestAddr: mustAddr(t, "21:3/194"), Written: time.Now().Add(2 * time.Hour), FromName: "Mike", ToName: "All", Subject: "Test", Body: body}
 	for i := 0; i < 2; i++ { // the second time: the reader resent the packet
 		stats, err := tossInbound(pointPacket(t, msg), nil, netmailStore, messages, users, nil, poster)
 		if err != nil {
@@ -73,6 +74,9 @@ func TestPointEchomailIsPostedAsItsUserAndGoesUpNotBack(t *testing.T) {
 	stored, _ := messages.ListMessages(area.ID)
 	if len(stored) != 1 || !stored[0].FromUserID.Valid || stored[0].FromUserID.Int64 != sysop.ID {
 		t.Fatalf("stored = %+v, want one post by sysop", stored)
+	}
+	if d := time.Since(stored[0].PostedAt); d < -time.Minute || d > time.Minute {
+		t.Fatalf("posted at %v, want the time it arrived, not the reader's clock", stored[0].PostedAt)
 	}
 	if got := stored[0].Body; got != "Hello from the iPad.\nSecond line." {
 		t.Fatalf("stored body = %q, want the text without kludges, tearline and origin", got)

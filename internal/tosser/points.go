@@ -141,7 +141,10 @@ func (p *pointPoster) tossEcho(tag string, msg *mail.Message, messages *message.
 	if err != nil {
 		return false, false, fmt.Errorf("resolving area %q: %w", tag, err)
 	}
-	m, created, err := messages.PostEcho(area.ID, p.user.ID, msg.ToName, msg.Subject, readerText(msg.Body), echoMsgID(msg.Body), msg.Written)
+	// Posted now, as if written on the BBS: a reader app's own date
+	// is its local clock without a zone (FidoMail's came out two hours
+	// ahead as UTC).
+	m, created, err := messages.PostEcho(area.ID, p.user.ID, msg.ToName, msg.Subject, readerText(msg.Body), echoMsgID(msg.Body), time.Now().UTC())
 	if err != nil {
 		return false, false, fmt.Errorf("storing message in area %q: %w", tag, err)
 	}
