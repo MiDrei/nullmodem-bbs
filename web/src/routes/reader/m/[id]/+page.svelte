@@ -5,7 +5,7 @@
 	import { getBBSMessage, postBBSMessage, listBBSMessageAreas, type BBSMessage } from '$lib/api';
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import ReadView from '$lib/reader/ReadView.svelte';
-	import ReplySheet from '$lib/reader/ReplySheet.svelte';
+	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
 
 	let id = $derived(Number(page.params.id));
 	let message = $state<BBSMessage | null>(null);
@@ -89,7 +89,7 @@
 {/if}
 
 {#if replying && message}
-	<ReplySheet
+	<ComposeSheet
 		bind:to
 		bind:subject
 		bind:body

@@ -2,12 +2,42 @@
 	// Netmail received, newest first.
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listBBSNetmail, type BBSNetmailSummary } from '$lib/api';
+	import { listBBSNetmail, sendBBSNetmail, type BBSNetmailSummary } from '$lib/api';
+	import { toast } from '$lib/toast.svelte';
 	import { readerToken, readerAuthFailed, errorText, shortDate } from '$lib/reader/session';
+	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
 
 	let mails = $state<BBSNetmailSummary[]>([]);
 	let error = $state<string | null>(null);
 	let loaded = $state(false);
+
+	let composing = $state(false);
+	let to = $state('');
+	let toName = $state('');
+	let subject = $state('');
+	let body = $state('');
+	let sending = $state(false);
+
+	function startNew() {
+		to = toName = subject = body = '';
+		composing = true;
+	}
+
+	async function send() {
+		const token = await readerToken();
+		if (!token) return;
+		sending = true;
+		try {
+			await sendBBSNetmail(token, to.trim(), subject, body, toName.trim());
+			composing = false;
+			toast.push('Netmail sent.', 'success');
+		} catch (err) {
+			if (await readerAuthFailed(err)) return;
+			toast.push(errorText(err, 'Could not send the netmail.'), 'error');
+		} finally {
+			sending = false;
+		}
+	}
 
 	onMount(async () => {
 		const token = await readerToken();
@@ -26,6 +56,7 @@
 <header class="r-bar">
 	<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label="Back">‹</button>
 	<span class="r-title">Netmail</span>
+	<button class="r-btn text-sm" onclick={startNew}>New</button>
 </header>
 
 {#if error}
@@ -43,4 +74,19 @@
 	{:else}
 		<p class="r-note">No netmail.</p>
 	{/each}
+{/if}
+
+{#if composing}
+	<ComposeSheet
+		heading="New netmail"
+		bind:to
+		bind:toName
+		askToName
+		toPlaceholder="Username, or FTN address like 21:3/100"
+		bind:subject
+		bind:body
+		busy={sending}
+		onSend={send}
+		onCancel={() => (composing = false)}
+	/>
 {/if}

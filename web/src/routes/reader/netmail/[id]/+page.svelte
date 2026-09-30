@@ -5,7 +5,7 @@
 	import { getBBSNetmail, sendBBSNetmail, type BBSNetmail } from '$lib/api';
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import ReadView from '$lib/reader/ReadView.svelte';
-	import ReplySheet from '$lib/reader/ReplySheet.svelte';
+	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
 
 	let id = $derived(Number(page.params.id));
 	let mail = $state<BBSNetmail | null>(null);
@@ -86,5 +86,5 @@
 {/if}
 
 {#if replying && mail}
-	<ReplySheet bind:to bind:subject bind:body toLocked quote={mail.body} busy={sending} onSend={send} onCancel={() => (replying = false)} />
+	<ComposeSheet bind:to bind:subject bind:body toLocked quote={mail.body} busy={sending} onSend={send} onCancel={() => (replying = false)} />
 {/if}

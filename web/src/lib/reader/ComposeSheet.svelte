@@ -1,8 +1,15 @@
 <script lang="ts">
-	// A reply, full screen over the message: To, Subject and the text,
-	// sent as-is. The original is quoted below for reference only.
+	// A new message or a reply, full screen: To, Subject and the text,
+	// sent as-is. A reply's original is quoted below for reference only.
+	// For netmail to an FTN address, the recipient's name is asked too.
+	import { isFTNAddress } from '$lib/api';
+
 	let {
+		heading = 'Reply',
 		to = $bindable(),
+		toName = $bindable(''),
+		askToName = false,
+		toPlaceholder = 'To',
 		subject = $bindable(),
 		body = $bindable(),
 		quote = '',
@@ -11,7 +18,12 @@
 		onSend,
 		onCancel
 	}: {
+		heading?: string;
 		to: string;
+		toName?: string;
+		/** Netmail: ask for the recipient's name when To is an FTN address. */
+		askToName?: boolean;
+		toPlaceholder?: string;
 		subject: string;
 		body: string;
 		quote?: string;
@@ -26,13 +38,22 @@
 <div class="fixed inset-0 z-20 flex flex-col bg-black" style="padding-top: env(safe-area-inset-top)">
 	<header class="r-bar">
 		<button class="r-btn text-base" onclick={onCancel}>Cancel</button>
-		<span class="r-title text-center">Reply</span>
-		<button class="r-btn text-base font-semibold" disabled={busy || !subject || !body.trim()} onclick={onSend}>
+		<span class="r-title text-center">{heading}</span>
+		<button class="r-btn text-base font-semibold" disabled={busy || !to.trim() || !subject || !body.trim()} onclick={onSend}>
 			{busy ? 'Sending…' : 'Send'}
 		</button>
 	</header>
 	<div class="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
-		<input class="field py-2.5 text-base" bind:value={to} placeholder="To" readonly={toLocked} />
+		<input
+			class="field py-2.5 text-base"
+			bind:value={to}
+			placeholder={toPlaceholder}
+			readonly={toLocked}
+			autocapitalize="off"
+		/>
+		{#if askToName && !toLocked && isFTNAddress(to.trim())}
+			<input class="field py-2.5 text-base" bind:value={toName} placeholder="Name at that address" />
+		{/if}
 		<input class="field py-2.5 text-base" bind:value={subject} placeholder="Subject" />
 		<textarea
 			class="field min-h-[40vh] flex-1 py-2.5 font-mono text-[15px] leading-relaxed"

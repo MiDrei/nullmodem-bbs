@@ -8,9 +8,11 @@
 		listBBSMessageAreas,
 		getFirstUnreadMessagePosition,
 		markBBSAreaRead,
+		postBBSMessage,
 		type BBSMessageSummary
 	} from '$lib/api';
 	import { toast } from '$lib/toast.svelte';
+	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
 	import { readerToken, readerAuthFailed, errorText, shortDate } from '$lib/reader/session';
 
 	const PAGE = 40;
@@ -64,6 +66,37 @@
 		}
 	}
 
+	// A new message in this area.
+	let composing = $state(false);
+	let to = $state('All');
+	let subject = $state('');
+	let body = $state('');
+	let sending = $state(false);
+
+	function startNew() {
+		to = 'All';
+		subject = '';
+		body = '';
+		composing = true;
+	}
+
+	async function send() {
+		const token = await readerToken();
+		if (!token) return;
+		sending = true;
+		try {
+			await postBBSMessage(token, areaId, to.trim(), subject, body);
+			composing = false;
+			toast.push('Message posted.', 'success');
+			await load(areaId);
+		} catch (err) {
+			if (await readerAuthFailed(err)) return;
+			toast.push(errorText(err, 'Could not post the message.'), 'error');
+		} finally {
+			sending = false;
+		}
+	}
+
 	// For an area nobody reads message by message (FSX_DAT's data).
 	async function markAllRead() {
 		if (!confirm(`Mark all of ${title || 'this area'} as read?`)) return;
@@ -87,6 +120,7 @@
 <header class="r-bar">
 	<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label="Back">‹</button>
 	<span class="r-title">{title}</span>
+	<button class="r-btn text-sm" onclick={startNew}>New</button>
 	{#if firstUnread}
 		<button class="r-btn text-sm" onclick={markAllRead}>All read</button>
 		<button class="r-btn text-sm font-semibold" onclick={() => goto(`/reader/m/${firstUnread.id}`)}>Read</button>
@@ -114,4 +148,16 @@
 	{#if offset + messages.length < total}
 		<button class="r-row justify-center text-sm text-accent" onclick={() => more(false)}>More</button>
 	{/if}
+{/if}
+
+{#if composing}
+	<ComposeSheet
+		heading="New message"
+		bind:to
+		bind:subject
+		bind:body
+		busy={sending}
+		onSend={send}
+		onCancel={() => (composing = false)}
+	/>
 {/if}
