@@ -3,6 +3,10 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
+// Read without Node's types, which this project doesn't install.
+const apiProxy = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env
+	.API_PROXY;
+
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
@@ -28,7 +32,7 @@ export default defineConfig({
 		proxy: {
 			// API_PROXY points the dev server at another web daemon,
 			// e.g. a live one to check a page against real data.
-			'/api': { target: process.env.API_PROXY ?? 'http://localhost:8090', changeOrigin: true }
+			'/api': { target: apiProxy ?? 'http://localhost:8090', changeOrigin: true }
 		}
 	}
 });
