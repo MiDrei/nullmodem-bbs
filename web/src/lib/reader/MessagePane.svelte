@@ -6,6 +6,7 @@
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import ReadView from '$lib/reader/ReadView.svelte';
 	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
+	import { quoteText } from '$lib/reader/quote';
 
 	let {
 		id,
@@ -56,7 +57,7 @@
 		if (!message) return;
 		to = message.from_name;
 		subject = message.subject.startsWith('Re: ') ? message.subject : `Re: ${message.subject}`;
-		body = '';
+		body = quoteText(message.body, message.from_name) + '\n\n';
 		replying = true;
 	}
 
@@ -101,7 +102,6 @@
 		bind:to
 		bind:subject
 		bind:body
-		quote={message.body}
 		busy={sending}
 		onSend={send}
 		onCancel={() => (replying = false)}

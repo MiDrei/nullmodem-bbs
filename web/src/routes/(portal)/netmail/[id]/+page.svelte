@@ -6,6 +6,7 @@
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
+	import { quoteText } from '$lib/reader/quote';
 	import { getBBSNetmail, sendBBSNetmail, deleteBBSNetmail, ApiError, type BBSNetmail } from '$lib/api';
 
 	// $derived (not a plain const) so Prev/Next navigation -- which
@@ -69,7 +70,7 @@
 	function startReply() {
 		if (!message) return;
 		replySubject = message.subject.startsWith('Re: ') ? message.subject : `Re: ${message.subject}`;
-		replyBody = '';
+		replyBody = quoteText(message.body, message.from_name) + '\n\n';
 		replying = true;
 	}
 

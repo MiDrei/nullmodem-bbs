@@ -6,6 +6,7 @@
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
+	import { quoteText } from '$lib/reader/quote';
 	import { getBBSMessage, postBBSMessage, ApiError, type BBSMessage } from '$lib/api';
 
 	// $derived (not a plain const) so Prev/Next -- which navigate to
@@ -72,7 +73,7 @@
 		if (!message) return;
 		replyTo = message.from_name;
 		replySubject = message.subject.startsWith('Re: ') ? message.subject : `Re: ${message.subject}`;
-		replyBody = '';
+		replyBody = quoteText(message.body, message.from_name) + '\n\n';
 		replying = true;
 	}
 

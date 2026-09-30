@@ -2,7 +2,17 @@
 	// A new message or a reply, full screen: To, Subject and the text,
 	// sent as-is. A reply's original is quoted below for reference only.
 	// For netmail to an FTN address, the recipient's name is asked too.
+	import { onMount } from 'svelte';
 	import { isFTNAddress } from '$lib/api';
+
+	let area = $state<HTMLTextAreaElement | undefined>();
+	// A reply starts below the quoted original.
+	onMount(() => {
+		if (area && body) {
+			area.setSelectionRange(body.length, body.length);
+			area.scrollTop = area.scrollHeight;
+		}
+	});
 
 	let {
 		heading = 'Reply',
@@ -56,6 +66,7 @@
 		{/if}
 		<input class="field py-2.5 text-base" bind:value={subject} placeholder="Subject" />
 		<textarea
+			bind:this={area}
 			class="field min-h-[40vh] flex-1 py-2.5 font-mono text-base leading-relaxed"
 			bind:value={body}
 			placeholder={heading === 'Reply' ? 'Your reply' : 'Your message'}

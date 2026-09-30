@@ -5,6 +5,7 @@
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import ReadView from '$lib/reader/ReadView.svelte';
 	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
+	import { quoteText } from '$lib/reader/quote';
 
 	let {
 		id,
@@ -50,7 +51,7 @@
 		// To an FTN sender: its address, with the name alongside.
 		to = mail.from_address ? `${mail.from_name} @ ${mail.from_address}` : mail.from_name;
 		subject = mail.subject.startsWith('Re: ') ? mail.subject : `Re: ${mail.subject}`;
-		body = '';
+		body = quoteText(mail.body, mail.from_name) + '\n\n';
 		replying = true;
 	}
 
@@ -93,5 +94,5 @@
 {/if}
 
 {#if replying && mail}
-	<ComposeSheet bind:to bind:subject bind:body toLocked quote={mail.body} busy={sending} onSend={send} onCancel={() => (replying = false)} />
+	<ComposeSheet bind:to bind:subject bind:body toLocked busy={sending} onSend={send} onCancel={() => (replying = false)} />
 {/if}
