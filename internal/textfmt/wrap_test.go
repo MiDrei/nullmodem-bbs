@@ -1,4 +1,4 @@
-package web
+package textfmt
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 
 func TestWrapLongLines(t *testing.T) {
 	long := strings.Repeat("word ", 30) // 150 characters
-	got := wrapLongLines("Short line.\n"+long+"\n   aligned   table\n", 79)
+	got := WrapLongLines("Short line.\n"+long+"\n   aligned   table\n", 79)
 	for _, l := range strings.Split(got, "\n") {
 		if len([]rune(l)) > 79 {
 			t.Fatalf("line longer than 79: %q", l)
@@ -20,7 +20,7 @@ func TestWrapLongLines(t *testing.T) {
 		t.Fatal("wrapping lost or changed words")
 	}
 
-	quoted := wrapLongLines(" SW> "+long, 79)
+	quoted := WrapLongLines(" SW> "+long, 79)
 	for _, l := range strings.Split(quoted, "\n") {
 		if !strings.HasPrefix(l, " SW> ") || len([]rune(l)) > 79 {
 			t.Fatalf("wrapped quote line %q lost its prefix or is too long", l)
@@ -28,10 +28,10 @@ func TestWrapLongLines(t *testing.T) {
 	}
 
 	url := "see https://example.org/" + strings.Repeat("x", 100)
-	if wrapLongLines(url, 79) != "see\nhttps://example.org/"+strings.Repeat("x", 100) {
-		t.Fatalf("a long URL must stay whole: %q", wrapLongLines(url, 79))
+	if WrapLongLines(url, 79) != "see\nhttps://example.org/"+strings.Repeat("x", 100) {
+		t.Fatalf("a long URL must stay whole: %q", WrapLongLines(url, 79))
 	}
-	if wrapLongLines("Grüße "+strings.Repeat("ä", 73), 79) != "Grüße "+strings.Repeat("ä", 73) {
+	if WrapLongLines("Grüße "+strings.Repeat("ä", 73), 79) != "Grüße "+strings.Repeat("ä", 73) {
 		t.Fatal("width counts characters, not bytes: 79 umlaut-heavy characters must fit")
 	}
 }

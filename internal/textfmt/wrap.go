@@ -1,4 +1,8 @@
-package web
+// Package textfmt shapes message text the way FTN readers expect:
+// lines wrapped at 79 columns, replies quoted " XY> " under a
+// " -=> X wrote to Y <=-" line. Shared by the Telnet/SSH editor and
+// the web portal/reader.
+package textfmt
 
 import (
 	"regexp"
@@ -6,21 +10,20 @@ import (
 	"unicode/utf8"
 )
 
-// postLineWidth is how long a line of a message written in the web
-// portal or the mobile reader may be: FTN readers and Telnet screens
-// show 79 columns, and a browser's textarea sends a paragraph as one
-// long line.
-const postLineWidth = 79
+// LineWidth is how long a message line may be: FTN readers and Telnet
+// screens show 79 columns, and a browser's textarea sends a paragraph
+// as one long line.
+const LineWidth = 79
 
 // quotePrefix matches an FTN quote's leading " XY> " (up to a few
 // initials, possibly quoted again: "XY>>").
 var quotePrefix = regexp.MustCompile(`^ ?[A-Za-z0-9]{0,4}>+ ?`)
 
-// wrapLongLines breaks every line longer than width at the last space
+// WrapLongLines breaks every line longer than width at the last space
 // before it -- shorter lines, and so hand-aligned text, stay exactly as
 // they are. A wrapped quote line keeps its " XY> " on each piece. A
 // single word longer than the line (a URL) is left whole.
-func wrapLongLines(body string, width int) string {
+func WrapLongLines(body string, width int) string {
 	body = strings.ReplaceAll(body, "\r\n", "\n")
 	var out []string
 	for _, line := range strings.Split(body, "\n") {

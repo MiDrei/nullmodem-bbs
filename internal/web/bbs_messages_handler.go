@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"git.maik.ch/nullmodem/bbs/internal/textfmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -359,7 +360,7 @@ func (s *Server) handlePostBBSMessage(w http.ResponseWriter, r *http.Request) {
 	// a non-ASCII character round-trips as CP437-decoded garbage
 	// (confirmed live: "ä" became "├ñ").
 	m, err := s.Messages.PostMessage(areaID, claims.UserID,
-		string(ansi.EncodeCP437(toName)), string(ansi.EncodeCP437(req.Subject)), string(ansi.EncodeCP437(wrapLongLines(req.Body, postLineWidth))))
+		string(ansi.EncodeCP437(toName)), string(ansi.EncodeCP437(req.Subject)), string(ansi.EncodeCP437(textfmt.WrapLongLines(req.Body, textfmt.LineWidth))))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not post message")
 		return

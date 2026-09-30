@@ -269,8 +269,8 @@ func TestReplyToNetmailSendsToOriginalSender(t *testing.T) {
 	if !reply.FromUserID.Valid || reply.FromUserID.Int64 != bob.ID {
 		t.Fatalf("reply.FromUserID = %v, want bob's id %d", reply.FromUserID, bob.ID)
 	}
-	if reply.Body != "Thanks" {
-		t.Fatalf("reply.Body = %q, want %q", reply.Body, "Thanks")
+	if want := " -=> alice wrote to bob <=-\n\n Al> hi bob\n\nThanks"; reply.Body != want {
+		t.Fatalf("reply.Body = %q, want %q", reply.Body, want)
 	}
 }
 

@@ -1216,8 +1216,9 @@ func TestReplyToMessagePrefillsToAndSubjectAndPosts(t *testing.T) {
 	if !reply.FromUserID.Valid || reply.FromUserID.Int64 != bob.ID {
 		t.Fatalf("reply.FromUserID = %v, want bob's id %d", reply.FromUserID, bob.ID)
 	}
-	if reply.Body != "Thanks for that" {
-		t.Fatalf("reply.Body = %q, want %q", reply.Body, "Thanks for that")
+	// The editor starts with the quoted original (textfmt.QuoteLines).
+	if want := " -=> alice wrote to All <=-\n\n Al> hello\n\nThanks for that"; reply.Body != want {
+		t.Fatalf("reply.Body = %q, want %q", reply.Body, want)
 	}
 }
 

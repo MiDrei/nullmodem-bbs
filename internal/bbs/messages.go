@@ -788,7 +788,7 @@ func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area
 		return err
 	}
 
-	lines, saved, err := s.runLineEditor(term)
+	lines, saved, err := s.runLineEditor(term, quoteForReply(original.Body, original.FromName, original.ToName))
 	if err != nil {
 		return err
 	}
@@ -856,7 +856,7 @@ func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) e
 		return term.Println(ansi.Reset + "Cancelled.")
 	}
 
-	lines, saved, err := s.runLineEditor(term)
+	lines, saved, err := s.runLineEditor(term, nil)
 	if err != nil {
 		return err
 	}

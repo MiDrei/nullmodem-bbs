@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"git.maik.ch/nullmodem/bbs/internal/textfmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -233,7 +234,7 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	// plain-ASCII username or FTN address, never free-typed text, so
 	// it doesn't).
 	m, err := s.Netmail.Send(claims.UserID, s.FTNAddress, toUserID, toName, toAddress,
-		string(ansi.EncodeCP437(req.Subject)), string(ansi.EncodeCP437(wrapLongLines(req.Body, postLineWidth))), req.Crash)
+		string(ansi.EncodeCP437(req.Subject)), string(ansi.EncodeCP437(textfmt.WrapLongLines(req.Body, textfmt.LineWidth))), req.Crash)
 	if err != nil {
 		s.logWarn("could not send BBS portal netmail from %s to %s: %v", claims.Subject, req.To, err)
 		writeError(w, http.StatusInternalServerError, "could not send netmail")

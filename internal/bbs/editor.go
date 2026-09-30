@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/textfmt"
 	"strconv"
 	"strings"
 
@@ -84,9 +85,19 @@ func replySubject(subject string) string {
 // can tell "the user aborted" apart from "an empty message" -- /S
 // itself refuses to save an empty message and re-prompts instead of
 // returning, so a true save always carries at least one line.
-func (s *Server) runLineEditor(term *Terminal) (lines []string, saved bool, err error) {
+//
+// initial is what the message starts with -- a reply's quoted original
+// (see textfmt.QuoteLines) -- listed first so the caller sees it, and
+// editable like typed lines (/D to drop a quoted line).
+func (s *Server) runLineEditor(term *Terminal, initial []string) (lines []string, saved bool, err error) {
 	if err := s.printEditorHelp(term); err != nil {
 		return nil, false, err
+	}
+	lines = append(lines, initial...)
+	if len(lines) > 0 {
+		if err := s.printEditorListing(term, lines); err != nil {
+			return nil, false, err
+		}
 	}
 	for {
 		if err := term.Print(ansi.Reset + fmt.Sprintf("%3d: ", len(lines)+1) + ansi.FG(ansi.Yellow, true)); err != nil {
@@ -133,4 +144,18 @@ func (s *Server) runLineEditor(term *Terminal) (lines []string, saved bool, err 
 			lines = append(lines, input)
 		}
 	}
+}
+
+// quoteForReply is a reply's starting lines: the quoted original under
+// " -=> from wrote to to <=-" (textfmt.QuoteLines), then a blank line.
+// Stored text is CP437; it is quoted as UTF-8 (wrapping counts and
+// splits characters) and turned back.
+func quoteForReply(body, from, to string) []string {
+	dec := func(v string) string { return ansi.DecodeCP437([]byte(v)) }
+	lines := textfmt.QuoteLines(dec(body), dec(from), dec(to))
+	out := make([]string, 0, len(lines)+1)
+	for _, l := range lines {
+		out = append(out, string(ansi.EncodeCP437(l)))
+	}
+	return append(out, "")
 }
