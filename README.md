@@ -29,6 +29,9 @@ Teil der NullModem-Familie:
 **Web** (`:8090`)
 - Portal für Benutzer (`/`): Nachrichten, Netmail, Dateien, QWK, Profil —
   dieselben Funktionen wie über Telnet
+- Reader fürs Handy (`/reader`): schlanke Web-App zum Lesen und Beantworten
+  von Echomail und Netmail, installierbar auf dem Home-Bildschirm (iOS,
+  Android); Gelesen-Status wie überall auf der BBS
 - Administration für den Sysop (`/admin`, ab SL 255): Benutzer, Bereiche,
   Security-Level-Matrix, Logs, BinkP-Uplinks, Areafix, Archiv, ANSI-Designer
   für die Bildschirme

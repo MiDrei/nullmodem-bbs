@@ -1,0 +1,99 @@
+<script lang="ts">
+	// One area's messages, oldest first, opened at the first unread;
+	// "Read" starts there and goes on with Next.
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
+	import {
+		listBBSMessages,
+		listBBSMessageAreas,
+		getFirstUnreadMessagePosition,
+		type BBSMessageSummary
+	} from '$lib/api';
+	import { readerToken, readerAuthFailed, errorText, shortDate } from '$lib/reader/session';
+
+	const PAGE = 40;
+
+	let areaId = $derived(Number(page.params.id));
+	let title = $state('');
+	let messages = $state<BBSMessageSummary[]>([]);
+	let offset = $state(0);
+	let total = $state(0);
+	let error = $state<string | null>(null);
+	let loaded = $state(false);
+	let firstUnread = $derived(messages.find((m) => m.unread));
+
+	async function load(id: number) {
+		const token = await readerToken();
+		if (!token) return;
+		try {
+			const [pos, areas] = await Promise.all([getFirstUnreadMessagePosition(token, id), listBBSMessageAreas(token)]);
+			title = areas.find((a) => a.id === id)?.name ?? '';
+			// A few already-read ones above the first unread, for context.
+			offset = Math.max(0, pos.position - 3);
+			const p = await listBBSMessages(token, id, PAGE, offset);
+			messages = p.messages;
+			total = p.total;
+			error = null;
+		} catch (err) {
+			if (await readerAuthFailed(err)) return;
+			error = errorText(err, 'Could not load the messages.');
+		} finally {
+			loaded = true;
+		}
+	}
+
+	async function more(older: boolean) {
+		const token = await readerToken();
+		if (!token) return;
+		const from = older ? Math.max(0, offset - PAGE) : offset + messages.length;
+		const limit = older ? offset - from : PAGE;
+		try {
+			const p = await listBBSMessages(token, areaId, limit, from);
+			if (older) {
+				messages = [...p.messages, ...messages];
+				offset = from;
+			} else {
+				messages = [...messages, ...p.messages];
+			}
+			total = p.total;
+		} catch (err) {
+			if (await readerAuthFailed(err)) return;
+			error = errorText(err, 'Could not load more.');
+		}
+	}
+
+	$effect(() => {
+		load(areaId);
+	});
+</script>
+
+<header class="r-bar">
+	<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label="Back">‹</button>
+	<span class="r-title">{title}</span>
+	{#if firstUnread}
+		<button class="r-btn text-sm font-semibold" onclick={() => goto(`/reader/m/${firstUnread.id}`)}>Read</button>
+	{/if}
+</header>
+
+{#if error}
+	<p class="r-note text-red-400">{error}</p>
+{:else if loaded}
+	{#if offset > 0}
+		<button class="r-row justify-center text-sm text-accent" onclick={() => more(true)}>Earlier messages</button>
+	{/if}
+	{#each messages as m (m.id)}
+		<a class="r-row" href="/reader/m/{m.id}">
+			<span class="h-2 w-2 shrink-0 rounded-full {m.unread ? 'bg-accent' : ''}"></span>
+			<span class="min-w-0 flex-1">
+				<span class="block truncate {m.unread ? 'font-semibold text-ink-strong' : 'text-ink-soft'}">{m.subject}</span>
+				<span class="block truncate text-xs text-muted">{m.from_name} → {m.to_name}</span>
+			</span>
+			<span class="shrink-0 text-xs text-faint">{shortDate(m.posted_at)}</span>
+		</a>
+	{:else}
+		<p class="r-note">No messages.</p>
+	{/each}
+	{#if offset + messages.length < total}
+		<button class="r-row justify-center text-sm text-accent" onclick={() => more(false)}>More</button>
+	{/if}
+{/if}

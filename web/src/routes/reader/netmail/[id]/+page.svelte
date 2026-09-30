@@ -1,0 +1,90 @@
+<script lang="ts">
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
+	import { toast } from '$lib/toast.svelte';
+	import { getBBSNetmail, sendBBSNetmail, type BBSNetmail } from '$lib/api';
+	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
+	import ReadView from '$lib/reader/ReadView.svelte';
+	import ReplySheet from '$lib/reader/ReplySheet.svelte';
+
+	let id = $derived(Number(page.params.id));
+	let mail = $state<BBSNetmail | null>(null);
+	let error = $state<string | null>(null);
+
+	let replying = $state(false);
+	let to = $state('');
+	let subject = $state('');
+	let body = $state('');
+	let sending = $state(false);
+
+	async function load(mailId: number) {
+		const token = await readerToken();
+		if (!token) return;
+		try {
+			mail = await getBBSNetmail(token, mailId);
+			error = null;
+			window.scrollTo(0, 0);
+		} catch (err) {
+			if (await readerAuthFailed(err)) return;
+			error = errorText(err, 'Could not load the netmail.');
+		}
+	}
+
+	$effect(() => {
+		load(id);
+	});
+
+	function open(next?: number) {
+		if (next) goto(`/reader/netmail/${next}`, { replaceState: true });
+	}
+
+	function startReply() {
+		if (!mail) return;
+		// To an FTN sender: its address, with the name alongside.
+		to = mail.from_address ? `${mail.from_name} @ ${mail.from_address}` : mail.from_name;
+		subject = mail.subject.startsWith('Re: ') ? mail.subject : `Re: ${mail.subject}`;
+		body = '';
+		replying = true;
+	}
+
+	async function send() {
+		const token = await readerToken();
+		if (!token || !mail) return;
+		const target = mail.from_address || mail.from_name;
+		const toName = mail.from_address ? mail.from_name : '';
+		sending = true;
+		try {
+			await sendBBSNetmail(token, target, subject, body, toName);
+			replying = false;
+			toast.push('Reply sent.', 'success');
+		} catch (err) {
+			if (await readerAuthFailed(err)) return;
+			toast.push(errorText(err, 'Could not send the reply.'), 'error');
+		} finally {
+			sending = false;
+		}
+	}
+</script>
+
+{#if error}
+	<p class="r-note text-red-400">{error}</p>
+{:else if mail}
+	<ReadView
+		title="Netmail"
+		from={mail.from_address ? `${mail.from_name} (${mail.from_address})` : mail.from_name}
+		to={mail.to_name}
+		postedAt={mail.posted_at}
+		subject={mail.subject}
+		bodyHtml={mail.body_html}
+		preformatted={mail.preformatted}
+		grid={mail.grid}
+		onBack={() => goto('/reader/netmail', { replaceState: true })}
+		onPrev={mail.prev_id ? () => open(mail?.prev_id) : undefined}
+		onNext={mail.next_id ? () => open(mail?.next_id) : undefined}
+		onReply={mail.is_recipient ? startReply : undefined}
+	/>
+{/if}
+
+{#if replying && mail}
+	<ReplySheet bind:to bind:subject bind:body toLocked quote={mail.body} busy={sending} onSend={send} onCancel={() => (replying = false)} />
+{/if}
