@@ -94,6 +94,10 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "message_areas", "hidden", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	if err := ensureColumn(sqlDB, "file_areas", "pending", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		sqlDB.Close()
 		return nil, err

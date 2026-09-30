@@ -3,6 +3,7 @@ package bbs
 import (
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -50,6 +51,9 @@ type Server struct {
 	NewUserSL     int
 	WelcomeScreen string
 	ScreensDir    string
+	// LastCallers is the InterBBS Last Callers setup (see
+	// lastcallers.go); zero means off.
+	LastCallers config.LastCallersConfig
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -71,6 +75,7 @@ type Options struct {
 	NewUserSL     int
 	WelcomeScreen string
 	ScreensDir    string
+	LastCallers   config.LastCallersConfig
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -91,6 +96,7 @@ func NewServer(opts Options) *Server {
 		NewUserSL:     opts.NewUserSL,
 		WelcomeScreen: opts.WelcomeScreen,
 		ScreensDir:    opts.ScreensDir,
+		LastCallers:   opts.LastCallers,
 	}
 }
 
@@ -144,6 +150,14 @@ func (s *Server) Handle(conn Conn) {
 	s.Nodes.SetUsername(node, u.Username)
 	term.SetLocation(u.Location())
 	s.logInfo("[%s] node %d: %s logged in", protocol, node, u.Username)
+	// Whatever way the call ends, it's this board's newest last caller.
+	defer s.postLastCaller(u)
+
+	if s.LastCallers.ShowAtLogin {
+		if err := s.showLastCallers(term, u); err != nil {
+			return
+		}
+	}
 
 	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
 		s.logWarn("[%s] node %d (%s): menu error: %v", protocol, node, u.Username, err)
@@ -383,6 +397,7 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"profile":        (*Server).showProfile,
 	"stats":          (*Server).showProfile,
 	"version":        (*Server).showVersion,
+	"lastcallers":    (*Server).showLastCallers,
 	"listusers":      (*Server).sysopListUsers,
 	"setsl":          (*Server).sysopSetSecurityLevel,
 	"areas":          (*Server).showAreas,

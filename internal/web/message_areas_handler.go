@@ -33,6 +33,9 @@ type messageAreaDTO struct {
 	// first place (see AllAreas), but the field rides along on a
 	// single Area anyway so /api/pending-areas can reuse this DTO.
 	Pending bool `json:"pending"`
+	// Hidden marks a data area, left out of callers' area lists (see
+	// message.Area.Hidden). On update, absent means unchanged.
+	Hidden *bool `json:"hidden,omitempty"`
 }
 
 func toMessageAreaDTO(a message.Area) messageAreaDTO {
@@ -46,6 +49,7 @@ func toMessageAreaDTO(a message.Area) messageAreaDTO {
 		MinSLWrite:  a.MinSLWrite,
 		SortOrder:   a.SortOrder,
 		Pending:     a.Pending,
+		Hidden:      &a.Hidden,
 	}
 }
 
@@ -108,6 +112,13 @@ func (s *Server) handleUpdateMessageArea(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update message area")
 		return
+	}
+	if dto.Hidden != nil && *dto.Hidden != area.Hidden {
+		if err := s.Messages.SetAreaHidden(id, *dto.Hidden); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not update message area")
+			return
+		}
+		area.Hidden = *dto.Hidden
 	}
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s updated message area %q (%s)", claims.Subject, area.Name, area.Tag)

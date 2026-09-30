@@ -980,3 +980,57 @@ func TestRenameNetworkMatchesWithoutCaseAndLeavesOthers(t *testing.T) {
 		}
 	}
 }
+
+func TestHiddenDataAreaStaysOutOfCallersLists(t *testing.T) {
+	s, users := newTestStore(t)
+	u, _ := users.Register("reader", "password123", user.SLNewUser)
+	dat, _ := s.CreateArea("FSX_DAT", "Data", "", "fsxNet", 0, 0)
+	if err := s.SetAreaHidden(dat.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	listed, _ := s.ListAreas(user.SLNewUser)
+	stats, _ := s.ListAreaStats(user.SLNewUser, u.ID)
+	for _, a := range listed {
+		if a.ID == dat.ID {
+			t.Fatal("hidden area in ListAreas")
+		}
+	}
+	for _, st := range stats {
+		if st.Area.ID == dat.ID {
+			t.Fatal("hidden area in ListAreaStats")
+		}
+	}
+	if a, _ := s.AreaByID(dat.ID); !a.Hidden {
+		t.Fatal("AreaByID lost Hidden")
+	}
+	all, _ := s.AllAreas()
+	found := false
+	for _, a := range all {
+		found = found || (a.ID == dat.ID && a.Hidden)
+	}
+	if !found {
+		t.Fatal("the admin's AllAreas must still list the hidden area")
+	}
+}
+
+func TestPostMessageAsKeepsTheGivenSenderAndGoesOut(t *testing.T) {
+	s, users := newTestStore(t)
+	sysop, _ := users.Register("sysop", "password123", user.SLSysop)
+	dat, _ := s.CreateArea("FSX_DAT", "Data", "", "fsxNet", 0, 0)
+	m, err := s.PostMessageAs(dat.ID, sysop.ID, "ibbslastcall", "All", "ibbslastcall-data", "body")
+	if err != nil || m.FromName != "ibbslastcall" {
+		t.Fatalf("PostMessageAs = %+v, %v", m, err)
+	}
+	pending, _ := s.PendingOutboundEcho("fsxNet")
+	if len(pending) != 1 || pending[0].FromName != "ibbslastcall" {
+		t.Fatalf("pending = %+v, want it going out as ibbslastcall", pending)
+	}
+	plain, _ := s.PostMessage(dat.ID, sysop.ID, "All", "Hi", "text")
+	if plain.FromName != "sysop" {
+		t.Fatalf("an ordinary post shows %q, want the username", plain.FromName)
+	}
+	got, _ := s.SubjectBodies(dat.ID, []string{"IBBSLASTCALL-DATA"}, 10)
+	if len(got) != 1 || got[0].Body != "body" {
+		t.Fatalf("SubjectBodies = %+v", got)
+	}
+}

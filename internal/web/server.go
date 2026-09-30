@@ -151,6 +151,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/bbs/message-areas/{id}/mark-read", s.requireBBSUser(http.HandlerFunc(s.handleMarkBBSAreaRead)))
 	mux.Handle("GET /api/bbs/messages/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSMessage)))
 	mux.Handle("GET /api/bbs/netmail", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmail)))
+	mux.Handle("GET /api/bbs/last-callers", s.requireBBSUser(http.HandlerFunc(s.handleListLastCallers)))
 	mux.Handle("GET /api/bbs/netmail/sent", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmailSent)))
 	mux.Handle("POST /api/bbs/netmail", s.requireBBSUser(http.HandlerFunc(s.handleSendBBSNetmail)))
 	mux.Handle("GET /api/bbs/netmail/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSNetmail)))

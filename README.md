@@ -43,6 +43,9 @@ Teil der NullModem-Familie:
   AKAs
 - Tosser für Echomail, Netmail und TIC-Datei-Echos
 - Areafix/Filefix, auch für eigene Downlinks
+- InterBBS Last Callers: liest die Liste aus FSX_DAT (beide gängigen Formate),
+  zeigt sie nach dem Login und im Portal und meldet die eigenen Anrufer;
+  Daten-Areas wie FSX_DAT lassen sich für Anrufer ausblenden
 - Points, z. B. ein Reader wie FidoMail; wahlweise schreibt er als dein
   BBS-User, als käme die Post direkt von der BBS
 

@@ -39,6 +39,12 @@ type Area struct {
 	// reviews and approves it (ApproveArea) -- an area created by
 	// hand (CreateArea) is never pending.
 	Pending bool
+	// Hidden marks a data area -- one programs write to and read, not
+	// people (fsxNet's FSX_DAT: InterBBS last callers, oneliners). It
+	// is tossed and forwarded as usual but left out of every caller's
+	// area list (Telnet/SSH, portal, reader, QWK), so its traffic never
+	// shows as unread. The web admin still lists it.
+	Hidden bool
 }
 
 // CanRead reports whether an account at securityLevel may read this
@@ -107,7 +113,7 @@ func (s *Store) CreateArea(tag, name, description, network string, minSLRead, mi
 // AreaByID loads a single area by primary key.
 func (s *Store) AreaByID(id int64) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending
+		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
 		 FROM message_areas WHERE id = ?`, id,
 	))
 }
@@ -115,14 +121,14 @@ func (s *Store) AreaByID(id int64) (*Area, error) {
 // AreaByTag loads a single area by its short tag (case-insensitive).
 func (s *Store) AreaByTag(tag string) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending
+		`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
 		 FROM message_areas WHERE tag = ?`, tag,
 	))
 }
 
 func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	var a Area
-	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt, &a.Pending); err != nil {
+	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.Hidden); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAreaNotFound
 		}
@@ -172,15 +178,15 @@ func (s *Store) Networks() ([]string, error) {
 // area (see EnsureArea) never appears here, however low
 // securityLevel's threshold -- it's invisible until approved.
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending
-		 FROM message_areas WHERE min_sl_read <= ? AND pending = 0 ORDER BY network, sort_order, name`, securityLevel)
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
+		 FROM message_areas WHERE min_sl_read <= ? AND pending = 0 AND hidden = 0 ORDER BY network, sort_order, name`, securityLevel)
 }
 
 // AllAreas returns every non-pending area regardless of SL gating,
 // for the web admin area management UI, in the same network-grouped
 // order as ListAreas. See PendingAreas for the areas this excludes.
 func (s *Store) AllAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
 		 FROM message_areas WHERE pending = 0 ORDER BY network, sort_order, name`)
 }
 
@@ -188,7 +194,7 @@ func (s *Store) AllAreas() ([]Area, error) {
 // EnsureArea), oldest first -- what the web admin's Pending Areas page
 // lists for approval.
 func (s *Store) PendingAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_read, min_sl_write, sort_order, created_at, pending, hidden
 		 FROM message_areas WHERE pending = 1 ORDER BY created_at`)
 }
 
@@ -247,7 +253,7 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	var areas []Area
 	for rows.Next() {
 		var a Area
-		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt, &a.Pending); err != nil {
+		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLRead, &a.MinSLWrite, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.Hidden); err != nil {
 			return nil, fmt.Errorf("message: scan area: %w", err)
 		}
 		areas = append(areas, a)
@@ -274,14 +280,14 @@ type AreaWithStats struct {
 // a pending area never appears here.
 func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats, error) {
 	rows, err := s.db.Query(
-		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_read, a.min_sl_write, a.sort_order, a.created_at, a.pending,
+		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_read, a.min_sl_write, a.sort_order, a.created_at, a.pending, a.hidden,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id AND m.from_user_id = ?) AS yours,
 		        (SELECT COUNT(1) FROM messages m WHERE m.area_id = a.id
 		           AND NOT EXISTS (SELECT 1 FROM message_reads r
 		                           WHERE r.user_id = ? AND r.message_id = m.id)) AS new
 		 FROM message_areas a
-		 WHERE a.min_sl_read <= ? AND a.pending = 0
+		 WHERE a.min_sl_read <= ? AND a.pending = 0 AND a.hidden = 0
 		 ORDER BY a.network, a.sort_order, a.name`,
 		userID, userID, securityLevel,
 	)
@@ -294,7 +300,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	for rows.Next() {
 		var st AreaWithStats
 		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description, &st.Area.Network,
-			&st.Area.MinSLRead, &st.Area.MinSLWrite, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending,
+			&st.Area.MinSLRead, &st.Area.MinSLWrite, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending, &st.Area.Hidden,
 			&st.Total, &st.Yours, &st.New); err != nil {
 			return nil, fmt.Errorf("message: scan area stats: %w", err)
 		}
@@ -501,7 +507,7 @@ func (s *Store) PendingOutboundEcho(network string) ([]PendingEcho, error) {
 		return nil, nil
 	}
 	rows, err := s.db.Query(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at, a.tag
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, a.tag
 		 FROM messages m
 		 JOIN message_areas a ON a.id = m.area_id
 		 LEFT JOIN users u ON u.id = m.from_user_id
@@ -594,7 +600,7 @@ func (s *Store) ReceiveEcho(areaID int64, fromName, subject, body, msgID string,
 // is used as-is -- see ReceiveEcho).
 func (s *Store) MessageByID(id int64) (*Message, error) {
 	row := s.db.QueryRow(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id WHERE m.id = ?`, id,
 	)
 	var m Message
@@ -609,7 +615,7 @@ func (s *Store) MessageByID(id int64) (*Message, error) {
 // remote author's stored FromName is used as-is -- see ReceiveEcho).
 func (s *Store) ListMessages(areaID int64) ([]Message, error) {
 	rows, err := s.db.Query(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.area_id = ? ORDER BY m.posted_at, m.id`, areaID,
 	)
@@ -692,7 +698,7 @@ func (s *Store) ListMessagesPage(areaID int64, limit, offset int) ([]Message, in
 	}
 
 	rows, err := s.db.Query(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.area_id = ? ORDER BY m.posted_at, m.id LIMIT ? OFFSET ?`, areaID, limit, offset,
 	)
@@ -830,4 +836,64 @@ func (s *Store) MarkDeliveredToPoint(messageID int64, uplinkHost string) error {
 		return fmt.Errorf("message: mark %d delivered to %s: %w", messageID, uplinkHost, err)
 	}
 	return nil
+}
+
+// SetAreaHidden marks area id as a data area (see Area.Hidden), or
+// back as an ordinary one.
+func (s *Store) SetAreaHidden(id int64, hidden bool) error {
+	if _, err := s.db.Exec(`UPDATE message_areas SET hidden = ? WHERE id = ?`, hidden, id); err != nil {
+		return fmt.Errorf("message: set area %d hidden: %w", id, err)
+	}
+	return nil
+}
+
+// PostMessageAs is PostMessage under another sender name than the
+// poster's username -- for a message the system posts through a local
+// account (its sysop), like an InterBBS last-callers record whose
+// sender must read "ibbslastcall". It goes out like any local post.
+func (s *Store) PostMessageAs(areaID, fromUserID int64, fromName, toName, subject, body string) (*Message, error) {
+	res, err := s.db.Exec(
+		`INSERT INTO messages (area_id, from_user_id, from_name, to_name, subject, body) VALUES (?, ?, ?, ?, ?, ?)`,
+		areaID, fromUserID, fromName, toName, subject, body,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("message: post to area %d: %w", areaID, err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("message: last insert id: %w", err)
+	}
+	if err := s.MarkMessageRead(fromUserID, id); err != nil {
+		return nil, err
+	}
+	return s.MessageByID(id)
+}
+
+// SubjectBodies returns the newest messages in areaID whose subject
+// is one of subjects (case-insensitive), newest first, at most limit
+// -- the raw material for InterBBS lists (internal/lastcallers).
+func (s *Store) SubjectBodies(areaID int64, subjects []string, limit int) ([]Message, error) {
+	if len(subjects) == 0 {
+		return nil, nil
+	}
+	q := `SELECT id, subject, body, posted_at FROM messages WHERE area_id = ? AND LOWER(subject) IN (?` + strings.Repeat(`, ?`, len(subjects)-1) + `) ORDER BY id DESC LIMIT ?`
+	args := []any{areaID}
+	for _, sub := range subjects {
+		args = append(args, strings.ToLower(sub))
+	}
+	args = append(args, limit)
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("message: messages by subject in area %d: %w", areaID, err)
+	}
+	defer rows.Close()
+	var out []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.Subject, &m.Body, &m.PostedAt); err != nil {
+			return nil, fmt.Errorf("message: messages by subject in area %d: %w", areaID, err)
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }

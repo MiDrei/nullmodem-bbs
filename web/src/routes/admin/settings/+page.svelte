@@ -128,6 +128,40 @@
 			</label>
 		</section>
 
+		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
+			<h2 class="card-label">InterBBS Last Callers</h2>
+			<p class="text-xs leading-relaxed text-slate-500">
+				Boards of a network post a record to a data echo whenever a caller logs off, and show who was
+				on where lately. Mark that echo as a data area (Message Areas) so it doesn't show as unread.
+			</p>
+			<label class="flex items-center gap-2 text-sm">
+				<input type="checkbox" class="check" bind:checked={config.last_callers.enabled} />
+				<span class="text-slate-400">Take part: post a record for each caller logging off over Telnet/SSH</span>
+			</label>
+			<label class="flex items-center gap-2 text-sm">
+				<input type="checkbox" class="check" bind:checked={config.last_callers.show_at_login} />
+				<span class="text-slate-400">Show the list to callers after they log in</span>
+			</label>
+			<div class="grid gap-3 sm:grid-cols-3">
+				<label class="flex flex-col gap-1 text-sm">
+					<span class="text-slate-400">Data echo</span>
+					<input class="field font-mono" bind:value={config.last_callers.area} placeholder="FSX_DAT" />
+				</label>
+				<label class="flex flex-col gap-1 text-sm">
+					<span class="text-slate-400">Your address, as shown</span>
+					<input class="field font-mono" bind:value={config.last_callers.address} placeholder="bbs.example.org:2323" />
+				</label>
+				<label class="flex flex-col gap-1 text-sm">
+					<span class="text-slate-400">System</span>
+					<input class="field" bind:value={config.last_callers.system} placeholder="Linux" />
+				</label>
+			</div>
+			<p class="text-xs leading-relaxed text-slate-500">
+				A caller's place in the record is the city of their profile's time zone (Europe/Zurich →
+				Zurich), blank without one. Records go out under the first sysop account, as "ibbslastcall".
+			</p>
+		</section>
+
 		{#if saveError}
 			<p class="text-sm text-red-400">{saveError}</p>
 		{/if}

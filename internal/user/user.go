@@ -393,3 +393,9 @@ func isUniqueConstraintErr(err error) bool {
 	// the recognized way to detect it.
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint")
 }
+
+// FirstSysop is the oldest account with sysop access -- the one a
+// message the system itself posts (an InterBBS record) is filed under.
+func (s *Store) FirstSysop() (*User, error) {
+	return s.scanOne(s.db.QueryRow(`SELECT `+userColumns+` FROM users WHERE security_level >= ? ORDER BY id LIMIT 1`, SLSysop))
+}

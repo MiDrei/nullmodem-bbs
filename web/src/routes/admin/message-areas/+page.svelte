@@ -23,7 +23,8 @@
 			network: '',
 			min_sl_read: 0,
 			min_sl_write: 0,
-			sort_order: 0
+			sort_order: 0,
+			hidden: false
 		};
 	}
 
@@ -114,7 +115,8 @@
 			network: area.network,
 			min_sl_read: area.min_sl_read,
 			min_sl_write: area.min_sl_write,
-			sort_order: area.sort_order
+			sort_order: area.sort_order,
+			hidden: !!area.hidden
 		};
 	}
 
@@ -234,6 +236,17 @@
 				<input type="number" class="field field-sm" bind:value={d.sort_order} />
 			</label>
 		</div>
+		<label class="col-span-2 flex cursor-pointer items-start gap-2.5 text-[13px]">
+			<input type="checkbox" class="check mt-0.5" bind:checked={d.hidden} />
+			<span>
+				<span class="text-ink">Data area</span>
+				<span class="block text-xs text-faint">
+					For an echo programs write to, not people (FSX_DAT: InterBBS last callers, oneliners).
+					Still tossed and forwarded, but left out of callers' area lists, so it never shows as
+					unread.
+				</span>
+			</span>
+		</label>
 	</div>
 {/snippet}
 
@@ -327,6 +340,11 @@
 							<td class="py-1.5 pr-3">
 								<div class="truncate">
 									<span class="text-ink group-hover:text-accent">{area.name}</span>
+									{#if area.hidden}
+										<span class="ml-1 rounded-md border border-line-strong px-1 py-0.5 font-mono text-[10px] text-faint"
+											>DATA</span
+										>
+									{/if}
 									{#if area.description && area.description !== area.name}
 										<span class="text-faint"> — {area.description}</span>
 									{/if}

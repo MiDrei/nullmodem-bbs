@@ -86,6 +86,16 @@ type configDTO struct {
 	SSHAddr                         string           `json:"ssh_addr"`
 	BinkpUplinks                    []binkpUplinkDTO `json:"binkp_uplinks"`
 	BinkpDefaultPollIntervalSeconds int              `json:"binkp_default_poll_interval_seconds"`
+	LastCallers                     lastCallersDTO   `json:"last_callers"`
+}
+
+// lastCallersDTO is config.LastCallersConfig.
+type lastCallersDTO struct {
+	Enabled     bool   `json:"enabled"`
+	Area        string `json:"area"`
+	Address     string `json:"address"`
+	System      string `json:"system"`
+	ShowAtLogin bool   `json:"show_at_login"`
 }
 
 func toDTO(c *config.Config) configDTO {
@@ -134,6 +144,13 @@ func toDTO(c *config.Config) configDTO {
 		SSHAddr:                         c.SSH.Addr,
 		BinkpUplinks:                    uplinks,
 		BinkpDefaultPollIntervalSeconds: c.Binkp.PollIntervalSeconds,
+		LastCallers: lastCallersDTO{
+			Enabled:     c.InterBBS.LastCallers.Enabled,
+			Area:        c.InterBBS.LastCallers.AreaTag(),
+			Address:     c.InterBBS.LastCallers.Address,
+			System:      c.InterBBS.LastCallers.SystemName(),
+			ShowAtLogin: c.InterBBS.LastCallers.ShowAtLogin,
+		},
 	}
 }
 
@@ -221,6 +238,13 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	c.Binkp.PollIntervalSeconds = dto.BinkpDefaultPollIntervalSeconds
+	c.InterBBS.LastCallers = config.LastCallersConfig{
+		Enabled:     dto.LastCallers.Enabled,
+		Area:        strings.ToUpper(strings.TrimSpace(dto.LastCallers.Area)),
+		Address:     strings.TrimSpace(dto.LastCallers.Address),
+		System:      strings.TrimSpace(dto.LastCallers.System),
+		ShowAtLogin: dto.LastCallers.ShowAtLogin,
+	}
 
 	if err := config.Save(s.BBSConfigPath, c); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save config")
@@ -480,6 +504,9 @@ func (s *Server) markConfigRestarts(before, after configDTO) {
 	}
 	if before.Location != after.Location {
 		s.markRestartNeeded("Location changed", services.Mailer)
+	}
+	if before.LastCallers != after.LastCallers {
+		s.markRestartNeeded("InterBBS Last Callers changed", services.BBS)
 	}
 	if before.NewUserSL != after.NewUserSL {
 		s.markRestartNeeded("New-user security level changed", services.BBS)

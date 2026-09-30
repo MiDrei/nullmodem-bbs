@@ -47,6 +47,14 @@ export interface BBSConfig {
 	binkp_uplinks: BinkpUplink[];
 	/** Default poll interval (seconds) for an uplink that doesn't set its own poll_interval_seconds. */
 	binkp_default_poll_interval_seconds: number;
+	/** InterBBS Last Callers: post a record per caller to a data echo, show the list. */
+	last_callers: {
+		enabled: boolean;
+		area: string;
+		address: string;
+		system: string;
+		show_at_login: boolean;
+	};
 }
 
 export interface FTNNetwork {
@@ -128,6 +136,8 @@ export interface MessageArea {
 	sort_order: number;
 	/** Set when internal/tosser auto-created this area for an inbound echomail AREA kludge it hadn't seen before -- invisible everywhere in the BBS until approved (see /pending-areas). Always false for an area created by hand. */
 	pending: boolean;
+	/** A data area (e.g. FSX_DAT): tossed and forwarded, but left out of callers' area lists. */
+	hidden?: boolean;
 }
 
 export interface FileArea {
@@ -1394,4 +1404,19 @@ export function listServices(token: string): Promise<ServiceStatus[]> {
 /** mode "idle" (bbs only) waits until no caller is online. */
 export function restartService(token: string, name: string, mode: 'now' | 'idle' = 'now'): Promise<void> {
 	return request<void>(`/api/services/${encodeURIComponent(name)}/restart`, { method: 'POST', body: JSON.stringify({ mode }) }, token);
+}
+
+/** One InterBBS last caller (see internal/lastcallers). */
+export interface LastCaller {
+	alias: string;
+	bbs: string;
+	date: string;
+	time: string;
+	location: string;
+	system: string;
+	address: string;
+}
+
+export function listLastCallers(token: string): Promise<LastCaller[]> {
+	return request<LastCaller[]>('/api/bbs/last-callers', { method: 'GET' }, token);
 }

@@ -107,6 +107,7 @@ func main() {
 		WelcomeScreen: welcomeScreen,
 		ScreensDir:    cfg.BBS.ScreensDir,
 		Logger:        logger,
+		LastCallers:   cfg.InterBBS.LastCallers,
 	})
 
 	// File and QWK transfers over Telnet/SSH run Synchronet's sexyz.

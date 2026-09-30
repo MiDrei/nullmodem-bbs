@@ -88,6 +88,10 @@ type Config struct {
 		ListenEnabled bool   `yaml:"listen_enabled"`
 		ListenAddr    string `yaml:"listen_addr"`
 	} `yaml:"binkp"`
+	// InterBBS is taking part in inter-BBS lists carried in data echoes.
+	InterBBS struct {
+		LastCallers LastCallersConfig `yaml:"last_callers"`
+	} `yaml:"interbbs"`
 }
 
 // BinkpUplink is one BinkP node/hub this system connects out to.
@@ -349,4 +353,38 @@ func Save(path string, c *Config) error {
 		return fmt.Errorf("config: write %s: %w", path, err)
 	}
 	return nil
+}
+
+// LastCallersConfig is the InterBBS Last Callers list (see
+// internal/lastcallers): the boards of a network post a record to a
+// data echo whenever a caller logs off, and show who was on lately.
+type LastCallersConfig struct {
+	// Enabled posts a record for each caller logging off over
+	// Telnet/SSH.
+	Enabled bool `yaml:"enabled"`
+	// Area is the data echo's tag; empty means FSX_DAT.
+	Area string `yaml:"area,omitempty"`
+	// Address is how callers reach this board, as shown on the other
+	// boards' lists ("bbs.example.org:2323").
+	Address string `yaml:"address,omitempty"`
+	// System is the board's system as shown there; empty means Linux.
+	System string `yaml:"system,omitempty"`
+	// ShowAtLogin shows the list to a caller after logging in.
+	ShowAtLogin bool `yaml:"show_at_login"`
+}
+
+// AreaTag is Area, or FSX_DAT.
+func (c LastCallersConfig) AreaTag() string {
+	if c.Area == "" {
+		return "FSX_DAT"
+	}
+	return c.Area
+}
+
+// SystemName is System, or Linux.
+func (c LastCallersConfig) SystemName() string {
+	if c.System == "" {
+		return "Linux"
+	}
+	return c.System
 }

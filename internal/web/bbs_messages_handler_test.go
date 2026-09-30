@@ -272,3 +272,32 @@ func TestBBSMarkAreaReadClearsTheAreasUnreadCount(t *testing.T) {
 		t.Fatalf("mark-read on an area above the caller's SL: status = %d, want 403", rec.Code)
 	}
 }
+
+func TestLastCallersEndpointAndHiddenDataArea(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	users.Register("bootstrap-sysop", "password123", user.SLNewUser)
+	users.Register("alice", "password123", user.SLNewUser)
+	area, _ := srv.Messages.CreateArea("FSX_DAT", "Data", "", "fsxNet", 0, 0)
+	srv.Messages.ReceiveEcho(area.ID, "ibbslastcall", "ibbslastcall-data",
+		">>> BEGIN\n~D:C@?\n%96 )\\q:E qq$\n_h^b_^ae\n_fi_c2\nqF6?2 !2C<[ rp\n(:?5@HD\nI\\3:E]@C8\n>>> END\n", "21:4/107 1", time.Now())
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodGet, "/api/bbs/last-callers", nil, token)
+	var got []lastCallerDTO
+	json.Unmarshal(rec.Body.Bytes(), &got)
+	if rec.Code != http.StatusOK || len(got) != 1 || got[0].Alias != "Osiron" || got[0].BBS != "The X-Bit BBS" || got[0].Location != "Buena Park, CA" {
+		t.Fatalf("last callers: status %d, %+v", rec.Code, got)
+	}
+
+	srv.Messages.SetAreaHidden(area.ID, true)
+	rec = doJSON(t, h, http.MethodGet, "/api/bbs/message-areas", nil, token)
+	if strings.Contains(rec.Body.String(), "FSX_DAT") {
+		t.Fatal("a hidden data area is listed for callers")
+	}
+	// Still read for the list, hidden or not.
+	rec = doJSON(t, h, http.MethodGet, "/api/bbs/last-callers", nil, token)
+	if !strings.Contains(rec.Body.String(), "Osiron") {
+		t.Fatal("hiding the data area emptied the last callers list")
+	}
+}
