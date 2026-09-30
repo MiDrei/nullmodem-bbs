@@ -56,9 +56,9 @@
 		{/if}
 		<input class="field py-2.5 text-base" bind:value={subject} placeholder="Subject" />
 		<textarea
-			class="field min-h-[40vh] flex-1 py-2.5 font-mono text-[15px] leading-relaxed"
+			class="field min-h-[40vh] flex-1 py-2.5 font-mono text-base leading-relaxed"
 			bind:value={body}
-			placeholder="Your reply"
+			placeholder={heading === 'Reply' ? 'Your reply' : 'Your message'}
 		></textarea>
 		{#if quote}
 			<details class="text-sm text-muted">

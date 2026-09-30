@@ -17,7 +17,10 @@
 	<meta name="mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 	<meta name="apple-mobile-web-app-title" content="Reader" />
-	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+	<meta
+		name="viewport"
+		content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+	/>
 </svelte:head>
 
 <div class="reader min-h-dvh bg-black text-ink">
@@ -37,6 +40,13 @@
 		max-width: 100%;
 		-webkit-text-size-adjust: 100%;
 		text-size-adjust: 100%;
+	}
+	/* iOS zooms the whole page into any field with text smaller than
+	   16px, and stays zoomed -- which cut off the right edge. */
+	.reader :global(input),
+	.reader :global(textarea),
+	.reader :global(select) {
+		font-size: max(16px, 1rem);
 	}
 	.reader {
 		width: 100%;
