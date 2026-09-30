@@ -37,10 +37,26 @@
 
 	let canvas = $state<HTMLCanvasElement | undefined>();
 	let boxWidth = $state(0);
+	// The width it's drawn for. It only follows boxWidth on a real
+	// change: a scroll pane's scrollbar appearing (the art made it
+	// taller) narrows the box by a few pixels, the smaller art removes
+	// the scrollbar again, and following every such step redrew it in
+	// an endless loop that froze the page (the reader's split view).
+	let drawWidth = $state(0);
+	const HYSTERESIS = 24;
+
+	$effect(() => {
+		const w = boxWidth;
+		if (w > 0 && (drawWidth === 0 || Math.abs(w - drawWidth) >= HYSTERESIS || w < drawWidth - 1)) {
+			// Shrinking below what it's drawn at would overflow; a small
+			// shrink is taken once, then growing back must be real.
+			drawWidth = w;
+		}
+	});
 
 	function effectiveZoom(): number {
-		if (!fit || boxWidth <= 0) return zoom;
-		return Math.min(maxZoom, boxWidth / (grid.width * CELL_W));
+		if (!fit || drawWidth <= 0) return zoom;
+		return Math.min(maxZoom, drawWidth / (grid.width * CELL_W));
 	}
 
 	function draw() {
@@ -53,8 +69,8 @@
 		const ch = CELL_H * z * dpr;
 		canvas.width = Math.round(grid.width * cw);
 		canvas.height = Math.round(grid.height * ch);
-		canvas.style.width = fit ? `${Math.round(grid.width * CELL_W * z)}px` : '';
-		canvas.style.height = fit ? `${Math.round(grid.height * CELL_H * z)}px` : '';
+		canvas.style.width = fit ? `${Math.floor(grid.width * CELL_W * z)}px` : '';
+		canvas.style.height = fit ? `${Math.floor(grid.height * CELL_H * z)}px` : '';
 		for (let row = 0; row < grid.height; row++) {
 			for (let col = 0; col < grid.width; col++) {
 				const cell = grid.cells[row * grid.width + col];
@@ -67,7 +83,7 @@
 	$effect(() => {
 		grid;
 		zoom;
-		boxWidth;
+		drawWidth;
 		draw();
 	});
 </script>

@@ -4,7 +4,7 @@
 	// area list folds away for a wider message, remembered on the device.
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { replaceState } from '$app/navigation';
+	import { replaceState, afterNavigate } from '$app/navigation';
 	import AreaListPane from '$lib/reader/AreaListPane.svelte';
 	import MessageListPane from '$lib/reader/MessageListPane.svelte';
 	import MessagePane from '$lib/reader/MessagePane.svelte';
@@ -29,13 +29,28 @@
 	// Nothing open yet: the area list stays, folded or not.
 	let showAreas = $derived(!collapsed || (areaId == null && !netmail));
 
+	// The open area and message go into the address, so a reload or
+	// turning the tablet upright keeps them -- but only once SvelteKit's
+	// router is up: replaceState before that threw, which aborted the
+	// router's start and left the reader dead (message pane empty,
+	// nothing clickable) until a reload.
+	let routerReady = $state(false);
+	afterNavigate(() => {
+		routerReady = true;
+	});
+
 	$effect(() => {
 		const q = new URLSearchParams();
 		if (netmail) q.set('n', '1');
 		else if (areaId != null) q.set('a', String(areaId));
 		if (messageId != null) q.set('m', String(messageId));
+		if (!routerReady) return;
 		const s = q.toString();
-		replaceState(s ? `/reader?${s}` : '/reader', {});
+		try {
+			replaceState(s ? `/reader?${s}` : '/reader', {});
+		} catch {
+			// Only the address isn't updated; the reader works on.
+		}
 	});
 
 	function openArea(id: number) {
@@ -136,6 +151,9 @@
 	.pane {
 		height: 100%;
 		overflow-y: auto;
+		/* Room for the scrollbar always, so content never changes width
+		   when one appears. */
+		scrollbar-gutter: stable;
 		overscroll-behavior: contain;
 	}
 	/* Inside a pane its own scroll box is the reference, not the page. */
