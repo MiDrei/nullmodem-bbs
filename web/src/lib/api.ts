@@ -956,6 +956,11 @@ export function getFirstUnreadMessagePosition(token: string, areaId: number): Pr
 	return request(`/api/bbs/message-areas/${areaId}/first-unread`, { method: 'GET' }, token);
 }
 
+/** Marks every message in the area read for the caller. */
+export function markBBSAreaRead(token: string, areaId: number): Promise<{ marked: number }> {
+	return request(`/api/bbs/message-areas/${areaId}/mark-read`, { method: 'POST' }, token);
+}
+
 export function getBBSMessage(token: string, id: number): Promise<BBSMessage> {
 	return request<BBSMessage>(`/api/bbs/messages/${id}`, { method: 'GET' }, token);
 }

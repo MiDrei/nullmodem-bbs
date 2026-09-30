@@ -7,8 +7,10 @@
 		listBBSMessages,
 		listBBSMessageAreas,
 		getFirstUnreadMessagePosition,
+		markBBSAreaRead,
 		type BBSMessageSummary
 	} from '$lib/api';
+	import { toast } from '$lib/toast.svelte';
 	import { readerToken, readerAuthFailed, errorText, shortDate } from '$lib/reader/session';
 
 	const PAGE = 40;
@@ -62,6 +64,21 @@
 		}
 	}
 
+	// For an area nobody reads message by message (FSX_DAT's data).
+	async function markAllRead() {
+		if (!confirm(`Mark all of ${title || 'this area'} as read?`)) return;
+		const token = await readerToken();
+		if (!token) return;
+		try {
+			const res = await markBBSAreaRead(token, areaId);
+			messages = messages.map((m) => ({ ...m, unread: false }));
+			toast.push(`${res.marked} marked as read.`, 'success');
+		} catch (err) {
+			if (await readerAuthFailed(err)) return;
+			toast.push(errorText(err, 'Could not mark the area read.'), 'error');
+		}
+	}
+
 	$effect(() => {
 		load(areaId);
 	});
@@ -71,6 +88,7 @@
 	<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label="Back">‹</button>
 	<span class="r-title">{title}</span>
 	{#if firstUnread}
+		<button class="r-btn text-sm" onclick={markAllRead}>All read</button>
 		<button class="r-btn text-sm font-semibold" onclick={() => goto(`/reader/m/${firstUnread.id}`)}>Read</button>
 	{/if}
 </header>

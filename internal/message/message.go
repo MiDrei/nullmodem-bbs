@@ -350,6 +350,21 @@ func (s *Store) MarkMessageRead(userID, messageID int64) error {
 	return nil
 }
 
+// MarkAreaRead records every message in areaID as read by userID --
+// for an area nobody reads message by message (FSX_DAT's data posts).
+// It returns how many were newly marked.
+func (s *Store) MarkAreaRead(userID, areaID int64) (int64, error) {
+	res, err := s.db.Exec(
+		`INSERT OR IGNORE INTO message_reads (user_id, message_id) SELECT ?, id FROM messages WHERE area_id = ?`,
+		userID, areaID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("message: mark area %d read for user %d: %w", areaID, userID, err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // QWKSelectedAreaIDs returns the set of area IDs userID has explicitly
 // chosen to include in their QWK offline-mail packets. An empty
 // (non-nil) map means the user has never configured a selection --

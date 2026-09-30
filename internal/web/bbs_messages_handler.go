@@ -367,3 +367,37 @@ func (s *Server) handlePostBBSMessage(w http.ResponseWriter, r *http.Request) {
 	s.logInfo("%s posted %q to message area %d via the BBS portal", claims.Subject, m.Subject, areaID)
 	writeJSON(w, http.StatusCreated, toBBSMessageDTO(*m))
 }
+
+// handleMarkBBSAreaRead marks every message in the area as read for
+// the caller.
+func (s *Server) handleMarkBBSAreaRead(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	areaID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid area id")
+		return
+	}
+	area, err := s.Messages.AreaByID(areaID)
+	if err != nil {
+		if errors.Is(err, message.ErrAreaNotFound) {
+			writeError(w, http.StatusNotFound, "message area not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "could not load message area")
+		return
+	}
+	if !area.CanRead(claims.SecurityLevel) {
+		writeError(w, http.StatusForbidden, "not permitted to read this area")
+		return
+	}
+	n, err := s.Messages.MarkAreaRead(claims.UserID, areaID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not mark the area read")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"marked": n})
+}

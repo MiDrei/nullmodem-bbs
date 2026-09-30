@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/user"
 )
@@ -240,5 +242,33 @@ func TestBBSListMessagesPaginates(t *testing.T) {
 	}
 	if page.Total != 5 || len(page.Messages) != 2 || page.Messages[0].Subject != "Subject 1" {
 		t.Fatalf("page = %+v, want total=5 len=2 first subject=Subject 1", page)
+	}
+}
+
+func TestBBSMarkAreaReadClearsTheAreasUnreadCount(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	// The first user becomes sysop; alice must be an ordinary one.
+	users.Register("bootstrap-sysop", "password123", user.SLNewUser)
+	alice, _ := users.Register("alice", "password123", user.SLNewUser)
+	area, _ := srv.Messages.CreateArea("FSX_DAT", "Data", "", "fsxNet", 0, 0)
+	restricted, _ := srv.Messages.CreateArea("SYSOP", "Sysop", "", "", 200, 200)
+	for i := 0; i < 3; i++ {
+		srv.Messages.ReceiveEcho(area.ID, "Bot", fmt.Sprintf("Stats %d", i), "data", "", time.Now())
+	}
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodPost, fmt.Sprintf("/api/bbs/message-areas/%d/mark-read", area.ID), nil, token)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"marked":3`) {
+		t.Fatalf("mark-read: status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	stats, _ := srv.Messages.ListAreaStats(user.SLNewUser, alice.ID)
+	for _, s := range stats {
+		if s.Area.ID == area.ID && s.New != 0 {
+			t.Fatalf("FSX_DAT still has %d new after mark-read", s.New)
+		}
+	}
+	if rec := doJSON(t, h, http.MethodPost, fmt.Sprintf("/api/bbs/message-areas/%d/mark-read", restricted.ID), nil, token); rec.Code != http.StatusForbidden {
+		t.Fatalf("mark-read on an area above the caller's SL: status = %d, want 403", rec.Code)
 	}
 }
