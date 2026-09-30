@@ -190,3 +190,32 @@ func TestPostAsUnknownUserFails(t *testing.T) {
 		t.Fatalf("a hub got a poster: %+v, %v", p, err)
 	}
 }
+
+func TestTickedAreasAreTheSubscriptionsOfAPostAsPoint(t *testing.T) {
+	_, messages, _, _, echoSubs, _ := newTestStoresWithRobot(t)
+	area, _ := messages.CreateArea("FSX_GEN", "fsxNet General", "", "fsxNet", 0, 0)
+	messages.ReceiveEcho(area.ID, "Someone", "Hello", "text", "21:3/100 00000001", time.Now())
+	if err := echoSubs.Grant("fidomail", "FSX_GEN"); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := RoutedOutboundEchoForward(messages, echoSubs, readerFsx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 1 || out[0].AreaTag != "FSX_GEN" {
+		t.Fatalf("post-as point with FSX_GEN ticked got %+v, want its one message", out)
+	}
+
+	plain := readerFsx
+	plain.PostAs = ""
+	if out, _ := RoutedOutboundEchoForward(messages, echoSubs, plain); len(out) != 0 {
+		t.Fatalf("an ordinary point got %+v from a tick alone; it must subscribe via Areafix", out)
+	}
+
+	// Ticked and also ordered via Areafix: still sent once.
+	echoSubs.Request("fidomail", "FSX_GEN", areafix.Inbound)
+	if out, _ := RoutedOutboundEchoForward(messages, echoSubs, readerFsx); len(out) != 1 {
+		t.Fatalf("ticked and subscribed area offered %d times, want once", len(out))
+	}
+}

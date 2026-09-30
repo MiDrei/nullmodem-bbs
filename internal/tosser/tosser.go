@@ -631,8 +631,22 @@ func RoutedOutboundEchoForward(messages *message.Store, echoGrants *areafix.Echo
 	}
 
 	if isPoint(target) {
+		// The sysop's own reader: the areas ticked for it in the web
+		// admin are its subscriptions, no Areafix request needed.
+		if target.PostAs != "" {
+			grants, err := echoGrants.Grants(target.Host)
+			if err != nil {
+				return nil, fmt.Errorf("tosser: loading area grants for %s: %w", target.Host, err)
+			}
+			subs = append(subs, grants...)
+		}
 		var areas []subscribedArea
+		seenTag := map[string]bool{}
 		for _, sub := range subs {
+			if seenTag[strings.ToUpper(sub.AreaTag)] {
+				continue
+			}
+			seenTag[strings.ToUpper(sub.AreaTag)] = true
 			area, err := messages.AreaByTag(sub.AreaTag)
 			if errors.Is(err, message.ErrAreaNotFound) {
 				continue

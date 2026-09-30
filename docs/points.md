@@ -49,6 +49,9 @@ on the BBS itself.
 - Netmail to that user is also copied to the reader (the last two
   weeks when first set up), to its point address in the sender's zone.
   The original stays in the BBS inbox.
+- The areas ticked for it in the web admin (area grants) are its
+  subscriptions: no Areafix request needed. Unticking one ends it.
+  Areafix still works as well.
 
 A resent packet (the reader didn't see our acknowledgement) isn't
 posted twice: the reader's MSGID is kept to recognise it. The user must

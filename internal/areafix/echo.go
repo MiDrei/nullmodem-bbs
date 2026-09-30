@@ -191,3 +191,24 @@ func (s *EchoStore) ListForUplink(uplinkHost string, direction Direction) ([]Sub
 	}
 	return out, nil
 }
+
+// Grants returns uplinkHost's granted areas as inbound subscriptions,
+// RequestedAt being when each was granted -- for a point that is the
+// sysop's own reader (internal/tosser's points.go), where ticking an
+// area in the web admin is the subscription.
+func (s *EchoStore) Grants(uplinkHost string) ([]Subscription, error) {
+	rows, err := s.db.Query(`SELECT id, uplink_host, area_tag, granted_at FROM echo_area_grants WHERE uplink_host = ?`, uplinkHost)
+	if err != nil {
+		return nil, fmt.Errorf("areafix: list echo area grants: %w", err)
+	}
+	defer rows.Close()
+	var out []Subscription
+	for rows.Next() {
+		sub := Subscription{Direction: Inbound}
+		if err := rows.Scan(&sub.ID, &sub.UplinkHost, &sub.AreaTag, &sub.RequestedAt); err != nil {
+			return nil, fmt.Errorf("areafix: scan echo area grant: %w", err)
+		}
+		out = append(out, sub)
+	}
+	return out, rows.Err()
+}
