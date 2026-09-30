@@ -84,6 +84,10 @@ type User struct {
 	// QWK packets, for an offline reader that hides them and can quote
 	// them (NullModem Reader). Off by default: most readers show them.
 	QWKRouting bool
+	// Place is where the caller is, as they wrote it ("Neunkirch,
+	// Switzerland") -- optional, shown on the InterBBS last callers
+	// list. (Not "Location": that's the time zone, see Location().)
+	Place string
 }
 
 // Location returns the zone to show this user's times in: their
@@ -132,14 +136,14 @@ func ValidateRealName(realName string) error {
 
 // userColumns is the column list every single-/multi-row user query
 // selects, in scanUser's order.
-const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing`
+const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location`
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
 func scanUser(row rowScanner, u *User) error {
-	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting)
+	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place)
 }
 
 // Store persists User accounts in the shared SQLite database.
@@ -398,4 +402,30 @@ func isUniqueConstraintErr(err error) bool {
 // message the system itself posts (an InterBBS record) is filed under.
 func (s *Store) FirstSysop() (*User, error) {
 	return s.scanOne(s.db.QueryRow(`SELECT `+userColumns+` FROM users WHERE security_level >= ? ORDER BY id LIMIT 1`, SLSysop))
+}
+
+// MaxPlaceLen is how long User.Place may be.
+const MaxPlaceLen = 40
+
+// CleanPlace trims a place as typed and reports whether it fits
+// (at most MaxPlaceLen characters, no control characters).
+func CleanPlace(place string) (string, bool) {
+	place = strings.Join(strings.Fields(place), " ")
+	if len([]rune(place)) > MaxPlaceLen {
+		return place, false
+	}
+	for _, r := range place {
+		if r < 0x20 || r == 0x7f {
+			return place, false
+		}
+	}
+	return place, true
+}
+
+// SetPlace sets a user's place (see User.Place); "" clears it.
+func (s *Store) SetPlace(id int64, place string) error {
+	if _, err := s.db.Exec(`UPDATE users SET location = ? WHERE id = ?`, place, id); err != nil {
+		return fmt.Errorf("user: set place: %w", err)
+	}
+	return nil
 }

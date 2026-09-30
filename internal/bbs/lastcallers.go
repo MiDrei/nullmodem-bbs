@@ -39,7 +39,7 @@ func (s *Server) postLastCaller(u *user.User) {
 		BBS:      s.BBSName,
 		Date:     lastcallers.FormatDate(now),
 		Time:     lastcallers.FormatTime(now),
-		Location: lastcallers.PlaceFromTimezone(u.Timezone),
+		Location: callerPlace(u),
 		System:   lc.SystemName(),
 		Address:  lc.Address,
 	}
@@ -83,4 +83,13 @@ func (s *Server) showLastCallers(term *Terminal, u *user.User) error {
 		return err
 	}
 	return s.pauseForKey(term)
+}
+
+// callerPlace is u's place for a record: as set in the profile, else
+// the city of the profile's time zone, else nothing.
+func callerPlace(u *user.User) string {
+	if u.Place != "" {
+		return u.Place
+	}
+	return lastcallers.PlaceFromTimezone(u.Timezone)
 }

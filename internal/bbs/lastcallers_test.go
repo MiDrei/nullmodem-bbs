@@ -52,6 +52,13 @@ func TestLastCallerIsPostedAndListed(t *testing.T) {
 		t.Fatalf("list should show both, newest first:\n%s", out)
 	}
 
+	// A location in the profile wins over the time zone's city.
+	users.SetPlace(caller.ID, "Neunkirch, Switzerland")
+	caller, _ = users.ByID(caller.ID)
+	if got := callerPlace(caller); got != "Neunkirch, Switzerland" {
+		t.Fatalf("callerPlace = %q", got)
+	}
+
 	off := NewServer(Options{Users: users, Messages: messages})
 	off.postLastCaller(caller)
 	if again, _ := messages.PendingOutboundEcho("fsxNet"); len(again) != 1 {

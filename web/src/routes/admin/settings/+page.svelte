@@ -157,8 +157,8 @@
 				</label>
 			</div>
 			<p class="text-xs leading-relaxed text-slate-500">
-				A caller's place in the record is the city of their profile's time zone (Europe/Zurich →
-				Zurich), blank without one. Records go out under the first sysop account, as "ibbslastcall".
+				A caller's place in the record is the location from their profile, else the city of their
+				time zone (Europe/Zurich → Zurich), else blank. Records go out under the first sysop account, as "ibbslastcall".
 			</p>
 		</section>
 

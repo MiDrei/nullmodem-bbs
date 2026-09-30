@@ -25,6 +25,9 @@ type profileDTO struct {
 	Timezone string `json:"timezone"`
 	// QWKRouting: QWK packets carry echomail's SEEN-BY/PATH lines.
 	QWKRouting bool `json:"qwk_routing"`
+	// Location is where the caller is (user.User.Place), for the
+	// InterBBS last callers list; "" if not set.
+	Location string `json:"location"`
 }
 
 func toProfileDTO(u *user.User) profileDTO {
@@ -36,6 +39,7 @@ func toProfileDTO(u *user.User) profileDTO {
 		CreatedAt:     u.CreatedAt,
 		Timezone:      u.Timezone,
 		QWKRouting:    u.QWKRouting,
+		Location:      u.Place,
 	}
 }
 
@@ -67,6 +71,7 @@ func (s *Server) handleUpdateBBSProfile(w http.ResponseWriter, r *http.Request) 
 		RealName   *string `json:"real_name"`
 		Timezone   *string `json:"timezone"`
 		QWKRouting *bool   `json:"qwk_routing"`
+		Location   *string `json:"location"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -106,6 +111,19 @@ func (s *Server) handleUpdateBBSProfile(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		s.logInfo("%s set their time zone to %q via the BBS portal", claims.Subject, timezone)
+	}
+
+	if req.Location != nil {
+		place, ok := user.CleanPlace(*req.Location)
+		if !ok {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("location: at most %d characters", user.MaxPlaceLen))
+			return
+		}
+		if err := s.Users.SetPlace(claims.UserID, place); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not save the location")
+			return
+		}
+		s.logInfo("%s set their location via the BBS portal", claims.Subject)
 	}
 
 	if req.QWKRouting != nil {

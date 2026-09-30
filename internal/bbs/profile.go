@@ -88,10 +88,12 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			fmt.Sprintf("Total calls:    %d", u.TotalCalls),
 			fmt.Sprintf("Member since:   %s", term.Time(u.CreatedAt).Format("2006-01-02")),
 			fmt.Sprintf("Time zone:      %s", timezoneLabel(u)),
+			fmt.Sprintf("Location:       %s", placeLabel(u)),
 			fmt.Sprintf("QWK SEEN-BY:    %s", onOff(u.QWKRouting)),
 			"",
 			profileOption("R", "Change real name"),
 			profileOption("T", "Change time zone"),
+			profileOption("L", "Change location (shown on the InterBBS last callers list)"),
 			profileOption("P", "Change password"),
 			profileOption("K", "QWK area selection"),
 			profileOption("S", "Switch SEEN-BY/PATH lines in QWK packets on or off"),
@@ -118,6 +120,8 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			err = s.changeRealName(term, u)
 		case "T":
 			err = s.changeTimezone(term, u)
+		case "L":
+			err = s.changePlace(term, u)
 		case "P":
 			err = s.changePassword(term, u)
 		case "K":
@@ -315,4 +319,45 @@ func (s *Server) changePassword(term *Terminal, u *user.User) error {
 	}
 	s.logInfo("%s changed their password", u.Username)
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Password changed.")
+}
+
+func placeLabel(u *user.User) string {
+	if u.Place == "" {
+		return "not set"
+	}
+	return u.Place
+}
+
+// changePlace asks where the caller is ("City, Country"); "-" clears
+// it, an empty line cancels.
+func (s *Server) changePlace(term *Terminal, u *user.User) error {
+	for {
+		if err := term.Print(ansi.Reset + fmt.Sprintf("Location, e.g. \"Neunkirch, Switzerland\" (- to clear, Enter to cancel, max %d): ", user.MaxPlaceLen) + ansi.FG(ansi.Yellow, true)); err != nil {
+			return err
+		}
+		line, err := term.ReadLine(false)
+		if err != nil {
+			return err
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return term.Println(ansi.Reset + "Cancelled.")
+		}
+		if line == "-" {
+			line = ""
+		}
+		place, ok := user.CleanPlace(line)
+		if !ok {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + fmt.Sprintf("At most %d characters.", user.MaxPlaceLen)); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := s.Users.SetPlace(u.ID, place); err != nil {
+			return err
+		}
+		u.Place = place
+		s.logInfo("%s set their location", u.Username)
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Location saved.")
+	}
 }

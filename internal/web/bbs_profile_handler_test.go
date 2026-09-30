@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"git.maik.ch/nullmodem/bbs/internal/user"
@@ -147,5 +148,25 @@ func TestBBSProfileQWKRouting(t *testing.T) {
 	doJSON(t, h, http.MethodPut, "/api/bbs/profile", map[string]any{"timezone": "UTC"}, token)
 	if stored, _ = users.ByID(alice.ID); !stored.QWKRouting {
 		t.Fatal("an unrelated update turned it off")
+	}
+}
+
+func TestBBSProfileLocation(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	users.Register("alice", "password123", user.SLNewUser)
+	h := srv.Routes()
+	token := loginAsBBSUser(t, h, "alice", "password123")
+
+	rec := doJSON(t, h, http.MethodPut, "/api/bbs/profile", map[string]string{"location": "  Neunkirch,   Switzerland "}, token)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"location":"Neunkirch, Switzerland"`) {
+		t.Fatalf("set location: %d %s", rec.Code, rec.Body.String())
+	}
+	long := strings.Repeat("x", 41)
+	if rec := doJSON(t, h, http.MethodPut, "/api/bbs/profile", map[string]string{"location": long}, token); rec.Code != http.StatusBadRequest {
+		t.Fatalf("41 characters: status %d, want 400", rec.Code)
+	}
+	u, _ := users.ByUsername("alice")
+	if u.Place != "Neunkirch, Switzerland" {
+		t.Fatalf("stored place = %q", u.Place)
 	}
 }

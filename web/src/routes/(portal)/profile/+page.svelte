@@ -25,6 +25,9 @@
 
 	let timezone = $state('');
 	let savingZone = $state(false);
+
+	let place = $state('');
+	let savingPlace = $state(false);
 	const browserZone = browserTimezone();
 	// The stored zone stays selectable even if this browser's own list
 	// doesn't happen to include it.
@@ -52,6 +55,7 @@
 		profile = p;
 		realName = p.real_name;
 		timezone = p.timezone;
+		place = p.location;
 		bbsAuth.setTimezone(p.timezone);
 	}
 
@@ -68,7 +72,10 @@
 		}
 	});
 
-	async function save(changes: { real_name?: string; timezone?: string; qwk_routing?: boolean }, done: string) {
+	async function save(
+		changes: { real_name?: string; timezone?: string; qwk_routing?: boolean; location?: string },
+		done: string
+	) {
 		if (!bbsAuth.token) return;
 		try {
 			apply(await updateBBSProfile(bbsAuth.token, changes));
@@ -91,6 +98,13 @@
 		savingZone = true;
 		await save({ timezone }, timezone ? `Time zone set to ${timezone}.` : 'Time zone cleared.');
 		savingZone = false;
+	}
+
+	async function savePlace(e: SubmitEvent) {
+		e.preventDefault();
+		savingPlace = true;
+		await save({ location: place }, place.trim() ? 'Location saved.' : 'Location cleared.');
+		savingPlace = false;
 	}
 
 	let savingRouting = $state(false);
@@ -138,7 +152,8 @@
 		['Security level', String(profile.security_level)],
 		['Total calls', String(profile.total_calls)],
 		['Member since', formatDate(profile.created_at)],
-		['Time zone', profile.timezone || `not set (this browser: ${browserZone}; Telnet/SSH: UTC)`]
+		['Time zone', profile.timezone || `not set (this browser: ${browserZone}; Telnet/SSH: UTC)`],
+		['Location', profile.location || '—']
 	]}
 	<div class="flex flex-col gap-4">
 		<section class="card">
@@ -187,6 +202,27 @@
 				</button>
 				<button class="btn-primary" disabled={savingZone || timezone === profile.timezone}>
 					{savingZone ? 'Saving…' : 'Save'}
+				</button>
+			</form>
+		</section>
+
+		<section class="card">
+			<h2 class="card-label mb-1.5">Location</h2>
+			<p class="mb-3.5 text-[13px] text-muted">
+				Where you are, shown with your calls on the InterBBS last callers list of the network's boards.
+				Leave it empty to show only the city of your time zone.
+			</p>
+			<form class="flex flex-wrap gap-2.5" onsubmit={savePlace}>
+				<label class="sr-only" for="profile-place">Location</label>
+				<input
+					id="profile-place"
+					class="field min-w-56 flex-1"
+					bind:value={place}
+					maxlength="40"
+					placeholder="City, Country"
+				/>
+				<button class="btn-primary" disabled={savingPlace || place.trim() === profile.location}>
+					{savingPlace ? 'Saving…' : 'Save'}
 				</button>
 			</form>
 		</section>
