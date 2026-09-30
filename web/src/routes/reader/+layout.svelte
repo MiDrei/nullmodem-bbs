@@ -27,10 +27,25 @@
 <Toaster />
 
 <style>
+	/* Never wider than the screen: an iPhone showed the whole page a
+	   bit wider than its display, cutting off the right edge. The page
+	   itself can't scroll sideways; wide content (ANSI art) scrolls in
+	   its own box. */
+	:global(html:has(.reader)),
+	:global(body:has(.reader)) {
+		overflow-x: hidden;
+		max-width: 100%;
+		-webkit-text-size-adjust: 100%;
+		text-size-adjust: 100%;
+	}
 	.reader {
+		width: 100%;
+		max-width: 100vw;
+		overflow-x: clip;
 		padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
 			env(safe-area-inset-left);
 		-webkit-tap-highlight-color: transparent;
+		overflow-wrap: anywhere;
 	}
 	/* Top bar and list rows shared by the reader's pages. */
 	.reader :global(.r-bar) {
@@ -41,7 +56,8 @@
 		align-items: center;
 		gap: 0.5rem;
 		min-height: 3.25rem;
-		padding: 0 0.75rem;
+		width: 100%;
+		padding: 0 0.5rem 0 0.75rem;
 		background: rgb(0 0 0 / 0.92);
 		backdrop-filter: blur(8px);
 		border-bottom: 1px solid var(--color-line);
@@ -57,9 +73,11 @@
 		color: var(--color-ink-strong);
 	}
 	.reader :global(.r-btn) {
-		min-width: 2.75rem;
+		flex-shrink: 0;
+		min-width: 2.5rem;
 		min-height: 2.75rem;
-		padding: 0 0.6rem;
+		padding: 0 0.45rem;
+		white-space: nowrap;
 		border-radius: 0.6rem;
 		color: var(--color-accent);
 		font-size: 1rem;
@@ -72,6 +90,7 @@
 		align-items: center;
 		gap: 0.75rem;
 		width: 100%;
+		min-width: 0;
 		min-height: 3.5rem;
 		padding: 0.6rem 1rem;
 		border-bottom: 1px solid var(--color-line);
@@ -81,6 +100,7 @@
 		background: var(--color-surface);
 	}
 	.reader :global(.r-badge) {
+		flex-shrink: 0;
 		min-width: 1.6rem;
 		padding: 0.1rem 0.45rem;
 		border-radius: 999px;

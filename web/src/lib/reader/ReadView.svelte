@@ -67,7 +67,7 @@
 		{#if position}<span class="text-xs text-faint">{position}</span>{/if}
 	</header>
 
-	<article class="flex-1 px-4 pt-4 pb-28">
+	<article class="min-w-0 flex-1 px-4 pt-4 pb-28">
 		<h1 class="text-lg leading-snug font-semibold text-ink-strong">{subject}</h1>
 		<div class="mt-1 mb-4 text-[13px] text-muted">
 			<span class="text-ink-soft">{from}</span> → {to} · {formatDateTime(postedAt)}

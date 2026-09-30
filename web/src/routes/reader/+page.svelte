@@ -77,7 +77,7 @@
 	<span class="r-title">Reader</span>
 	<button class="r-btn text-base" onclick={toggleAll}>{showAll ? 'Unread' : 'All'}</button>
 	<button class="r-btn text-xl" onclick={load} aria-label="Refresh">↻</button>
-	<button class="r-btn text-sm" onclick={logout}>Sign out</button>
+	<button class="r-btn text-sm" onclick={logout}>Log out</button>
 </header>
 
 {#if error}
