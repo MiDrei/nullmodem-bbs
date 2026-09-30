@@ -22,18 +22,39 @@
 	// reader page's own content width (max-w-4xl minus its padding,
 	// see routes/(portal)/+layout.svelte) with margin to spare, so the
 	// box never needs to scroll.
-	let { grid, zoom = 1.1 }: { grid: Grid; zoom?: number } = $props();
+	//
+	// fit instead scales the art to the width it's given, up to maxZoom
+	// -- for a page where it should be as large as the window allows
+	// (the portal login's welcome screen) and never scroll. It's still
+	// drawn cell by cell at the final size (times the screen's pixel
+	// density), so it stays crisp rather than being stretched.
+	let {
+		grid,
+		zoom = 1.1,
+		fit = false,
+		maxZoom = 1.6
+	}: { grid: Grid; zoom?: number; fit?: boolean; maxZoom?: number } = $props();
 
 	let canvas = $state<HTMLCanvasElement | undefined>();
+	let boxWidth = $state(0);
+
+	function effectiveZoom(): number {
+		if (!fit || boxWidth <= 0) return zoom;
+		return Math.min(maxZoom, boxWidth / (grid.width * CELL_W));
+	}
 
 	function draw() {
 		if (!canvas) return;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
-		const cw = CELL_W * zoom;
-		const ch = CELL_H * zoom;
-		canvas.width = grid.width * cw;
-		canvas.height = grid.height * ch;
+		const z = effectiveZoom();
+		const dpr = fit && typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+		const cw = CELL_W * z * dpr;
+		const ch = CELL_H * z * dpr;
+		canvas.width = Math.round(grid.width * cw);
+		canvas.height = Math.round(grid.height * ch);
+		canvas.style.width = fit ? `${Math.round(grid.width * CELL_W * z)}px` : '';
+		canvas.style.height = fit ? `${Math.round(grid.height * CELL_H * z)}px` : '';
 		for (let row = 0; row < grid.height; row++) {
 			for (let col = 0; col < grid.width; col++) {
 				const cell = grid.cells[row * grid.width + col];
@@ -46,8 +67,15 @@
 	$effect(() => {
 		grid;
 		zoom;
+		boxWidth;
 		draw();
 	});
 </script>
 
-<canvas bind:this={canvas} class="block"></canvas>
+{#if fit}
+	<div class="w-full" bind:clientWidth={boxWidth}>
+		<canvas bind:this={canvas} class="mx-auto block"></canvas>
+	</div>
+{:else}
+	<canvas bind:this={canvas} class="block"></canvas>
+{/if}

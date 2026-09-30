@@ -42,10 +42,12 @@
 
 <div class="flex flex-col items-center gap-7 py-6">
 	{#if welcome}
-		<!-- The board's own welcome.ans, on D's black ANSI ground. -->
-		<div class="ansi-panel w-fit max-w-full overflow-x-auto">
+		<!-- The board's own welcome.ans, on D's black ANSI ground: as
+		     wide as the window allows (beyond the page column, up to
+		     about 1.5x its native size), never scrolling. -->
+		<div class="ansi-panel w-[min(calc(100vw-2rem),64rem)] max-w-none">
 			{#if welcome.preformatted && welcome.grid}
-				<AnsiArt grid={welcome.grid} />
+				<AnsiArt grid={welcome.grid} fit maxZoom={1.6} />
 			{:else}
 				<div class="inline-block font-mono text-sm leading-tight whitespace-pre">
 					{@html welcome.html}
