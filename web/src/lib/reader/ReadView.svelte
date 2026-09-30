@@ -28,7 +28,8 @@
 		bodyHtml: string;
 		preformatted: boolean;
 		grid?: Grid;
-		onBack: () => void;
+		/** Back to the list; none when the list is beside it. */
+		onBack?: () => void;
 		onPrev?: () => void;
 		onNext?: () => void;
 		onReply?: () => void;
@@ -60,14 +61,16 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions (swiping is a shortcut; the arrows below do the same) -->
-<div class="flex min-h-dvh flex-col" ontouchstart={touchStart} ontouchend={touchEnd}>
+<div class="r-full flex flex-col" ontouchstart={touchStart} ontouchend={touchEnd}>
 	<header class="r-bar">
-		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label="Back">‹</button>
+		{#if onBack}
+			<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label="Back">‹</button>
+		{/if}
 		<span class="r-title text-sm font-normal text-muted">{title}</span>
 		{#if position}<span class="text-xs text-faint">{position}</span>{/if}
 	</header>
 
-	<article class="min-w-0 flex-1 px-4 pt-4 pb-28">
+	<article class="min-w-0 flex-1 px-4 pt-4 pb-6">
 		<h1 class="text-lg leading-snug font-semibold text-ink-strong">{subject}</h1>
 		<div class="mt-1 mb-4 text-[13px] text-muted">
 			<span class="text-ink-soft">{from}</span> → {to} · {formatDateTime(postedAt)}
@@ -88,7 +91,7 @@
 	</article>
 
 	<nav
-		class="fixed inset-x-0 bottom-0 flex items-center justify-between border-t border-line bg-black/95 px-3 pt-2 backdrop-blur"
+		class="sticky bottom-0 flex items-center justify-between border-t border-line bg-black/95 px-3 pt-2 backdrop-blur"
 		style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom))"
 	>
 		<button class="r-btn text-4xl leading-none" disabled={!onPrev} onclick={() => onPrev?.()} aria-label="Previous">‹</button>

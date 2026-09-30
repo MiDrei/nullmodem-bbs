@@ -127,6 +127,10 @@
 		text-transform: uppercase;
 		color: var(--color-muted);
 	}
+	/* A full screen (or pane) of the reader, below its safe areas. */
+	.reader :global(.r-full) {
+		min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+	}
 	.reader :global(.r-note) {
 		padding: 2rem 1rem;
 		text-align: center;
