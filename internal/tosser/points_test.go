@@ -219,3 +219,37 @@ func TestTickedAreasAreTheSubscriptionsOfAPostAsPoint(t *testing.T) {
 		t.Fatalf("ticked and subscribed area offered %d times, want once", len(out))
 	}
 }
+
+func TestNetmailCopyGoesToOnePointEvenWithSeparateHostLabels(t *testing.T) {
+	netmailStore, _, _, users, _, _ := newTestStoresWithRobot(t)
+	sysop, _ := users.Register("sysop", "password123", user.SLSysop)
+	fsx, hobby := readerFsx, readerHobby
+	fsx.Host, hobby.Host = "fidomail-fsxnet", "fidomail-hobbynet"
+	uplinks := []config.BinkpUplink{fsxHub, fsx, hobby}
+	netmailStore.Receive("Avon", "954:700/1", sysop.ID, "sysop", "", "Hi", "Hello", time.Now(), false)
+
+	var total int
+	for _, e := range []config.BinkpUplink{fsx, hobby} {
+		p, err := newPointPoster(e, uplinks, users, pointOurAddresses)
+		if err != nil {
+			t.Fatal(err)
+		}
+		copies, _ := p.pointNetmailCopies(netmailStore, e)
+		for _, c := range copies {
+			if c.ToAddress != "954:700/14.1" {
+				t.Fatalf("copy to %s, want the HobbyNet point (sender's zone)", c.ToAddress)
+			}
+		}
+		total += len(copies)
+	}
+	if total != 1 {
+		t.Fatalf("%d copies, want exactly one", total)
+	}
+}
+
+func TestAreafixStopsAtTheTearline(t *testing.T) {
+	list, changes := parseAreafixCommands("+FSX_GEN\n%LIST\n\n--- FidoMailMobile/0.1.12+94 (iOS)\n * Origin: iPad (21:3/194.1)\n-SHOULD_NOT_COUNT\n")
+	if !list || len(changes) != 1 || changes[0].Tag != "FSX_GEN" {
+		t.Fatalf("list=%v changes=%+v, want %%LIST and +FSX_GEN only", list, changes)
+	}
+}

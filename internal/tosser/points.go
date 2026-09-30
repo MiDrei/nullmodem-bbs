@@ -84,6 +84,10 @@ type pointPoster struct {
 	host         string
 	entries      []config.BinkpUplink
 	ourAddresses []string
+	// siblings are all point entries posting as the same user, whatever
+	// their host label: each copy of that user's netmail goes to just
+	// one of them (see pointNetmailCopies).
+	siblings []config.BinkpUplink
 }
 
 // newPointPoster returns the poster for a session with the point
@@ -113,7 +117,16 @@ func newPointPoster(matched config.BinkpUplink, uplinks []config.BinkpUplink, us
 		// exactly what the setting is meant to prevent.
 		return nil, fmt.Errorf("tosser: point %s posts as %q: %w", matched.Address, name, err)
 	}
-	return &pointPoster{user: u, host: matched.Host, entries: entries, ourAddresses: ourAddresses}, nil
+	var siblings []config.BinkpUplink
+	for _, e := range uplinks {
+		if isPoint(e) && strings.EqualFold(strings.TrimSpace(e.PostAs), name) {
+			siblings = append(siblings, e)
+		}
+	}
+	if len(siblings) == 0 {
+		siblings = entries
+	}
+	return &pointPoster{user: u, host: matched.Host, entries: entries, ourAddresses: ourAddresses, siblings: siblings}, nil
 }
 
 // tossEcho stores msg as the user's post in the area tagged tag, and
@@ -215,8 +228,10 @@ type subscribedArea struct {
 
 // pointNetmailCopies returns the netmail in the "post as" user's inbox
 // the point hasn't been sent yet (from the last pointBacklog), each
-// readdressed to the point: to the point address in the sender's
-// zone, or target's own.
+// readdressed to the point. With several point addresses for the user
+// (one per network), a message goes to the one in the sender's zone,
+// else the first -- so a reader with an entry per network, whatever
+// their host labels, gets each message once.
 func (p *pointPoster) pointNetmailCopies(netmailStore *netmail.Store, target config.BinkpUplink) ([]netmail.Message, error) {
 	inbox, err := netmailStore.Inbox(p.user.ID)
 	if err != nil {
@@ -232,17 +247,22 @@ func (p *pointPoster) pointNetmailCopies(netmailStore *netmail.Store, target con
 		if delivered[m.ID] || m.PostedAt.Before(since) {
 			continue
 		}
-		dest := target.Address
+		// One copy per message: to the user's point in the sender's
+		// zone, else the first -- and only if that one is target's.
+		chosen := p.siblings[0]
 		if from, err := mail.ParseAddress(m.FromAddress); err == nil {
-			for _, e := range p.entries {
+			for _, e := range p.siblings {
 				if a, err := mail.ParseAddress(e.Address); err == nil && a.Zone == from.Zone {
-					dest = e.Address
+					chosen = e
 					break
 				}
 			}
 		}
+		if chosen.Host != target.Host {
+			continue
+		}
 		c := m
-		c.ToAddress = dest
+		c.ToAddress = chosen.Address
 		c.ToName = p.user.Username
 		c.Body = withoutAddressingKludges(m.Body)
 		out = append(out, c)

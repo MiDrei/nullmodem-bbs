@@ -200,12 +200,17 @@ func uplinkForAddress(addr mail.Address, uplinks []config.BinkpUplink) (config.B
 // catalog. Any other line is silently ignored, mirroring how a real
 // Areafix robot skips content it doesn't recognize (kludges, a
 // trailing signature, ...) rather than rejecting the whole request
-// over it.
+// over it. Reading stops at the tearline ("---"): a reader app's
+// "--- FidoMailMobile/0.1.12 (iOS)" once came back as "no such area".
+// A tag never contains spaces, so such a line is ignored too.
 func parseAreafixCommands(body string) (list bool, changes []AreaChange) {
 	for _, raw := range strings.Split(body, "\n") {
 		line := strings.TrimSpace(strings.TrimRight(raw, "\r"))
-		if line == "" {
+		if line == "" || strings.HasPrefix(line, "\x01") {
 			continue
+		}
+		if line == "---" || strings.HasPrefix(line, "--- ") {
+			break
 		}
 		if strings.EqualFold(line, areaListCommand) {
 			list = true
@@ -215,7 +220,7 @@ func parseAreafixCommands(body string) (list bool, changes []AreaChange) {
 			continue
 		}
 		tag := strings.TrimSpace(line[1:])
-		if tag == "" {
+		if tag == "" || strings.ContainsAny(tag, " \t") {
 			continue
 		}
 		changes = append(changes, AreaChange{Tag: tag, Subscribe: line[0] == '+'})
