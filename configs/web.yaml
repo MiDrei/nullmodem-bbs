@@ -3,3 +3,6 @@ database_path: "data/nullmodem.sqlite"
 bbs_config_path: "configs/bbs.yaml"
 jwt_secret_path: "data/jwt_secret"
 static_dir: "web/build"
+# The web terminal (/terminal) connects to the BBS's Telnet port; in
+# Docker the bbs service is another container:
+# terminal_addr: "bbs:2323"

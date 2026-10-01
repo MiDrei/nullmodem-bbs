@@ -269,6 +269,12 @@ type DoorConfig struct {
 	// ANSI16 reduces the door's colours to the 16 classic ones -- see
 	// internal/doors.Door.ANSI16.
 	ANSI16 bool `yaml:"ansi16,omitempty"`
+	// Remote is where a door of kind "rlogin" is played: a door
+	// server (DoorParty, a friend's BBS) reached over RLogin. The BBS
+	// connects, names the caller (RemoteUser/RemotePassword, see
+	// internal/bbs's rlogin.go) and passes everything through.
+	Remote RemoteDoor `yaml:"remote,omitempty"`
+
 	// Template names the door template (internal/doors.Templates) this
 	// entry was created from, if any -- informational, shown in the
 	// web admin.
@@ -536,4 +542,20 @@ func Cached(path string, ttl time.Duration, fallback *Config) func() *Config {
 func (c SecurityConfig) GuardSettings() (enabled bool, maxFailures int, window, lockout, maxLockout time.Duration) {
 	return c.Lockout(), c.Failures(), time.Duration(c.Window()) * time.Minute,
 		time.Duration(c.LockoutMins()) * time.Minute, time.Duration(c.MaxLockout()) * time.Hour
+}
+
+// RemoteDoor is a door played on another system over RLogin
+// (DoorConfig.Kind "rlogin").
+type RemoteDoor struct {
+	Host string `yaml:"host,omitempty" json:"host"`
+	// Port defaults to 513.
+	Port int `yaml:"port,omitempty" json:"port"`
+	// ClientUser and ServerUser are RLogin's two user names, sent as
+	// typed with the placeholders {handle}, {realname}, {node} and
+	// {userid} filled in. Door networks say what they want there --
+	// DoorParty: "[TAG]{handle}" and the system's password, for one.
+	ClientUser string `yaml:"client_user,omitempty" json:"client_user"`
+	ServerUser string `yaml:"server_user,omitempty" json:"server_user"`
+	// TermType is sent as the terminal; default "ansi-bbs/115200".
+	TermType string `yaml:"term_type,omitempty" json:"term_type"`
 }

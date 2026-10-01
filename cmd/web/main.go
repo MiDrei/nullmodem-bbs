@@ -5,6 +5,7 @@ package main
 import (
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
+	"net"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
 	// image has a zoneinfo database or not.
 	_ "time/tzdata"
@@ -116,6 +117,7 @@ func main() {
 		DB:            sqlDB,
 		DBPath:        cfg.DatabasePath,
 		Chat:          chat.NewStore(sqlDB),
+		TerminalAddr:  terminalAddr(cfg, bbsCfg),
 	}
 
 	// Login protection, shared with the bbs daemon through the database;
@@ -182,4 +184,21 @@ func migrateNetworks(path, dataDir string, c *config.Config, sqlDB *sql.DB, logg
 	logger.Info("networks set up from the uplinks (%s), %d area group(s) renamed; previous config kept as %s",
 		strings.Join(names, ", "), n, filepath.Base(backup))
 	return nil
+}
+
+// terminalAddr is where the web terminal reaches the BBS's Telnet port:
+// as configured, else this machine at bbs.yaml's Telnet port; "" when
+// Telnet is off.
+func terminalAddr(cfg *config.WebConfig, bbsCfg *config.Config) string {
+	if cfg.TerminalAddr != "" {
+		return cfg.TerminalAddr
+	}
+	if !bbsCfg.Telnet.Enabled {
+		return ""
+	}
+	_, port, err := net.SplitHostPort(bbsCfg.Telnet.Addr)
+	if err != nil {
+		return ""
+	}
+	return net.JoinHostPort("127.0.0.1", port)
 }

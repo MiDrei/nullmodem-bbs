@@ -230,6 +230,7 @@ func doorsFromConfig(entries []config.DoorConfig) []doors.Door {
 			LockFiles:         d.LockFiles,
 			Stdio:             d.Stdio,
 			ANSI16:            d.ANSI16,
+			Remote:            d.Remote,
 		})
 	}
 	return list

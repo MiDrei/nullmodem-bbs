@@ -101,7 +101,7 @@
 	>
 		<span>NullModem BBS{site.info.version ? ` v${site.info.version}` : ''}</span>
 		{#if site.telnetAddress}
-			<span>telnet · {site.telnetAddress}</span>
+			<span>telnet · {site.telnetAddress} · <a href="/terminal" class="hover:text-ink">in the browser</a></span>
 		{/if}
 	</footer>
 </div>

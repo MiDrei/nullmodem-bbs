@@ -171,3 +171,18 @@ func TestMRCDoorSettingsAndBridgeRestart(t *testing.T) {
 		t.Fatalf("unknown door program: status = %d, want 404", rec.Code)
 	}
 }
+
+func TestValidateRLoginDoor(t *testing.T) {
+	ok := []config.DoorConfig{{Name: "DoorParty", Kind: "rlogin", Remote: config.RemoteDoor{Host: "doors.example.net", ClientUser: "[NMB]{handle}"}}}
+	if msg := validateDoors(ok); msg != "" {
+		t.Fatalf("valid RLogin door refused: %s", msg)
+	}
+	noHost := []config.DoorConfig{{Name: "X", Kind: "rlogin", Remote: config.RemoteDoor{ClientUser: "u"}}}
+	if msg := validateDoors(noHost); msg == "" {
+		t.Fatal("RLogin door without a host accepted")
+	}
+	// Remote settings are kept only for an RLogin door.
+	if d := fromDoorDTO(doorDTO{Name: "N", Kind: "native", Exe: "x", Dir: "d", Remote: config.RemoteDoor{Host: "h"}}); d.Remote.Host != "" {
+		t.Fatal("a native door kept remote settings")
+	}
+}

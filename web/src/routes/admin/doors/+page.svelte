@@ -57,6 +57,7 @@
 			lock_files: [],
 			stdio: false,
 			ansi16: false,
+			remote: { host: '', port: 513, client_user: '', server_user: '', term_type: '' },
 			template: '',
 			program: [],
 			installed: false
@@ -101,6 +102,8 @@
 		editing = i;
 		draft = i >= 0 ? structuredClone($state.snapshot(doors[i])) : emptyDoor();
 		if (draft.kind === '') draft.kind = 'native';
+		draft.remote ??= { host: '', port: 513, client_user: '', server_user: '', term_type: '' };
+		if (!draft.remote.port) draft.remote.port = 513;
 		argsText = draft.args.join(' ');
 		lockText = draft.lock_files.join('\n');
 		programText = draft.program.join(' ');
@@ -130,7 +133,7 @@
 			...$state.snapshot(draft),
 			args: argsText.split(/\s+/).filter(Boolean),
 			lock_files: lockText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean),
-			program: draft.kind === 'dosbox' ? [] : programText.split(/\s+/).filter(Boolean)
+			program: draft.kind === 'native' ? programText.split(/\s+/).filter(Boolean) : []
 		};
 		const list = $state.snapshot(doors) as Door[];
 		if (editing >= 0) list[editing] = door;
@@ -228,6 +231,7 @@
 	}
 
 	function doorDir(d: Door): string {
+		if (d.kind === 'rlogin') return `${d.remote.host}:${d.remote.port || 513}`;
 		return d.kind === 'dosbox' ? d.dosbox_dir : d.dir;
 	}
 
@@ -269,6 +273,7 @@
 				<select class="field field-sm" bind:value={draft.kind}>
 					<option value="dosbox">DOS (DOSBox-X)</option>
 					<option value="native">Native Linux</option>
+					<option value="rlogin">Remote (RLogin)</option>
 				</select>
 			</label>
 			<label class="flex flex-col gap-1.5">
@@ -302,6 +307,42 @@
 					needed.
 				</span>
 			</label>
+		{:else if draft.kind === 'rlogin'}
+			<p class="text-xs leading-relaxed text-faint">
+				The door runs on another system -- a door network like DoorParty, or another BBS -- and is
+				reached over RLogin. The network tells you its host and what to send as the two user names
+				(often a system tag before the caller's handle, and your system's password).
+			</p>
+			<div class="grid gap-3 sm:grid-cols-[1fr_7rem]">
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Host</span>
+					<input class="field field-sm font-mono" bind:value={draft.remote.host} placeholder="doors.example.net" required />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Port</span>
+					<input class="field field-sm" type="number" min="1" max="65535" bind:value={draft.remote.port} />
+				</label>
+			</div>
+			<div class="grid gap-3 sm:grid-cols-3">
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Client user name</span>
+					<input class="field field-sm font-mono" bind:value={draft.remote.client_user} placeholder={'[TAG]{handle}'} required />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Server user name</span>
+					<input class="field field-sm font-mono" bind:value={draft.remote.server_user} placeholder="system password" />
+				</label>
+				<label class="flex flex-col gap-1.5">
+					<span class="text-xs text-muted">Terminal type</span>
+					<input class="field field-sm font-mono" bind:value={draft.remote.term_type} placeholder="ansi-bbs/115200" />
+				</label>
+			</div>
+			<span class="text-xs leading-relaxed text-faint">
+				Placeholders: <code class="font-mono text-muted">{'{handle}'}</code>,
+				<code class="font-mono text-muted">{'{realname}'}</code>,
+				<code class="font-mono text-muted">{'{node}'}</code>,
+				<code class="font-mono text-muted">{'{userid}'}</code>.
+			</span>
 		{:else}
 			<div class="grid gap-3 sm:grid-cols-2">
 				<label class="flex flex-col gap-1.5">
@@ -345,6 +386,7 @@
 			</label>
 		{/if}
 
+		{#if draft.kind !== 'rlogin'}
 		<div class="grid gap-3 sm:grid-cols-2">
 			<label class="flex flex-col gap-1.5">
 				<span class="text-xs text-muted">Drop file</span>
@@ -383,6 +425,7 @@
 				</span>
 			</span>
 		</label>
+		{/if}
 
 		<div class="flex justify-end gap-2.5">
 			<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>Cancel</button>
@@ -418,9 +461,9 @@
 								<span
 									class="rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[10px] text-muted"
 								>
-									{d.kind === 'dosbox' ? 'DOS' : 'NATIVE'}
+									{d.kind === 'dosbox' ? 'DOS' : d.kind === 'rlogin' ? 'REMOTE' : 'NATIVE'}
 								</span>
-								{#if !d.installed}
+								{#if !d.installed && d.kind !== 'rlogin'}
 									<span
 										class="rounded-md border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] text-amber-400"
 										title="The door's directory is missing or empty"
@@ -430,7 +473,7 @@
 								{/if}
 							</div>
 							<div class="mt-1 truncate font-mono text-[11px] text-faint">
-								{doorDir(d) || '—'} · {dropfileLabel(d)}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''}{d.ansi16 ? ' · 16 colours' : ''}{d.program.length ? ` · runs ${d.program[0]}` : ''} · SL {d.min_sl}+
+								{doorDir(d) || '—'}{d.kind === 'rlogin' ? '' : ` · ${dropfileLabel(d)}`}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''}{d.ansi16 ? ' · 16 colours' : ''}{d.program.length ? ` · runs ${d.program[0]}` : ''} · SL {d.min_sl}+
 							</div>
 						</div>
 						<div class="flex shrink-0 gap-1.5">

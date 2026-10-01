@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -89,6 +90,12 @@ type Session struct {
 	refusedUs  [256]bool // DO we've already answered WONT to
 	refusedHim [256]bool // WILL we've already answered DONT to
 	ttypeAsked bool      // the TTYPE subnegotiation request is sent
+
+	// proxied is set when the connection came through the web
+	// terminal (internal/web), which names the real caller in a PROXY
+	// line first; remote is that caller.
+	proxied bool
+	remote  net.Addr
 }
 
 func newSession(conn net.Conn) *Session {
@@ -101,8 +108,14 @@ func newSession(conn net.Conn) *Session {
 	}
 }
 
-// RemoteAddr returns the client's network address.
-func (s *Session) RemoteAddr() net.Addr { return s.conn.RemoteAddr() }
+// RemoteAddr returns the client's network address -- the real caller's
+// for a connection through the web terminal.
+func (s *Session) RemoteAddr() net.Addr {
+	if s.remote != nil {
+		return s.remote
+	}
+	return s.conn.RemoteAddr()
+}
 
 // TermType returns the negotiated terminal type, or "unknown" if the
 // client never reported one.
@@ -112,8 +125,13 @@ func (s *Session) TermType() string {
 	return s.term
 }
 
-// Protocol implements bbs.Conn.
-func (s *Session) Protocol() string { return "telnet" }
+// Protocol implements bbs.Conn: "web" through the web terminal.
+func (s *Session) Protocol() string {
+	if s.proxied {
+		return "web"
+	}
+	return "telnet"
+}
 
 // WindowSize returns the last known terminal dimensions (defaults to
 // 80x24 until/unless the client sends a NAWS update).
@@ -461,6 +479,7 @@ func (srv *Server) ListenAndServe() error {
 		sess := newSession(conn)
 		go func() {
 			defer sess.Close()
+			sess.readProxyLine()
 			if err := sess.negotiateInitial(); err != nil {
 				return
 			}
@@ -470,3 +489,58 @@ func (srv *Server) ListenAndServe() error {
 }
 
 var _ io.ReadWriteCloser = (*Session)(nil)
+
+// readProxyLine takes the caller's address from a PROXY protocol line
+// ("PROXY TCP4 203.0.113.5 10.0.0.2 51234 2323\r\n") the web terminal
+// sends first -- believed only from a loopback or private address (the
+// web daemon beside us), never from the internet. Anything else read
+// meanwhile is kept for the session.
+func (s *Session) readProxyLine() {
+	ip := addrIP(s.conn.RemoteAddr())
+	if ip == nil || !(ip.IsLoopback() || ip.IsPrivate()) {
+		return
+	}
+	// The web terminal sends its line at once; a LAN telnet client
+	// waits for us -- don't keep it waiting long.
+	s.conn.SetReadDeadline(time.Now().Add(300 * time.Millisecond))
+	defer s.conn.SetReadDeadline(time.Time{})
+	var line []byte
+	b := make([]byte, 1)
+	for len(line) < 108 {
+		n, err := s.conn.Read(b)
+		if n == 1 {
+			line = append(line, b[0])
+			if len(line) <= 6 && !bytes.HasPrefix([]byte("PROXY "), line) {
+				break // not a PROXY line
+			}
+			if b[0] == '\n' {
+				break
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+	if f := strings.Fields(string(line)); len(f) >= 3 && f[0] == "PROXY" && strings.HasSuffix(string(line), "\n") {
+		if addr := net.ParseIP(f[2]); addr != nil {
+			s.proxied = true
+			s.remote = &net.TCPAddr{IP: addr}
+			return
+		}
+	}
+	// Not ours: what was read is the client's.
+	if len(line) > 0 {
+		s.r = bufio.NewReader(io.MultiReader(bytes.NewReader(line), s.conn))
+	}
+}
+
+func addrIP(a net.Addr) net.IP {
+	if t, ok := a.(*net.TCPAddr); ok {
+		return t.IP
+	}
+	host, _, err := net.SplitHostPort(a.String())
+	if err != nil {
+		return nil
+	}
+	return net.ParseIP(host)
+}

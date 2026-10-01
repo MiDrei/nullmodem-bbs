@@ -69,6 +69,9 @@ type Server struct {
 	Guard *guard.Guard
 	// Chat holds the chat rooms and one-liners; nil off.
 	Chat *chat.Store
+	// TerminalAddr is the bbs daemon's Telnet port for the web
+	// terminal (terminal_handler.go); empty turns it off.
+	TerminalAddr string
 }
 
 // logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
@@ -90,6 +93,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/bbs/info", s.handleBBSInfo)
+	mux.HandleFunc("GET /api/terminal", s.handleTerminal)
 	mux.HandleFunc("GET /api/bbs/welcome-screen", s.handleWelcomeScreen)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.Handle("GET /api/config", s.requireAuth(http.HandlerFunc(s.handleGetConfig)))

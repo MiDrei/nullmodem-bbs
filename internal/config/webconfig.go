@@ -14,6 +14,10 @@ type WebConfig struct {
 	BBSConfigPath string `yaml:"bbs_config_path"`
 	JWTSecretPath string `yaml:"jwt_secret_path"`
 	StaticDir     string `yaml:"static_dir"`
+	// TerminalAddr is the bbs daemon's Telnet port the web terminal
+	// connects to ("bbs:2323" in Docker); empty: this machine, at the
+	// port in bbs.yaml.
+	TerminalAddr string `yaml:"terminal_addr,omitempty"`
 }
 
 // DefaultWeb returns the built-in web daemon configuration.

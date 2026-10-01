@@ -102,7 +102,7 @@
 				or{/if}
 			{#if site.info.ssh_port}
 				SSH (<span class="font-mono text-muted">ssh {host} -p {site.info.ssh_port}</span>){/if}
-			first.
+			first -- or <a href="/terminal" class="text-accent hover:underline">right here in the browser</a>.
 		</p>
 	{/if}
 </div>

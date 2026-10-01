@@ -35,7 +35,9 @@ type doorDTO struct {
 	LockFiles         []string `json:"lock_files"`
 	Stdio             bool     `json:"stdio"`
 	ANSI16            bool     `json:"ansi16"`
-	Template          string   `json:"template"`
+	// Remote is a door of kind "rlogin": where and as whom.
+	Remote   config.RemoteDoor `json:"remote"`
+	Template string            `json:"template"`
 	// Program is the door's background program -- see
 	// config.DoorConfig.Program.
 	Program []string `json:"program"`
@@ -94,6 +96,7 @@ func toDoorDTO(d config.DoorConfig) doorDTO {
 		LockFiles:         orEmpty(d.LockFiles),
 		Stdio:             d.Stdio,
 		ANSI16:            d.ANSI16,
+		Remote:            d.Remote,
 		Template:          d.Template,
 		Program:           orEmpty(d.Program),
 		Installed:         nonEmptyDir(dir),
@@ -128,6 +131,7 @@ func fromDoorDTO(d doorDTO) config.DoorConfig {
 		LockFiles:         trimmed(d.LockFiles),
 		Stdio:             d.Stdio && kind == "",
 		ANSI16:            d.ANSI16,
+		Remote:            trimRemote(d.Remote, kind),
 		Template:          d.Template,
 		Program:           trimmed(d.Program),
 	}
@@ -156,6 +160,13 @@ func validateDoors(list []config.DoorConfig) string {
 		case "dosbox":
 			if d.DOSBoxDir == "" || d.DOSBoxLaunchCmd == "" {
 				return fmt.Sprintf("%s: a DOSBox door needs a directory and a launch command", d.Name)
+			}
+		case "rlogin":
+			if d.Remote.Host == "" || d.Remote.ClientUser == "" {
+				return fmt.Sprintf("%s: an RLogin door needs a host and a user name", d.Name)
+			}
+			if d.Remote.Port < 0 || d.Remote.Port > 65535 {
+				return fmt.Sprintf("%s: port must be 1-65535", d.Name)
 			}
 		default:
 			return fmt.Sprintf("%s: unknown kind %q", d.Name, d.Kind)
@@ -435,4 +446,16 @@ func (s *Server) handlePutMRCConfig(w http.ResponseWriter, r *http.Request) {
 		s.logInfo("%s changed the MRC Chat settings", claims.Subject)
 	}
 	writeJSON(w, http.StatusOK, mrc)
+}
+
+// trimRemote keeps a remote door's settings only for kind "rlogin".
+func trimRemote(r config.RemoteDoor, kind string) config.RemoteDoor {
+	if kind != "rlogin" {
+		return config.RemoteDoor{}
+	}
+	r.Host = strings.TrimSpace(r.Host)
+	r.ClientUser = strings.TrimSpace(r.ClientUser)
+	r.ServerUser = strings.TrimSpace(r.ServerUser)
+	r.TermType = strings.TrimSpace(r.TermType)
+	return r
 }

@@ -1334,6 +1334,8 @@ export interface Door {
 	stdio: boolean;
 	/** Reduce the door's 256/true colours to the 16 classic ANSI colours. */
 	ansi16: boolean;
+	/** Kind "rlogin": the door server and the user names sent to it. */
+	remote: RemoteDoor;
 	template: string;
 	/** Native doors only: a background program kept running while the door is set up (uMRC's umrc-bridge). */
 	program: string[];
@@ -1715,4 +1717,12 @@ export function listOneliners(token: string): Promise<Oneliner[]> {
 
 export function deleteOneliner(token: string, id: number): Promise<void> {
 	return request(`/api/oneliners/${id}`, { method: 'DELETE' }, token);
+}
+
+export interface RemoteDoor {
+	host: string;
+	port: number;
+	client_user: string;
+	server_user: string;
+	term_type: string;
 }

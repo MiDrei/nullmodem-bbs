@@ -44,6 +44,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 	"io"
 	"os"
 	"os/exec"
@@ -133,6 +134,9 @@ type Door struct {
 	// (Immortal Barons) played from classic BBS terminals, which can't
 	// show more -- see outputFilter.
 	ANSI16 bool
+	// Remote is where a door of kind "rlogin" is played (see
+	// config.RemoteDoor); played by internal/bbs, not Run.
+	Remote config.RemoteDoor
 }
 
 // Session carries the caller-specific fields Run writes into the

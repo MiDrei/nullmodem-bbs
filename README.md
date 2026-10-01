@@ -32,6 +32,8 @@ Teil der NullModem-Familie:
   die an dich; welche Areas, bestimmt dieselbe Auswahl wie für QWK
 - Datei-Download und -Upload per Zmodem (Synchronets `sexyz`)
 - QWK-Pakete holen und Antworten hochladen, Auswahl der Bereiche
+- Remote-Doors über RLogin (Door-Netzwerke wie DoorParty, andere BBS):
+  Host und die beiden Benutzernamen mit Platzhaltern im Web-Admin
 - Doors: native Linux-Doors per `DOOR32.SYS` und DOS-Doors unter DOSBox-X (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), verwaltet im Web-Admin mit Vorlagen (per Klick installierbar: MRC Chat (uMRC), Immortal Barons, Usurper, Usurper Reborn, Judge Dredd; vorbereitet: LORD, TradeWars, OO2, DoorMUD)
 - Profil: Realname, Zeitzone, Passwort, QWK-Einstellungen
 - Wer sich als Erster registriert, wird Sysop
@@ -39,6 +41,9 @@ Teil der NullModem-Familie:
 **Web** (`:8090`)
 - Portal für Benutzer (`/`): Nachrichten, Netmail, Dateien, QWK, Profil —
   dieselben Funktionen wie über Telnet
+- Web-Terminal (`/terminal`): die BBS im Browser, ohne Telnet-Client — mit dem
+  Pixel-Font der ANSI-Bildschirme, Tastenleiste fürs Handy; Sperren und
+  Verbindungslimit gelten für die echte Adresse des Besuchers
 - Reader fürs Handy (`/reader`): schlanke Web-App zum Lesen und Beantworten
   von Echomail und Netmail, installierbar auf dem Home-Bildschirm (iOS,
   Android); Gelesen-Status wie überall auf der BBS. Offline lesen (Ungelesenes

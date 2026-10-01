@@ -80,6 +80,9 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 // to tell the caller about rather than a reason to drop their whole
 // BBS session.
 func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
+	if door.Kind == "rlogin" {
+		return s.playRemoteDoor(term, u, door)
+	}
 	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
 		fmt.Sprintf("Launching %s...", door.Name) + ansi.Reset + "\r\n"); err != nil {
 		return err
