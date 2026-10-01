@@ -140,7 +140,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions (swiping is a shortcut; the arrows below do the same) -->
 <div
 	bind:this={root}
-	class="r-full flex flex-col overflow-x-hidden"
+	class="r-full flex flex-col overflow-x-clip"
 	ontouchstart={touchStart}
 	ontouchmove={touchMove}
 	ontouchend={touchEnd}
