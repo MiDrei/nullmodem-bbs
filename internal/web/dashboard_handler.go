@@ -49,6 +49,10 @@ type dashboardDTO struct {
 	// netmail.Store.CountUnresolvedInbox), not capped at what the
 	// admin's own list page displays.
 	UnresolvedNetmailCount int `json:"unresolved_netmail_count"`
+	// PendingUserCount are new accounts waiting for approval,
+	// LockedOutCount the addresses locked out now (internal/guard).
+	PendingUserCount int `json:"pending_user_count"`
+	LockedOutCount   int `json:"locked_out_count"`
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +140,14 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	pendingUsers, _ := s.Users.Pending()
+	lockedOut := 0
+	if s.Guard != nil {
+		if l, err := s.Guard.Lockouts(); err == nil {
+			lockedOut = len(l)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, dashboardDTO{
 		BBSName:                 cfg.BBS.Name,
 		Version:                 version.Version,
@@ -147,5 +159,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		PendingMessageAreaCount: len(pendingMsgAreas),
 		PendingFileAreaCount:    len(pendingFileAreas),
 		UnresolvedNetmailCount:  unresolvedCount,
+		PendingUserCount:        len(pendingUsers),
+		LockedOutCount:          lockedOut,
 	})
 }

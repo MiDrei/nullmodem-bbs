@@ -40,6 +40,11 @@ Teil der NullModem-Familie:
 - Administration für den Sysop (`/admin`, ab SL 255): Benutzer, Bereiche,
   Security-Level-Matrix, Logs, BinkP-Uplinks, Areafix, Archiv, ANSI-Designer
   für die Bildschirme
+- Schutz (Admin → Users → Security): Adressen mit zu vielen Fehl-Logins
+  (Telnet, SSH, Portal, Admin) werden gesperrt, bei Wiederholung länger;
+  Limit gleichzeitiger Verbindungen pro Adresse; Allow- und Blocklisten (IP oder
+  Bereich). Neue Benutzer warten auf Freischaltung (lesen und Netmail an den
+  Sysop dürfen sie schon), Push an den Sysop bei Neuanmeldung; gesperrte Handles
 - Nächtliches Backup (Admin → Backups): Datenbank, Konfiguration, Menüs,
   Bildschirme und Schlüssel als ein `.tar.gz`, wahlweise mit Dateien und Doors;
   Download im Admin, Zurückspielen siehe [docs/backup.md](docs/backup.md)

@@ -13,6 +13,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/applog"
 	"git.maik.ch/nullmodem/bbs/internal/doors"
 	"git.maik.ch/nullmodem/bbs/internal/file"
+	"git.maik.ch/nullmodem/bbs/internal/guard"
 	"git.maik.ch/nullmodem/bbs/internal/menu"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
@@ -54,6 +55,13 @@ type Server struct {
 	// LastCallers is the InterBBS Last Callers setup (see
 	// lastcallers.go); zero means off.
 	LastCallers config.LastCallersConfig
+	// Guard, if set, locks out IPs that keep failing to log in.
+	Guard *guard.Guard
+	// Security, if set, supplies the current lockout and approval
+	// settings (re-read from the config now and then); nil: no
+	// connection limit, no approval.
+	Security func() config.SecurityConfig
+	conns    guard.Conns
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -76,6 +84,8 @@ type Options struct {
 	WelcomeScreen string
 	ScreensDir    string
 	LastCallers   config.LastCallersConfig
+	Guard         *guard.Guard
+	Security      func() config.SecurityConfig
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -97,6 +107,8 @@ func NewServer(opts Options) *Server {
 		WelcomeScreen: opts.WelcomeScreen,
 		ScreensDir:    opts.ScreensDir,
 		LastCallers:   opts.LastCallers,
+		Guard:         opts.Guard,
+		Security:      opts.Security,
 	}
 }
 
@@ -119,6 +131,27 @@ func (s *Server) logWarn(format string, args ...any) {
 // session with the shared session store and never lets a panic in
 // menu logic take down the listener goroutine.
 func (s *Server) Handle(conn Conn) {
+	// Locked out or too many connections: told so, and gone -- before
+	// taking a node.
+	ip := guard.IP(conn.RemoteAddr().String())
+	if s.Guard != nil {
+		if v, err := s.Guard.Check(ip); err == nil && v.Blocked {
+			s.logWarn("[%s] refused %s: locked out", conn.Protocol(), ip)
+			conn.Write([]byte("\r\n" + v.Message() + "\r\n"))
+			time.Sleep(300 * time.Millisecond)
+			return
+		}
+	}
+	if s.Security != nil {
+		if !s.conns.Open(ip, s.Security().MaxConnections()) {
+			s.logWarn("[%s] refused %s: too many connections from it", conn.Protocol(), ip)
+			conn.Write([]byte("\r\nToo many connections from your address.\r\n"))
+			time.Sleep(300 * time.Millisecond)
+			return
+		}
+		defer s.conns.Close(ip)
+	}
+
 	node, err := s.Nodes.Join(conn.RemoteAddr().String(), conn.TermType())
 	if err != nil {
 		return
@@ -137,6 +170,8 @@ func (s *Server) Handle(conn Conn) {
 
 	term := NewTerminal(conn)
 	term.Node = node
+	term.RemoteIP = ip
+	term.Protocol = protocol
 	defer func() { recover() }()
 
 	if err := s.welcome(term, node); err != nil {
@@ -241,7 +276,7 @@ func (s *Server) login(term *Terminal) (*user.User, error) {
 			return nil, fmt.Errorf("bbs: too many failed login attempts for %s", handle)
 		}
 
-		if user.IsRestrictedUsername(handle) {
+		if user.IsRestrictedUsername(handle) || s.blockedHandle(handle) {
 			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That handle is reserved."); err != nil {
 				return nil, err
 			}
@@ -274,6 +309,9 @@ func (s *Server) authenticateExisting(term *Terminal, handle string) (*user.User
 
 		u, err := s.Users.Authenticate(handle, password)
 		if err == nil {
+			if s.Guard != nil {
+				s.Guard.Succeed(term.RemoteIP)
+			}
 			return u, nil
 		}
 		if !errors.Is(err, user.ErrInvalidCredentials) {
@@ -281,6 +319,12 @@ func (s *Server) authenticateExisting(term *Terminal, handle string) (*user.User
 		}
 		if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid password."); err != nil {
 			return nil, err
+		}
+		if s.Guard != nil {
+			if v, err := s.Guard.Fail(term.RemoteIP, handle, term.Protocol); err == nil && v.Blocked {
+				term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + v.Message() + ansi.Reset)
+				return nil, nil
+			}
 		}
 	}
 	return nil, nil
@@ -338,7 +382,11 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 			return nil, false, err
 		}
 
-		u, err := s.Users.Register(handle, pw1, s.NewUserSL)
+		sl, pending := s.NewUserSL, false
+		if s.Security != nil && s.Security().Approval() {
+			sl, pending = s.Security().Pending(), true
+		}
+		u, err := s.Users.RegisterNew(handle, pw1, sl, pending)
 		if err != nil {
 			return nil, false, err
 		}
@@ -346,9 +394,18 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 			return nil, false, err
 		}
 		u.RealName = realName
-		s.logInfo("new account registered: %s (SL %d)", u.Username, u.SecurityLevel)
+		if u.Validated {
+			s.logInfo("new account registered: %s (SL %d)", u.Username, u.SecurityLevel)
+		} else {
+			s.logInfo("new account registered: %s (SL %d), waiting for approval", u.Username, u.SecurityLevel)
+		}
 		if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Account created. Welcome, " + handle + "!"); err != nil {
 			return nil, false, err
+		}
+		if !u.Validated {
+			if err := term.Println(ansi.FG(ansi.Yellow, true) + pendingNote + ansi.Reset); err != nil {
+				return nil, false, err
+			}
 		}
 		if u.SecurityLevel >= user.SLSysop {
 			if err := term.Println(ansi.FG(ansi.Yellow, true) + "You are the first user and have been granted sysop access (SL 255)."); err != nil {

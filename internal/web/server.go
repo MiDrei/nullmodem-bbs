@@ -10,6 +10,7 @@ package web
 
 import (
 	"database/sql"
+	"git.maik.ch/nullmodem/bbs/internal/guard"
 	"git.maik.ch/nullmodem/bbs/internal/push"
 	"net/http"
 	"os"
@@ -63,6 +64,8 @@ type Server struct {
 	DBPath string
 	// Push sends the mobile reader's notifications; nil turns them off.
 	Push *push.Sender
+	// Guard locks out addresses that keep failing to log in; nil off.
+	Guard *guard.Guard
 }
 
 // logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
@@ -124,6 +127,13 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))
+	mux.Handle("POST /api/users/{id}/approve", s.requireAuth(http.HandlerFunc(s.handleApproveUser)))
+	mux.Handle("DELETE /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleDeletePendingUser)))
+	mux.Handle("GET /api/security", s.requireAuth(http.HandlerFunc(s.handleGetSecurity)))
+	mux.Handle("PUT /api/security/settings", s.requireAuth(http.HandlerFunc(s.handlePutSecuritySettings)))
+	mux.Handle("POST /api/security/unlock", s.requireAuth(http.HandlerFunc(s.handleUnlockIP)))
+	mux.Handle("POST /api/security/rules", s.requireAuth(http.HandlerFunc(s.handleAddIPRule)))
+	mux.Handle("DELETE /api/security/rules", s.requireAuth(http.HandlerFunc(s.handleDeleteIPRule)))
 
 	mux.Handle("GET /api/message-areas", s.requireAuth(http.HandlerFunc(s.handleListMessageAreas)))
 	mux.Handle("POST /api/message-areas", s.requireAuth(http.HandlerFunc(s.handleCreateMessageArea)))

@@ -716,6 +716,9 @@ func (s *Server) downloadFile(term *Terminal, u *user.User, f *file.File) error 
 // Receive itself also returns an error, rather than discarding
 // everything on any failure.
 func (s *Server) uploadFile(term *Terminal, u *user.User, area *file.Area) error {
+	if ok, err := s.mayPost(term, u); !ok {
+		return err
+	}
 	if !area.CanUpload(u.SecurityLevel) {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "You don't have access to upload here.")
 	}

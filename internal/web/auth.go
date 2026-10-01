@@ -42,16 +42,21 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ip, ok := s.loginAllowed(w, r)
+	if !ok {
+		return
+	}
 	u, err := s.Users.Authenticate(req.Username, req.Password)
 	if err != nil {
 		if errors.Is(err, user.ErrInvalidCredentials) {
-			s.logWarn("failed admin login attempt for %q", req.Username)
-			writeError(w, http.StatusUnauthorized, "invalid username or password")
+			s.logWarn("failed admin login attempt for %q from %s", req.Username, ip)
+			s.loginFailed(w, ip, req.Username, "admin")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "authentication failed")
 		return
 	}
+	s.loginSucceeded(ip)
 	if u.SecurityLevel < user.SLSysop {
 		s.logWarn("admin login rejected for %s: not sysop-level", u.Username)
 		writeError(w, http.StatusForbidden, "sysop access required")
@@ -140,16 +145,21 @@ func (s *Server) handleBBSLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ip, ok := s.loginAllowed(w, r)
+	if !ok {
+		return
+	}
 	u, err := s.Users.Authenticate(req.Username, req.Password)
 	if err != nil {
 		if errors.Is(err, user.ErrInvalidCredentials) {
-			s.logWarn("failed BBS portal login attempt for %q", req.Username)
-			writeError(w, http.StatusUnauthorized, "invalid username or password")
+			s.logWarn("failed BBS portal login attempt for %q from %s", req.Username, ip)
+			s.loginFailed(w, ip, req.Username, "web")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "authentication failed")
 		return
 	}
+	s.loginSucceeded(ip)
 	s.logInfo("%s logged into the BBS web portal", u.Username)
 
 	now := time.Now()

@@ -430,3 +430,32 @@ CREATE TABLE IF NOT EXISTS push_state (
     key    TEXT PRIMARY KEY,
     value  INTEGER NOT NULL
 );
+
+-- internal/guard: failed logins per IP (any of Telnet, SSH, portal,
+-- admin), the IPs locked out because of them, and the sysop's allow
+-- and block lists (an IP or a CIDR range). Times are Unix ms.
+CREATE TABLE IF NOT EXISTS login_failures (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip      TEXT NOT NULL,
+    handle  TEXT NOT NULL DEFAULT '',
+    source  TEXT NOT NULL DEFAULT '',
+    at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_login_failures_ip_at ON login_failures(ip, at);
+
+CREATE TABLE IF NOT EXISTS ip_lockouts (
+    ip         TEXT PRIMARY KEY,
+    until      INTEGER NOT NULL,
+    locked_at  INTEGER NOT NULL,
+    -- how many times in a row (within a day of the last one): each
+    -- lockout lasts four times as long as the one before
+    strikes    INTEGER NOT NULL DEFAULT 1,
+    reason     TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS ip_rules (
+    pattern     TEXT PRIMARY KEY,
+    kind        TEXT NOT NULL CHECK (kind IN ('allow', 'block')),
+    note        TEXT NOT NULL DEFAULT '',
+    created_at  INTEGER NOT NULL
+);

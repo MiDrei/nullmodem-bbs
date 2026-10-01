@@ -121,6 +121,51 @@ func (n *Notifier) Check(ctx context.Context) error {
 	}
 	rows.Close()
 
+	// New accounts waiting for approval: to the sysops' devices.
+	lastUser, err := n.position(ctx, "users", `SELECT COALESCE(MAX(id), 0) FROM users`)
+	if err != nil {
+		return err
+	}
+	var maxUser int64
+	if err := n.DB.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM users`).Scan(&maxUser); err != nil {
+		return fmt.Errorf("push: looking for new users: %w", err)
+	}
+	if maxUser > lastUser {
+		var sysops []int64
+		rows, err := n.DB.QueryContext(ctx, `SELECT id FROM users WHERE security_level >= 255`)
+		if err != nil {
+			return fmt.Errorf("push: %w", err)
+		}
+		for rows.Next() {
+			var id int64
+			rows.Scan(&id)
+			sysops = append(sysops, id)
+		}
+		rows.Close()
+		rows, err = n.DB.QueryContext(ctx, `SELECT username, real_name FROM users WHERE id > ? AND id <= ? AND validated = 0 ORDER BY id`, lastUser, maxUser)
+		if err != nil {
+			return fmt.Errorf("push: looking for new users: %w", err)
+		}
+		for rows.Next() {
+			var name, real string
+			rows.Scan(&name, &real)
+			body := name
+			if real != "" {
+				body += " (" + real + ")"
+			}
+			for _, id := range sysops {
+				out = append(out, pending{id, Notification{
+					Title: "New user waiting for approval", Body: body,
+					URL: "/admin/users", Tag: "user-" + name,
+				}, "users"})
+			}
+		}
+		rows.Close()
+	}
+	if err := n.setPosition(ctx, "users", maxUser); err != nil {
+		return err
+	}
+
 	// Moved on first: a push service that's down must not have the
 	// same mail announced again and again.
 	if err := n.setPosition(ctx, "netmail", maxNet); err != nil {

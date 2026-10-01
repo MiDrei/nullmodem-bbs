@@ -372,6 +372,12 @@ func (s *Server) readNetmail(term *Terminal, u *user.User, msgs []netmail.Messag
 // arrived from a remote system -- then hands off to the shared
 // runLineEditor for the body.
 func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.Message) error {
+	// Pending: a reply to the sysop only.
+	if !u.Validated && !(original.FromUserID.Valid && s.isSysop(original.FromUserID.Int64)) {
+		if ok, err := s.mayPost(term, u); !ok {
+			return err
+		}
+	}
 	subject := replySubject(original.Subject)
 	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Reply to Netmail" + ansi.Reset); err != nil {
 		return err
@@ -542,7 +548,13 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 	var toUserID int64
 	var toName, toAddress string
 	var crash bool
-	if recipient, err := s.Users.ByUsername(to); err == nil {
+	recipient, err := s.Users.ByUsername(to)
+	if !u.Validated && (err != nil || recipient.SecurityLevel < user.SLSysop) {
+		// Pending: netmail to the sysop only.
+		_, err := s.mayPost(term, u)
+		return err
+	}
+	if err == nil {
 		toUserID = recipient.ID
 		toName = recipient.Username
 	} else if !errors.Is(err, user.ErrNotFound) {

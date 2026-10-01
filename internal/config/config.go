@@ -4,6 +4,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -92,6 +94,9 @@ type Config struct {
 	Maintenance MaintenanceConfig `yaml:"maintenance"`
 	// Backup is the nightly backup (see internal/backup).
 	Backup BackupConfig `yaml:"backup"`
+	// Security is the login protection and new-user approval (see
+	// internal/guard).
+	Security SecurityConfig `yaml:"security"`
 	// InterBBS is taking part in inter-BBS lists carried in data echoes.
 	InterBBS struct {
 		LastCallers LastCallersConfig `yaml:"last_callers"`
@@ -452,6 +457,40 @@ func (b BackupConfig) Directory() string {
 	return b.Dir
 }
 
+// SecurityConfig: locking out IPs that keep failing to log in
+// (internal/guard), and new accounts waiting for the sysop's approval.
+type SecurityConfig struct {
+	// LockoutEnabled locks out an IP after MaxFailures failed logins
+	// within WindowMinutes, for LockoutMinutes -- four times as long
+	// each time it happens again within a day, up to MaxLockoutHours.
+	// Default on: 5 in 10 minutes, 15 minutes, at most 24 hours.
+	LockoutEnabled  *bool `yaml:"lockout_enabled,omitempty"`
+	MaxFailures     *int  `yaml:"max_failures,omitempty"`
+	WindowMinutes   *int  `yaml:"window_minutes,omitempty"`
+	LockoutMinutes  *int  `yaml:"lockout_minutes,omitempty"`
+	MaxLockoutHours *int  `yaml:"max_lockout_hours,omitempty"`
+	// MaxConnectionsPerIP limits simultaneous Telnet/SSH connections
+	// from one address; default 3, 0 no limit.
+	MaxConnectionsPerIP *int `yaml:"max_connections_per_ip,omitempty"`
+	// ApproveNewUsers: new accounts start at PendingSL and wait for
+	// the sysop's approval before they may post; approval raises them
+	// to bbs.new_user_sl. Default on, PendingSL 5.
+	ApproveNewUsers *bool `yaml:"approve_new_users,omitempty"`
+	PendingSL       *int  `yaml:"pending_sl,omitempty"`
+	// BlockedHandles can't be registered, in addition to the built-in
+	// ones (sysop, admin, root, ...).
+	BlockedHandles []string `yaml:"blocked_handles,omitempty"`
+}
+
+func (c SecurityConfig) Lockout() bool       { return c.LockoutEnabled == nil || *c.LockoutEnabled }
+func (c SecurityConfig) Failures() int       { return intOr(c.MaxFailures, 5) }
+func (c SecurityConfig) Window() int         { return intOr(c.WindowMinutes, 10) }
+func (c SecurityConfig) LockoutMins() int    { return intOr(c.LockoutMinutes, 15) }
+func (c SecurityConfig) MaxLockout() int     { return intOr(c.MaxLockoutHours, 24) }
+func (c SecurityConfig) MaxConnections() int { return intOr(c.MaxConnectionsPerIP, 3) }
+func (c SecurityConfig) Approval() bool      { return c.ApproveNewUsers == nil || *c.ApproveNewUsers }
+func (c SecurityConfig) Pending() int        { return intOr(c.PendingSL, 5) }
+
 func intOr(p *int, def int) int {
 	if p == nil {
 		return def
@@ -470,3 +509,31 @@ func (m MaintenanceConfig) LogRows() int        { return intOr(m.LogKeepRows, 50
 func (m MaintenanceConfig) TranscriptDays() int { return intOr(m.TranscriptKeepDays, 5) }
 func (m MaintenanceConfig) ArchiveDays() int    { return intOr(m.ArchiveKeepDays, 5) }
 func (m MaintenanceConfig) VacuumAfter() bool   { return m.Vacuum == nil || *m.Vacuum }
+
+// Cached returns a loader for the config at path that reads it again
+// at most every ttl -- for settings the web admin changes while a
+// daemon runs (security, approval). fallback is used until a read
+// succeeds, and the last good one after a failed read.
+func Cached(path string, ttl time.Duration, fallback *Config) func() *Config {
+	var mu sync.Mutex
+	cur, at := fallback, time.Time{}
+	return func() *Config {
+		mu.Lock()
+		defer mu.Unlock()
+		if time.Since(at) < ttl {
+			return cur
+		}
+		at = time.Now()
+		if c, err := Load(path); err == nil {
+			cur = c
+		}
+		return cur
+	}
+}
+
+// GuardSettings are the lockout limits in guard's terms (as plain
+// values, so internal/guard needs no config import).
+func (c SecurityConfig) GuardSettings() (enabled bool, maxFailures int, window, lockout, maxLockout time.Duration) {
+	return c.Lockout(), c.Failures(), time.Duration(c.Window()) * time.Minute,
+		time.Duration(c.LockoutMins()) * time.Minute, time.Duration(c.MaxLockout()) * time.Hour
+}

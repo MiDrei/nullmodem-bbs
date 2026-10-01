@@ -92,6 +92,9 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 // Terminal.Raw/PushBack handling exactly), parses it, and routes each
 // reply via routeQWKReplies.
 func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
+	if ok, err := s.mayPost(term, u); !ok {
+		return err
+	}
 	tmpDir, err := os.MkdirTemp("", "nullmodem-qwkrep-*")
 	if err != nil {
 		return fmt.Errorf("qwk upload: creating scratch dir: %w", err)

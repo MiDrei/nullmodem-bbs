@@ -111,6 +111,10 @@ export interface Dashboard {
 	pending_file_area_count: number;
 	/** Inbound netmail stuck with no real recipient -- see /admin/netmail. Capped the same way that page's own list is. */
 	unresolved_netmail_count: number;
+	/** New accounts waiting for approval -- see /admin/users. */
+	pending_user_count: number;
+	/** Addresses locked out now for failed logins -- see /admin/security. */
+	locked_out_count: number;
 }
 
 export interface BBSUser {
@@ -122,6 +126,8 @@ export interface BBSUser {
 	created_at: string;
 	last_login_at: string | null;
 	total_calls: number;
+	/** False while the account waits for the sysop's approval. */
+	validated: boolean;
 }
 
 export interface MessageArea {
@@ -1576,4 +1582,77 @@ export async function downloadBackup(token: string, name: string): Promise<Blob>
 	const res = await fetch(`/api/backups/${encodeURIComponent(name)}`, { headers: { Authorization: `Bearer ${token}` } });
 	if (!res.ok) throw new ApiError(res.status, res.statusText);
 	return res.blob();
+}
+
+export function approveUser(token: string, id: number): Promise<BBSUser> {
+	return request(`/api/users/${id}/approve`, { method: 'POST' }, token);
+}
+
+/** Deletes an account still waiting for approval (turned down). */
+export function deletePendingUser(token: string, id: number): Promise<void> {
+	return request(`/api/users/${id}`, { method: 'DELETE' }, token);
+}
+
+/** Login protection and new-user approval (internal/guard). */
+export interface SecuritySettings {
+	lockout_enabled: boolean;
+	max_failures: number;
+	window_minutes: number;
+	lockout_minutes: number;
+	max_lockout_hours: number;
+	max_connections_per_ip: number;
+	approve_new_users: boolean;
+	pending_sl: number;
+	new_user_sl: number;
+	blocked_handles: string[];
+}
+
+export interface IPLockout {
+	ip: string;
+	until: string;
+	locked_at: string;
+	strikes: number;
+	reason: string;
+}
+
+export interface IPRule {
+	pattern: string;
+	kind: 'allow' | 'block';
+	note: string;
+	created_at: string;
+}
+
+export interface LoginFailure {
+	ip: string;
+	handle: string;
+	source: string;
+	at: string;
+}
+
+export interface SecurityState {
+	settings: SecuritySettings;
+	lockouts: IPLockout[];
+	rules: IPRule[];
+	failures: LoginFailure[];
+	your_ip: string;
+}
+
+export function getSecurity(token: string): Promise<SecurityState> {
+	return request('/api/security', { method: 'GET' }, token);
+}
+
+export function putSecuritySettings(token: string, settings: SecuritySettings): Promise<SecurityState> {
+	return request('/api/security/settings', { method: 'PUT', body: JSON.stringify(settings) }, token);
+}
+
+export function unlockIP(token: string, ip: string): Promise<SecurityState> {
+	return request('/api/security/unlock', { method: 'POST', body: JSON.stringify({ ip }) }, token);
+}
+
+export function addIPRule(token: string, pattern: string, kind: 'allow' | 'block', note: string): Promise<SecurityState> {
+	return request('/api/security/rules', { method: 'POST', body: JSON.stringify({ pattern, kind, note }) }, token);
+}
+
+export function deleteIPRule(token: string, pattern: string): Promise<SecurityState> {
+	return request('/api/security/rules', { method: 'DELETE', body: JSON.stringify({ pattern }) }, token);
 }

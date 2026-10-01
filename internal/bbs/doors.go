@@ -20,6 +20,9 @@ import (
 // re-shown after every play session anyway, so there's no scrolling
 // concern to solve.
 func (s *Server) showDoors(term *Terminal, u *user.User) error {
+	if ok, err := s.mayPost(term, u); !ok {
+		return err
+	}
 	all := s.Doors
 	if s.LoadDoors != nil {
 		all = s.LoadDoors()

@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
 	import { toast } from '$lib/toast.svelte';
-	import { listUsers, setUserSecurityLevel, ApiError, type BBSUser } from '$lib/api';
+	import { listUsers, setUserSecurityLevel, approveUser, deletePendingUser, ApiError, type BBSUser } from '$lib/api';
 
 	interface Row {
 		user: BBSUser;
@@ -66,6 +66,34 @@
 		}
 	}
 
+	let pending = $derived(rows.filter((r) => !r.user.validated));
+
+	async function approve(row: Row) {
+		if (!auth.token) return;
+		row.saving = true;
+		try {
+			const updated = await approveUser(auth.token, row.user.id);
+			row.user = updated;
+			row.level = updated.security_level;
+			toast.push(`${updated.username} approved (SL ${updated.security_level}).`, 'success');
+		} catch (err) {
+			toast.push(err instanceof ApiError ? err.message : 'Could not approve.', 'error');
+		} finally {
+			row.saving = false;
+		}
+	}
+
+	async function turnDown(row: Row) {
+		if (!auth.token || !confirm(`Turn down and delete the account ${row.user.username}?`)) return;
+		try {
+			await deletePendingUser(auth.token, row.user.id);
+			rows = rows.filter((r) => r.user.id !== row.user.id);
+			toast.push(`${row.user.username} deleted.`, 'success');
+		} catch (err) {
+			toast.push(err instanceof ApiError ? err.message : 'Could not delete.', 'error');
+		}
+	}
+
 	function formatDate(iso: string | null): string {
 		if (!iso) return 'never';
 		return new Date(iso).toLocaleString();
@@ -85,6 +113,28 @@
 {:else if !loaded}
 	<p class="text-sm text-slate-400">Loading…</p>
 {:else}
+	{#if pending.length}
+		<section class="mb-6 rounded-xl border border-amber-800/60 bg-amber-950/20 p-4">
+			<h2 class="mb-1 text-sm font-semibold tracking-wide text-amber-400 uppercase">Awaiting approval</h2>
+			<p class="mb-3 text-xs text-muted">
+				They can read and write netmail to you; approving gives them the new-user level and lets them post,
+				use doors and upload.
+			</p>
+			<div class="flex flex-col divide-y divide-amber-900/40">
+				{#each pending as row (row.user.id)}
+					<div class="flex flex-wrap items-center gap-3 py-2">
+						<span class="min-w-0 flex-1">
+							<span class="text-ink-strong">{row.user.username}</span>
+							{#if row.user.real_name}<span class="text-muted"> · {row.user.real_name}</span>{/if}
+							<span class="block text-xs text-faint">signed up {formatDate(row.user.created_at)} · {row.user.total_calls} call(s)</span>
+						</span>
+						<button class="btn-primary btn-sm" disabled={row.saving} onclick={() => approve(row)}>Approve</button>
+						<button class="btn-secondary btn-sm" disabled={row.saving} onclick={() => turnDown(row)}>Turn down</button>
+					</div>
+				{/each}
+			</div>
+		</section>
+	{/if}
 	<div class="overflow-x-auto rounded-xl border border-line">
 		<table class="w-full text-left text-sm">
 			<thead class="card-label">
@@ -117,6 +167,7 @@
 									</svg>
 								{/if}
 								{row.user.username}
+								{#if !row.user.validated}<span class="rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400 uppercase">waiting</span>{/if}
 							</div>
 						</td>
 						<td class="p-3">

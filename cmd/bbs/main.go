@@ -2,6 +2,7 @@
 package main
 
 import (
+	"git.maik.ch/nullmodem/bbs/internal/guard"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
 	// image has a zoneinfo database or not.
 	_ "time/tzdata"
@@ -97,6 +98,15 @@ func main() {
 		return doorsFromConfig(c.Doors)
 	}
 
+	// Login protection and new-user approval, as set in the web admin
+	// (re-read every half minute).
+	current := config.Cached(*configPath, 30*time.Second, cfg)
+	security := func() config.SecurityConfig { return current().Security }
+	loginGuard := guard.New(sqlDB, func() guard.Settings {
+		on, max, window, lockout, maxLockout := security().GuardSettings()
+		return guard.Settings{Enabled: on, MaxFailures: max, Window: window, Lockout: lockout, MaxLockout: maxLockout}
+	}, logger)
+
 	srv := bbs.NewServer(bbs.Options{
 		BBSName:       cfg.BBS.Name,
 		SysopName:     cfg.BBS.Sysop,
@@ -114,6 +124,8 @@ func main() {
 		ScreensDir:    cfg.BBS.ScreensDir,
 		Logger:        logger,
 		LastCallers:   cfg.InterBBS.LastCallers,
+		Guard:         loginGuard,
+		Security:      security,
 	})
 
 	// File and QWK transfers over Telnet/SSH run Synchronet's sexyz.

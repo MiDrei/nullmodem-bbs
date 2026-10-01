@@ -775,6 +775,9 @@ func (s *Server) drawReader(term *Terminal, area *message.Area, msgs []message.M
 // runLineEditor for the body -- the same /S /A /L /D editor postMessage
 // uses, just with To/Subject prefilled instead of prompted.
 func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area, original *message.Message) error {
+	if ok, err := s.mayPost(term, u); !ok {
+		return err
+	}
 	if !area.CanWrite(u.SecurityLevel) {
 		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Red, true) + "You don't have permission to post here."); err != nil {
 			return err
@@ -812,6 +815,9 @@ func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area
 // redraws on every keypress and would otherwise wipe the rejection
 // message before it could be read -- see pauseForKey's doc comment.
 func (s *Server) attemptPostMessage(term *Terminal, u *user.User, area *message.Area, canWrite bool) error {
+	if ok, err := s.mayPost(term, u); !ok {
+		return err
+	}
 	if !canWrite {
 		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Red, true) + "You don't have permission to post here."); err != nil {
 			return err

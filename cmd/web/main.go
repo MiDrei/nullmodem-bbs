@@ -3,6 +3,7 @@
 package main
 
 import (
+	"git.maik.ch/nullmodem/bbs/internal/guard"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
 	// image has a zoneinfo database or not.
 	_ "time/tzdata"
@@ -114,6 +115,14 @@ func main() {
 		DB:            sqlDB,
 		DBPath:        cfg.DatabasePath,
 	}
+
+	// Login protection, shared with the bbs daemon through the database;
+	// its settings re-read every half minute.
+	current := config.Cached(cfg.BBSConfigPath, 30*time.Second, bbsCfg)
+	srv.Guard = guard.New(sqlDB, func() guard.Settings {
+		on, max, window, lockout, maxLockout := current().Security.GuardSettings()
+		return guard.Settings{Enabled: on, MaxFailures: max, Window: window, Lockout: lockout, MaxLockout: maxLockout}
+	}, logger)
 
 	// The mobile reader's notifications: the key pair beside the JWT
 	// secret, and the notifier looking for new mail.

@@ -88,6 +88,10 @@ type User struct {
 	// Switzerland") -- optional, shown on the InterBBS last callers
 	// list. (Not "Location": that's the time zone, see Location().)
 	Place string
+	// Validated is false for an account still waiting for the
+	// sysop's approval (see RegisterNew, Approve): it may read and
+	// write to the sysop, not post or use doors.
+	Validated bool
 }
 
 // Location returns the zone to show this user's times in: their
@@ -136,14 +140,14 @@ func ValidateRealName(realName string) error {
 
 // userColumns is the column list every single-/multi-row user query
 // selects, in scanUser's order.
-const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location`
+const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated`
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
 func scanUser(row rowScanner, u *User) error {
-	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place)
+	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated)
 }
 
 // Store persists User accounts in the shared SQLite database.
@@ -165,6 +169,13 @@ func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 // insert run in one transaction so two concurrent first registrations
 // can't both claim it.
 func (s *Store) Register(username, password string, securityLevel int) (*User, error) {
+	return s.RegisterNew(username, password, securityLevel, false)
+}
+
+// RegisterNew is Register for a caller signing up: with pending, the
+// account waits for the sysop's approval (Validated false) at
+// securityLevel -- the very first account, the sysop, never does.
+func (s *Store) RegisterNew(username, password string, securityLevel int, pending bool) (*User, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("user: hash password: %w", err)
@@ -182,11 +193,12 @@ func (s *Store) Register(username, password string, securityLevel int) (*User, e
 	}
 	if count == 0 {
 		securityLevel = SLSysop
+		pending = false
 	}
 
 	res, err := tx.Exec(
-		`INSERT INTO users (username, password_hash, security_level) VALUES (?, ?, ?)`,
-		username, string(hash), securityLevel,
+		`INSERT INTO users (username, password_hash, security_level, validated) VALUES (?, ?, ?, ?)`,
+		username, string(hash), securityLevel, !pending,
 	)
 	if err != nil {
 		if isUniqueConstraintErr(err) {
@@ -245,6 +257,72 @@ func (s *Store) Authenticate(username, password string) (*User, error) {
 	}
 
 	return s.ByID(u.ID)
+}
+
+// Pending returns the accounts waiting for approval, oldest first.
+func (s *Store) Pending() ([]User, error) {
+	rows, err := s.db.Query(`SELECT ` + userColumns + ` FROM users WHERE validated = 0 ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("user: pending: %w", err)
+	}
+	defer rows.Close()
+	var out []User
+	for rows.Next() {
+		var u User
+		if err := scanUser(rows, &u); err != nil {
+			return nil, fmt.Errorf("user: pending: %w", err)
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// ErrNotPending: only an account still waiting for approval may be
+// deleted this way.
+var ErrNotPending = errors.New("user: account is not waiting for approval")
+
+// DeletePending deletes an account still waiting for approval -- one
+// the sysop turned down. Netmail it wrote keeps its sender's name.
+func (s *Store) DeletePending(id int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("user: delete %d: %w", id, err)
+	}
+	defer tx.Rollback()
+	var validated bool
+	if err := tx.QueryRow(`SELECT validated FROM users WHERE id = ?`, id).Scan(&validated); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("user: delete %d: %w", id, err)
+	}
+	if validated {
+		return ErrNotPending
+	}
+	for _, q := range []string{
+		`UPDATE netmail_messages SET from_user_id = NULL WHERE from_user_id = ?`,
+		`UPDATE messages SET from_user_id = NULL WHERE from_user_id = ?`,
+		`UPDATE files SET uploaded_by = NULL WHERE uploaded_by = ?`,
+		`DELETE FROM users WHERE id = ?`,
+	} {
+		if _, err := tx.Exec(q, id); err != nil {
+			return fmt.Errorf("user: delete %d: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+// Approve validates a pending account and raises it to securityLevel
+// (never lowers it).
+func (s *Store) Approve(id int64, securityLevel int) error {
+	res, err := s.db.Exec(`UPDATE users SET validated = 1, security_level = MAX(security_level, ?) WHERE id = ?`, securityLevel, id)
+	if err != nil {
+		return fmt.Errorf("user: approve %d: %w", id, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // ByID loads a single user by primary key.
@@ -429,3 +507,7 @@ func (s *Store) SetPlace(id int64, place string) error {
 	}
 	return nil
 }
+
+// DB is the store's database, for packages that keep state beside it
+// (tests wiring up internal/guard).
+func (s *Store) DB() *sql.DB { return s.db }

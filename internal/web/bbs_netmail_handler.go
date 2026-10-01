@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"git.maik.ch/nullmodem/bbs/internal/textfmt"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 	"net/http"
 	"strconv"
 	"strings"
@@ -218,7 +219,14 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	// unambiguous on its own, so any ToName is ignored for it.
 	var toUserID int64
 	var toName, toAddress string
-	if recipient, err := s.Users.ByUsername(req.To); err == nil {
+	recipient, rerr := s.Users.ByUsername(req.To)
+	// Waiting for approval: netmail to the sysop only.
+	if rerr != nil || recipient.SecurityLevel < user.SLSysop {
+		if s.pendingApproval(w, claims.UserID) {
+			return
+		}
+	}
+	if rerr == nil {
 		toUserID = recipient.ID
 		toName = recipient.Username
 	} else if netmail.IsFTNAddress(req.To) {

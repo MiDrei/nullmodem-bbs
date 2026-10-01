@@ -320,6 +320,9 @@ func (s *Server) handlePostBBSMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "missing auth claims")
 		return
 	}
+	if s.pendingApproval(w, claims.UserID) {
+		return
+	}
 	areaID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid area id")

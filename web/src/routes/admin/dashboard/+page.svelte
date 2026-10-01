@@ -64,12 +64,22 @@
 		<p class="font-mono text-sm text-slate-500">{dashboard.version}</p>
 	</div>
 
-	{#if dashboard.pending_message_area_count > 0 || dashboard.pending_file_area_count > 0 || dashboard.unresolved_netmail_count > 0}
+	{#if dashboard.pending_message_area_count > 0 || dashboard.pending_file_area_count > 0 || dashboard.unresolved_netmail_count > 0 || dashboard.pending_user_count > 0 || dashboard.locked_out_count > 0}
 		<section class="mb-8 rounded border border-amber-800/60 bg-amber-950/20 p-4">
 			<h2 class="mb-3 text-sm font-semibold tracking-wide text-amber-400 uppercase">
 				Needs Attention
 			</h2>
 			<div class="flex flex-col gap-2 text-sm">
+				{#if dashboard.pending_user_count > 0}
+					<a href="/admin/users" class="text-amber-300 hover:text-amber-200">
+						{dashboard.pending_user_count} new user{dashboard.pending_user_count === 1 ? '' : 's'} awaiting approval &rarr;
+					</a>
+				{/if}
+				{#if dashboard.locked_out_count > 0}
+					<a href="/admin/security" class="text-amber-300 hover:text-amber-200">
+						{dashboard.locked_out_count} address{dashboard.locked_out_count === 1 ? '' : 'es'} locked out for failed logins &rarr;
+					</a>
+				{/if}
 				{#if dashboard.pending_message_area_count > 0}
 					<a href="/admin/pending-areas" class="text-amber-300 hover:text-amber-200">
 						{dashboard.pending_message_area_count} new message area{dashboard.pending_message_area_count ===

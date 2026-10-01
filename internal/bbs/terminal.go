@@ -22,6 +22,10 @@ type Terminal struct {
 	// the session assigns one), for things that need it outside the
 	// menu loop -- e.g. a door's drop file.
 	Node int
+	// RemoteIP and Protocol ("telnet", "ssh") are the caller's, for
+	// recording failed logins (internal/guard).
+	RemoteIP string
+	Protocol string
 	// pending holds at most one byte pushed back by ReadKey's escape-
 	// sequence lookahead (an 0x1b not followed by '[').
 	pending []byte

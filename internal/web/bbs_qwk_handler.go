@@ -205,6 +205,9 @@ func (s *Server) handleUploadBBSQWKReply(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusUnauthorized, "missing auth claims")
 		return
 	}
+	if s.pendingApproval(w, claims.UserID) {
+		return
+	}
 	u, err := s.Users.ByID(claims.UserID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load user")

@@ -69,6 +69,12 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	// 0: waiting for the sysop's approval (user.RegisterNew); every
+	// account from before this existed counts as approved.
+	if err := ensureColumn(sqlDB, "users", "validated", "INTEGER NOT NULL DEFAULT 1"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	if err := ensureColumn(sqlDB, "users", "location", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		sqlDB.Close()
 		return nil, err
