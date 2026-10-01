@@ -27,7 +27,10 @@ func Open(path string) (*sql.DB, error) {
 		}
 	}
 
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)", path)
+	// journal_size_limit: a checkpoint that empties the WAL also
+	// shrinks the file back to 8 MB; otherwise it keeps the size of its
+	// largest transaction (a VACUUM writes the whole database into it).
+	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_size_limit(8388608)", path)
 	sqlDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("db: open %s: %w", path, err)

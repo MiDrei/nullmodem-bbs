@@ -104,3 +104,44 @@ func TestRunKeepsWhatItMustAndPreviewMatches(t *testing.T) {
 		t.Fatal("RanOn(today) false after a run")
 	}
 }
+
+// A VACUUM only when enough of the database is unused, and the WAL
+// emptied and truncated afterwards -- even while another connection
+// (another daemon) has the database open.
+func TestCompactVacuumsOnlyWhenWorthItAndTruncatesTheWAL(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "t.sqlite")
+	sqlDB, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	other, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	ctx := context.Background()
+	exec := func(q string) {
+		if _, err := sqlDB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec(`CREATE TABLE blob (id INTEGER PRIMARY KEY, b BLOB)`)
+	exec(`WITH RECURSIVE s(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM s WHERE i < 2000) INSERT INTO blob (b) SELECT randomblob(4000) FROM s`)
+	var n int
+	other.QueryRow(`SELECT count(*) FROM blob`).Scan(&n) // the other daemon read once
+
+	exec(`DELETE FROM blob WHERE id <= 50`) // ~2.5% unused
+	vacuumed, err := compact(ctx, sqlDB)
+	if err != nil || vacuumed {
+		t.Fatalf("little unused: vacuumed %v, err %v", vacuumed, err)
+	}
+	exec(`DELETE FROM blob WHERE id <= 1000`) // half unused
+	vacuumed, err = compact(ctx, sqlDB)
+	if err != nil || !vacuumed {
+		t.Fatalf("half unused: vacuumed %v, err %v", vacuumed, err)
+	}
+	if wal := fileSize(walPath(dbPath)); wal != 0 {
+		t.Errorf("WAL is %d bytes after compacting, want 0", wal)
+	}
+}

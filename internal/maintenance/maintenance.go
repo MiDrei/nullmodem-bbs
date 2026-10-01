@@ -48,20 +48,26 @@ type AreaCount struct {
 
 // Report is what a run deleted -- or, with DryRun, would delete.
 type Report struct {
-	DryRun        bool        `json:"dry_run"`
-	StartedAt     time.Time   `json:"started_at"`
-	Seconds       float64     `json:"seconds"`
-	Messages      int         `json:"messages"`
-	MessageAreas  []AreaCount `json:"message_areas"`
-	Files         int         `json:"files"`
-	FileBytes     int64       `json:"file_bytes"`
-	Netmail       int         `json:"netmail"`
-	Logs          int         `json:"logs"`
-	Transcripts   int         `json:"transcripts"`
-	Archive       int         `json:"archive"`
-	DBBytesBefore int64       `json:"db_bytes_before"`
-	DBBytesAfter  int64       `json:"db_bytes_after"`
-	Errors        []string    `json:"errors"`
+	DryRun       bool        `json:"dry_run"`
+	StartedAt    time.Time   `json:"started_at"`
+	Seconds      float64     `json:"seconds"`
+	Messages     int         `json:"messages"`
+	MessageAreas []AreaCount `json:"message_areas"`
+	Files        int         `json:"files"`
+	FileBytes    int64       `json:"file_bytes"`
+	Netmail      int         `json:"netmail"`
+	Logs         int         `json:"logs"`
+	Transcripts  int         `json:"transcripts"`
+	Archive      int         `json:"archive"`
+	// DBBytesBefore and DBBytesAfter are the database file's size,
+	// WALBytes the write-ahead log's beside it after the run.
+	DBBytesBefore int64 `json:"db_bytes_before"`
+	DBBytesAfter  int64 `json:"db_bytes_after"`
+	WALBytes      int64 `json:"wal_bytes"`
+	// Vacuumed is whether the database was compacted: only when enough
+	// of it is unused (see vacuumShare).
+	Vacuumed bool     `json:"vacuumed"`
+	Errors   []string `json:"errors"`
 }
 
 // sqlTime is how a time is compared against the stored TEXT
@@ -102,12 +108,12 @@ func Run(ctx context.Context, d Deps, cfg config.MaintenanceConfig, dry bool) Re
 		fail("inbound archive", err)
 	}
 	if !dry && cfg.VacuumAfter() {
-		_, err := d.DB.ExecContext(ctx, `VACUUM`)
-		fail("compacting the database", err)
-		_, err = d.DB.ExecContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`)
+		vacuumed, err := compact(ctx, d.DB)
+		r.Vacuumed = vacuumed
 		fail("compacting the database", err)
 	}
 	r.DBBytesAfter = fileSize(d.DBPath)
+	r.WALBytes = fileSize(walPath(d.DBPath))
 	r.Seconds = time.Since(now).Seconds()
 	return r
 }
@@ -118,13 +124,65 @@ func fileSize(path string) int64 {
 	if path == "" {
 		return 0
 	}
-	var n int64
-	for _, p := range []string{path, path + "-wal"} {
-		if fi, err := os.Stat(p); err == nil {
-			n += fi.Size()
+	if fi, err := os.Stat(path); err == nil {
+		return fi.Size()
+	}
+	return 0
+}
+
+func walPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	return path + "-wal"
+}
+
+// vacuumShare is how much of the database must be unused pages before
+// it is compacted: a VACUUM rewrites the whole database (through the
+// WAL, which grows to its size), not worth it for the little a nightly
+// run frees -- SQLite reuses free pages anyway.
+const vacuumShare = 0.10
+
+// Checkpoint retries: the other daemons' readers can keep the WAL from
+// being emptied for a moment.
+var (
+	checkpointTries = 30
+	checkpointPause = 2 * time.Second
+)
+
+// compact vacuums the database if enough of it is unused, then empties
+// the WAL back into it and truncates it.
+func compact(ctx context.Context, db *sql.DB) (vacuumed bool, err error) {
+	var pages, free int64
+	if err := db.QueryRowContext(ctx, `PRAGMA page_count`).Scan(&pages); err != nil {
+		return false, err
+	}
+	if err := db.QueryRowContext(ctx, `PRAGMA freelist_count`).Scan(&free); err != nil {
+		return false, err
+	}
+	if pages > 0 && float64(free) >= vacuumShare*float64(pages) {
+		if _, err := db.ExecContext(ctx, `VACUUM`); err != nil {
+			return false, err
+		}
+		vacuumed = true
+	}
+	for i := 0; ; i++ {
+		var busy, logPages, done int64
+		if err := db.QueryRowContext(ctx, `PRAGMA wal_checkpoint(TRUNCATE)`).Scan(&busy, &logPages, &done); err != nil {
+			return vacuumed, err
+		}
+		if busy == 0 {
+			return vacuumed, nil
+		}
+		if i+1 >= checkpointTries {
+			return vacuumed, fmt.Errorf("the WAL could not be emptied: the database stayed busy")
+		}
+		select {
+		case <-ctx.Done():
+			return vacuumed, ctx.Err()
+		case <-time.After(checkpointPause):
 		}
 	}
-	return n
 }
 
 // deletable is every message a limit may take: not a local post still
@@ -342,6 +400,10 @@ func (r Report) Summary() string {
 		r.Messages, r.Files, float64(r.FileBytes)/(1<<20), r.Netmail, r.Logs, r.Transcripts, r.Archive)
 	if r.DBBytesBefore > 0 {
 		s += fmt.Sprintf("; database %.1f -> %.1f MB", float64(r.DBBytesBefore)/(1<<20), float64(r.DBBytesAfter)/(1<<20))
+		if r.Vacuumed {
+			s += " (compacted)"
+		}
+		s += fmt.Sprintf(", WAL %.1f MB", float64(r.WALBytes)/(1<<20))
 	}
 	return s
 }

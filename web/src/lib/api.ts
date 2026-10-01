@@ -1460,6 +1460,8 @@ export interface MaintenanceReport {
 	archive: number;
 	db_bytes_before: number;
 	db_bytes_after: number;
+	wal_bytes: number;
+	vacuumed: boolean;
 	errors: string[];
 }
 

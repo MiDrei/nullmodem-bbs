@@ -115,7 +115,11 @@
 			<dd class="text-ink">{r.archive}</dd>
 			{#if !r.dry_run && r.db_bytes_before}
 				<dt class="text-muted">Database</dt>
-				<dd class="text-ink">{mb(r.db_bytes_before)} → {mb(r.db_bytes_after)}</dd>
+				<dd class="text-ink">
+					{mb(r.db_bytes_before)} → {mb(r.db_bytes_after)}{r.vacuumed ? ' (compacted)' : ''}
+				</dd>
+				<dt class="text-muted">WAL</dt>
+				<dd class="text-ink">{mb(r.wal_bytes ?? 0)}</dd>
 			{/if}
 		</dl>
 		{#if r.message_areas.length}
@@ -168,7 +172,7 @@
 			</div>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={settings.vacuum} />
-				<span class="text-muted">Compact the database afterwards</span>
+				<span class="text-muted">Compact the database afterwards <span class="text-xs text-faint">(only when 10 % or more of it is unused)</span></span>
 			</label>
 			<div class="flex flex-wrap justify-end gap-2.5">
 				<button type="button" class="btn-secondary btn-sm" disabled={running !== null} onclick={() => run(true)}>
