@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,34 +29,47 @@ func toLogEntryDTO(e applog.Entry) logEntryDTO {
 	}
 }
 
-// handleListLogs serves the log viewer: GET /api/logs?limit=N returns
-// the N most recent entries (for the initial page load), and
-// GET /api/logs?after_id=X&limit=N returns entries logged after id X
-// (for polling new entries without re-fetching the whole list).
+// handleListLogs serves the log viewer: GET /api/logs returns the
+// newest entries of a category (see applog.Filter), oldest first.
+// Parameters: category (mailer, system, telnet, ssh, web; none for
+// all), level (repeatable, info/warn/error), prefix and
+// exclude_prefix (repeatable; a door's lines start with "Name:"), q
+// (text), before_id (older ones, paging back), after_id (newer ones,
+// polling), limit (default 200, at most 1000).
 func (s *Server) handleListLogs(w http.ResponseWriter, r *http.Request) {
-	limit := defaultLogLimit
-	if v := r.URL.Query().Get("limit"); v != "" {
+	q := r.URL.Query()
+	f := applog.Filter{
+		Category:        q.Get("category"),
+		Prefixes:        q["prefix"],
+		ExcludePrefixes: q["exclude_prefix"],
+		Query:           q.Get("q"),
+		Limit:           defaultLogLimit,
+	}
+	for _, l := range q["level"] {
+		f.Levels = append(f.Levels, applog.Level(l))
+	}
+	if v := q.Get("limit"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n <= 0 || n > 1000 {
 			writeError(w, http.StatusBadRequest, "limit must be between 1 and 1000")
 			return
 		}
-		limit = n
+		f.Limit = n
 	}
-
-	var (
-		entries []applog.Entry
-		err     error
-	)
-	if v := r.URL.Query().Get("after_id"); v != "" {
-		afterID, convErr := strconv.ParseInt(v, 10, 64)
-		if convErr != nil {
-			writeError(w, http.StatusBadRequest, "invalid after_id")
-			return
+	for name, dst := range map[string]*int64{"after_id": &f.AfterID, "before_id": &f.BeforeID} {
+		if v := q.Get(name); v != "" {
+			n, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid "+name)
+				return
+			}
+			*dst = n
 		}
-		entries, err = s.Logs.Since(afterID, limit)
-	} else {
-		entries, err = s.Logs.Recent(limit)
+	}
+	entries, err := s.Logs.List(f)
+	if errors.Is(err, applog.ErrUnknownCategory) {
+		writeError(w, http.StatusBadRequest, "unknown category")
+		return
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not list logs")

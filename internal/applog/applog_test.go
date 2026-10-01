@@ -2,6 +2,7 @@ package applog
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"git.maik.ch/nullmodem/bbs/internal/db"
@@ -157,5 +158,59 @@ func TestTrimActuallyPrunesOldRows(t *testing.T) {
 	// The most recent entry must always survive.
 	if entries[len(entries)-1].Message != "line 22" {
 		t.Fatalf("newest entry = %q, want %q", entries[len(entries)-1].Message, "line 22")
+	}
+}
+
+func TestListFiltersByCategoryLevelPrefixAndText(t *testing.T) {
+	store := newTestStore(t)
+	add := func(source string, level Level, msg string) {
+		if err := store.insert(source, level, msg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("bbs", LevelInfo, "[telnet] maik logged in")
+	add("bbs", LevelInfo, "[ssh] bob logged in")
+	add("bbs", LevelInfo, "bbs daemon starting")
+	add("bbs", LevelInfo, "MRC Chat: Ready for clients.")
+	add("bbs", LevelWarn, "MRC Chat: background program exited")
+	add("mailer", LevelWarn, "polling 23:1/1: connection refused")
+	add("mailer", LevelInfo, "polled 21:3/100")
+	add("web", LevelError, "boom")
+
+	msgs := func(f Filter) []string {
+		t.Helper()
+		es, err := store.List(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, e := range es {
+			out = append(out, e.Message)
+		}
+		return out
+	}
+	check := func(name string, got []string, want ...string) {
+		t.Helper()
+		if strings.Join(got, "|") != strings.Join(want, "|") {
+			t.Errorf("%s: got %q, want %q", name, got, want)
+		}
+	}
+	check("telnet", msgs(Filter{Category: CategoryTelnet}), "[telnet] maik logged in")
+	check("system", msgs(Filter{Category: CategorySystem}),
+		"bbs daemon starting", "MRC Chat: Ready for clients.", "MRC Chat: background program exited")
+	check("system, one door", msgs(Filter{Category: CategorySystem, Prefixes: []string{"MRC Chat:"}}),
+		"MRC Chat: Ready for clients.", "MRC Chat: background program exited")
+	check("system, no doors", msgs(Filter{Category: CategorySystem, ExcludePrefixes: []string{"MRC Chat:"}}),
+		"bbs daemon starting")
+	check("problems everywhere", msgs(Filter{Levels: []Level{LevelWarn, LevelError}}),
+		"MRC Chat: background program exited", "polling 23:1/1: connection refused", "boom")
+	check("text", msgs(Filter{Category: CategoryMailer, Query: "REFUSED"}), "polling 23:1/1: connection refused")
+	check("newest 2, oldest first", msgs(Filter{Limit: 2}), "polled 21:3/100", "boom")
+
+	all, _ := store.List(Filter{})
+	check("before", msgs(Filter{BeforeID: all[2].ID, Limit: 1}), "[ssh] bob logged in")
+	check("after", msgs(Filter{AfterID: all[5].ID}), "polled 21:3/100", "boom")
+	if _, err := store.List(Filter{Category: "nope"}); err != ErrUnknownCategory {
+		t.Errorf("unknown category: %v", err)
 	}
 }

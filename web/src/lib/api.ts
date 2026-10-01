@@ -802,10 +802,33 @@ export function setMenuItemSL(
 	);
 }
 
-export function listLogs(token: string, afterId?: number, limit = 200): Promise<LogEntry[]> {
+/** The Logs page's tabs (internal/applog categories); "" is everything. */
+export type LogCategory = '' | 'mailer' | 'system' | 'telnet' | 'ssh' | 'web';
+
+export interface LogQuery {
+	category?: LogCategory;
+	levels?: LogEntry['level'][];
+	/** Only lines starting with one of these (a door's start with "Name:"). */
+	prefixes?: string[];
+	excludePrefixes?: string[];
+	q?: string;
+	/** Older than this id (loading more), or newer (polling). */
+	beforeId?: number;
+	afterId?: number;
+	limit?: number;
+}
+
+/** Log entries matching query, oldest first. */
+export function listLogs(token: string, query: LogQuery = {}): Promise<LogEntry[]> {
 	const params = new URLSearchParams();
-	if (afterId !== undefined) params.set('after_id', String(afterId));
-	else params.set('limit', String(limit));
+	if (query.category) params.set('category', query.category);
+	for (const l of query.levels ?? []) params.append('level', l);
+	for (const p of query.prefixes ?? []) params.append('prefix', p);
+	for (const p of query.excludePrefixes ?? []) params.append('exclude_prefix', p);
+	if (query.q) params.set('q', query.q);
+	if (query.beforeId) params.set('before_id', String(query.beforeId));
+	if (query.afterId) params.set('after_id', String(query.afterId));
+	if (query.limit) params.set('limit', String(query.limit));
 	return request<LogEntry[]>(`/api/logs?${params}`, { method: 'GET' }, token);
 }
 

@@ -7,9 +7,11 @@ package applog
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -117,6 +119,113 @@ func (s *Store) Recent(limit int) ([]Entry, error) {
 // limit -- for polling new entries after an initial Recent load.
 func (s *Store) Since(afterID int64, limit int) ([]Entry, error) {
 	return s.query(`SELECT id, logged_at, source, level, message FROM logs WHERE id > ? ORDER BY id ASC LIMIT ?`, afterID, limit)
+}
+
+// Categories the web admin's Logs page shows: a daemon (source), or
+// for the bbs daemon its Telnet and SSH connections ("[telnet]" /
+// "[ssh]" prefixes) apart from the rest (System: the daemon itself,
+// doors and their background programs).
+const (
+	CategoryAll    = ""
+	CategoryMailer = "mailer"
+	CategorySystem = "system"
+	CategoryTelnet = "telnet"
+	CategorySSH    = "ssh"
+	CategoryWeb    = "web"
+)
+
+// Filter narrows List. Zero values don't filter.
+type Filter struct {
+	Category string
+	// Levels: any of these (e.g. warn and error together).
+	Levels []Level
+	// Prefixes: messages starting with any of these (a door's lines
+	// start with its name and a colon); ExcludePrefixes: none of these.
+	Prefixes        []string
+	ExcludePrefixes []string
+	// Query: messages containing this, ignoring case.
+	Query string
+	// BeforeID: older than this entry (paging back); AfterID: newer
+	// (polling). Without either, the newest.
+	BeforeID int64
+	AfterID  int64
+	Limit    int
+}
+
+// ErrUnknownCategory is a Filter.Category List doesn't know.
+var ErrUnknownCategory = errors.New("applog: unknown category")
+
+// List returns the entries matching f, oldest first -- the newest
+// f.Limit of them, or with AfterID the oldest after it.
+func (s *Store) List(f Filter) ([]Entry, error) {
+	var where []string
+	var args []any
+	telnet := `substr(message, 1, 8) = '[telnet]'`
+	ssh := `substr(message, 1, 5) = '[ssh]'`
+	switch f.Category {
+	case CategoryAll:
+	case CategoryMailer, CategoryWeb:
+		where, args = append(where, `source = ?`), append(args, f.Category)
+	case CategoryTelnet:
+		where = append(where, `source = 'bbs' AND `+telnet)
+	case CategorySSH:
+		where = append(where, `source = 'bbs' AND `+ssh)
+	case CategorySystem:
+		where = append(where, `source = 'bbs' AND NOT `+telnet+` AND NOT `+ssh)
+	default:
+		return nil, ErrUnknownCategory
+	}
+	if len(f.Levels) > 0 {
+		marks := make([]string, len(f.Levels))
+		for i, l := range f.Levels {
+			marks[i] = "?"
+			args = append(args, string(l))
+		}
+		where = append(where, `level IN (`+strings.Join(marks, ", ")+`)`)
+	}
+	if len(f.Prefixes) > 0 {
+		var ors []string
+		for _, p := range f.Prefixes {
+			ors = append(ors, `substr(message, 1, length(?)) = ?`)
+			args = append(args, p, p)
+		}
+		where = append(where, `(`+strings.Join(ors, " OR ")+`)`)
+	}
+	for _, p := range f.ExcludePrefixes {
+		where = append(where, `substr(message, 1, length(?)) <> ?`)
+		args = append(args, p, p)
+	}
+	if f.Query != "" {
+		where = append(where, `instr(lower(message), lower(?)) > 0`)
+		args = append(args, f.Query)
+	}
+	order := "DESC"
+	switch {
+	case f.AfterID > 0:
+		where, args = append(where, `id > ?`), append(args, f.AfterID)
+		order = "ASC"
+	case f.BeforeID > 0:
+		where, args = append(where, `id < ?`), append(args, f.BeforeID)
+	}
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 200
+	}
+	q := `SELECT id, logged_at, source, level, message FROM logs`
+	if len(where) > 0 {
+		q += ` WHERE ` + strings.Join(where, " AND ")
+	}
+	q += ` ORDER BY id ` + order + ` LIMIT ?`
+	entries, err := s.query(q, append(args, limit)...)
+	if err != nil {
+		return nil, err
+	}
+	if order == "DESC" {
+		for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+			entries[i], entries[j] = entries[j], entries[i]
+		}
+	}
+	return entries, nil
 }
 
 func (s *Store) query(sqlQuery string, args ...any) ([]Entry, error) {
