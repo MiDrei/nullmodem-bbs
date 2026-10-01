@@ -92,6 +92,9 @@ type User struct {
 	// sysop's approval (see RegisterNew, Approve): it may read and
 	// write to the sysop, not post or use doors.
 	Validated bool
+	// LineEditor: messages are written line by line (/S to save), not
+	// in the full-screen editor -- for terminals without cursor keys.
+	LineEditor bool
 }
 
 // Location returns the zone to show this user's times in: their
@@ -140,14 +143,14 @@ func ValidateRealName(realName string) error {
 
 // userColumns is the column list every single-/multi-row user query
 // selects, in scanUser's order.
-const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated`
+const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated, line_editor`
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
 func scanUser(row rowScanner, u *User) error {
-	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated)
+	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated, &u.LineEditor)
 }
 
 // Store persists User accounts in the shared SQLite database.
@@ -395,6 +398,15 @@ func (s *Store) SetTimezone(id int64, name string) error {
 
 // SetQWKRouting turns the SEEN-BY/PATH lines in a user's QWK packets
 // on or off (see User.QWKRouting).
+// SetLineEditor sets whether the user writes messages with the line
+// editor instead of the full-screen one.
+func (s *Store) SetLineEditor(id int64, on bool) error {
+	if _, err := s.db.Exec(`UPDATE users SET line_editor = ? WHERE id = ?`, on, id); err != nil {
+		return fmt.Errorf("user: set line editor for id %d: %w", id, err)
+	}
+	return nil
+}
+
 func (s *Store) SetQWKRouting(id int64, on bool) error {
 	if _, err := s.db.Exec(`UPDATE users SET qwk_routing = ? WHERE id = ?`, on, id); err != nil {
 		return fmt.Errorf("user: set qwk routing for id %d: %w", id, err)

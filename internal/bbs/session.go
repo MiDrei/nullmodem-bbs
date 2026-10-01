@@ -62,53 +62,58 @@ type Server struct {
 	// connection limit, no approval.
 	Security func() config.SecurityConfig
 	conns    guard.Conns
+	// FullScreenEditor: messages are written full screen (fse.go),
+	// unless a caller chose the line editor in their profile.
+	FullScreenEditor bool
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
 // It exists mainly so adding a new setting (like WelcomeScreen) doesn't
 // require touching every call site's positional argument list.
 type Options struct {
-	BBSName       string
-	SysopName     string
-	FTNAddress    string
-	Users         *user.Store
-	Menus         menu.Set
-	Messages      *message.Store
-	Files         *file.Store
-	Netmail       *netmail.Store
-	Doors         []doors.Door
-	LoadDoors     func() []doors.Door
-	Nodes         *session.Store
-	Logger        *applog.Logger
-	NewUserSL     int
-	WelcomeScreen string
-	ScreensDir    string
-	LastCallers   config.LastCallersConfig
-	Guard         *guard.Guard
-	Security      func() config.SecurityConfig
+	BBSName          string
+	SysopName        string
+	FTNAddress       string
+	Users            *user.Store
+	Menus            menu.Set
+	Messages         *message.Store
+	Files            *file.Store
+	Netmail          *netmail.Store
+	Doors            []doors.Door
+	LoadDoors        func() []doors.Door
+	Nodes            *session.Store
+	Logger           *applog.Logger
+	NewUserSL        int
+	WelcomeScreen    string
+	ScreensDir       string
+	LastCallers      config.LastCallersConfig
+	Guard            *guard.Guard
+	Security         func() config.SecurityConfig
+	FullScreenEditor bool
 }
 
 // NewServer returns a Server ready to accept sessions.
 func NewServer(opts Options) *Server {
 	return &Server{
-		Nodes:         opts.Nodes,
-		Users:         opts.Users,
-		Menus:         opts.Menus,
-		Messages:      opts.Messages,
-		Files:         opts.Files,
-		Netmail:       opts.Netmail,
-		Doors:         opts.Doors,
-		LoadDoors:     opts.LoadDoors,
-		Logger:        opts.Logger,
-		BBSName:       opts.BBSName,
-		SysopName:     opts.SysopName,
-		FTNAddress:    opts.FTNAddress,
-		NewUserSL:     opts.NewUserSL,
-		WelcomeScreen: opts.WelcomeScreen,
-		ScreensDir:    opts.ScreensDir,
-		LastCallers:   opts.LastCallers,
-		Guard:         opts.Guard,
-		Security:      opts.Security,
+		Nodes:            opts.Nodes,
+		Users:            opts.Users,
+		Menus:            opts.Menus,
+		Messages:         opts.Messages,
+		Files:            opts.Files,
+		Netmail:          opts.Netmail,
+		Doors:            opts.Doors,
+		LoadDoors:        opts.LoadDoors,
+		Logger:           opts.Logger,
+		BBSName:          opts.BBSName,
+		SysopName:        opts.SysopName,
+		FTNAddress:       opts.FTNAddress,
+		NewUserSL:        opts.NewUserSL,
+		WelcomeScreen:    opts.WelcomeScreen,
+		ScreensDir:       opts.ScreensDir,
+		LastCallers:      opts.LastCallers,
+		Guard:            opts.Guard,
+		Security:         opts.Security,
+		FullScreenEditor: opts.FullScreenEditor,
 	}
 }
 

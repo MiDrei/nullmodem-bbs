@@ -215,6 +215,14 @@ const (
 	KeyLeft
 	KeyRight
 	KeyUnknown
+	KeyHome
+	KeyEnd
+	KeyDelete
+	KeyPgUp
+	KeyPgDn
+	// KeyCtrl is a control key, Ctrl-A to Ctrl-Z: Rune holds its
+	// letter ('a'..'z'). Tab comes as Ctrl-I.
+	KeyCtrl
 )
 
 // Key is one keypress as read by ReadKey: for KeyChar, Rune holds the
@@ -261,6 +269,15 @@ func (t *Terminal) ReadKey() (Key, error) {
 		if err != nil {
 			return Key{}, err
 		}
+		// "ESC [ n ~" (Home 1/7, Delete 3, End 4/8, PgUp 5, PgDn 6):
+		// digits, then the tilde.
+		var num int
+		for final >= '0' && final <= '9' {
+			num = num*10 + int(final-'0')
+			if final, err = t.readByte(); err != nil {
+				return Key{}, err
+			}
+		}
 		switch final {
 		case 'A':
 			return Key{Type: KeyUp}, nil
@@ -270,12 +287,33 @@ func (t *Terminal) ReadKey() (Key, error) {
 			return Key{Type: KeyRight}, nil
 		case 'D':
 			return Key{Type: KeyLeft}, nil
+		case 'H':
+			return Key{Type: KeyHome}, nil
+		case 'F', 'K':
+			return Key{Type: KeyEnd}, nil
+		case '~':
+			switch num {
+			case 1, 7:
+				return Key{Type: KeyHome}, nil
+			case 3:
+				return Key{Type: KeyDelete}, nil
+			case 4, 8:
+				return Key{Type: KeyEnd}, nil
+			case 5:
+				return Key{Type: KeyPgUp}, nil
+			case 6:
+				return Key{Type: KeyPgDn}, nil
+			}
+			return Key{Type: KeyUnknown}, nil
 		default:
 			return Key{Type: KeyUnknown}, nil
 		}
 
 	case c >= 0x20 && c <= 0xfe:
 		return Key{Type: KeyChar, Rune: rune(c)}, nil
+
+	case c >= 0x01 && c <= 0x1a:
+		return Key{Type: KeyCtrl, Rune: rune('a' + c - 1)}, nil
 
 	default:
 		return Key{Type: KeyUnknown}, nil

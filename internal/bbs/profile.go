@@ -90,6 +90,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			fmt.Sprintf("Time zone:      %s", timezoneLabel(u)),
 			fmt.Sprintf("Location:       %s", placeLabel(u)),
 			fmt.Sprintf("QWK SEEN-BY:    %s", onOff(u.QWKRouting)),
+			fmt.Sprintf("Editor:         %s", editorLabel(u)),
 			"",
 			profileOption("R", "Change real name"),
 			profileOption("T", "Change time zone"),
@@ -97,6 +98,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			profileOption("P", "Change password"),
 			profileOption("K", "QWK area selection"),
 			profileOption("S", "Switch SEEN-BY/PATH lines in QWK packets on or off"),
+			profileOption("E", "Switch between the full-screen and the line editor"),
 			profileOption("Q", "Back"),
 		}
 		for _, line := range lines {
@@ -128,6 +130,8 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			err = s.configureQWKAreas(term, u)
 		case "S":
 			err = s.toggleQWKRouting(term, u)
+		case "E":
+			err = s.toggleLineEditor(term, u)
 		case "Q", "":
 			return nil
 		default:
@@ -159,6 +163,24 @@ func (s *Server) toggleQWKRouting(term *Terminal, u *user.User) error {
 		msg = "QWK packets now carry SEEN-BY/PATH -- for a reader that hides them, like NullModem Reader."
 	}
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + msg)
+}
+
+func editorLabel(u *user.User) string {
+	if u.LineEditor {
+		return "line by line"
+	}
+	return "full screen"
+}
+
+// toggleLineEditor switches between the full-screen editor and the
+// line editor (user.User.LineEditor).
+func (s *Server) toggleLineEditor(term *Terminal, u *user.User) error {
+	if err := s.Users.SetLineEditor(u.ID, !u.LineEditor); err != nil {
+		return err
+	}
+	u.LineEditor = !u.LineEditor
+	s.logInfo("%s now writes %s", u.Username, editorLabel(u))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Messages are now written " + editorLabel(u) + ".")
 }
 
 func profileOption(key, label string) string {

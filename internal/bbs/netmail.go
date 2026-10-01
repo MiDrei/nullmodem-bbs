@@ -389,7 +389,8 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 		return err
 	}
 
-	lines, saved, err := s.runLineEditor(term, quoteForReply(original.Body, original.FromName, original.ToName))
+	lines, saved, err := s.runEditor(term, editorHeader("Netmail", original.FromName, subject),
+		quoteForReply(original.Body, original.FromName, original.ToName), u.LineEditor)
 	if err != nil {
 		return err
 	}
@@ -598,7 +599,11 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		return term.Println(ansi.Reset + "Cancelled.")
 	}
 
-	lines, saved, err := s.runLineEditor(term, nil)
+	label := toName
+	if toAddress != "" {
+		label += " (" + toAddress + ")"
+	}
+	lines, saved, err := s.runEditor(term, editorHeader("Netmail", label, subject), nil, u.LineEditor)
 	if err != nil {
 		return err
 	}

@@ -71,6 +71,12 @@ func Open(path string) (*sql.DB, error) {
 	}
 	// 0: waiting for the sysop's approval (user.RegisterNew); every
 	// account from before this existed counts as approved.
+	// 1: the user writes messages line by line (internal/bbs's line
+	// editor) instead of full screen.
+	if err := ensureColumn(sqlDB, "users", "line_editor", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	if err := ensureColumn(sqlDB, "users", "validated", "INTEGER NOT NULL DEFAULT 1"); err != nil {
 		sqlDB.Close()
 		return nil, err

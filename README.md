@@ -20,6 +20,9 @@ Teil der NullModem-Familie:
 - ANSI-Bildschirme mit Platzhaltern (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
   Menüs aus YAML, Lightbar-Listen, Security Levels 0–255
 - Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche
+- Vollbild-Editor zum Schreiben (Pfeiltasten, Pos1/Ende, Bild auf/ab, Wortumbruch,
+  Antwort mit Zitat; ^Z speichern, ^X abbrechen, ^Y Zeile löschen); wer lieber
+  zeilenweise schreibt, stellt im Profil den Zeileneditor ein
 - Neue Nachrichten nach dem Login: Übersicht (Netmail, an dich, neu pro Area),
   „Read new messages“ liest alle Areas der Reihe nach, „Messages to you“ nur
   die an dich; welche Areas, bestimmt dieselbe Auswahl wie für QWK
