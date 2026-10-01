@@ -569,7 +569,9 @@ func (s *Store) MarkSent(messageID int64) error {
 func (s *Store) ReceiveEcho(areaID int64, fromName, subject, body, msgID string, postedAt time.Time) (msg *Message, created bool, err error) {
 	res, err := s.db.Exec(
 		`INSERT OR IGNORE INTO messages (area_id, from_user_id, from_name, to_name, subject, body, msgid, posted_at) VALUES (?, NULL, ?, 'All', ?, ?, ?, ?)`,
-		areaID, fromName, subject, body, msgID, postedAt,
+		// UTC, like CURRENT_TIMESTAMP: posted_at is compared and sorted
+		// as text, and a local time would be off by its offset.
+		areaID, fromName, subject, body, msgID, postedAt.UTC(),
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("message: receive echo to area %d: %w", areaID, err)
@@ -789,7 +791,7 @@ func (s *Store) PostEcho(areaID, fromUserID int64, toName, subject, body, msgID 
 	}
 	res, err := s.db.Exec(
 		`INSERT OR IGNORE INTO messages (area_id, from_user_id, to_name, subject, body, msgid, posted_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		areaID, fromUserID, toName, subject, body, msgID, postedAt,
+		areaID, fromUserID, toName, subject, body, msgID, postedAt.UTC(), // UTC: see ReceiveEcho
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("message: post echo to area %d: %w", areaID, err)

@@ -2,6 +2,10 @@
 package main
 
 import (
+	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
+	// image has a zoneinfo database or not.
+	_ "time/tzdata"
+
 	"context"
 	"errors"
 	"flag"

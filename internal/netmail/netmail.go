@@ -135,7 +135,8 @@ func (s *Store) Receive(fromName, fromAddress string, toUserID int64, toName, to
 	res, err := s.db.Exec(
 		`INSERT INTO netmail_messages (from_user_id, from_name, from_address, to_user_id, to_name, to_address, subject, body, posted_at, crash)
 		 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		fromName, fromAddress, toUserIDArg, toName, toAddress, subject, body, postedAt, crash,
+		// UTC, like CURRENT_TIMESTAMP: posted_at is compared as text.
+		fromName, fromAddress, toUserIDArg, toName, toAddress, subject, body, postedAt.UTC(), crash,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("netmail: receive: %w", err)

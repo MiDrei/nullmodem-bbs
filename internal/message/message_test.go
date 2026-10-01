@@ -1034,3 +1034,20 @@ func TestPostMessageAsKeepsTheGivenSenderAndGoesOut(t *testing.T) {
 		t.Fatalf("SubjectBodies = %+v", got)
 	}
 }
+
+// A local time (a server with TZ set) is stored as UTC, like
+// CURRENT_TIMESTAMP: posted_at is compared and sorted as text.
+func TestReceiveEchoStoresUTC(t *testing.T) {
+	s, _ := newTestStore(t)
+	area, _ := s.AreaByTag("general")
+	zurich := time.FixedZone("CEST", 2*60*60)
+	m, _, err := s.ReceiveEcho(area.ID, "x", "s", "b", "", time.Date(2026, 10, 1, 19, 26, 0, 0, zurich))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw string
+	s.db.QueryRow(`SELECT substr(posted_at, 1, 19) FROM messages WHERE id = ?`, m.ID).Scan(&raw)
+	if raw != "2026-10-01 17:26:00" {
+		t.Errorf("stored %q, want the UTC time 2026-10-01 17:26:00", raw)
+	}
+}

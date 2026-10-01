@@ -26,6 +26,8 @@ services:
     image: nullmodem-bbs:latest
     command: ["./bin/bbs"]
     user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      TZ: ${TZ:-UTC} # e.g. Europe/Zurich: logs, backup names, nightly runs
     ports:
       - "2323:2323" # telnet
       - "2222:2222" # ssh
@@ -40,6 +42,8 @@ services:
     image: nullmodem-bbs:latest
     command: ["./bin/mailer"]
     user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      TZ: ${TZ:-UTC} # e.g. Europe/Zurich: logs, backup names, nightly runs
     ports:
       - "24554:24554" # inbound BinkP (see configs/bbs.yaml's binkp.listen_enabled)
     volumes:
@@ -51,6 +55,8 @@ services:
     image: nullmodem-bbs:latest
     command: ["./bin/web"]
     user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      TZ: ${TZ:-UTC} # e.g. Europe/Zurich: logs, backup names, nightly runs
     ports:
       - "8090:8090" # admin UI + REST API
     volumes:
