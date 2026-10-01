@@ -187,7 +187,7 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 	}
 
 	for {
-		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "QWK area selection -- pick which areas your QWK packets include:" + ansi.Reset); err != nil {
+		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "Area selection -- which areas the new scan (R) and your QWK packets include:" + ansi.Reset); err != nil {
 			return err
 		}
 		for i, st := range areaStats {

@@ -158,6 +158,9 @@ func (s *Server) Handle(conn Conn) {
 			return
 		}
 	}
+	if err := s.loginSummary(term, u); err != nil {
+		return
+	}
 
 	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
 		s.logWarn("[%s] node %d (%s): menu error: %v", protocol, node, u.Username, err)
@@ -410,6 +413,8 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"qwk":            (*Server).downloadQWK,
 	"qwkrep":         (*Server).uploadQWKReply,
 	"qwkareas":       (*Server).configureQWKAreas,
+	"newscan":        (*Server).newScan,
+	"tome":           (*Server).toMe,
 }
 
 // runMenu displays the named menu and dispatches choices until the

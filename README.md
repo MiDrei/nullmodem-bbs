@@ -20,6 +20,9 @@ Teil der NullModem-Familie:
 - ANSI-Bildschirme mit Platzhaltern (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
   Menüs aus YAML, Lightbar-Listen, Security Levels 0–255
 - Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche
+- Neue Nachrichten nach dem Login: Übersicht (Netmail, an dich, neu pro Area),
+  „Read new messages“ liest alle Areas der Reihe nach, „Messages to you“ nur
+  die an dich; welche Areas, bestimmt dieselbe Auswahl wie für QWK
 - Datei-Download und -Upload per Zmodem (Synchronets `sexyz`)
 - QWK-Pakete holen und Antworten hochladen, Auswahl der Bereiche
 - Doors: native Linux-Doors per `DOOR32.SYS` und DOS-Doors unter DOSBox-X (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), verwaltet im Web-Admin mit Vorlagen (per Klick installierbar: MRC Chat (uMRC), Immortal Barons, Usurper, Usurper Reborn, Judge Dredd; vorbereitet: LORD, TradeWars, OO2, DoorMUD)

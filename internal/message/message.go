@@ -645,6 +645,59 @@ func (s *Store) ListMessages(areaID int64) ([]Message, error) {
 	return messages, nil
 }
 
+// UnreadMessages returns the messages in areaID userID hasn't read,
+// oldest first -- what a new scan reads (internal/bbs).
+func (s *Store) UnreadMessages(areaID, userID int64) ([]Message, error) {
+	return s.queryMessages(`WHERE m.area_id = ? AND NOT EXISTS
+		(SELECT 1 FROM message_reads r WHERE r.user_id = ? AND r.message_id = m.id)
+		ORDER BY m.posted_at, m.id`, areaID, userID)
+}
+
+// UnreadToUser returns the unread messages addressed to one of names
+// (the user's handle and real name, ignoring case) in the areas
+// securityLevel may read, oldest first -- not their own posts, and
+// not in data areas (hidden).
+func (s *Store) UnreadToUser(userID int64, securityLevel int, names []string) ([]Message, error) {
+	var match []string
+	args := []any{}
+	for _, n := range names {
+		if n = strings.TrimSpace(n); n != "" {
+			match = append(match, `m.to_name = ? COLLATE NOCASE`)
+			args = append(args, n)
+		}
+	}
+	if len(match) == 0 {
+		return nil, nil
+	}
+	args = append(args, userID, securityLevel, userID)
+	return s.queryMessages(`JOIN message_areas a ON a.id = m.area_id
+		WHERE (`+strings.Join(match, " OR ")+`)
+		AND (m.from_user_id IS NULL OR m.from_user_id <> ?)
+		AND a.min_sl_read <= ? AND a.pending = 0 AND a.hidden = 0
+		AND NOT EXISTS (SELECT 1 FROM message_reads r WHERE r.user_id = ? AND r.message_id = m.id)
+		ORDER BY m.posted_at, m.id`, args...)
+}
+
+// queryMessages is ListMessages' SELECT with its own WHERE/ORDER.
+func (s *Store) queryMessages(rest string, args ...any) ([]Message, error) {
+	rows, err := s.db.Query(
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id `+rest, args...)
+	if err != nil {
+		return nil, fmt.Errorf("message: query messages: %w", err)
+	}
+	defer rows.Close()
+	var messages []Message
+	for rows.Next() {
+		var m Message
+		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID); err != nil {
+			return nil, fmt.Errorf("message: scan message: %w", err)
+		}
+		messages = append(messages, m)
+	}
+	return messages, rows.Err()
+}
+
 // FirstUnreadPosition returns the 0-based position, in the area's own
 // oldest-first order, of the first message userID hasn't read yet --
 // mirrors internal/bbs's own firstUnreadIndex, which jumps the

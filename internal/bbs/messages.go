@@ -669,13 +669,18 @@ var stripSeenByAndPathForDisplay = message.StripSeenByAndPathForDisplay
 // them no longer misaligns anything, and scrolling works the same way
 // it does for plain text.
 func (s *Server) drawMessageReader(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, idx, scrollOffset int) (maxOffset int, err error) {
-	m := &msgs[idx]
-	body := stripSeenByAndPathForDisplay(m.Body)
-
 	hint := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [Q] Back to list"
 	if area.CanWrite(u.SecurityLevel) {
 		hint = "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list"
 	}
+	return s.drawReader(term, area, msgs, idx, scrollOffset, hint)
+}
+
+// drawReader is drawMessageReader with its footer hint given -- the
+// new scan (newscan.go) has keys of its own.
+func (s *Server) drawReader(term *Terminal, area *message.Area, msgs []message.Message, idx, scrollOffset int, hint string) (maxOffset int, err error) {
+	m := &msgs[idx]
+	body := stripSeenByAndPathForDisplay(m.Body)
 
 	header := s.renderMessageReaderHeader(term, area, idx, len(msgs))
 

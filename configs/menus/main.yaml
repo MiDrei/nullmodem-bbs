@@ -2,6 +2,14 @@ name: main
 title: "{BBSNAME} - Main Menu"
 screen: main.ans
 items:
+  - key: R
+    label: "Read new messages"
+    action: "builtin:newscan"
+    min_sl: 0
+  - key: T
+    label: "Messages to you"
+    action: "builtin:tome"
+    min_sl: 0
   - key: M
     label: "Message areas"
     action: "builtin:areas"
@@ -31,7 +39,7 @@ items:
     action: "builtin:qwkrep"
     min_sl: 0
   - key: K
-    label: "QWK area selection"
+    label: "Area selection (new scan and QWK)"
     action: "builtin:qwkareas"
     min_sl: 0
   - key: Y
