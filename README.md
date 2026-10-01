@@ -20,6 +20,10 @@ Teil der NullModem-Familie:
 - ANSI-Bildschirme mit Platzhaltern (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
   Menüs aus YAML, Lightbar-Listen, Security Levels 0–255
 - Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche
+- Unter den Anrufern: One-liner-Wand nach dem Login, Teleconference (Chat),
+  Node-Nachrichten an andere Online-Anrufer (bei „Who's online“), Sysop rufen
+  („Page“): der Sysop bekommt eine Push-Nachricht und antwortet im Web-Admin
+  (Chat & One-liners) oder auf einem Node
 - Vollbild-Editor zum Schreiben (Pfeiltasten, Pos1/Ende, Bild auf/ab, Wortumbruch,
   Antwort mit Zitat; ^Z speichern, ^X abbrechen, ^Y Zeile löschen); wer lieber
   zeilenweise schreibt, stellt im Profil den Zeileneditor ein

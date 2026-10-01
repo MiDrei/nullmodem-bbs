@@ -3,6 +3,7 @@ package bbs
 import (
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"path/filepath"
 	"regexp"
@@ -65,6 +66,10 @@ type Server struct {
 	// FullScreenEditor: messages are written full screen (fse.go),
 	// unless a caller chose the line editor in their profile.
 	FullScreenEditor bool
+	// Chat holds the chat rooms and the one-liners (community.go);
+	// nil turns them off.
+	Chat     *chat.Store
+	nodeMsgs nodeMessages
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -90,6 +95,7 @@ type Options struct {
 	Guard            *guard.Guard
 	Security         func() config.SecurityConfig
 	FullScreenEditor bool
+	Chat             *chat.Store
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -114,6 +120,7 @@ func NewServer(opts Options) *Server {
 		Guard:            opts.Guard,
 		Security:         opts.Security,
 		FullScreenEditor: opts.FullScreenEditor,
+		Chat:             opts.Chat,
 	}
 }
 
@@ -197,6 +204,9 @@ func (s *Server) Handle(conn Conn) {
 		if err := s.showLastCallers(term, u); err != nil {
 			return
 		}
+	}
+	if err := s.showOneliners(term, u); err != nil {
+		return
 	}
 	if err := s.loginSummary(term, u); err != nil {
 		return
@@ -477,6 +487,9 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"qwkareas":       (*Server).configureQWKAreas,
 	"newscan":        (*Server).newScan,
 	"tome":           (*Server).toMe,
+	"chat":           (*Server).teleconference,
+	"page":           (*Server).pageSysop,
+	"oneliners":      (*Server).showOneliners,
 }
 
 // runMenu displays the named menu and dispatches choices until the
@@ -490,6 +503,9 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 	}
 
 	for {
+		if err := s.showNodeMessages(term); err != nil {
+			return err
+		}
 		rendered := s.renderMenuDisplay(m, u, node)
 		if err := term.Print(ansi.Layout(rendered, term.Width())); err != nil {
 			return err
@@ -749,7 +765,7 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, sysop *user.User) error {
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("%s is now SL %d.", tu.Username, level))
 }
 
-func (s *Server) showWho(term *Terminal, _ *user.User) error {
+func (s *Server) showWho(term *Terminal, u *user.User) error {
 	nodes, err := s.Nodes.List()
 	if err != nil {
 		return err
@@ -761,6 +777,9 @@ func (s *Server) showWho(term *Terminal, _ *user.User) error {
 		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, term.Time(n.ConnectedAt).Format("15:04:05 MST"))); err != nil {
 			return err
 		}
+	}
+	if len(nodes) > 1 && u != nil && u.Validated {
+		return s.sendNodeMessage(term, u)
 	}
 	return s.pauseForKey(term)
 }

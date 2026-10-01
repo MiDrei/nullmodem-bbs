@@ -3,6 +3,7 @@
 package main
 
 import (
+	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
 	// image has a zoneinfo database or not.
@@ -114,6 +115,7 @@ func main() {
 		StaticDir:     cfg.StaticDir,
 		DB:            sqlDB,
 		DBPath:        cfg.DatabasePath,
+		Chat:          chat.NewStore(sqlDB),
 	}
 
 	// Login protection, shared with the bbs daemon through the database;

@@ -459,3 +459,36 @@ CREATE TABLE IF NOT EXISTS ip_rules (
     note        TEXT NOT NULL DEFAULT '',
     created_at  INTEGER NOT NULL
 );
+
+-- internal/chat: the chat rooms (the teleconference, and a room per
+-- caller paging the sysop), written by the bbs daemon's Telnet/SSH
+-- callers and the web admin alike. kind: say, join, leave, page.
+-- Times are Unix ms.
+CREATE TABLE IF NOT EXISTS chat_lines (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    room      TEXT NOT NULL,
+    username  TEXT NOT NULL,
+    source    TEXT NOT NULL DEFAULT '',
+    kind      TEXT NOT NULL DEFAULT 'say',
+    text      TEXT NOT NULL DEFAULT '',
+    at        INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_lines_room_id ON chat_lines(room, id);
+
+-- Who is in a room: refreshed every few seconds while there.
+CREATE TABLE IF NOT EXISTS chat_presence (
+    room       TEXT NOT NULL,
+    username   TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    last_seen  INTEGER NOT NULL,
+    PRIMARY KEY (room, username, source)
+);
+
+-- The one-liners wall shown after login.
+CREATE TABLE IF NOT EXISTS oneliners (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    username  TEXT NOT NULL,
+    text      TEXT NOT NULL,
+    at        INTEGER NOT NULL
+);

@@ -10,6 +10,7 @@ package web
 
 import (
 	"database/sql"
+	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
 	"git.maik.ch/nullmodem/bbs/internal/push"
 	"net/http"
@@ -66,6 +67,8 @@ type Server struct {
 	Push *push.Sender
 	// Guard locks out addresses that keep failing to log in; nil off.
 	Guard *guard.Guard
+	// Chat holds the chat rooms and one-liners; nil off.
+	Chat *chat.Store
 }
 
 // logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
@@ -129,6 +132,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))
 	mux.Handle("POST /api/users/{id}/approve", s.requireAuth(http.HandlerFunc(s.handleApproveUser)))
 	mux.Handle("DELETE /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleDeletePendingUser)))
+	mux.Handle("GET /api/chat/rooms", s.requireAuth(http.HandlerFunc(s.handleListChatRooms)))
+	mux.Handle("GET /api/chat/rooms/{room}", s.requireAuth(http.HandlerFunc(s.handleGetChatRoom)))
+	mux.Handle("POST /api/chat/rooms/{room}", s.requireAuth(http.HandlerFunc(s.handleChatAction)))
+	mux.Handle("GET /api/oneliners", s.requireAuth(http.HandlerFunc(s.handleListOneliners)))
+	mux.Handle("DELETE /api/oneliners/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteOneliner)))
 	mux.Handle("GET /api/security", s.requireAuth(http.HandlerFunc(s.handleGetSecurity)))
 	mux.Handle("PUT /api/security/settings", s.requireAuth(http.HandlerFunc(s.handlePutSecuritySettings)))
 	mux.Handle("POST /api/security/unlock", s.requireAuth(http.HandlerFunc(s.handleUnlockIP)))

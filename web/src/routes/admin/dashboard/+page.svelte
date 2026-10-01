@@ -64,12 +64,17 @@
 		<p class="font-mono text-sm text-slate-500">{dashboard.version}</p>
 	</div>
 
-	{#if dashboard.pending_message_area_count > 0 || dashboard.pending_file_area_count > 0 || dashboard.unresolved_netmail_count > 0 || dashboard.pending_user_count > 0 || dashboard.locked_out_count > 0}
+	{#if dashboard.pending_message_area_count > 0 || dashboard.pending_file_area_count > 0 || dashboard.unresolved_netmail_count > 0 || dashboard.pending_user_count > 0 || dashboard.locked_out_count > 0 || dashboard.paging.length > 0}
 		<section class="mb-8 rounded border border-amber-800/60 bg-amber-950/20 p-4">
 			<h2 class="mb-3 text-sm font-semibold tracking-wide text-amber-400 uppercase">
 				Needs Attention
 			</h2>
 			<div class="flex flex-col gap-2 text-sm">
+				{#each dashboard.paging as room (room)}
+					<a href="/admin/chat?room={room}" class="font-semibold text-fuchsia-300 hover:text-fuchsia-200">
+						{room.replace(/^page-/, '')} is paging you -- answer in the chat &rarr;
+					</a>
+				{/each}
 				{#if dashboard.pending_user_count > 0}
 					<a href="/admin/users" class="text-amber-300 hover:text-amber-200">
 						{dashboard.pending_user_count} new user{dashboard.pending_user_count === 1 ? '' : 's'} awaiting approval &rarr;

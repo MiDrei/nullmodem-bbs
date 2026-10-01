@@ -22,6 +22,18 @@ items:
     label: "Netmail"
     action: "builtin:netmail"
     min_sl: 0
+  - key: C
+    label: "Chat (teleconference)"
+    action: "builtin:chat"
+    min_sl: 0
+  - key: P
+    label: "Page the sysop"
+    action: "builtin:page"
+    min_sl: 0
+  - key: L
+    label: "One-liners"
+    action: "builtin:oneliners"
+    min_sl: 0
   - key: W
     label: "Who's online"
     action: "builtin:who"

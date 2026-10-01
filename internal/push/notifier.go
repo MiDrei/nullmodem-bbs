@@ -131,18 +131,11 @@ func (n *Notifier) Check(ctx context.Context) error {
 		return fmt.Errorf("push: looking for new users: %w", err)
 	}
 	if maxUser > lastUser {
-		var sysops []int64
-		rows, err := n.DB.QueryContext(ctx, `SELECT id FROM users WHERE security_level >= 255`)
+		sysops, err := n.sysops(ctx)
 		if err != nil {
-			return fmt.Errorf("push: %w", err)
+			return err
 		}
-		for rows.Next() {
-			var id int64
-			rows.Scan(&id)
-			sysops = append(sysops, id)
-		}
-		rows.Close()
-		rows, err = n.DB.QueryContext(ctx, `SELECT username, real_name FROM users WHERE id > ? AND id <= ? AND validated = 0 ORDER BY id`, lastUser, maxUser)
+		rows, err := n.DB.QueryContext(ctx, `SELECT username, real_name FROM users WHERE id > ? AND id <= ? AND validated = 0 ORDER BY id`, lastUser, maxUser)
 		if err != nil {
 			return fmt.Errorf("push: looking for new users: %w", err)
 		}
@@ -163,6 +156,47 @@ func (n *Notifier) Check(ctx context.Context) error {
 		rows.Close()
 	}
 	if err := n.setPosition(ctx, "users", maxUser); err != nil {
+		return err
+	}
+
+	// Callers paging the sysop: to the sysops' devices.
+	lastPage, err := n.position(ctx, "pages", `SELECT COALESCE(MAX(id), 0) FROM chat_lines`)
+	if err != nil {
+		return err
+	}
+	var maxPage int64
+	if err := n.DB.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM chat_lines`).Scan(&maxPage); err != nil {
+		return fmt.Errorf("push: looking for pages: %w", err)
+	}
+	if maxPage > lastPage {
+		rows, err := n.DB.QueryContext(ctx, `SELECT room, username, text FROM chat_lines WHERE id > ? AND id <= ? AND kind = 'page' ORDER BY id`, lastPage, maxPage)
+		if err != nil {
+			return fmt.Errorf("push: looking for pages: %w", err)
+		}
+		type page struct{ room, who, why string }
+		var pages []page
+		for rows.Next() {
+			var p page
+			rows.Scan(&p.room, &p.who, &p.why)
+			pages = append(pages, p)
+		}
+		rows.Close()
+		if len(pages) > 0 {
+			sysops, err := n.sysops(ctx)
+			if err != nil {
+				return err
+			}
+			for _, p := range pages {
+				for _, id := range sysops {
+					out = append(out, pending{id, Notification{
+						Title: p.who + " is paging you", Body: p.why,
+						URL: "/admin/chat?room=" + p.room, Tag: "page-" + p.who,
+					}, "page"})
+				}
+			}
+		}
+	}
+	if err := n.setPosition(ctx, "pages", maxPage); err != nil {
 		return err
 	}
 
@@ -226,4 +260,20 @@ func (n *Notifier) setPosition(ctx context.Context, key string, v int64) error {
 		return fmt.Errorf("push: %w", err)
 	}
 	return nil
+}
+
+// sysops are the users at sysop level.
+func (n *Notifier) sysops(ctx context.Context) ([]int64, error) {
+	rows, err := n.DB.QueryContext(ctx, `SELECT id FROM users WHERE security_level >= 255`)
+	if err != nil {
+		return nil, fmt.Errorf("push: %w", err)
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		rows.Scan(&id)
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }

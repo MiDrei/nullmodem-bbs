@@ -89,7 +89,8 @@
 			links: [
 				{ href: '/admin/users', label: 'Users', icon: 'users' },
 				{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'shield' },
-				{ href: '/admin/security', label: 'Security', icon: 'shield' }
+				{ href: '/admin/security', label: 'Security', icon: 'shield' },
+				{ href: '/admin/chat', label: 'Chat & One-liners', icon: 'users' }
 			]
 		},
 		{

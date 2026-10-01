@@ -115,6 +115,8 @@ export interface Dashboard {
 	pending_user_count: number;
 	/** Addresses locked out now for failed logins -- see /admin/security. */
 	locked_out_count: number;
+	/** Page rooms with a caller waiting for the sysop ("page-bob"). */
+	paging: string[];
 }
 
 export interface BBSUser {
@@ -1655,4 +1657,62 @@ export function addIPRule(token: string, pattern: string, kind: 'allow' | 'block
 
 export function deleteIPRule(token: string, pattern: string): Promise<SecurityState> {
 	return request('/api/security/rules', { method: 'DELETE', body: JSON.stringify({ pattern }) }, token);
+}
+
+/** Chat (internal/chat): a room with something going on. */
+export interface ChatPresence {
+	username: string;
+	source: string;
+}
+
+export interface ChatLine {
+	id: number;
+	room: string;
+	username: string;
+	source: string;
+	kind: 'say' | 'join' | 'leave' | 'page';
+	text: string;
+	at: string;
+}
+
+export interface ChatRoom {
+	name: string;
+	present: ChatPresence[];
+	last_line: ChatLine | null;
+	paging: boolean;
+}
+
+export interface ChatRoomState {
+	lines: ChatLine[];
+	present: ChatPresence[];
+}
+
+export function listChatRooms(token: string): Promise<ChatRoom[]> {
+	return request('/api/chat/rooms', { method: 'GET' }, token);
+}
+
+/** The room's lines after afterId (the newest without); polling keeps you in it unless watch. */
+export function getChatRoom(token: string, room: string, afterId = 0, watch = false): Promise<ChatRoomState> {
+	const q = new URLSearchParams({ after: String(afterId) });
+	if (watch) q.set('watch', '1');
+	return request(`/api/chat/rooms/${encodeURIComponent(room)}?${q}`, { method: 'GET' }, token);
+}
+
+export function chatAction(token: string, room: string, action: 'enter' | 'say' | 'leave', text = ''): Promise<void> {
+	return request(`/api/chat/rooms/${encodeURIComponent(room)}`, { method: 'POST', body: JSON.stringify({ action, text }) }, token);
+}
+
+export interface Oneliner {
+	id: number;
+	username: string;
+	text: string;
+	at: string;
+}
+
+export function listOneliners(token: string): Promise<Oneliner[]> {
+	return request('/api/oneliners', { method: 'GET' }, token);
+}
+
+export function deleteOneliner(token: string, id: number): Promise<void> {
+	return request(`/api/oneliners/${id}`, { method: 'DELETE' }, token);
 }

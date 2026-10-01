@@ -53,6 +53,8 @@ type dashboardDTO struct {
 	// LockedOutCount the addresses locked out now (internal/guard).
 	PendingUserCount int `json:"pending_user_count"`
 	LockedOutCount   int `json:"locked_out_count"`
+	// Paging are callers waiting in their page room for the sysop.
+	Paging []string `json:"paging"`
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +150,17 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	paging := []string{}
+	if s.Chat != nil {
+		if rooms, err := s.Chat.Rooms(); err == nil {
+			for _, r := range rooms {
+				if r.Paging {
+					paging = append(paging, r.Name)
+				}
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, dashboardDTO{
 		BBSName:                 cfg.BBS.Name,
 		Version:                 version.Version,
@@ -161,5 +174,6 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		UnresolvedNetmailCount:  unresolvedCount,
 		PendingUserCount:        len(pendingUsers),
 		LockedOutCount:          lockedOut,
+		Paging:                  paging,
 	})
 }
