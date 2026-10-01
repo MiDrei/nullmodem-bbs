@@ -19,6 +19,11 @@ func TestClientIPTrustsForwardedOnlyFromLoopback(t *testing.T) {
 	if ip := clientIP(r); ip != "203.0.113.9" {
 		t.Errorf("behind the proxy: %q, want the entry the proxy added", ip)
 	}
+	// Docker's port mapping: the proxy's request comes from the gateway.
+	r.RemoteAddr = "172.18.0.1:40000"
+	if ip := clientIP(r); ip != "203.0.113.9" {
+		t.Errorf("through Docker's gateway: %q, want the forwarded address", ip)
+	}
 	r.RemoteAddr = "198.51.100.1:5555"
 	if ip := clientIP(r); ip != "198.51.100.1" {
 		t.Errorf("direct: %q, a forged header was believed", ip)

@@ -8,13 +8,16 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/guard"
 )
 
-// clientIP is the caller's address. Behind a reverse proxy on the same
-// machine (Caddy on apollo), the request comes from loopback and the
-// caller is the last X-Forwarded-For entry -- the one the proxy added.
-// From anywhere else the header is ignored: anyone could send one.
+// clientIP is the caller's address. Behind a reverse proxy (Caddy on
+// apollo) the request comes from loopback -- or, with Docker's port
+// mapping in between, from the Docker network's gateway, a private
+// address -- and the caller is the last X-Forwarded-For entry, the one
+// the proxy added. From a public address the header is ignored: anyone
+// could send one, and someone reaching the port directly keeps their
+// own address.
 func clientIP(r *http.Request) string {
 	ip := guard.IP(r.RemoteAddr)
-	if a := net.ParseIP(ip); a != nil && a.IsLoopback() {
+	if a := net.ParseIP(ip); a != nil && (a.IsLoopback() || a.IsPrivate()) {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			parts := strings.Split(xff, ",")
 			if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
