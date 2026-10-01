@@ -297,9 +297,13 @@ func (s *Server) handleGetBBSMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "not permitted to read this message")
 		return
 	}
-	if err := s.Messages.MarkMessageRead(claims.UserID, id); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not mark message read")
-		return
+	// ?peek=1: the mobile reader fetching ahead for reading offline;
+	// it's marked read once actually read.
+	if r.URL.Query().Get("peek") != "1" {
+		if err := s.Messages.MarkMessageRead(claims.UserID, id); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not mark message read")
+			return
+		}
 	}
 	dto := toBBSMessageDTO(*m)
 	if prev, next, err := s.Messages.Neighbors(m.AreaID, m.ID); err == nil {

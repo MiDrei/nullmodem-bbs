@@ -1482,3 +1482,30 @@ export function putMaintenance(token: string, settings: MaintenanceSettings): Pr
 export function runMaintenance(token: string, dry: boolean): Promise<MaintenanceReport> {
 	return request<MaintenanceReport>('/api/maintenance/run', { method: 'POST', body: JSON.stringify({ dry }) }, token);
 }
+
+/** The mobile reader's notifications (internal/push): this BBS's VAPID public key. */
+export function getPushKey(token: string): Promise<{ public_key: string }> {
+	return request('/api/bbs/push/key', { method: 'GET' }, token);
+}
+
+export interface PushPrefs {
+	netmail: boolean;
+	echomail: boolean;
+}
+
+/** This device's notification settings; 404 if it isn't subscribed. */
+export function getPushSubscription(token: string, endpoint: string): Promise<PushPrefs> {
+	return request(`/api/bbs/push/subscription?${new URLSearchParams({ endpoint })}`, { method: 'GET' }, token);
+}
+
+export function savePushSubscription(token: string, sub: PushSubscriptionJSON, prefs: PushPrefs): Promise<void> {
+	return request('/api/bbs/push/subscription', { method: 'PUT', body: JSON.stringify({ ...sub, ...prefs }) }, token);
+}
+
+export function deletePushSubscription(token: string, endpoint: string): Promise<void> {
+	return request('/api/bbs/push/subscription', { method: 'DELETE', body: JSON.stringify({ endpoint }) }, token);
+}
+
+export function testPush(token: string, endpoint: string): Promise<void> {
+	return request('/api/bbs/push/test', { method: 'POST', body: JSON.stringify({ endpoint }) }, token);
+}

@@ -2,7 +2,8 @@
 	// One echomail message: reading it marks it read on the BBS, as
 	// everywhere else. Prev/Next and swiping move through its area.
 	import { toast } from '$lib/toast.svelte';
-	import { getBBSMessage, postBBSMessage, listBBSMessageAreas, type BBSMessage } from '$lib/api';
+	import { getBBSMessage, listBBSMessageAreas, type BBSMessage } from '$lib/api';
+	import { sendOrQueue } from '$lib/reader/offline.svelte';
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import ReadView from '$lib/reader/ReadView.svelte';
 	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
@@ -66,9 +67,9 @@
 		if (!token || !message) return;
 		sending = true;
 		try {
-			await postBBSMessage(token, message.area_id, to, subject, body);
+			const how = await sendOrQueue(token, { kind: 'echo', areaId: message.area_id, to, subject, body });
 			replying = false;
-			toast.push('Reply posted.', 'success');
+			toast.push(how === 'queued' ? "You're offline: the reply goes out once you're back online." : 'Reply posted.', 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
 			toast.push(errorText(err, 'Could not post the reply.'), 'error');

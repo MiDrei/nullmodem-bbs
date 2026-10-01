@@ -10,6 +10,7 @@ package web
 
 import (
 	"database/sql"
+	"git.maik.ch/nullmodem/bbs/internal/push"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -58,6 +59,8 @@ type Server struct {
 	// which works on the database directly. May be nil in tests.
 	DB     *sql.DB
 	DBPath string
+	// Push sends the mobile reader's notifications; nil turns them off.
+	Push *push.Sender
 }
 
 // logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
@@ -158,6 +161,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/bbs/message-areas/{id}/first-unread", s.requireBBSUser(http.HandlerFunc(s.handleFirstUnreadMessagePosition)))
 	mux.Handle("POST /api/bbs/message-areas/{id}/mark-read", s.requireBBSUser(http.HandlerFunc(s.handleMarkBBSAreaRead)))
 	mux.Handle("GET /api/bbs/messages/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSMessage)))
+	mux.Handle("GET /api/bbs/push/key", s.requireBBSUser(http.HandlerFunc(s.handleGetPushKey)))
+	mux.Handle("GET /api/bbs/push/subscription", s.requireBBSUser(http.HandlerFunc(s.handleGetPushSubscription)))
+	mux.Handle("PUT /api/bbs/push/subscription", s.requireBBSUser(http.HandlerFunc(s.handlePutPushSubscription)))
+	mux.Handle("DELETE /api/bbs/push/subscription", s.requireBBSUser(http.HandlerFunc(s.handleDeletePushSubscription)))
+	mux.Handle("POST /api/bbs/push/test", s.requireBBSUser(http.HandlerFunc(s.handleTestPush)))
 	mux.Handle("GET /api/bbs/netmail", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmail)))
 	mux.Handle("GET /api/bbs/last-callers", s.requireBBSUser(http.HandlerFunc(s.handleListLastCallers)))
 	mux.Handle("GET /api/bbs/netmail/sent", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmailSent)))

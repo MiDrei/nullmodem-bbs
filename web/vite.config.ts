@@ -25,7 +25,10 @@ export default defineConfig({
 				assets: 'build',
 				fallback: 'index.html',
 				strict: false
-			})
+			}),
+			// Registered by the mobile reader only, for its own scope
+			// (lib/reader/offline.svelte.ts).
+			serviceWorker: { register: false }
 		})
 	],
 	server: {

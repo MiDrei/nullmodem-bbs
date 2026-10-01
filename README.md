@@ -31,7 +31,9 @@ Teil der NullModem-Familie:
   dieselben Funktionen wie über Telnet
 - Reader fürs Handy (`/reader`): schlanke Web-App zum Lesen und Beantworten
   von Echomail und Netmail, installierbar auf dem Home-Bildschirm (iOS,
-  Android); Gelesen-Status wie überall auf der BBS
+  Android); Gelesen-Status wie überall auf der BBS. Offline lesen (Ungelesenes
+  wird vorab geholt, offline Geschriebenes später verschickt) und
+  Benachrichtigungen (Web Push) bei neuer Netmail und Echomail an einen selbst
 - Administration für den Sysop (`/admin`, ab SL 255): Benutzer, Bereiche,
   Security-Level-Matrix, Logs, BinkP-Uplinks, Areafix, Archiv, ANSI-Designer
   für die Bildschirme

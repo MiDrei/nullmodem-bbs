@@ -7,6 +7,9 @@
 	import { listBBSMessageAreas, listBBSNetmail, type BBSMessageArea } from '$lib/api';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
+	import { forgetOffline, offline, syncAhead } from '$lib/reader/offline.svelte';
+	import { disablePush } from '$lib/reader/push';
+	import SettingsSheet from '$lib/reader/SettingsSheet.svelte';
 
 	let {
 		selectedAreaId = null,
@@ -30,6 +33,7 @@
 	let error = $state<string | null>(null);
 	let loaded = $state(false);
 	let showAll = $state(false);
+	let settingsOpen = $state(false);
 
 	// The open area stays listed even once it's all read.
 	let visible = $derived(showAll ? areas : areas.filter((a) => a.new > 0 || a.id === selectedAreaId));
@@ -52,6 +56,8 @@
 			areas = a;
 			netmailUnread = n.filter((m) => m.unread).length;
 			error = null;
+			// Online: fetch ahead what's unread, for reading offline.
+			syncAhead();
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
 			error = errorText(err, 'Could not load the areas.');
@@ -71,6 +77,9 @@
 
 	async function logout() {
 		if (!confirm('Log out of the reader?')) return;
+		// Nothing for this login on this device any more.
+		if (bbsAuth.token) await disablePush(bbsAuth.token).catch(() => {});
+		forgetOffline();
 		bbsAuth.clear();
 		await goto('/reader/login', { replaceState: true });
 	}
@@ -97,8 +106,17 @@
 	<span class="r-title">Reader</span>
 	<button class="r-btn text-base" onclick={toggleAll}>{showAll ? 'Unread' : 'All'}</button>
 	<button class="r-btn text-xl" onclick={load} aria-label="Refresh">↻</button>
-	<button class="r-btn text-sm" onclick={logout}>Log out</button>
+	<button class="r-btn text-xl" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙</button>
 </header>
+{#if !offline.online || offline.outbox}
+	<p class="border-b border-line bg-surface px-4 py-1.5 text-xs text-muted">
+		{#if !offline.online}Offline -- showing what was fetched ahead.{/if}
+		{#if offline.outbox}{offline.outbox} message(s) waiting to be sent.{/if}
+	</p>
+{/if}
+{#if settingsOpen}
+	<SettingsSheet onClose={() => (settingsOpen = false)} onLogout={logout} />
+{/if}
 
 {#if error}
 	<p class="r-note text-red-400">{error}</p>

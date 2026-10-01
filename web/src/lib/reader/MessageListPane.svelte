@@ -7,10 +7,10 @@
 		listBBSMessageAreas,
 		getFirstUnreadMessagePosition,
 		markBBSAreaRead,
-		postBBSMessage,
 		type BBSMessageSummary
 	} from '$lib/api';
 	import { toast } from '$lib/toast.svelte';
+	import { LIST_PAGE, sendOrQueue } from '$lib/reader/offline.svelte';
 	import { readerToken, readerAuthFailed, errorText, shortDate } from '$lib/reader/session';
 	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
 	import type { Snippet } from 'svelte';
@@ -34,7 +34,7 @@
 		onChanged?: () => void;
 	} = $props();
 
-	const PAGE = 40;
+	const PAGE = LIST_PAGE;
 
 	let title = $state('');
 	let messages = $state<BBSMessageSummary[]>([]);
@@ -118,8 +118,12 @@
 		if (!token) return;
 		sending = true;
 		try {
-			await postBBSMessage(token, areaId, to.trim(), subject, body);
+			const how = await sendOrQueue(token, { kind: 'echo', areaId, to: to.trim(), subject, body });
 			composing = false;
+			if (how === 'queued') {
+				toast.push("You're offline: the message goes out once you're back online.", 'success');
+				return;
+			}
 			toast.push('Message posted.', 'success');
 			await load(areaId);
 			onChanged?.();

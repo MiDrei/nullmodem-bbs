@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"git.maik.ch/nullmodem/bbs/internal/maintenance"
+	"git.maik.ch/nullmodem/bbs/internal/push"
 	"log"
 	"net/http"
 	"os"
@@ -106,6 +107,15 @@ func main() {
 		StaticDir:     cfg.StaticDir,
 		DB:            sqlDB,
 		DBPath:        cfg.DatabasePath,
+	}
+
+	// The mobile reader's notifications: the key pair beside the JWT
+	// secret, and the notifier looking for new mail.
+	if keys, err := push.LoadOrCreateKeys(filepath.Join(filepath.Dir(cfg.JWTSecretPath), "vapid.json")); err != nil {
+		logger.Warn("notifications off: %v", err)
+	} else {
+		srv.Push = push.NewSender(keys, push.NewStore(sqlDB))
+		go (&push.Notifier{DB: sqlDB, Sender: srv.Push, Logger: logger}).Run(context.Background())
 	}
 
 	logger.Info("web admin API listening on %s", cfg.Addr)

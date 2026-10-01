@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Netmail received, newest first; New writes one.
 	import { onMount } from 'svelte';
-	import { listBBSNetmail, sendBBSNetmail, type BBSNetmailSummary } from '$lib/api';
+	import { listBBSNetmail, type BBSNetmailSummary } from '$lib/api';
 	import { toast } from '$lib/toast.svelte';
+	import { sendOrQueue } from '$lib/reader/offline.svelte';
 	import { readerToken, readerAuthFailed, errorText, shortDate } from '$lib/reader/session';
 	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
 	import type { Snippet } from 'svelte';
@@ -41,9 +42,9 @@
 		if (!token) return;
 		sending = true;
 		try {
-			await sendBBSNetmail(token, to.trim(), subject, body, toName.trim());
+			const how = await sendOrQueue(token, { kind: 'netmail', to: to.trim(), toName: toName.trim(), subject, body });
 			composing = false;
-			toast.push('Netmail sent.', 'success');
+			toast.push(how === 'queued' ? "You're offline: the netmail goes out once you're back online." : 'Netmail sent.', 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
 			toast.push(errorText(err, 'Could not send the netmail.'), 'error');

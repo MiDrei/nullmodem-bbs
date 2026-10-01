@@ -165,9 +165,12 @@ func (s *Server) handleGetBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	dto := toBBSNetmailDTO(*m)
 	dto.IsRecipient = isRecipient
 	if isRecipient {
-		if err := s.Netmail.MarkRead(id); err != nil {
-			writeError(w, http.StatusInternalServerError, "could not mark message read")
-			return
+		// ?peek=1: fetched ahead for reading offline (see the messages').
+		if r.URL.Query().Get("peek") != "1" {
+			if err := s.Netmail.MarkRead(id); err != nil {
+				writeError(w, http.StatusInternalServerError, "could not mark message read")
+				return
+			}
 		}
 		if prev, next, err := s.Netmail.Neighbors(claims.UserID, m.ID); err == nil {
 			dto.PrevID, dto.NextID = prev, next

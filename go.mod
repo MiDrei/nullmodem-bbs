@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	git.maik.ch/nullmodem/kit v0.2.2
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	golang.org/x/crypto v0.57.0

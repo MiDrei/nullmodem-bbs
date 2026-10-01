@@ -1,7 +1,8 @@
 <script lang="ts">
 	// One netmail; a reply goes back to its sender.
 	import { toast } from '$lib/toast.svelte';
-	import { getBBSNetmail, sendBBSNetmail, type BBSNetmail } from '$lib/api';
+	import { getBBSNetmail, type BBSNetmail } from '$lib/api';
+	import { sendOrQueue } from '$lib/reader/offline.svelte';
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import ReadView from '$lib/reader/ReadView.svelte';
 	import ComposeSheet from '$lib/reader/ComposeSheet.svelte';
@@ -62,9 +63,9 @@
 		const toName = mail.from_address ? mail.from_name : '';
 		sending = true;
 		try {
-			await sendBBSNetmail(token, target, subject, body, toName);
+			const how = await sendOrQueue(token, { kind: 'netmail', to: target, toName, subject, body });
 			replying = false;
-			toast.push('Reply sent.', 'success');
+			toast.push(how === 'queued' ? "You're offline: the reply goes out once you're back online." : 'Reply sent.', 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
 			toast.push(errorText(err, 'Could not send the reply.'), 'error');

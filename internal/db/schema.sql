@@ -408,3 +408,25 @@ CREATE TABLE IF NOT EXISTS maintenance_runs (
     ran_at INTEGER NOT NULL,
     report TEXT NOT NULL
 );
+
+-- Web push subscriptions of the mobile reader (internal/push): one
+-- per device a user turned notifications on for. origin is the site
+-- the reader was opened on, sent as the VAPID contact.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh      TEXT NOT NULL,
+    auth        TEXT NOT NULL,
+    origin      TEXT NOT NULL DEFAULT '',
+    netmail     INTEGER NOT NULL DEFAULT 1,
+    echomail    INTEGER NOT NULL DEFAULT 1,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- How far internal/push's notifier got: the last netmail and message
+-- id it looked at, so a restart neither repeats nor floods.
+CREATE TABLE IF NOT EXISTS push_state (
+    key    TEXT PRIMARY KEY,
+    value  INTEGER NOT NULL
+);
