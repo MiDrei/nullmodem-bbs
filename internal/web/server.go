@@ -11,7 +11,9 @@ package web
 import (
 	"database/sql"
 	"git.maik.ch/nullmodem/bbs/internal/chat"
+	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
+	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	"git.maik.ch/nullmodem/bbs/internal/push"
 	"net/http"
 	"os"
@@ -69,6 +71,9 @@ type Server struct {
 	Guard *guard.Guard
 	// Chat holds the chat rooms and one-liners; nil off.
 	Chat *chat.Store
+	// Nodelist and Community: the nodelists, polls and BBS list.
+	Nodelist  *nodelist.Store
+	Community *community.Store
 	// TerminalAddr is the bbs daemon's Telnet port for the web
 	// terminal (terminal_handler.go); empty turns it off.
 	TerminalAddr string
@@ -141,6 +146,14 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/chat/rooms/{room}", s.requireAuth(http.HandlerFunc(s.handleChatAction)))
 	mux.Handle("GET /api/oneliners", s.requireAuth(http.HandlerFunc(s.handleListOneliners)))
 	mux.Handle("DELETE /api/oneliners/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteOneliner)))
+	mux.Handle("GET /api/nodelists", s.requireAuth(http.HandlerFunc(s.handleNodelistStatus)))
+	mux.Handle("POST /api/nodelists/sync", s.requireAuth(http.HandlerFunc(s.handleNodelistSync)))
+	mux.Handle("GET /api/polls", s.requireAuth(http.HandlerFunc(s.handleListPolls)))
+	mux.Handle("POST /api/polls", s.requireAuth(http.HandlerFunc(s.handleCreatePoll)))
+	mux.Handle("POST /api/polls/{id}/close", s.requireAuth(http.HandlerFunc(s.handleClosePoll)))
+	mux.Handle("DELETE /api/polls/{id}", s.requireAuth(http.HandlerFunc(s.handleDeletePoll)))
+	mux.Handle("GET /api/bbslist", s.requireAuth(http.HandlerFunc(s.handleListBBSList)))
+	mux.Handle("DELETE /api/bbslist/{id}", s.requireAuth(http.HandlerFunc(s.handleAdminDeleteBBSListEntry)))
 	mux.Handle("GET /api/security", s.requireAuth(http.HandlerFunc(s.handleGetSecurity)))
 	mux.Handle("PUT /api/security/settings", s.requireAuth(http.HandlerFunc(s.handlePutSecuritySettings)))
 	mux.Handle("POST /api/security/unlock", s.requireAuth(http.HandlerFunc(s.handleUnlockIP)))
@@ -195,6 +208,14 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/bbs/push/subscription", s.requireBBSUser(http.HandlerFunc(s.handlePutPushSubscription)))
 	mux.Handle("DELETE /api/bbs/push/subscription", s.requireBBSUser(http.HandlerFunc(s.handleDeletePushSubscription)))
 	mux.Handle("POST /api/bbs/push/test", s.requireBBSUser(http.HandlerFunc(s.handleTestPush)))
+	mux.Handle("GET /api/bbs/nodelist", s.requireBBSUser(http.HandlerFunc(s.handleSearchNodelist)))
+	mux.Handle("GET /api/bbs/nodelist/lookup", s.requireBBSUser(http.HandlerFunc(s.handleLookupNodelist)))
+	mux.Handle("GET /api/bbs/polls", s.requireBBSUser(http.HandlerFunc(s.handleListBBSPolls)))
+	mux.Handle("POST /api/bbs/polls/{id}/vote", s.requireBBSUser(http.HandlerFunc(s.handleVoteBBSPoll)))
+	mux.Handle("GET /api/bbs/bbslist", s.requireBBSUser(http.HandlerFunc(s.handleListBBSList)))
+	mux.Handle("POST /api/bbs/bbslist", s.requireBBSUser(http.HandlerFunc(s.handleSaveBBSListEntry)))
+	mux.Handle("PUT /api/bbs/bbslist/{id}", s.requireBBSUser(http.HandlerFunc(s.handleSaveBBSListEntry)))
+	mux.Handle("DELETE /api/bbs/bbslist/{id}", s.requireBBSUser(http.HandlerFunc(s.handleDeleteBBSListEntry)))
 	mux.Handle("GET /api/bbs/netmail", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmail)))
 	mux.Handle("GET /api/bbs/last-callers", s.requireBBSUser(http.HandlerFunc(s.handleListLastCallers)))
 	mux.Handle("GET /api/bbs/netmail/sent", s.requireBBSUser(http.HandlerFunc(s.handleListBBSNetmailSent)))

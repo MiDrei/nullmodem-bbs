@@ -1726,3 +1726,118 @@ export interface RemoteDoor {
 	server_user: string;
 	term_type: string;
 }
+
+/** A system in an FTN nodelist (internal/nodelist). */
+export interface NodelistEntry {
+	network: string;
+	zone: number;
+	net: number;
+	node: number;
+	keyword: string;
+	name: string;
+	location: string;
+	sysop: string;
+	flags: string;
+	address: string;
+	host: string;
+}
+
+export interface NodelistImport {
+	network: string;
+	filename: string;
+	imported_at: string;
+	entries: number;
+}
+
+export function searchNodelist(token: string, q: string, network = ''): Promise<{ entries: NodelistEntry[]; imports: NodelistImport[] }> {
+	return request(`/api/bbs/nodelist?${new URLSearchParams({ q, network })}`, { method: 'GET' }, token);
+}
+
+/** The nodelist's entry for an address; ApiError 404 when none has it. */
+export function lookupNodelist(token: string, addr: string): Promise<NodelistEntry> {
+	return request(`/api/bbs/nodelist/lookup?${new URLSearchParams({ addr })}`, { method: 'GET' }, token);
+}
+
+export function getNodelistStatus(token: string): Promise<NodelistImport[]> {
+	return request('/api/nodelists', { method: 'GET' }, token);
+}
+
+export function syncNodelists(token: string): Promise<{ imported: number; imports: NodelistImport[] }> {
+	return request('/api/nodelists/sync', { method: 'POST' }, token);
+}
+
+/** A poll (internal/community) with its results. */
+export interface PollOption {
+	id: number;
+	text: string;
+	votes: number;
+}
+
+export interface Poll {
+	id: number;
+	question: string;
+	options: PollOption[];
+	total: number;
+	closed: boolean;
+	created_at: string;
+	my_vote: number;
+}
+
+export function listBBSPolls(token: string): Promise<Poll[]> {
+	return request('/api/bbs/polls', { method: 'GET' }, token);
+}
+
+export function voteBBSPoll(token: string, pollId: number, optionId: number): Promise<Poll> {
+	return request(`/api/bbs/polls/${pollId}/vote`, { method: 'POST', body: JSON.stringify({ option_id: optionId }) }, token);
+}
+
+export function listPolls(token: string): Promise<Poll[]> {
+	return request('/api/polls', { method: 'GET' }, token);
+}
+
+export function createPoll(token: string, question: string, options: string[]): Promise<Poll> {
+	return request('/api/polls', { method: 'POST', body: JSON.stringify({ question, options }) }, token);
+}
+
+export function closePoll(token: string, id: number, closed: boolean): Promise<void> {
+	return request(`/api/polls/${id}/close`, { method: 'POST', body: JSON.stringify({ closed }) }, token);
+}
+
+export function deletePoll(token: string, id: number): Promise<void> {
+	return request(`/api/polls/${id}`, { method: 'DELETE' }, token);
+}
+
+/** An entry in the callers' BBS list. */
+export interface BBSListEntry {
+	id: number;
+	name: string;
+	address: string;
+	sysop: string;
+	software: string;
+	description: string;
+	added_by_id: number;
+	added_by: string;
+	updated_at: string;
+}
+
+export type BBSListInput = Pick<BBSListEntry, 'name' | 'address' | 'sysop' | 'software' | 'description'>;
+
+export function listBBSList(token: string): Promise<BBSListEntry[]> {
+	return request('/api/bbs/bbslist', { method: 'GET' }, token);
+}
+
+export function saveBBSListEntry(token: string, entry: BBSListInput, id?: number): Promise<BBSListEntry> {
+	return request(id ? `/api/bbs/bbslist/${id}` : '/api/bbs/bbslist', { method: id ? 'PUT' : 'POST', body: JSON.stringify(entry) }, token);
+}
+
+export function deleteBBSListEntry(token: string, id: number): Promise<void> {
+	return request(`/api/bbs/bbslist/${id}`, { method: 'DELETE' }, token);
+}
+
+export function adminListBBSList(token: string): Promise<BBSListEntry[]> {
+	return request('/api/bbslist', { method: 'GET' }, token);
+}
+
+export function adminDeleteBBSListEntry(token: string, id: number): Promise<void> {
+	return request(`/api/bbslist/${id}`, { method: 'DELETE' }, token);
+}

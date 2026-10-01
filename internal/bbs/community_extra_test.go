@@ -1,0 +1,62 @@
+package bbs
+
+import (
+	"strings"
+	"testing"
+
+	"git.maik.ch/nullmodem/bbs/internal/community"
+	"git.maik.ch/nullmodem/bbs/internal/nodelist"
+	"git.maik.ch/nullmodem/bbs/internal/user"
+)
+
+func TestVotingBoothVoteAndResults(t *testing.T) {
+	s := testServer(t)
+	s.Community = community.NewStore(s.Users.DB())
+	u, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	id, _ := s.Community.CreatePoll("Best door?", []string{"LORD", "TradeWars"})
+	// Poll 1, vote 2, results' pause, then back.
+	conn := newFakeConn("1\r\n2\r\n\r\n\r\n")
+	if err := s.votingBooth(NewTerminal(conn), u); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := s.Community.Poll(id, u.ID)
+	if p.MyVote != p.Options[1].ID || p.Total != 1 {
+		t.Fatalf("vote not recorded: %+v", p)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "Results") || !strings.Contains(out, "100%") {
+		t.Fatalf("no results shown: %q", out)
+	}
+}
+
+func TestBBSListAddAndOnlyOwnEditable(t *testing.T) {
+	s := testServer(t)
+	s.Community = community.NewStore(s.Users.DB())
+	s.Users.Register("maik", "password123", user.SLNewUser) // sysop
+	alice, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	bob, _ := s.Users.Register("bob", "password123", user.SLNewUser)
+	conn := newFakeConn("A\r\nAgency BBS\r\nagency.bbs.nz:2323\r\nAvon\r\nMystic\r\nThe fsxNet hub\r\n\r\n")
+	if err := s.bbsList(NewTerminal(conn), alice); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := s.Community.BBSList()
+	if len(list) != 1 || list[0].Address != "agency.bbs.nz:2323" || list[0].AddedBy != "alice" {
+		t.Fatalf("list %+v", list)
+	}
+	if s.mayChangeBBS(bob, list[0]) || !s.mayChangeBBS(alice, list[0]) {
+		t.Fatal("wrong edit rights")
+	}
+}
+
+func TestNetmailToAnAddressShowsTheNodelistEntry(t *testing.T) {
+	s := testServer(t)
+	s.Nodelist = nodelist.NewStore(s.Users.DB())
+	s.Nodelist.Replace("fsxNet", "FSXNET.Z75", []nodelist.Entry{{Network: "fsxNet", Zone: 21, Net: 1, Node: 101, Name: "Agency BBS", Location: "Dunedin NZL", Sysop: "Paul Hayton"}})
+	u, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	conn := newFakeConn("21:1/101\r\n\r\n\r\n")
+	s.composeNetmail(NewTerminal(conn), u)
+	out := conn.out.String()
+	if !strings.Contains(out, "Agency BBS, Dunedin NZL (sysop Paul Hayton)") || !strings.Contains(out, "Recipient name [Paul Hayton]") {
+		t.Fatalf("no nodelist lookup: %q", out)
+	}
+}

@@ -3,7 +3,8 @@
 	// sent as-is. A reply's original is quoted below for reference only.
 	// For netmail to an FTN address, the recipient's name is asked too.
 	import { onMount } from 'svelte';
-	import { isFTNAddress } from '$lib/api';
+	import { isFTNAddress, lookupNodelist, type NodelistEntry } from '$lib/api';
+	import { bbsAuth } from '$lib/bbs-auth.svelte';
 
 	let area = $state<HTMLTextAreaElement | undefined>();
 	// A reply starts below the quoted original.
@@ -43,6 +44,28 @@
 		onSend: () => void;
 		onCancel: () => void;
 	} = $props();
+
+	// Who's behind an FTN address, by the nodelists -- their sysop is
+	// the likely recipient.
+	let node = $state<NodelistEntry | null>(null);
+	let unknown = $state(false);
+	let lookupTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		const addr = to.trim();
+		clearTimeout(lookupTimer);
+		node = null;
+		unknown = false;
+		if (!askToName || toLocked || !isFTNAddress(addr) || !bbsAuth.token) return;
+		const token = bbsAuth.token;
+		lookupTimer = setTimeout(async () => {
+			try {
+				node = await lookupNodelist(token, addr);
+				if (!toName.trim()) toName = node.sysop;
+			} catch {
+				unknown = true;
+			}
+		}, 400);
+	});
 </script>
 
 <div class="fixed inset-0 z-20 flex flex-col bg-black" style="padding-top: env(safe-area-inset-top)">
@@ -62,6 +85,11 @@
 			autocapitalize="off"
 		/>
 		{#if askToName && !toLocked && isFTNAddress(to.trim())}
+			{#if node}
+				<p class="px-1 text-sm text-emerald-400">→ {node.name}, {node.location} · sysop {node.sysop}</p>
+			{:else if unknown}
+				<p class="px-1 text-sm text-amber-400">Not in the nodelists here -- check the address.</p>
+			{/if}
 			<input class="field py-2.5 text-base" bind:value={toName} placeholder="Name at that address" />
 		{/if}
 		<input class="field py-2.5 text-base" bind:value={subject} placeholder="Subject" />

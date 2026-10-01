@@ -24,6 +24,11 @@ Teil der NullModem-Familie:
   Node-Nachrichten an andere Online-Anrufer (bei „Who's online“), Sysop rufen
   („Page“): der Sysop bekommt eine Push-Nachricht und antwortet im Web-Admin
   (Chat & One-liners) oder auf einem Node
+- Abstimmungen (V): der Sysop fragt im Web-Admin, Anrufer stimmen über Telnet
+  oder im Portal (Community) ab und sehen das Ergebnis als Balken; BBS-Liste (B),
+  von den Anrufern gepflegt
+- Nodelisten (I): werden aus den File-Echos der Netze übernommen (FSXNET.Z75 …),
+  zum Nachschlagen und zum Prüfen von Netmail-Adressen („→ Agency BBS, Dunedin“)
 - Vollbild-Editor zum Schreiben (Pfeiltasten, Pos1/Ende, Bild auf/ab, Wortumbruch,
   Antwort mit Zitat; ^Z speichern, ^X abbrechen, ^Y Zeile löschen); wer lieber
   zeilenweise schreibt, stellt im Profil den Zeileneditor ein

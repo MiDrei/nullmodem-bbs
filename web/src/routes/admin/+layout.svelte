@@ -80,6 +80,7 @@
 				{ href: '/admin/binkp/uplinks', label: 'Uplinks (Nodes/Points)', icon: 'binkp' },
 				{ href: '/admin/areafix', label: 'Areafix / Filefix', icon: 'areafix' },
 				{ href: '/admin/netmail', label: 'Undeliverable Netmail', icon: 'undeliverable' },
+				{ href: '/admin/nodelists', label: 'Nodelists', icon: 'binkp' },
 				{ href: '/admin/archive', label: 'Packet Analyzer', icon: 'archive' }
 			]
 		},
@@ -90,7 +91,8 @@
 				{ href: '/admin/users', label: 'Users', icon: 'users' },
 				{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'shield' },
 				{ href: '/admin/security', label: 'Security', icon: 'shield' },
-				{ href: '/admin/chat', label: 'Chat & One-liners', icon: 'users' }
+				{ href: '/admin/chat', label: 'Chat & One-liners', icon: 'users' },
+				{ href: '/admin/polls', label: 'Polls & BBS List', icon: 'users' }
 			]
 		},
 		{

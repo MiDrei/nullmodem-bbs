@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"git.maik.ch/nullmodem/bbs/internal/chat"
+	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"path/filepath"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/menu"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	"git.maik.ch/nullmodem/bbs/internal/session"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 	"git.maik.ch/nullmodem/bbs/internal/version"
@@ -70,6 +72,10 @@ type Server struct {
 	// nil turns them off.
 	Chat     *chat.Store
 	nodeMsgs nodeMessages
+	// Nodelist answers who's behind an FTN address; nil: no nodelists.
+	Nodelist *nodelist.Store
+	// Community holds the polls and the BBS list.
+	Community *community.Store
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -96,6 +102,8 @@ type Options struct {
 	Security         func() config.SecurityConfig
 	FullScreenEditor bool
 	Chat             *chat.Store
+	Nodelist         *nodelist.Store
+	Community        *community.Store
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -121,6 +129,8 @@ func NewServer(opts Options) *Server {
 		Security:         opts.Security,
 		FullScreenEditor: opts.FullScreenEditor,
 		Chat:             opts.Chat,
+		Nodelist:         opts.Nodelist,
+		Community:        opts.Community,
 	}
 }
 
@@ -490,6 +500,9 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"chat":           (*Server).teleconference,
 	"page":           (*Server).pageSysop,
 	"oneliners":      (*Server).showOneliners,
+	"nodelist":       (*Server).browseNodelist,
+	"polls":          (*Server).votingBooth,
+	"bbslist":        (*Server).bbsList,
 }
 
 // runMenu displays the named menu and dispatches choices until the

@@ -14,6 +14,7 @@
 package main
 
 import (
+	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
 	// image has a zoneinfo database or not.
 	_ "time/tzdata"
@@ -128,6 +129,24 @@ func main() {
 	} else {
 		go inst.Run(ctx, func(string) { close(restartCh) })
 	}
+
+	// Nodelists (internal/nodelist): a new one arrives as a file echo
+	// now and then; it's imported once there.
+	go func() {
+		nodelists := nodelist.NewStore(sqlDB)
+		tick := time.NewTicker(10 * time.Minute)
+		defer tick.Stop()
+		for {
+			if _, err := nodelists.Sync(false, logger); err != nil {
+				logger.Warn("nodelist: %v", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+			}
+		}
+	}()
 
 	// The nightly cleanup (internal/maintenance), by the config as it
 	// is each night.

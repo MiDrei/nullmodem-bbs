@@ -4,7 +4,9 @@ package main
 
 import (
 	"git.maik.ch/nullmodem/bbs/internal/chat"
+	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
+	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	"net"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
 	// image has a zoneinfo database or not.
@@ -117,6 +119,8 @@ func main() {
 		DB:            sqlDB,
 		DBPath:        cfg.DatabasePath,
 		Chat:          chat.NewStore(sqlDB),
+		Nodelist:      nodelist.NewStore(sqlDB),
+		Community:     community.NewStore(sqlDB),
 		TerminalAddr:  terminalAddr(cfg, bbsCfg),
 	}
 

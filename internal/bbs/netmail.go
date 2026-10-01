@@ -562,7 +562,21 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		return err
 	} else if isFTNAddress(to) {
 		toAddress = to
-		if err := term.Print(ansi.Reset + "Recipient name: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		// Who's there, by the nodelist: their sysop is the likely
+		// recipient.
+		defaultName := to
+		if s.Nodelist != nil {
+			if e, ok, _ := s.Nodelist.LookupAddress(to); ok {
+				if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "  -> " + toCP437(e.Name) + ", " +
+					toCP437(e.Location) + " (sysop " + toCP437(e.Sysop) + ")" + ansi.Reset); err != nil {
+					return err
+				}
+				defaultName = toCP437(e.Sysop)
+			} else if err := term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "  Not in the nodelists here -- check the address." + ansi.Reset); err != nil {
+				return err
+			}
+		}
+		if err := term.Print(ansi.Reset + "Recipient name [" + defaultName + "]: " + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		name, err := term.ReadLine(false)
@@ -571,7 +585,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		}
 		toName = strings.TrimSpace(name)
 		if toName == "" {
-			toName = to
+			toName = defaultName
 		}
 		if err := term.Print(ansi.Reset + "Crash priority (immediate delivery)? [y/N]: " + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err

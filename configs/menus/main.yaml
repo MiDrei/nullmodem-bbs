@@ -59,6 +59,18 @@ items:
     action: "builtin:profile"
     min_sl: 0
   - key: V
+    label: "Voting booth"
+    action: "builtin:polls"
+    min_sl: 0
+  - key: B
+    label: "BBS list"
+    action: "builtin:bbslist"
+    min_sl: 0
+  - key: I
+    label: "Nodelist (FTN systems)"
+    action: "builtin:nodelist"
+    min_sl: 0
+  - key: "?"
     label: "Version"
     action: "builtin:version"
     min_sl: 0

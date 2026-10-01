@@ -492,3 +492,61 @@ CREATE TABLE IF NOT EXISTS oneliners (
     text      TEXT NOT NULL,
     at        INTEGER NOT NULL
 );
+
+-- internal/nodelist: each network's nodelist as last imported from its
+-- file echo (FSXNET.Z75 ...), one row per system; replaced whole on
+-- each import.
+CREATE TABLE IF NOT EXISTS nodelist_entries (
+    network   TEXT NOT NULL,
+    zone      INTEGER NOT NULL,
+    net       INTEGER NOT NULL,
+    node      INTEGER NOT NULL,
+    keyword   TEXT NOT NULL DEFAULT '',
+    name      TEXT NOT NULL DEFAULT '',
+    location  TEXT NOT NULL DEFAULT '',
+    sysop     TEXT NOT NULL DEFAULT '',
+    flags     TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (network, zone, net, node)
+);
+CREATE INDEX IF NOT EXISTS idx_nodelist_address ON nodelist_entries(zone, net, node);
+
+CREATE TABLE IF NOT EXISTS nodelist_imports (
+    network      TEXT PRIMARY KEY,
+    filename     TEXT NOT NULL,
+    imported_at  INTEGER NOT NULL,
+    entries      INTEGER NOT NULL
+);
+
+-- internal/community: polls (the sysop asks, callers vote once and may
+-- change their vote) and the BBS list callers keep.
+CREATE TABLE IF NOT EXISTS polls (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    question    TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    closed      INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS poll_options (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id   INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+    position  INTEGER NOT NULL,
+    text      TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS poll_votes (
+    poll_id    INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    option_id  INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
+    at         INTEGER NOT NULL,
+    PRIMARY KEY (poll_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS bbs_list (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    name         TEXT NOT NULL,
+    address      TEXT NOT NULL,
+    sysop        TEXT NOT NULL DEFAULT '',
+    software     TEXT NOT NULL DEFAULT '',
+    description  TEXT NOT NULL DEFAULT '',
+    added_by_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    added_by     TEXT NOT NULL DEFAULT '',
+    updated_at   INTEGER NOT NULL
+);
