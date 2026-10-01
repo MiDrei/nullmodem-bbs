@@ -98,6 +98,7 @@
 				{ href: '/admin/settings', label: 'Settings', icon: 'system' },
 				{ href: '/admin/services', label: 'Services', icon: 'dashboard' },
 				{ href: '/admin/maintenance', label: 'Maintenance', icon: 'archive' },
+				{ href: '/admin/backups', label: 'Backups', icon: 'archive' },
 				{ href: '/admin/logs', label: 'Logs', icon: 'logs' }
 			]
 		}

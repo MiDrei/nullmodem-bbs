@@ -90,6 +90,8 @@ type Config struct {
 	} `yaml:"binkp"`
 	// Maintenance is the nightly cleanup (see internal/maintenance).
 	Maintenance MaintenanceConfig `yaml:"maintenance"`
+	// Backup is the nightly backup (see internal/backup).
+	Backup BackupConfig `yaml:"backup"`
 	// InterBBS is taking part in inter-BBS lists carried in data echoes.
 	InterBBS struct {
 		LastCallers LastCallersConfig `yaml:"last_callers"`
@@ -420,6 +422,34 @@ type MaintenanceConfig struct {
 	ArchiveKeepDays    *int `yaml:"archive_keep_days,omitempty"`
 	// Vacuum compacts the database afterwards; default on.
 	Vacuum *bool `yaml:"vacuum,omitempty"`
+}
+
+// BackupConfig is the nightly backup (internal/backup), written by the
+// web daemon. On unless turned off.
+type BackupConfig struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+	// Hour is when (0-23, the server's clock); default 3, before the
+	// maintenance.
+	Hour *int `yaml:"hour,omitempty"`
+	// KeepDaily backups are kept (default 7), plus the newest of each
+	// of the last KeepWeekly weeks (default 4).
+	KeepDaily  *int `yaml:"keep_daily,omitempty"`
+	KeepWeekly *int `yaml:"keep_weekly,omitempty"`
+	// Dir is where backups go; default data/backups.
+	Dir string `yaml:"dir,omitempty"`
+	// IncludeFiles adds the file areas and doors (large).
+	IncludeFiles bool `yaml:"include_files,omitempty"`
+}
+
+func (b BackupConfig) On() bool     { return b.Enabled == nil || *b.Enabled }
+func (b BackupConfig) RunHour() int { return intOr(b.Hour, 3) }
+func (b BackupConfig) Daily() int   { return intOr(b.KeepDaily, 7) }
+func (b BackupConfig) Weekly() int  { return intOr(b.KeepWeekly, 4) }
+func (b BackupConfig) Directory() string {
+	if b.Dir == "" {
+		return "data/backups"
+	}
+	return b.Dir
 }
 
 func intOr(p *int, def int) int {

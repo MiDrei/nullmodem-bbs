@@ -37,6 +37,9 @@ Teil der NullModem-Familie:
 - Administration für den Sysop (`/admin`, ab SL 255): Benutzer, Bereiche,
   Security-Level-Matrix, Logs, BinkP-Uplinks, Areafix, Archiv, ANSI-Designer
   für die Bildschirme
+- Nächtliches Backup (Admin → Backups): Datenbank, Konfiguration, Menüs,
+  Bildschirme und Schlüssel als ein `.tar.gz`, wahlweise mit Dateien und Doors;
+  Download im Admin, Zurückspielen siehe [docs/backup.md](docs/backup.md)
 - REST-API; die QWK-Endpunkte nutzen auch NullModem Reader und die Skripte in
   `scripts/multimail/`
 

@@ -45,6 +45,8 @@ type Server struct {
 	// recorded. May be nil in tests.
 	Services      *services.Store
 	BBSConfigPath string
+	// WebConfigPath is web.yaml's, for the backup.
+	WebConfigPath string
 	// FTNAddress is this system's own primary FTN address (see
 	// config.Config.PrimaryFTNAddress), stamped on netmail the BBS
 	// portal's caller composes -- same one internal/bbs's own Server
@@ -90,6 +92,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/maintenance", s.requireAuth(http.HandlerFunc(s.handleGetMaintenance)))
 	mux.Handle("PUT /api/maintenance", s.requireAuth(http.HandlerFunc(s.handlePutMaintenance)))
 	mux.Handle("POST /api/maintenance/run", s.requireAuth(http.HandlerFunc(s.handleRunMaintenance)))
+	mux.Handle("GET /api/backups", s.requireAuth(http.HandlerFunc(s.handleGetBackups)))
+	mux.Handle("PUT /api/backups/settings", s.requireAuth(http.HandlerFunc(s.handlePutBackupSettings)))
+	mux.Handle("POST /api/backups/run", s.requireAuth(http.HandlerFunc(s.handleRunBackup)))
+	mux.Handle("GET /api/backups/{name}", s.requireAuth(http.HandlerFunc(s.handleDownloadBackup)))
+	mux.Handle("DELETE /api/backups/{name}", s.requireAuth(http.HandlerFunc(s.handleDeleteBackup)))
 	mux.Handle("POST /api/services/{name}/restart", s.requireAuth(http.HandlerFunc(s.handleRestartService)))
 	mux.Handle("GET /api/doors", s.requireAuth(http.HandlerFunc(s.handleListDoors)))
 	mux.Handle("PUT /api/doors", s.requireAuth(http.HandlerFunc(s.handlePutDoors)))

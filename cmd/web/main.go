@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/backup"
 	"git.maik.ch/nullmodem/bbs/internal/maintenance"
 	"git.maik.ch/nullmodem/bbs/internal/push"
 	"log"
@@ -102,6 +103,7 @@ func main() {
 		Archive:       archive.NewStore(sqlDB, filepath.Join(filepath.Dir(cfg.DatabasePath), "inbound-archive")),
 		BinkpLog:      binkplog.NewStore(sqlDB, filepath.Join(filepath.Dir(cfg.DatabasePath), "binkp-sessions")),
 		BBSConfigPath: cfg.BBSConfigPath,
+		WebConfigPath: *configPath,
 		FTNAddress:    bbsCfg.PrimaryFTNAddress(),
 		JWTSecret:     secret,
 		StaticDir:     cfg.StaticDir,
@@ -117,6 +119,16 @@ func main() {
 		srv.Push = push.NewSender(keys, push.NewStore(sqlDB))
 		go (&push.Notifier{DB: sqlDB, Sender: srv.Push, Logger: logger}).Run(context.Background())
 	}
+
+	// The nightly backup, by the settings in bbs.yaml as they are each
+	// time.
+	go backup.Nightly(context.Background(), func() (bool, int, backup.Options, backup.Sources) {
+		c, err := config.Load(cfg.BBSConfigPath)
+		if err != nil {
+			c = bbsCfg
+		}
+		return c.Backup.On(), c.Backup.RunHour(), web.BackupOptions(c), srv.BackupSources(c)
+	}, logger)
 
 	logger.Info("web admin API listening on %s", cfg.Addr)
 	logger.Fatal("%v", http.ListenAndServe(cfg.Addr, srv.Routes()))

@@ -1532,3 +1532,48 @@ export function deletePushSubscription(token: string, endpoint: string): Promise
 export function testPush(token: string, endpoint: string): Promise<void> {
 	return request('/api/bbs/push/test', { method: 'POST', body: JSON.stringify({ endpoint }) }, token);
 }
+
+/** The nightly backup (internal/backup). */
+export interface BackupSettings {
+	enabled: boolean;
+	hour: number;
+	keep_daily: number;
+	keep_weekly: number;
+	dir: string;
+	include_files: boolean;
+}
+
+export interface BackupInfo {
+	name: string;
+	size: number;
+	time: string;
+}
+
+export interface BackupState {
+	settings: BackupSettings;
+	backups: BackupInfo[];
+	free_bytes: number;
+}
+
+export function getBackups(token: string): Promise<BackupState> {
+	return request('/api/backups', { method: 'GET' }, token);
+}
+
+export function putBackupSettings(token: string, settings: BackupSettings): Promise<BackupState> {
+	return request('/api/backups/settings', { method: 'PUT', body: JSON.stringify(settings) }, token);
+}
+
+export function runBackup(token: string): Promise<BackupState> {
+	return request('/api/backups/run', { method: 'POST' }, token);
+}
+
+export function deleteBackup(token: string, name: string): Promise<void> {
+	return request(`/api/backups/${encodeURIComponent(name)}`, { method: 'DELETE' }, token);
+}
+
+/** A backup's archive, for saving. */
+export async function downloadBackup(token: string, name: string): Promise<Blob> {
+	const res = await fetch(`/api/backups/${encodeURIComponent(name)}`, { headers: { Authorization: `Bearer ${token}` } });
+	if (!res.ok) throw new ApiError(res.status, res.statusText);
+	return res.blob();
+}
