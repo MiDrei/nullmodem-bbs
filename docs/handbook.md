@@ -193,6 +193,11 @@ zugeordnet. Im Portal zeigt jede Area „All messages“ oder „Threads“, jed
 Nachricht ihren Thread als Baum; ausgehende Antworten tragen ein REPLY, damit
 andere Systeme sie ebenfalls einordnen.
 
+**Chat im Web:** Das Portal (Chat) und die Reader-App (Chat in der Liste)
+haben dieselben Räume wie die Teleconference — wer im Portal schreibt, ist für
+Telnet-Anrufer da (`name (web)`), und gebrückte Räume reichen bis Discord und
+Matrix.
+
 **Web:** Portal (`/message-areas` …, Login unter `/login`) mit allem aus Telnet (Suche über das Feld bei den Message Areas), Reader-App (`/reader`) fürs Handy
 mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
 

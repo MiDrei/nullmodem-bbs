@@ -142,6 +142,10 @@
 		{#if netmailUnread > 0}<span class="r-badge">{netmailUnread}</span>{/if}
 		<span class="text-faint">›</span>
 	</button>
+	<button class="r-row" onclick={() => goto('/reader/chat')}>
+		<span class="flex-1 font-medium text-ink-strong">Chat</span>
+		<span class="text-faint">›</span>
+	</button>
 
 	{#each groups as g (g.network)}
 		<div class="r-section">{g.network}</div>

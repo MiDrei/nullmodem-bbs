@@ -1943,6 +1943,31 @@ export function saveMatrix(
 	return request('/api/chat/matrix', { method: 'PUT', body: JSON.stringify(m) }, token);
 }
 
+/** A chat room as callers see it (portal, reader): which networks it reaches, who's in, the last line. */
+export interface BBSChatRoom {
+	name: string;
+	title: string;
+	topic: string;
+	min_sl: number;
+	bridges: string[];
+	present: ChatPresence[];
+	last_line: ChatLine | null;
+}
+
+export function listBBSChatRooms(token: string): Promise<BBSChatRoom[]> {
+	return request('/api/bbs/chat/rooms', { method: 'GET' }, token);
+}
+
+/** The room's lines after afterId (the newest without); polling keeps the caller in it. */
+export function getBBSChatRoom(token: string, room: string, afterId = 0): Promise<ChatRoomState> {
+	return request(`/api/bbs/chat/rooms/${encodeURIComponent(room)}?after=${afterId}`, { method: 'GET' }, token);
+}
+
+export function bbsChatAction(token: string, room: string, action: 'enter' | 'say' | 'leave', text = ''): Promise<void> {
+	// keepalive: a leave still goes out while the page closes.
+	return request(`/api/bbs/chat/rooms/${encodeURIComponent(room)}`, { method: 'POST', body: JSON.stringify({ action, text }), keepalive: action === 'leave' }, token);
+}
+
 export interface Oneliner {
 	id: number;
 	username: string;

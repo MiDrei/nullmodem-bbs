@@ -72,7 +72,8 @@ sw.addEventListener('fetch', (event) => {
 		return;
 	}
 	if (req.method !== 'GET') return;
-	if (url.pathname.startsWith('/api/bbs/') && !url.pathname.startsWith('/api/bbs/push/')) {
+	// Live things (push setup, chat) always go to the network.
+	if (url.pathname.startsWith('/api/bbs/') && !url.pathname.startsWith('/api/bbs/push/') && !url.pathname.startsWith('/api/bbs/chat/')) {
 		event.respondWith(apiGet(req, url));
 		return;
 	}
