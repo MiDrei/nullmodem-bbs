@@ -152,8 +152,10 @@
 	</div>
 
 	{#if message.preformatted && message.grid}
-		<div class="ansi-panel overflow-x-auto">
-			<AnsiArt grid={message.grid} />
+		<!-- As wide as the window allows -- a bit wider than the text
+		     column on a big screen -- and never a scrollbar. -->
+		<div class="ansi-panel lg:-mx-16">
+			<AnsiArt grid={message.grid} fit maxZoom={1.3} />
 		</div>
 	{:else if message.preformatted}
 		<div class="ansi-panel overflow-x-auto">
