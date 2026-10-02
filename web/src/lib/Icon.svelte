@@ -35,7 +35,8 @@
 		| 'wrench'
 		| 'server'
 		| 'callers'
-		| 'search';
+		| 'search'
+		| 'chart';
 	let { name, size = 15 }: { name: Name; size?: number } = $props();
 </script>
 
@@ -161,6 +162,9 @@
 		<path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6" />
 	{:else if name === 'callers'}
 		<path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />
+	{:else if name === 'chart'}
+		<path d="M4 20h16" />
+		<path d="M7 16v-5M12 16V6M17 16v-8" />
 	{:else if name === 'search'}
 		<circle cx="11" cy="11" r="7" />
 		<path d="M20 20l-3.5-3.5" />

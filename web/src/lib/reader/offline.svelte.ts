@@ -117,7 +117,7 @@ export async function syncAhead(force = false): Promise<void> {
 }
 
 type Outgoing =
-	| { kind: 'echo'; areaId: number; to: string; subject: string; body: string }
+	| { kind: 'echo'; areaId: number; to: string; subject: string; body: string; replyTo?: number }
 	| { kind: 'netmail'; to: string; toName: string; subject: string; body: string };
 
 function readOutbox(): Outgoing[] {
@@ -144,7 +144,7 @@ function isNetworkError(err: unknown): boolean {
 
 function deliver(token: string, m: Outgoing): Promise<unknown> {
 	return m.kind === 'echo'
-		? postBBSMessage(token, m.areaId, m.to, m.subject, m.body)
+		? postBBSMessage(token, m.areaId, m.to, m.subject, m.body, m.replyTo)
 		: sendBBSNetmail(token, m.to, m.subject, m.body, m.toName);
 }
 

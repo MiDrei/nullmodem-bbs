@@ -99,6 +99,7 @@
 			label: 'System',
 			icon: 'system',
 			links: [
+				{ href: '/admin/stats', label: 'Statistics', icon: 'chart' },
 				{ href: '/admin/settings', label: 'Settings', icon: 'system' },
 				{ href: '/admin/services', label: 'Services', icon: 'server' },
 				{ href: '/admin/maintenance', label: 'Maintenance', icon: 'wrench' },

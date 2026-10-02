@@ -201,6 +201,9 @@ func (s *Server) handleBBSLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	s.loginSucceeded(ip)
 	s.logInfo("%s logged into the BBS web portal", u.Username)
+	if err := s.Stats.RecordCall(u.ID, "web"); err != nil {
+		s.logWarn("%v", err)
+	}
 
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{

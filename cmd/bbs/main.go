@@ -33,6 +33,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/session"
 	"git.maik.ch/nullmodem/bbs/internal/ssh"
+	"git.maik.ch/nullmodem/bbs/internal/stats"
 	"git.maik.ch/nullmodem/bbs/internal/telnet"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 	"git.maik.ch/nullmodem/bbs/internal/version"
@@ -132,6 +133,7 @@ func main() {
 		Chat:             chat.NewStore(sqlDB),
 		Nodelist:         nodelist.NewStore(sqlDB),
 		Community:        community.NewStore(sqlDB),
+		Stats:            stats.NewStore(sqlDB),
 		Security:         security,
 	})
 

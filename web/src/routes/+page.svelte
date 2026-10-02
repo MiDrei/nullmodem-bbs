@@ -6,12 +6,14 @@
 	import { onMount } from 'svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
-	import { getPublicOverview, getWelcomeScreen, type PublicOverview, type WelcomeScreen } from '$lib/api';
+	import { getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
+	import StatsBoard from '$lib/stats/StatsBoard.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import Icon from '$lib/Icon.svelte';
 
 	let o = $state<PublicOverview | null>(null);
 	let welcome = $state<WelcomeScreen | null>(null);
+	let report = $state<StatsReport | null>(null);
 	let copied = $state('');
 	const host = typeof location === 'undefined' ? '' : location.hostname;
 
@@ -27,6 +29,9 @@
 		refresh();
 		getWelcomeScreen()
 			.then((w) => (welcome = w))
+			.catch(() => {});
+		getPublicStats()
+			.then((r) => (report = r))
 			.catch(() => {});
 		const t = setInterval(refresh, 60_000);
 		return () => clearInterval(t);
@@ -251,6 +256,13 @@
 					{/if}
 				</div>
 			</section>
+
+			{#if report}
+				<section>
+					<h2 class="card-label mb-3">The last 30 days</h2>
+					<StatsBoard r={report} />
+				</section>
+			{/if}
 
 			<!-- For other sysops -->
 			{#if o.networks.length || o.binkp_port}

@@ -177,6 +177,37 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	// Threads: reply_to is the parent message (same area), from the
+	// REPLY kludge (reply_msgid), an explicit local reply, or -- with
+	// reply_guess set -- a "Re:" subject; out_msgid is the MSGID a local
+	// post went out under, so replies from elsewhere find it.
+	for _, col := range [][2]string{
+		{"reply_to", "INTEGER"}, {"reply_msgid", "TEXT NOT NULL DEFAULT ''"},
+		{"reply_guess", "INTEGER NOT NULL DEFAULT 0"}, {"out_msgid", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		if err := ensureColumn(sqlDB, "messages", col[0], col[1]); err != nil {
+			sqlDB.Close()
+			return nil, err
+		}
+	}
+	for _, idx := range []string{
+		`CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to) WHERE reply_to IS NOT NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_messages_area_reply_msgid ON messages(area_id, reply_msgid) WHERE reply_msgid != ''`,
+		`CREATE INDEX IF NOT EXISTS idx_messages_area_out_msgid ON messages(area_id, out_msgid) WHERE out_msgid != ''`,
+	} {
+		if _, err := sqlDB.Exec(idx); err != nil {
+			sqlDB.Close()
+			return nil, fmt.Errorf("db: %s: %w", idx, err)
+		}
+	}
+	if err := backfillThreads(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
+	if err := backfillCalls(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	// Created here rather than in schema.sql: on an already-existing
 	// database, schema.sql runs (see above) before the ensureColumn
 	// call just above adds the msgid column, so an index referencing

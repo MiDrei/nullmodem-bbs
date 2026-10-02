@@ -604,6 +604,14 @@ func (s *Server) readMessage(term *Terminal, u *user.User, area *message.Area, m
 				idx++
 				scrollOffset = 0
 			}
+		case key.Type == KeyChar && (key.Rune == ']' || key.Rune == 't' || key.Rune == 'T'), key.Type == KeyChar && key.Rune == '[':
+			dir := 1
+			if key.Rune == '[' {
+				dir = -1
+			}
+			if next, ok := s.threadStep(msgs, idx, dir); ok {
+				idx, scrollOffset = next, 0
+			}
 		case key.Type == KeyChar && (key.Rune == 'r' || key.Rune == 'R'):
 			if err := s.replyToMessage(term, u, area, &msgs[idx]); err != nil {
 				return err
@@ -614,6 +622,35 @@ func (s *Server) readMessage(term *Terminal, u *user.User, area *message.Area, m
 			return nil
 		}
 	}
+}
+
+// threadStep finds the next (dir 1) or previous (-1) message of
+// msgs[idx]'s thread, in thread reading order (each reply after what
+// it answers), among msgs.
+func (s *Server) threadStep(msgs []message.Message, idx, dir int) (int, bool) {
+	thread, err := s.Messages.ThreadOf(msgs[idx].ID)
+	if err != nil {
+		return idx, false
+	}
+	at := map[int64]int{}
+	for i, m := range msgs {
+		at[m.ID] = i
+	}
+	pos := -1
+	for i, e := range thread {
+		if e.ID == msgs[idx].ID {
+			pos = i
+		}
+	}
+	if pos < 0 {
+		return idx, false
+	}
+	for i := pos + dir; i >= 0 && i < len(thread); i += dir {
+		if j, ok := at[thread[i].ID]; ok {
+			return j, true
+		}
+	}
+	return idx, false
 }
 
 // renderMessageReaderHeader returns msgread.ans (with AREANAME/MSGNUM/
@@ -674,9 +711,9 @@ var stripSeenByAndPathForDisplay = message.StripSeenByAndPathForDisplay
 // them no longer misaligns anything, and scrolling works the same way
 // it does for plain text.
 func (s *Server) drawMessageReader(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, idx, scrollOffset int) (maxOffset int, err error) {
-	hint := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [Q] Back to list"
+	hint := "[N] Next  [P] Prev  [ [ ] ] Thread  [Up/Dn] Scroll  [Q] Back"
 	if area.CanWrite(u.SecurityLevel) {
-		hint = "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list"
+		hint = "[N] Next  [P] Prev  [ [ ] ] Thread  [Up/Dn] Scroll  [R] Reply  [Q] Back"
 	}
 	return s.drawReader(term, area, msgs, idx, scrollOffset, hint)
 }
@@ -809,7 +846,11 @@ func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area
 	if !saved {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Reply aborted.")
 	}
-	if _, err := s.Messages.PostMessage(area.ID, u.ID, original.FromName, subject, strings.Join(lines, "\n")); err != nil {
+	m, err := s.Messages.PostMessage(area.ID, u.ID, original.FromName, subject, strings.Join(lines, "\n"))
+	if err != nil {
+		return err
+	}
+	if err := s.Messages.SetReplyTo(m.ID, original.ID); err != nil {
 		return err
 	}
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Reply posted.")

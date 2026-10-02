@@ -861,7 +861,7 @@ func TestMessageListLightbarArrowNavigationSelectsSecondMessage(t *testing.T) {
 	if !strings.Contains(out, "\x1b[47m\x1b[30mNEW Second Subject") {
 		t.Fatalf("expected Second Subject's row highlighted, got: %q", out)
 	}
-	readerRenders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list")
+	readerRenders := strings.Split(out, "[N] Next  [P] Prev  [ [ ] ] Thread  [Up/Dn] Scroll  [R] Reply  [Q] Back")
 	if len(readerRenders) < 2 {
 		t.Fatalf("expected the reader to open, got: %q", out)
 	}
@@ -889,7 +889,7 @@ func TestMessageListArrowKeysClampAtFirstAndLastInsteadOfWrapping(t *testing.T) 
 			t.Fatalf("PostMessage: %v", err)
 		}
 	}
-	readerFooter := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list"
+	readerFooter := "[N] Next  [P] Prev  [ [ ] ] Thread  [Up/Dn] Scroll  [R] Reply  [Q] Back"
 
 	// Up at the very first message must stay put, not wrap to the last.
 	conn := newFakeConn("M\r\n\r\n" + strings.Repeat("\x1b[A", 3) + "\r\nQQQQ\r\n")
@@ -1329,7 +1329,7 @@ func TestReadMessageNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list")
+	renders := strings.Split(out, "[N] Next  [P] Prev  [ [ ] ] Thread  [Up/Dn] Scroll  [R] Reply  [Q] Back")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, next, prev), got %d: %q", len(renders)-1, out)
 	}
@@ -1374,7 +1374,7 @@ func TestReadMessageNextPrevClampAtEnds(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Back to list")
+	renders := strings.Split(out, "[N] Next  [P] Prev  [ [ ] ] Thread  [Up/Dn] Scroll  [R] Reply  [Q] Back")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, after Prev, after Next), got %d: %q", len(renders)-1, out)
 	}
@@ -1443,7 +1443,7 @@ func TestReadMessageArrowsScrollBodyInsteadOfSwitchingMessages(t *testing.T) {
 		t.Fatalf("expected the last line NOT to be visible yet (only scrolled down twice), got: %q", out)
 	}
 
-	renders := strings.Split(out, "[Up/Dn] Scroll  [R] Reply  [Q] Back to list")
+	renders := strings.Split(out, "[Up/Dn] Scroll  [R] Reply  [Q] Back")
 	if len(renders) < 6 {
 		t.Fatalf("expected at least 5 reader redraws (initial + 2 down + 2 up), got %d: %q", len(renders)-1, out)
 	}
@@ -1599,7 +1599,7 @@ func TestReadMessageScrollStatusStaysOnItsOwnFooterLine(t *testing.T) {
 	if statusIdx < 0 {
 		t.Fatalf("expected a scroll-status hint, got: %q", out)
 	}
-	hintOffset := strings.Index(out[statusIdx:], "[N/Right]")
+	hintOffset := strings.Index(out[statusIdx:], "[N] Next")
 	if hintOffset < 0 {
 		t.Fatalf("expected the hotkey hint to appear after the scroll status, got: %q", out)
 	}
@@ -1648,7 +1648,7 @@ func TestReadMessageFooterPaddedToBottomOfScreen(t *testing.T) {
 	if total < 20 {
 		t.Fatalf("drawMessageReader printed only %d lines for a short message, want the footer padded down near the terminal's 24-row height: %q", total, out)
 	}
-	if !strings.Contains(out, "[N/Right] Next") {
+	if !strings.Contains(out, "[N] Next  [P] Prev  [ [ ] ] Thread") {
 		t.Fatalf("expected the hotkey hint in output, got: %q", out)
 	}
 }
@@ -1744,7 +1744,7 @@ func TestReadMessageFooterUsesCustomTemplate(t *testing.T) {
 	if !strings.Contains(out, "CUSTOM FOOTER") {
 		t.Fatalf("expected the custom msgread-footer.ans template to be used, got: %q", out)
 	}
-	if !strings.Contains(out, "[N/Right] Next") {
+	if !strings.Contains(out, "[N] Next  [P] Prev  [ [ ] ] Thread") {
 		t.Fatalf("expected {HINT} to be substituted with the hotkey hint, got: %q", out)
 	}
 }

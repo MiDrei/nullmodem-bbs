@@ -285,6 +285,10 @@ func buildOutboundBundle(ourAddr, uplinkAddr mail.Address, bbsName string, uplin
 
 	if len(routed) > 0 || len(b.netmailCopies) > 0 || len(routedEcho) > 0 || len(forwardedEcho) > 0 {
 		allNetmail := append(append([]netmail.Message(nil), routed...), b.netmailCopies...)
+		echoOrigAddr := mail.Address{Zone: ourAddr.Zone, Net: ourAddr.Net, Node: ourAddr.Node}
+		if err := threadKludges(messages, echoOrigAddr, routedEcho, forwardedEcho); err != nil {
+			return nil, err
+		}
 		buf, err := buildPacket(ourAddr, uplinkAddr, uplink.PacketPassword, bbsName, allNetmail, routedEcho, forwardedEcho)
 		if err != nil {
 			return nil, err
@@ -1108,7 +1112,7 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsNam
 	// omit.
 	echoOrigAddr := mail.Address{Zone: ourAddr.Zone, Net: ourAddr.Net, Node: ourAddr.Node}
 	for _, m := range pendingEcho {
-		body := fmt.Sprintf("AREA:%s\r\x01MSGID: %s %08x\r%s", m.AreaTag, echoOrigAddr.String(), m.ID, appendTearline(m.Body, bbsName, echoOrigAddr))
+		body := fmt.Sprintf("AREA:%s\r\x01MSGID: %s %08x\r%s%s", m.AreaTag, echoOrigAddr.String(), m.ID, replyLine(m), appendTearline(m.Body, bbsName, echoOrigAddr))
 		if err := w.WriteMessage(mail.Message{
 			OrigAddr: echoOrigAddr,
 			DestAddr: uplinkAddr,
@@ -1142,7 +1146,7 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsNam
 			msgID = fmt.Sprintf("%s %08x", echoOrigAddr.String(), m.ID)
 			body = appendTearline(m.Body, bbsName, echoOrigAddr)
 		}
-		wrapped := fmt.Sprintf("AREA:%s\r\x01MSGID: %s\r%s", m.AreaTag, msgID, body)
+		wrapped := fmt.Sprintf("AREA:%s\r\x01MSGID: %s\r%s%s", m.AreaTag, msgID, replyLine(m), body)
 		if err := w.WriteMessage(mail.Message{
 			OrigAddr: echoOrigAddr,
 			DestAddr: uplinkAddr,
@@ -1344,12 +1348,17 @@ func stripLeadingKludges(body string) string {
 	return strings.Join(lines[i:], "\n")
 }
 
+// echoReplyID returns the value of body's REPLY kludge (the MSGID of
+// the message it answers), or "".
+func echoReplyID(body string) string { return echoKludge(body, "REPLY:") }
+
 // echoMsgID returns the value of body's MSGID kludge line (e.g.
 // "21:3/100 5f3e2a1b"), or "" if it has none -- scanning the same
 // leading AREA-then-\x01-kludges block as stripLeadingKludges, so it
 // never mistakes ordinary message text for a kludge.
-func echoMsgID(body string) string {
-	const prefix = "MSGID:"
+func echoMsgID(body string) string { return echoKludge(body, "MSGID:") }
+
+func echoKludge(body, prefix string) string {
 	lines := strings.Split(body, "\n")
 	i := 0
 	if i < len(lines) && len(lines[i]) > 5 && strings.EqualFold(lines[i][:5], "AREA:") {
@@ -1384,9 +1393,14 @@ func tossEcho(tag string, msg *mail.Message, messages *message.Store) (created b
 	if fromName == "" {
 		fromName = msg.OrigAddr.String()
 	}
-	_, created, err = messages.ReceiveEcho(area.ID, fromName, msg.Subject, stripLeadingKludges(msg.Body), echoMsgID(msg.Body), msg.Written)
+	m, created, err := messages.ReceiveEcho(area.ID, fromName, msg.Subject, stripLeadingKludges(msg.Body), echoMsgID(msg.Body), msg.Written)
 	if err != nil {
 		return false, fmt.Errorf("storing message in area %q: %w", tag, err)
+	}
+	if created {
+		if err := messages.Thread(m, echoReplyID(msg.Body)); err != nil {
+			return false, err
+		}
 	}
 	return created, nil
 }

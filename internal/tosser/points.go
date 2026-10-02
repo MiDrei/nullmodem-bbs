@@ -148,6 +148,11 @@ func (p *pointPoster) tossEcho(tag string, msg *mail.Message, messages *message.
 	if err != nil {
 		return false, false, fmt.Errorf("storing message in area %q: %w", tag, err)
 	}
+	if created {
+		if err := messages.Thread(m, echoReplyID(msg.Body)); err != nil {
+			return false, false, err
+		}
+	}
 	if err := messages.MarkDeliveredToPoint(m.ID, p.host); err != nil {
 		return false, false, err
 	}

@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/doors"
 	"git.maik.ch/nullmodem/bbs/internal/user"
@@ -66,7 +67,12 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 			}
 			continue
 		}
-		if err := s.playDoor(term, u, available[idx-1]); err != nil {
+		started := time.Now()
+		err = s.playDoor(term, u, available[idx-1])
+		if serr := s.Stats.RecordDoor(available[idx-1].Name, u.ID, time.Since(started)); serr != nil {
+			s.logWarn("%v", serr)
+		}
+		if err != nil {
 			return err
 		}
 	}

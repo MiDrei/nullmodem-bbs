@@ -1,7 +1,7 @@
 <script lang="ts">
 	// One message, full screen: swipe left for the next, right for the
 	// previous (or the arrows at the bottom), Reply below it.
-	import { untrack, tick } from 'svelte';
+	import { untrack, tick, type Snippet } from 'svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import { formatDateTime } from '$lib/datetime';
 	import type { Grid } from '$lib/api';
@@ -19,7 +19,8 @@
 		onPrev,
 		onNext,
 		onReply,
-		position = ''
+		position = '',
+		after
 	}: {
 		title: string;
 		from: string;
@@ -35,6 +36,8 @@
 		onNext?: () => void;
 		onReply?: () => void;
 		position?: string;
+		/** Below the text: the thread, in the reader. */
+		after?: Snippet;
 	} = $props();
 
 	// Swiping: the message follows the finger, slides out when let go
@@ -178,6 +181,7 @@
 				{@html bodyHtml}
 			</div>
 		{/if}
+		{@render after?.()}
 	</article>
 
 	<nav

@@ -21,6 +21,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
 	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	"git.maik.ch/nullmodem/bbs/internal/session"
+	"git.maik.ch/nullmodem/bbs/internal/stats"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 	"git.maik.ch/nullmodem/bbs/internal/version"
 	"git.maik.ch/nullmodem/kit/ansi"
@@ -81,6 +82,8 @@ type Server struct {
 	Nodelist *nodelist.Store
 	// Community holds the polls and the BBS list.
 	Community *community.Store
+	// Stats records calls and door sessions; nil records nothing.
+	Stats *stats.Store
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -109,6 +112,7 @@ type Options struct {
 	Chat             *chat.Store
 	Nodelist         *nodelist.Store
 	Community        *community.Store
+	Stats            *stats.Store
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -136,6 +140,7 @@ func NewServer(opts Options) *Server {
 		Chat:             opts.Chat,
 		Nodelist:         opts.Nodelist,
 		Community:        opts.Community,
+		Stats:            opts.Stats,
 	}
 }
 
@@ -212,6 +217,9 @@ func (s *Server) Handle(conn Conn) {
 	s.Nodes.SetUsername(node, u.Username)
 	term.SetLocation(u.Location())
 	s.logInfo("[%s] node %d: %s logged in", protocol, node, u.Username)
+	if err := s.Stats.RecordCall(u.ID, protocol); err != nil {
+		s.logWarn("%v", err)
+	}
 	// Whatever way the call ends, it's this board's newest last caller.
 	defer s.postLastCaller(u)
 

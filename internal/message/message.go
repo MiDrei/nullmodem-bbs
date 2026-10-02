@@ -81,6 +81,14 @@ type Message struct {
 	// rather than persisting it here, since it's fully reproducible
 	// from data already on the row.
 	MsgID string
+	// ReplyTo is the message this one answers (same area), if known:
+	// from its REPLY kludge, an explicit reply here, or -- ReplyGuess --
+	// a "Re:" subject matching the thread's first message.
+	ReplyTo    sql.NullInt64
+	ReplyGuess bool
+	// ReplyMsgID is a remote message's REPLY kludge, kept even while
+	// its parent hasn't arrived (it's adopted when it does).
+	ReplyMsgID string
 }
 
 // IsFromRemote reports whether m arrived from a remote FTN system via
@@ -482,7 +490,15 @@ func (s *Store) PostMessage(areaID, fromUserID int64, toName, subject, body stri
 	if err := s.MarkMessageRead(fromUserID, id); err != nil {
 		return nil, err
 	}
-	return s.MessageByID(id)
+	m, err := s.MessageByID(id)
+	if err != nil {
+		return nil, err
+	}
+	// A "Re:" joins its thread; an explicit reply relinks it (SetReplyTo).
+	if err := s.Thread(m, ""); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // PendingEcho is one echo message ready to be handed to a BinkP peer,
@@ -497,6 +513,9 @@ func (s *Store) PostMessage(areaID, fromUserID int64, toName, subject, body stri
 type PendingEcho struct {
 	Message
 	AreaTag string
+	// ReplyKludge is the REPLY kludge value to send, "" for none (see
+	// internal/tosser's threadKludges).
+	ReplyKludge string
 }
 
 // PendingOutboundEcho returns locally-posted messages (never one
@@ -512,7 +531,7 @@ func (s *Store) PendingOutboundEcho(network string) ([]PendingEcho, error) {
 		return nil, nil
 	}
 	rows, err := s.db.Query(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, a.tag
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.reply_to, m.reply_guess, m.reply_msgid, a.tag
 		 FROM messages m
 		 JOIN message_areas a ON a.id = m.area_id
 		 LEFT JOIN users u ON u.id = m.from_user_id
@@ -528,7 +547,7 @@ func (s *Store) PendingOutboundEcho(network string) ([]PendingEcho, error) {
 	var out []PendingEcho
 	for rows.Next() {
 		var p PendingEcho
-		if err := rows.Scan(&p.ID, &p.AreaID, &p.FromUserID, &p.FromName, &p.ToName, &p.Subject, &p.Body, &p.PostedAt, &p.AreaTag); err != nil {
+		if err := rows.Scan(&p.ID, &p.AreaID, &p.FromUserID, &p.FromName, &p.ToName, &p.Subject, &p.Body, &p.PostedAt, &p.ReplyTo, &p.ReplyGuess, &p.ReplyMsgID, &p.AreaTag); err != nil {
 			return nil, fmt.Errorf("message: scan pending outbound echo row: %w", err)
 		}
 		out = append(out, p)
@@ -607,11 +626,11 @@ func (s *Store) ReceiveEcho(areaID int64, fromName, subject, body, msgID string,
 // is used as-is -- see ReceiveEcho).
 func (s *Store) MessageByID(id int64) (*Message, error) {
 	row := s.db.QueryRow(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid, m.reply_to, m.reply_guess, m.reply_msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id WHERE m.id = ?`, id,
 	)
 	var m Message
-	if err := row.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID); err != nil {
+	if err := row.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID, &m.ReplyTo, &m.ReplyGuess, &m.ReplyMsgID); err != nil {
 		return nil, fmt.Errorf("message: load %d: %w", id, err)
 	}
 	return &m, nil
@@ -622,7 +641,7 @@ func (s *Store) MessageByID(id int64) (*Message, error) {
 // remote author's stored FromName is used as-is -- see ReceiveEcho).
 func (s *Store) ListMessages(areaID int64) ([]Message, error) {
 	rows, err := s.db.Query(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid, m.reply_to, m.reply_guess, m.reply_msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.area_id = ? ORDER BY m.posted_at, m.id`, areaID,
 	)
@@ -634,7 +653,7 @@ func (s *Store) ListMessages(areaID int64) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID); err != nil {
+		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID, &m.ReplyTo, &m.ReplyGuess, &m.ReplyMsgID); err != nil {
 			return nil, fmt.Errorf("message: scan message: %w", err)
 		}
 		messages = append(messages, m)
@@ -704,7 +723,7 @@ func (s *Store) Search(securityLevel int, q string, areaID int64, limit int) ([]
 // queryMessages is ListMessages' SELECT with its own WHERE/ORDER.
 func (s *Store) queryMessages(rest string, args ...any) ([]Message, error) {
 	rows, err := s.db.Query(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid, m.reply_to, m.reply_guess, m.reply_msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id `+rest, args...)
 	if err != nil {
 		return nil, fmt.Errorf("message: query messages: %w", err)
@@ -713,7 +732,7 @@ func (s *Store) queryMessages(rest string, args ...any) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID); err != nil {
+		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID, &m.ReplyTo, &m.ReplyGuess, &m.ReplyMsgID); err != nil {
 			return nil, fmt.Errorf("message: scan message: %w", err)
 		}
 		messages = append(messages, m)
@@ -781,7 +800,7 @@ func (s *Store) ListMessagesPage(areaID int64, limit, offset int) ([]Message, in
 	}
 
 	rows, err := s.db.Query(
-		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid
+		`SELECT m.id, m.area_id, m.from_user_id, COALESCE(NULLIF(m.from_name, ''), u.username) AS from_name, m.to_name, m.subject, m.body, m.posted_at, m.msgid, m.reply_to, m.reply_guess, m.reply_msgid
 		 FROM messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.area_id = ? ORDER BY m.posted_at, m.id LIMIT ? OFFSET ?`, areaID, limit, offset,
 	)
@@ -793,7 +812,7 @@ func (s *Store) ListMessagesPage(areaID int64, limit, offset int) ([]Message, in
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID); err != nil {
+		if err := rows.Scan(&m.ID, &m.AreaID, &m.FromUserID, &m.FromName, &m.ToName, &m.Subject, &m.Body, &m.PostedAt, &m.MsgID, &m.ReplyTo, &m.ReplyGuess, &m.ReplyMsgID); err != nil {
 			return nil, 0, fmt.Errorf("message: scan message: %w", err)
 		}
 		messages = append(messages, m)

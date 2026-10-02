@@ -48,7 +48,12 @@ Teil der NullModem-Familie:
 **Web** (`:8090`)
 - Öffentliche Startseite (`/`): Begrüßungsbildschirm, alle Zugänge (Web-Terminal,
   Telnet/SSH, Portal, Reader-App, QWK), wer online ist, letzte Anrufer,
-  One-Liner, Doors, FTN-Adressen
+  One-Liner, Doors, FTN-Adressen, Statistik der letzten 30 Tage
+- Threads: Antworten über REPLY-Kludge, direkte Antworten oder den Betreff
+  verknüpft; Thread-Ansicht im Portal und in der Reader-App, `[`/`]` im
+  Telnet-Reader, REPLY in ausgehender Echomail, Referenznummer im QWK-Paket
+- Statistik (Admin → System → Statistics): Anrufe, Schreiber, Areas,
+  Echomail pro Netzwerk, Doors, Downloads, BinkP-Sitzungen
 - Portal für Benutzer (`/login`, `/message-areas` …): Nachrichten, Netmail, Dateien, QWK, Profil —
   dieselben Funktionen wie über Telnet
 - Web-Terminal (`/terminal`): die BBS im Browser, ohne Telnet-Client — mit dem

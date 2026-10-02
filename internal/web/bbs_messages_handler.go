@@ -1,6 +1,7 @@
 package web
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"git.maik.ch/nullmodem/bbs/internal/textfmt"
@@ -230,6 +231,8 @@ type bbsMessageDTO struct {
 	// compute them from -- nil at the first/last message either way.
 	PrevID *int64 `json:"prev_id,omitempty"`
 	NextID *int64 `json:"next_id,omitempty"`
+	// ReplyTo is the message this one answers (see message.Thread).
+	ReplyTo *int64 `json:"reply_to,omitempty"`
 }
 
 // toBBSMessageDTO renders m for the BBS portal's JSON API. m.Body
@@ -268,7 +271,16 @@ func toBBSMessageDTO(m message.Message) bbsMessageDTO {
 		Preformatted: preformatted,
 		Grid:         grid,
 		PostedAt:     m.PostedAt.Format(time.RFC3339),
+		ReplyTo:      replyToPtr(m),
 	}
+}
+
+func replyToPtr(m message.Message) *int64 {
+	if !m.ReplyTo.Valid {
+		return nil
+	}
+	id := m.ReplyTo.Int64
+	return &id
 }
 
 // handleGetBBSMessage loads one message and marks it read for the
@@ -346,6 +358,8 @@ func (s *Server) handlePostBBSMessage(w http.ResponseWriter, r *http.Request) {
 		ToName  string `json:"to_name"`
 		Subject string `json:"subject"`
 		Body    string `json:"body"`
+		// ReplyTo: the message this answers (same area), 0 for a new topic.
+		ReplyTo int64 `json:"reply_to"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -371,6 +385,13 @@ func (s *Server) handlePostBBSMessage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not post message")
 		return
+	}
+	if req.ReplyTo > 0 {
+		if parent, err := s.Messages.MessageByID(req.ReplyTo); err == nil && parent.AreaID == areaID {
+			if err := s.Messages.SetReplyTo(m.ID, parent.ID); err == nil {
+				m.ReplyTo, m.ReplyGuess = sql.NullInt64{Int64: parent.ID, Valid: true}, false
+			}
+		}
 	}
 	s.logInfo("%s posted %q to message area %d via the BBS portal", claims.Subject, m.Subject, areaID)
 	writeJSON(w, http.StatusCreated, toBBSMessageDTO(*m))

@@ -2,7 +2,8 @@
 	// One echomail message: reading it marks it read on the BBS, as
 	// everywhere else. Prev/Next and swiping move through its area.
 	import { toast } from '$lib/toast.svelte';
-	import { getBBSMessage, listBBSMessageAreas, type BBSMessage } from '$lib/api';
+	import { getBBSMessage, getBBSThread, listBBSMessageAreas, type BBSMessage, type ThreadEntry } from '$lib/api';
+	import ThreadTree from '$lib/ThreadTree.svelte';
 	import { sendOrQueue } from '$lib/reader/offline.svelte';
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import ReadView from '$lib/reader/ReadView.svelte';
@@ -33,12 +34,20 @@
 	let subject = $state('');
 	let body = $state('');
 	let sending = $state(false);
+	let thread = $state<ThreadEntry[]>([]);
 
 	async function load(messageId: number) {
 		const token = await readerToken();
 		if (!token) return;
 		try {
 			message = await getBBSMessage(token, messageId);
+			thread = [];
+			// Offline it just isn't there.
+			getBBSThread(token, messageId)
+				.then((t) => {
+					if (message?.id === messageId) thread = t.messages.map((e) => (e.id === messageId ? { ...e, read: true } : e));
+				})
+				.catch(() => {});
 			const areas = await listBBSMessageAreas(token);
 			areaName = areas.find((a) => a.id === message?.area_id)?.name ?? '';
 			error = null;
@@ -67,7 +76,7 @@
 		if (!token || !message) return;
 		sending = true;
 		try {
-			const how = await sendOrQueue(token, { kind: 'echo', areaId: message.area_id, to, subject, body });
+			const how = await sendOrQueue(token, { kind: 'echo', areaId: message.area_id, to, subject, body, replyTo: message.id });
 			replying = false;
 			toast.push(how === 'queued' ? "You're offline: the reply goes out once you're back online." : 'Reply posted.', 'success');
 		} catch (err) {
@@ -95,7 +104,16 @@
 		onPrev={message.prev_id ? () => message?.prev_id && onOpen(message.prev_id) : undefined}
 		onNext={message.next_id ? () => message?.next_id && onOpen(message.next_id) : undefined}
 		onReply={startReply}
-	/>
+	>
+		{#snippet after()}
+			{#if thread.length > 1 && message}
+				<section class="no-swipe mt-6 border-t border-line pt-3">
+					<h2 class="card-label mb-1.5">Thread · {thread.length} messages</h2>
+					<ThreadTree entries={thread} current={message.id} onselect={(tid) => tid !== message?.id && onOpen(tid)} />
+				</section>
+			{/if}
+		{/snippet}
+	</ReadView>
 {/if}
 
 {#if replying && message}

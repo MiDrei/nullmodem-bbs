@@ -579,3 +579,28 @@ CREATE TABLE IF NOT EXISTS door_daily (
     detail        TEXT NOT NULL DEFAULT '',
     requested_at  INTEGER NOT NULL DEFAULT 0
 );
+
+-- One-time data migrations already done (see db.go's backfillThreads).
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+);
+
+-- Statistics (internal/stats): every call (Telnet/SSH login, web
+-- portal or reader login) and every door played.
+CREATE TABLE IF NOT EXISTS calls (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    via     TEXT NOT NULL,
+    at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_calls_at ON calls(at);
+
+CREATE TABLE IF NOT EXISTS door_sessions (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    door       TEXT NOT NULL,
+    user_id    INTEGER NOT NULL,
+    started_at TIMESTAMP NOT NULL,
+    seconds    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_door_sessions_started ON door_sessions(started_at);

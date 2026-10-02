@@ -28,6 +28,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/session"
+	"git.maik.ch/nullmodem/bbs/internal/stats"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
@@ -74,6 +75,8 @@ type Server struct {
 	// Nodelist and Community: the nodelists, polls and BBS list.
 	Nodelist  *nodelist.Store
 	Community *community.Store
+	// Stats records web logins and reports; nil: no statistics.
+	Stats *stats.Store
 	// TerminalAddr is the bbs daemon's Telnet port for the web
 	// terminal (terminal_handler.go); empty turns it off.
 	TerminalAddr string
@@ -99,6 +102,7 @@ func (s *Server) Routes() http.Handler {
 
 	mux.HandleFunc("GET /api/bbs/info", s.handleBBSInfo)
 	mux.HandleFunc("GET /api/public/overview", s.handlePublicOverview)
+	mux.HandleFunc("GET /api/public/stats", s.handlePublicStats)
 	mux.HandleFunc("GET /api/terminal", s.handleTerminal)
 	mux.HandleFunc("GET /api/bbs/welcome-screen", s.handleWelcomeScreen)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
@@ -138,6 +142,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/archive/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteArchiveEntry)))
 	mux.Handle("POST /api/archive/retoss", s.requireAuth(http.HandlerFunc(s.handleRetossArchiveEntries)))
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
+	mux.Handle("GET /api/stats", s.requireAuth(http.HandlerFunc(s.handleStats)))
 	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))
 	mux.Handle("PUT /api/users/{id}/password", s.requireAuth(http.HandlerFunc(s.handleSetUserPassword)))
@@ -213,6 +218,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/bbs/message-areas/{id}/mark-read", s.requireBBSUser(http.HandlerFunc(s.handleMarkBBSAreaRead)))
 	mux.Handle("GET /api/bbs/messages/search", s.requireBBSUser(http.HandlerFunc(s.handleSearchBBSMessages)))
 	mux.Handle("GET /api/bbs/messages/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSMessage)))
+	mux.Handle("GET /api/bbs/messages/{id}/thread", s.requireBBSUser(http.HandlerFunc(s.handleBBSThread)))
+	mux.Handle("GET /api/bbs/message-areas/{id}/threads", s.requireBBSUser(http.HandlerFunc(s.handleBBSAreaThreads)))
 	mux.Handle("GET /api/bbs/push/key", s.requireBBSUser(http.HandlerFunc(s.handleGetPushKey)))
 	mux.Handle("GET /api/bbs/push/subscription", s.requireBBSUser(http.HandlerFunc(s.handleGetPushSubscription)))
 	mux.Handle("PUT /api/bbs/push/subscription", s.requireBBSUser(http.HandlerFunc(s.handlePutPushSubscription)))

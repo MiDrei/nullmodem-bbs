@@ -311,6 +311,44 @@ export function getPublicOverview(): Promise<PublicOverview> {
 	return request('/api/public/overview', { method: 'GET' });
 }
 
+/** What goes on at the board (internal/stats): the public part, and with getStats the sysop's too. */
+export interface StatsRanked {
+	name: string;
+	count: number;
+	detail?: string;
+	minutes?: number;
+}
+export interface StatsDay {
+	date: string;
+	count: number;
+}
+export interface StatsReport {
+	days: number;
+	calls: number;
+	callers: number;
+	posts: number;
+	calls_per_day: StatsDay[];
+	top_callers: StatsRanked[] | null;
+	top_posters: StatsRanked[] | null;
+	top_areas: StatsRanked[] | null;
+	networks: { network: string; in: number; out: number; weeks: { week: string; in: number; out: number }[] }[] | null;
+	top_doors: StatsRanked[] | null;
+	top_files: StatsRanked[] | null;
+	via?: StatsRanked[] | null;
+	by_hour?: number[];
+	new_users?: StatsRanked[] | null;
+	uplinks?: StatsRanked[] | null;
+	posts_per_day?: StatsDay[];
+}
+
+export function getPublicStats(): Promise<StatsReport> {
+	return request('/api/public/stats', { method: 'GET' });
+}
+
+export function getStats(token: string, days: number): Promise<StatsReport> {
+	return request(`/api/stats?days=${days}`, { method: 'GET' }, token);
+}
+
 export interface WelcomeScreen {
 	html: string;
 	preformatted: boolean;
@@ -960,6 +998,8 @@ export interface BBSMessage {
 	/** The message immediately before/after this one in the area's own reading order, for Prev/Next reader navigation -- absent at the first/last message. */
 	prev_id?: number;
 	next_id?: number;
+	/** The message this one answers, if known. */
+	reply_to?: number;
 }
 
 export interface BBSNetmailSummary {
@@ -1049,13 +1089,48 @@ export function postBBSMessage(
 	areaId: number,
 	toName: string,
 	subject: string,
-	body: string
+	body: string,
+	replyTo?: number
 ): Promise<BBSMessage> {
 	return request<BBSMessage>(
 		`/api/bbs/message-areas/${areaId}/messages`,
-		{ method: 'POST', body: JSON.stringify({ to_name: toName, subject, body }) },
+		{ method: 'POST', body: JSON.stringify({ to_name: toName, subject, body, reply_to: replyTo ?? 0 }) },
 		token
 	);
+}
+
+/** One message of a thread, in reading order (depth-first). */
+export interface ThreadEntry {
+	id: number;
+	reply_to?: number;
+	depth: number;
+	from_name: string;
+	to_name: string;
+	subject: string;
+	posted_at: string;
+	read: boolean;
+	/** Linked by its "Re:" subject only. */
+	guessed?: boolean;
+}
+
+export function getBBSThread(token: string, messageId: number): Promise<{ area_id: number; messages: ThreadEntry[] }> {
+	return request(`/api/bbs/messages/${messageId}/thread`, { method: 'GET' }, token);
+}
+
+/** An area's thread: its first message and how much happened since. */
+export interface ThreadSummary {
+	id: number;
+	from_name: string;
+	subject: string;
+	posted_at: string;
+	replies: number;
+	unread: number;
+	last_at: string;
+	last_from: string;
+}
+
+export function listBBSThreads(token: string, areaId: number, limit: number, offset: number): Promise<{ threads: ThreadSummary[]; total: number }> {
+	return request(`/api/bbs/message-areas/${areaId}/threads?limit=${limit}&offset=${offset}`, { method: 'GET' }, token);
 }
 
 export function listBBSNetmail(token: string): Promise<BBSNetmailSummary[]> {

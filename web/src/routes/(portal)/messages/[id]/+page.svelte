@@ -7,7 +7,8 @@
 	import { toast } from '$lib/toast.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import { quoteText } from '$lib/reader/quote';
-	import { getBBSMessage, postBBSMessage, ApiError, type BBSMessage } from '$lib/api';
+	import ThreadTree from '$lib/ThreadTree.svelte';
+	import { getBBSMessage, getBBSThread, postBBSMessage, ApiError, type BBSMessage, type ThreadEntry } from '$lib/api';
 
 	// $derived (not a plain const) so Prev/Next -- which navigate to
 	// another /messages/[id] URL that SvelteKit resolves to this same
@@ -24,6 +25,14 @@
 	let replyBody = $state('');
 	let replyTo = $state('');
 	let posting = $state(false);
+	let thread = $state<ThreadEntry[]>([]);
+
+	// Within the thread: what it answers, and the next one to read.
+	const parent = $derived(thread.find((e) => e.id === message?.reply_to));
+	const nextInThread = $derived.by(() => {
+		const i = thread.findIndex((e) => e.id === message?.id);
+		return i >= 0 ? thread.slice(i + 1).find((e) => !e.read) ?? thread[i + 1] : undefined;
+	});
 
 	async function handleAuthError(err: unknown): Promise<boolean> {
 		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
@@ -44,6 +53,13 @@
 		try {
 			message = await getBBSMessage(bbsAuth.token, id);
 			loadError = null;
+			thread = [];
+			getBBSThread(bbsAuth.token, id)
+				.then((t) => {
+					// Opening it just marked this one read.
+					if (message?.id === id) thread = t.messages.map((e) => (e.id === id ? { ...e, read: true } : e));
+				})
+				.catch(() => {});
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			loadError = err instanceof ApiError ? err.message : 'Could not load message.';
@@ -60,6 +76,7 @@
 		if (replying || (e.target as HTMLElement)?.tagName === 'TEXTAREA') return;
 		if (e.key === 'ArrowLeft' && message?.prev_id) goto(`/messages/${message.prev_id}`, { replaceState: true });
 		if (e.key === 'ArrowRight' && message?.next_id) goto(`/messages/${message.next_id}`, { replaceState: true });
+		if (e.key.toLowerCase() === 't' && nextInThread) goto(`/messages/${nextInThread.id}`, { replaceState: true });
 	}
 
 	onMount(() => {
@@ -81,7 +98,7 @@
 		if (!bbsAuth.token || !message) return;
 		posting = true;
 		try {
-			await postBBSMessage(bbsAuth.token, message.area_id, replyTo, replySubject, replyBody);
+			await postBBSMessage(bbsAuth.token, message.area_id, replyTo, replySubject, replyBody, message.id);
 			replying = false;
 			toast.push('Reply posted.', 'success');
 		} catch (err) {
@@ -148,6 +165,11 @@
 				<span class="text-slate-400">{message.from_name}</span> to {message.to_name} &middot;
 				{formatDateTime(message.posted_at)}
 			</div>
+			{#if parent}
+				<a href="/messages/{parent.id}" data-sveltekit-replacestate class="mt-0.5 block truncate text-[12px] text-faint hover:text-accent">
+					↳ in reply to {parent.from_name}{parent.guessed ? ' (by subject)' : ''}
+				</a>
+			{/if}
 		</div>
 	</div>
 
@@ -171,6 +193,18 @@
 		     width to line up. whitespace-pre-wrap still lets genuinely
 		     long lines wrap for comfortable reading. -->
 		<div class="body-panel whitespace-pre-wrap">{@html message.body_html}</div>
+	{/if}
+
+	{#if thread.length > 1}
+		<section class="card mt-5 px-3 py-3">
+			<div class="mb-1.5 flex items-center justify-between px-2">
+				<h2 class="card-label">Thread · {thread.length} messages</h2>
+				{#if nextInThread}
+					<a href="/messages/{nextInThread.id}" data-sveltekit-replacestate class="text-xs text-accent hover:underline" title="T">Next in thread →</a>
+				{/if}
+			</div>
+			<ThreadTree entries={thread} current={message.id} href={(id) => `/messages/${id}`} />
+		</section>
 	{/if}
 
 	{#if !replying}

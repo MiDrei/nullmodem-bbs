@@ -152,12 +152,23 @@ erscheinen unter System → Services.
 | O / U / K | QWK holen / QWK-Antworten hochladen / Area-Auswahl |
 | Y / ? | Profil (u. a. Zeileneditor statt Vollbild) / Version |
 
+Im Nachrichten-Reader: `]` (oder `T`) springt zur nächsten Nachricht im
+Thread, `[` zur vorherigen — Antworten in der Reihenfolge, wie sie aufeinander
+antworten, über die ganze Area hinweg.
+
 Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
 
 **Startseite (`/`):** öffentlich, ohne Login — Begrüßungsbildschirm, alle
 Zugänge (Web-Terminal, Telnet/SSH, Portal, Reader-App, QWK), wer online ist,
 letzte Anrufer, One-Liner, Doors und die FTN-Adressen für andere Sysops. Die
 Adresse, die man weitergibt.
+
+**Threads:** Jede Antwort weiß, worauf sie antwortet — aus dem REPLY-Kludge
+der Echomail, bei Antworten hier direkt (Telnet, Portal, Reader-App, QWK).
+Ältere Nachrichten ohne diese Angabe werden über den Betreff („Re: …“)
+zugeordnet. Im Portal zeigt jede Area „All messages“ oder „Threads“, jede
+Nachricht ihren Thread als Baum; ausgehende Antworten tragen ein REPLY, damit
+andere Systeme sie ebenfalls einordnen.
 
 **Web:** Portal (`/message-areas` …, Login unter `/login`) mit allem aus Telnet (Suche über das Feld bei den Message Areas), Reader-App (`/reader`) fürs Handy
 mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
@@ -171,6 +182,10 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
 - **Chat & One-Liner:** Community → Chat & One-liners — dort antwortest du, wenn
   jemand pagt, und räumst die One-Liner-Wand auf.
 - **Abstimmungen / BBS-Liste:** Community → Polls & BBS List.
+- **Statistik:** System → Statistics — Anrufe pro Tag und Stunde, aktivste
+  Anrufer, Schreiber und Areas, Echomail pro Netzwerk, Doors, Downloads,
+  BinkP-Sitzungen, neue Konten (7 Tage bis 1 Jahr). Die letzten 30 Tage ohne
+  den Sysop-Teil stehen auch auf der Startseite.
 - **Logs:** System → Logs — „All“ mit „Warnings & errors“ als schneller
   Überblick; „BinkP sessions“ zeigt jede Sitzung samt Mitschnitt.
 - **Nachts automatisch:** 00:05 Door-Wartung (pro Door einstellbar), 03:00

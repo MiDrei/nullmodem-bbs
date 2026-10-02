@@ -154,6 +154,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 				Header: qwk.MessageHeader{
 					Status:        ' ',
 					Number:        int(m.ID),
+					RefNumber:     int(m.ReplyTo.Int64), // 0 if none: lets the reader thread
 					LogicalNumber: len(packed) + 1,
 					Written:       m.PostedAt,
 					To:            m.ToName,
@@ -287,8 +288,18 @@ func RouteReplies(messages *message.Store, nm *netmail.Store, users *user.Store,
 			reject(fmt.Sprintf("you may not post in %s", area.Name))
 			continue
 		}
-		if _, err := messages.PostMessage(area.ID, u.ID, to, subject, text); err != nil {
+		m, err := messages.PostMessage(area.ID, u.ID, to, subject, text)
+		if err != nil {
 			return res, fmt.Errorf("qwk: posting reply to area %d: %w", area.ID, err)
+		}
+		// The reader's "in reply to" is our message number (see the
+		// export above), as long as it's in the same area.
+		if ref := reply.Header.RefNumber; ref > 0 {
+			if parent, err := messages.MessageByID(int64(ref)); err == nil && parent.AreaID == area.ID {
+				if err := messages.SetReplyTo(m.ID, parent.ID); err != nil {
+					return res, err
+				}
+			}
 		}
 		res.Posted++
 	}
