@@ -110,6 +110,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/bbs/info", s.handleBBSInfo)
 	mux.HandleFunc("GET /api/public/overview", s.handlePublicOverview)
 	mux.HandleFunc("GET /api/public/stats", s.handlePublicStats)
+	mux.HandleFunc("GET /api/public/feeds", s.handlePublicFeeds)
+	mux.HandleFunc("GET /feeds/{file}", s.handleFeed)
+	mux.HandleFunc("GET /og-image.png", s.handleOGImage)
 	mux.HandleFunc("GET /api/terminal", s.handleTerminal)
 	mux.HandleFunc("GET /api/bbs/welcome-screen", s.handleWelcomeScreen)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
@@ -276,7 +279,7 @@ func (s *Server) Routes() http.Handler {
 
 	if s.StaticDir != "" {
 		if _, err := os.Stat(s.StaticDir); err == nil {
-			mux.Handle("/", spaFileServer(s.StaticDir))
+			mux.Handle("/", s.spaFileServer(s.StaticDir))
 		}
 	}
 
@@ -288,15 +291,16 @@ func (s *Server) Routes() http.Handler {
 // runs as a client-side-only SPA (see web/vite.config.ts), so
 // client-side routes like /login and /settings only exist as
 // in-browser router state, not as files on disk.
-func spaFileServer(dir string) http.Handler {
+// The index page gets the link-preview tags (see serveIndex).
+func (s *Server) spaFileServer(dir string) http.Handler {
 	fileServer := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fullPath := filepath.Join(dir, filepath.Clean(r.URL.Path))
-		if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
+		if info, err := os.Stat(fullPath); err == nil && !info.IsDir() && filepath.Base(fullPath) != "index.html" {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
-		http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+		s.serveIndex(w, r, dir)
 	})
 }
 

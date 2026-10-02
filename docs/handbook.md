@@ -177,7 +177,13 @@ Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
 **Startseite (`/`):** öffentlich, ohne Login — Begrüßungsbildschirm, alle
 Zugänge (Web-Terminal, Telnet/SSH, Portal, Reader-App, QWK), wer online ist,
 letzte Anrufer, One-Liner, Doors und die FTN-Adressen für andere Sysops. Die
-Adresse, die man weitergibt.
+Adresse, die man weitergibt. Ein geteilter Link (Telegram, Discord, Mastodon …) zeigt als
+Vorschau den Begrüßungsbildschirm (`/og-image.png`, aus `welcome.ans` gezeichnet).
+
+**RSS-Feeds:** System → Settings → „Public RSS feeds“ einschalten, dann gibt es
+für jede Area, die ein neuer Anrufer lesen darf, `/feeds/<tag>.xml` mit den
+neuesten 30 Nachrichten (die Startseite listet sie, Feed-Reader finden sie
+selbst). Areas mit höherem SL (Sysop, lokal Privates) bleiben draußen.
 
 **Threads:** Jede Antwort weiß, worauf sie antwortet — aus dem REPLY-Kludge
 der Echomail, bei Antworten hier direkt (Telnet, Portal, Reader-App, QWK).

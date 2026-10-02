@@ -17,11 +17,14 @@ type Config struct {
 		Sysop string `yaml:"sysop"`
 		// Location is where the board is ("Neunkirch, Switzerland"),
 		// sent to BinkP peers in the handshake's LOC line.
-		Location   string `yaml:"location,omitempty"`
-		NewUserSL  int    `yaml:"new_user_sl"`
-		MenusDir   string `yaml:"menus_dir"`
-		ScreensDir string `yaml:"screens_dir"`
-		FilesDir   string `yaml:"files_dir"`
+		Location  string `yaml:"location,omitempty"`
+		NewUserSL int    `yaml:"new_user_sl"`
+		// PublicFeeds offers an RSS feed of every area a new caller may
+		// read, without login (the front page lists them).
+		PublicFeeds bool   `yaml:"public_feeds,omitempty"`
+		MenusDir    string `yaml:"menus_dir"`
+		ScreensDir  string `yaml:"screens_dir"`
+		FilesDir    string `yaml:"files_dir"`
 		// DoorsDir is where doors installed from the web admin's
 		// templates go, one directory each.
 		DoorsDir string `yaml:"doors_dir"`

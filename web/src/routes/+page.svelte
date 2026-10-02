@@ -6,7 +6,7 @@
 	import { onMount } from 'svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
-	import { getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
+	import { getPublicFeeds, getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
 	import StatsBoard from '$lib/stats/StatsBoard.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import Icon from '$lib/Icon.svelte';
@@ -14,6 +14,7 @@
 	let o = $state<PublicOverview | null>(null);
 	let welcome = $state<WelcomeScreen | null>(null);
 	let report = $state<StatsReport | null>(null);
+	let feeds = $state<{ tag: string; name: string; network: string; url: string }[]>([]);
 	let copied = $state('');
 	const host = typeof location === 'undefined' ? '' : location.hostname;
 
@@ -32,6 +33,9 @@
 			.catch(() => {});
 		getPublicStats()
 			.then((r) => (report = r))
+			.catch(() => {});
+		getPublicFeeds()
+			.then((f) => (feeds = f))
 			.catch(() => {});
 		const t = setInterval(refresh, 60_000);
 		return () => clearInterval(t);
@@ -261,6 +265,20 @@
 				<section>
 					<h2 class="card-label mb-3">The last 30 days</h2>
 					<StatsBoard r={report} />
+				</section>
+			{/if}
+
+			{#if feeds.length}
+				<section class="card">
+					<h2 class="card-label mb-1">Follow the areas (RSS)</h2>
+					<p class="mb-3 text-xs text-faint">The newest messages of each area, for any feed reader -- no login needed.</p>
+					<div class="flex flex-wrap gap-1.5">
+						{#each feeds as f (f.tag)}
+							<a href={f.url} class="rounded-md border border-line px-2 py-0.5 text-xs text-ink-soft transition hover:border-accent hover:text-accent" title={f.network || 'local'}>
+								{f.name}
+							</a>
+						{/each}
+					</div>
 				</section>
 			{/if}
 

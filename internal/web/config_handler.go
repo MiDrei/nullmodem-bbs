@@ -78,6 +78,7 @@ type configDTO struct {
 	Sysop                           string           `json:"sysop"`
 	Location                        string           `json:"location"`
 	NewUserSL                       int              `json:"new_user_sl"`
+	PublicFeeds                     bool             `json:"public_feeds"`
 	FTNAddresses                    []string         `json:"ftn_addresses"`
 	Networks                        []networkDTO     `json:"networks"`
 	TelnetEnabled                   bool             `json:"telnet_enabled"`
@@ -137,6 +138,7 @@ func toDTO(c *config.Config) configDTO {
 		Sysop:                           c.BBS.Sysop,
 		Location:                        c.BBS.Location,
 		NewUserSL:                       c.BBS.NewUserSL,
+		PublicFeeds:                     c.BBS.PublicFeeds,
 		FTNAddresses:                    addrs,
 		TelnetEnabled:                   c.Telnet.Enabled,
 		TelnetAddr:                      c.Telnet.Addr,
@@ -208,6 +210,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	c.BBS.Sysop = dto.Sysop
 	c.BBS.Location = strings.TrimSpace(dto.Location)
 	c.BBS.NewUserSL = dto.NewUserSL
+	c.BBS.PublicFeeds = dto.PublicFeeds
 	c.BBS.FTNAddresses = dto.FTNAddresses
 	c.Networks = make([]config.Network, len(dto.Networks))
 	for i, n := range dto.Networks {

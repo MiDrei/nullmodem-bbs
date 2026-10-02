@@ -94,6 +94,16 @@
 					required
 				/>
 			</label>
+			<label class="flex items-start gap-2 text-sm">
+				<input type="checkbox" class="check mt-0.5" bind:checked={config.public_feeds} />
+				<span>
+					<span class="text-slate-400">Public RSS feeds</span>
+					<span class="block text-xs text-slate-500">
+						A feed of the newest messages of every area a new caller may read -- no login needed, listed on the
+						front page. Echomail is public in its networks anyway; sysop and local areas above that level stay out.
+					</span>
+				</span>
+			</label>
 		</section>
 
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">

@@ -48,7 +48,9 @@ Teil der NullModem-Familie:
 **Web** (`:8090`)
 - Öffentliche Startseite (`/`): Begrüßungsbildschirm, alle Zugänge (Web-Terminal,
   Telnet/SSH, Portal, Reader-App, QWK), wer online ist, letzte Anrufer,
-  One-Liner, Doors, FTN-Adressen, Statistik der letzten 30 Tage
+  One-Liner, Doors, FTN-Adressen, Statistik der letzten 30 Tage; Link-Vorschau
+  (OpenGraph) mit dem Begrüßungsbildschirm als Bild; RSS-Feed pro öffentlicher
+  Area (abschaltbar)
 - Threads: Antworten über REPLY-Kludge, direkte Antworten oder den Betreff
   verknüpft; Thread-Ansicht im Portal und in der Reader-App, Thread-Liste (T)
   und `[`/`]` im Telnet, REPLY in ausgehender Echomail, Referenznummer im QWK-Paket

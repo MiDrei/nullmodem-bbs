@@ -36,6 +36,8 @@ export interface BBSConfig {
 	/** Where the board is, sent to BinkP peers (LOC). */
 	location: string;
 	new_user_sl: number;
+	/** An RSS feed per area a new caller may read, without login. */
+	public_feeds: boolean;
 	/** This system's own FTN addresses/AKAs (zone:net/node.point), if any. The first is "primary": stamped on outgoing netmail. Most systems have exactly one; more than one is for a point reachable through the same uplink under multiple FTN networks. */
 	ftn_addresses: string[];
 	/** The FTN networks this system belongs to: short name (the group of their areas, what an uplink names) and FTN domain. */
@@ -341,6 +343,11 @@ export interface StatsReport {
 	new_users?: StatsRanked[] | null;
 	uplinks?: StatsRanked[] | null;
 	posts_per_day?: StatsDay[];
+}
+
+/** The public RSS feeds (empty while the sysop has them off). */
+export function getPublicFeeds(): Promise<{ tag: string; name: string; network: string; url: string }[]> {
+	return request('/api/public/feeds', { method: 'GET' });
 }
 
 export function getPublicStats(): Promise<StatsReport> {
