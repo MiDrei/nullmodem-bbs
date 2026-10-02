@@ -65,6 +65,12 @@ In `configs/web.yaml` für das Web-Terminal im Docker-Betrieb:
    BinkP-Handshake und auf den Bildschirmen).
 6. **Bildschirme:** Content → Screens → Begrüßung, Hauptmenü usw. im ANSI-Designer
    anpassen. Rahmen mit `{FILL:x}` bauen, damit sie bei jeder Breite schließen.
+   **Menüs:** Content → Menus — Punkte (Taste, Text, was er tut, ab welchem
+   SL) ändern, umsortieren, neue Menüs anlegen und verknüpfen. Die Vorschau
+   zeigt das Menü wie ein Anrufer oder der Sysop und warnt, wenn Bildschirm und
+   Punkte nicht zusammenpassen (ein Punkt fehlt auf dem Bildschirm, oder der
+   Bildschirm zeigt eine Taste, die nichts tut). Gespeichert gilt es beim
+   nächsten Menü der Anrufer, ohne Neustart.
 7. **Benachrichtigungen:** Die Reader-App (`/reader`) aufs Handy legen und unter
    ⚙ Benachrichtigungen einschalten — dann kommen Warnungen, neue Benutzer und
    Pages aufs Handy.
@@ -226,10 +232,10 @@ docker compose pull && docker compose up -d
 
 Menüs und Bildschirme unter `configs/` bleiben dabei unangetastet; neue
 Standard-Bildschirme kommen dazu, ohne angepasste zu überschreiben. Neue
-Menüpunkte im Hauptmenü muss man darum selbst in `configs/menus/main.yaml`
-und `configs/screens/main.ans` übernehmen (oder die Dateien aus dem Image
-nehmen, wenn man sie nie angepasst hat). Vor größeren Updates:
-„Back up now“.
+Menüpunkte zeigt Content → Menus an („This version's stock main menu has,
+and yours doesn't“) — mit **Add** übernehmen und speichern; die Vorschau
+sagt dann, ob der Bildschirm (`main.ans`) den Punkt schon zeigt, sonst
+„Edit screen“. Vor größeren Updates: „Back up now“.
 
 ## 11. Fehlersuche
 

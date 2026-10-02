@@ -199,6 +199,8 @@ export interface MenuItem {
 export interface MenuDef {
 	name: string;
 	title: string;
+	/** A hand-designed screen shown instead of the generated list. */
+	screen?: string;
 	items: MenuItem[];
 }
 
@@ -873,12 +875,47 @@ export function setMenuItemSL(
 	menuName: string,
 	itemKey: string,
 	minSL: number
-): Promise<{ menu: MenuDef; note: string }> {
+): Promise<{ menu: MenuDef }> {
 	return request(
 		`/api/menus/${encodeURIComponent(menuName)}/items/${encodeURIComponent(itemKey)}`,
 		{ method: 'PUT', body: JSON.stringify({ min_sl: minSL }) },
 		token
 	);
+}
+
+/** A menu for the editor: what the stock menu of this version has that it lacks, and which menus lead here. */
+export interface MenuEdit {
+	menu: MenuDef;
+	missing_defaults: MenuItem[];
+	used_by: string[];
+}
+
+export function getMenu(token: string, name: string): Promise<MenuEdit> {
+	return request(`/api/menus/${encodeURIComponent(name)}`, { method: 'GET' }, token);
+}
+
+export function saveMenu(token: string, m: MenuDef): Promise<MenuEdit> {
+	return request(`/api/menus/${encodeURIComponent(m.name)}`, { method: 'PUT', body: JSON.stringify(m) }, token);
+}
+
+export function deleteMenu(token: string, name: string): Promise<void> {
+	return request(`/api/menus/${encodeURIComponent(name)}`, { method: 'DELETE' }, token);
+}
+
+export interface MenuBuiltin {
+	name: string;
+	label: string;
+	description: string;
+	sysop?: boolean;
+}
+
+export function getMenuActions(token: string): Promise<{ builtins: MenuBuiltin[]; menus: string[] }> {
+	return request('/api/menu-actions', { method: 'GET' }, token);
+}
+
+/** A menu as a caller at sl sees it; not_shown: items its screen doesn't seem to mention; only_on_screen: keys it shows that nothing answers to. */
+export function previewMenu(token: string, m: MenuDef, sl: number): Promise<{ grid: Grid; has_screen: boolean; not_shown: MenuItem[]; only_on_screen: string[] }> {
+	return request('/api/menu-preview', { method: 'POST', body: JSON.stringify({ menu: m, sl }) }, token);
 }
 
 /** The Logs page's tabs (internal/applog categories); "" is everything. */

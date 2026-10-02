@@ -55,6 +55,9 @@ Teil der NullModem-Familie:
 - Chat-Räume (`/rooms`, `/join` in der Teleconference) mit Brücke zu
   Discord-Kanälen: BBS-Anrufer erscheinen dort unter ihrem Namen, Discord in
   der BBS als `name@discord`; nur ausgehende Verbindungen
+- Menü-Editor (Admin → Content → Menus): Punkte, Aktionen, SL, neue Menüs,
+  Vorschau wie im Telnet mit Abgleich gegen den Bildschirm, neue Standardpunkte
+  einer Version per Klick; Änderungen gelten ohne Neustart
 - Statistik (Admin → System → Statistics): Anrufe, Schreiber, Areas,
   Echomail pro Netzwerk, Doors, Downloads, BinkP-Sitzungen
 - Portal für Benutzer (`/login`, `/message-areas` …): Nachrichten, Netmail, Dateien, QWK, Profil —

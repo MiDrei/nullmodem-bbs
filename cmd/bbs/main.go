@@ -78,10 +78,12 @@ func main() {
 		logger.Fatal("initializing session tracking: %v", err)
 	}
 
-	menus, err := menu.LoadDir(cfg.BBS.MenusDir)
+	// Read again when a file changes (the web admin's menu editor).
+	menus, err := menu.NewWatcher(cfg.BBS.MenusDir)
 	if err != nil {
 		logger.Fatal("loading menus: %v", err)
 	}
+	menus.OnError = func(err error) { logger.Warn("menus not reloaded, keeping the previous ones: %v", err) }
 
 	welcomeScreen, err := ansi.LoadScreen(filepath.Join(cfg.BBS.ScreensDir, "welcome.ans"))
 	if err != nil {

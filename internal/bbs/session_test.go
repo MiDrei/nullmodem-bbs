@@ -166,7 +166,7 @@ func TestRunMenuUsesCustomScreenWhenSet(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "main.ans"), []byte(screen), 0o644); err != nil {
 		t.Fatalf("write screen: %v", err)
 	}
-	s.Menus["main"].Screen = "main.ans"
+	s.Menus.(menu.Set)["main"].Screen = "main.ans"
 	s.BBSName = "Test BBS"
 
 	err := s.runMenu(term, testUser(0), 1, "main")
@@ -186,7 +186,7 @@ func TestRunMenuFallsBackToGeneratedListWhenScreenMissing(t *testing.T) {
 	term := NewTerminal(conn)
 	s := testServer(t)
 	s.ScreensDir = t.TempDir()
-	s.Menus["main"].Screen = "does-not-exist.ans"
+	s.Menus.(menu.Set)["main"].Screen = "does-not-exist.ans"
 
 	err := s.runMenu(term, testUser(0), 1, "main")
 	if !errors.Is(err, errLogoff) {

@@ -62,6 +62,7 @@
 				{ href: '/admin/file-areas', label: 'File Areas', icon: 'files' },
 				{ href: '/admin/pending-areas', label: 'Pending Areas', icon: 'pending' },
 				{ href: '/admin/doors', label: 'Doors', icon: 'doors' },
+				{ href: '/admin/menus', label: 'Menus', icon: 'menu' },
 				{ href: '/admin/screens', label: 'Screens', icon: 'screens' },
 				{ href: '/admin/designer', label: 'ANSI Designer', icon: 'designer' }
 			]

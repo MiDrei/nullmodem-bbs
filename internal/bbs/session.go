@@ -31,11 +31,6 @@ import (
 // the [V]ersion menu command.
 const Version = version.Version
 
-// sysopMenuSL is the level the stock main menu opens the sysop menu
-// at (configs/menus/main.yaml's S item) -- for the {SYSOP_ITEM}
-// placeholder on the main menu screen.
-const sysopMenuSL = 200
-
 // maxLoginAttempts is how many wrong passwords a session may try
 // before being disconnected.
 const maxLoginAttempts = 3
@@ -45,7 +40,7 @@ const maxLoginAttempts = 3
 type Server struct {
 	Nodes    *session.Store
 	Users    *user.Store
-	Menus    menu.Set
+	Menus    menu.Getter
 	Messages *message.Store
 	Files    *file.Store
 	Netmail  *netmail.Store
@@ -94,7 +89,7 @@ type Options struct {
 	SysopName        string
 	FTNAddress       string
 	Users            *user.Store
-	Menus            menu.Set
+	Menus            menu.Getter
 	Messages         *message.Store
 	Files            *file.Store
 	Netmail          *netmail.Store
@@ -279,10 +274,7 @@ func (s *Server) userVars(u *user.User, node int) ansi.Vars {
 	vars["SL"] = strconv.Itoa(u.SecurityLevel)
 	vars["TOTALCALLS"] = strconv.Itoa(u.TotalCalls)
 	// The sysop menu's entry, shown to those who may use it only.
-	vars["SYSOP_ITEM"] = ""
-	if u.SecurityLevel >= sysopMenuSL {
-		vars["SYSOP_ITEM"] = ansi.FG(ansi.Yellow, true) + "[S]" + ansi.FG(ansi.Green, true) + " Sysop Menu"
-	}
+	vars["SYSOP_ITEM"] = menu.SysopItem(u.SecurityLevel)
 	return vars
 }
 
@@ -717,14 +709,7 @@ func (s *Server) renderAreaHeader(term *Terminal, u *user.User, screenFile, fall
 }
 
 func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
-	var b strings.Builder
-	b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Green, true) + ansi.Render(m.Title, vars) + ansi.Reset + "\n")
-	for _, item := range m.VisibleItems(securityLevel) {
-		label := ansi.Render(item.Label, vars)
-		fmt.Fprintf(&b, "  [%s%s%s] %s\n", ansi.FG(ansi.Yellow, true), item.Key, ansi.FG(ansi.Green, true), label)
-	}
-	b.WriteString("\n" + ansi.FG(ansi.White, true) + vars["USERNAME"] + "> " + ansi.Reset)
-	return b.String()
+	return menu.RenderGenerated(m, securityLevel, vars)
 }
 
 // pauseForKey prompts for and waits on an acknowledgment before

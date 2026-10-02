@@ -144,7 +144,7 @@
 			menus = menus.map((m) => (m.name === menuName ? result.menu : m));
 			delete edits[editKey];
 			edits = { ...edits };
-			toast.push(`Saved ${menuName}/${itemKey}. ${result.note}`, 'success');
+			toast.push(`Saved ${menuName}/${itemKey} -- callers see it on their next menu.`, 'success');
 		} catch (err) {
 			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
 				auth.clear();

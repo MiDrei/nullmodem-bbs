@@ -117,10 +117,10 @@ func validate(m *Menu) error {
 }
 
 // Save writes m back to dir as "<name>.yaml", the same convention
-// LoadDir expects when reading it back. It's used by the web admin
-// API to persist SL threshold edits; the running bbs daemon only
-// reads menus at startup, so a change here requires a restart of the
-// bbs daemon to take effect (same as bbs.yaml config edits).
+// LoadDir expects when reading it back -- the web admin's menu editor
+// and SL matrix. The bbs daemon picks it up by itself (Watcher). The
+// file is written beside and renamed, so a half-written menu is never
+// read.
 func Save(dir string, m *Menu) error {
 	if err := validate(m); err != nil {
 		return fmt.Errorf("menu: %w", err)
@@ -130,8 +130,24 @@ func Save(dir string, m *Menu) error {
 		return fmt.Errorf("menu: marshal %s: %w", m.Name, err)
 	}
 	path := filepath.Join(dir, m.Name+".yaml")
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return fmt.Errorf("menu: write %s: %w", path, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("menu: write %s: %w", path, err)
+	}
+	return nil
+}
+
+// Delete removes the menu name's file from dir.
+func Delete(dir, name string) error {
+	if !ValidName(name) {
+		return fmt.Errorf("menu: not a menu name: %q", name)
+	}
+	if err := os.Remove(filepath.Join(dir, name+".yaml")); err != nil {
+		return fmt.Errorf("menu: delete %s: %w", name, err)
 	}
 	return nil
 }

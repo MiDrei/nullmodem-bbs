@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { auth } from '$lib/auth.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import {
@@ -254,7 +255,10 @@
 		// elements actually exist in the DOM, which they don't while
 		// this `loaded` gate is still false (see the template below).
 		loaded = true;
-		if (screens.length > 0 && !selectedName) await openScreen(screens[0].name);
+		// ?screen= opens that one (the menu editor's "Edit in designer").
+		const want = page.url.searchParams.get('screen');
+		if (want && screens.some((x) => x.name === want)) await openScreen(want);
+		else if (screens.length > 0 && !selectedName) await openScreen(screens[0].name);
 	}
 
 	async function openScreen(name: string) {
@@ -330,7 +334,12 @@
 		saving = true;
 		try {
 			await saveScreenGrid(auth.token, selectedName, grid);
-			toast.push(`Saved ${selectedName}. Restart the bbs daemon for changes to take effect.`, 'success');
+			toast.push(
+				selectedName === 'welcome.ans'
+					? 'Saved welcome.ans. Restart the bbs daemon for the connect screen to change.'
+					: `Saved ${selectedName} -- callers see it the next time it's shown.`,
+				'success'
+			);
 		} catch (err) {
 			toast.push(err instanceof ApiError ? err.message : 'Could not save screen.', 'error');
 		} finally {

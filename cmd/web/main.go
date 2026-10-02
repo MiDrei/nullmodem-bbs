@@ -155,6 +155,12 @@ func main() {
 		return c.Backup.On(), c.Backup.RunHour(), web.BackupOptions(c), srv.BackupSources(c)
 	}, logger)
 
+	// The image's stock menus, for the menu editor's "new in this
+	// version" (docker-entrypoint.sh seeds configs/ from them).
+	if st, err := os.Stat("configs-defaults/menus"); err == nil && st.IsDir() {
+		srv.MenuDefaultsDir = "configs-defaults/menus"
+	}
+
 	// The chat rooms' bridge to Discord, as set in the web admin.
 	srv.Discord = &discord.Bridge{
 		Chat:   srv.Chat,

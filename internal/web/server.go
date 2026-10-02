@@ -80,6 +80,10 @@ type Server struct {
 	Stats *stats.Store
 	// Discord is the chat rooms' bridge; nil: none.
 	Discord *discord.Bridge
+	// MenuDefaultsDir holds this version's stock menus (the image's
+	// configs-defaults/menus), "" for none: the menu editor offers
+	// what's new in them.
+	MenuDefaultsDir string
 	// TerminalAddr is the bbs daemon's Telnet port for the web
 	// terminal (terminal_handler.go); empty turns it off.
 	TerminalAddr string
@@ -210,6 +214,11 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /api/menus", s.requireAuth(http.HandlerFunc(s.handleListMenus)))
 	mux.Handle("PUT /api/menus/{name}/items/{key}", s.requireAuth(http.HandlerFunc(s.handleSetMenuItemSL)))
+	mux.Handle("GET /api/menus/{name}", s.requireAuth(http.HandlerFunc(s.handleGetMenu)))
+	mux.Handle("PUT /api/menus/{name}", s.requireAuth(http.HandlerFunc(s.handleSaveMenu)))
+	mux.Handle("DELETE /api/menus/{name}", s.requireAuth(http.HandlerFunc(s.handleDeleteMenu)))
+	mux.Handle("GET /api/menu-actions", s.requireAuth(http.HandlerFunc(s.handleMenuActions)))
+	mux.Handle("POST /api/menu-preview", s.requireAuth(http.HandlerFunc(s.handlePreviewMenu)))
 
 	mux.Handle("GET /api/logs", s.requireAuth(http.HandlerFunc(s.handleListLogs)))
 	mux.Handle("GET /api/binkp/sessions", s.requireAuth(http.HandlerFunc(s.handleListBinkpSessions)))
