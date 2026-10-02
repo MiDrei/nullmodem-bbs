@@ -99,6 +99,16 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 		if last.Valid && last.String[:min(19, len(last.String))] >= cutoff {
 			continue
 		}
+		if u.PollDisabled {
+			// Crash only: called just when there's mail, so silence is
+			// normal -- a problem only when the last try failed.
+			var lastOutcome string
+			e.DB.QueryRowContext(ctx, `SELECT outcome FROM binkp_sessions WHERE peer_address = ? ORDER BY id DESC LIMIT 1`,
+				u.Address).Scan(&lastOutcome)
+			if lastOutcome == "" || lastOutcome == "ok" {
+				continue
+			}
+		}
 		var detail string
 		e.DB.QueryRowContext(ctx, `SELECT detail FROM binkp_sessions WHERE peer_address = ? AND outcome <> 'ok' ORDER BY id DESC LIMIT 1`,
 			u.Address).Scan(&detail)

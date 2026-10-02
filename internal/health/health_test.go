@@ -33,7 +33,8 @@ func TestChecksAndTracking(t *testing.T) {
 		now.Add(-72*time.Hour).Format("2006-01-02 15:04:05"))
 
 	cfg := config.Default()
-	cfg.Binkp.Uplinks = []config.BinkpUplink{{Address: "21:3/100", Host: "hub"}, {Address: "227:1/1", Host: "lovly"}, {Address: "21:3/194.1", Downlink: true}}
+	cfg.Binkp.Uplinks = []config.BinkpUplink{{Address: "21:3/100", Host: "hub"}, {Address: "227:1/1", Host: "lovly", PollDisabled: true},
+		{Address: "21:3/194.1", Downlink: true}, {Address: "1:2/3", Host: "quiet", PollDisabled: true}}
 	cfg.Backup.Dir = filepath.Join(dir, "backups")
 	env := Env{DB: sqlDB, Config: func() *config.Config { return cfg }, Self: "web", StartedAt: now.Add(-48 * time.Hour),
 		Disk: func(string) (uint64, uint64) { return 500 << 20, 100 << 30 }, Now: func() time.Time { return now }}
