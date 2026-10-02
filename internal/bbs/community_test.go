@@ -61,7 +61,7 @@ func TestChatRoomPostsAndLeavesWithoutEatingAKey(t *testing.T) {
 	conn := newFakeConn("hello all\r/q\rX")
 	term := NewTerminal(conn)
 	term.Node = 1
-	if err := s.chatRoom(term, u, chat.Main, "Teleconference", ""); err != nil {
+	if _, err := s.chatRoom(term, u, chat.Main, "Teleconference", "", true); err != nil {
 		t.Fatal(err)
 	}
 	lines, _ := s.Chat.Lines(chat.Main, 0, 10)
@@ -108,5 +108,42 @@ func TestPagingTellsTheSysopOnTheirNode(t *testing.T) {
 	msgs := s.nodeMsgs.take(sysopNode)
 	if len(msgs) != 1 || !strings.Contains(msgs[0], "alice") || !strings.Contains(msgs[0], "paging") {
 		t.Fatalf("sysop's node got %q", msgs)
+	}
+}
+
+func TestTeleconferenceJoinsAnotherRoom(t *testing.T) {
+	s := chatServer(t)
+	s.Users.Register("sysop", "password123", user.SLSysop)
+	u, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	if u.SecurityLevel >= 200 {
+		t.Fatalf("alice has SL %d", u.SecurityLevel)
+	}
+	s.Chat.SaveRoom(chat.RoomInfo{Name: "tech", Title: "Technik", Topic: "Bits und Bytes"})
+	s.Chat.SaveRoom(chat.RoomInfo{Name: "sysops", Title: "Sysops", MinSL: 200})
+	conn := newFakeConn("/join sysops\r/join tech\rhi tech\r/q\r")
+	term := NewTerminal(conn)
+	term.Node = 1
+	if err := s.teleconference(term, u); err != nil {
+		t.Fatal(err)
+	}
+	said := func(room string) string {
+		lines, _ := s.Chat.Lines(room, 0, 10)
+		var kinds []string
+		for _, l := range lines {
+			kinds = append(kinds, l.Kind+":"+l.Text)
+		}
+		return strings.Join(kinds, " ")
+	}
+	if got := said(chat.Main); got != "join: leave:" {
+		t.Errorf("main: %q", got)
+	}
+	if got := said("tech"); got != "join: say:hi tech leave:" {
+		t.Errorf("tech: %q", got)
+	}
+	if got := said("sysops"); got != "" {
+		t.Errorf("a room above the caller's level was entered: %q", got)
+	}
+	if !strings.Contains(conn.out.String(), "Bits und Bytes") || !strings.Contains(conn.out.String(), "no room") {
+		t.Error("topic or refusal not shown")
 	}
 }

@@ -94,6 +94,9 @@ type Config struct {
 	Maintenance MaintenanceConfig `yaml:"maintenance"`
 	// Backup is the nightly backup (see internal/backup).
 	Backup BackupConfig `yaml:"backup"`
+	// Discord bridges chat rooms to Discord channels (internal/discord;
+	// which room goes where is set per room in the web admin).
+	Discord DiscordConfig `yaml:"discord,omitempty"`
 	// Security is the login protection and new-user approval (see
 	// internal/guard).
 	Security SecurityConfig `yaml:"security"`
@@ -571,4 +574,13 @@ type RemoteDoor struct {
 	ServerUser string `yaml:"server_user,omitempty" json:"server_user"`
 	// TermType is sent as the terminal; default "ansi-bbs/115200".
 	TermType string `yaml:"term_type,omitempty" json:"term_type"`
+}
+
+// DiscordConfig is the Discord bridge's bot.
+type DiscordConfig struct {
+	Enabled bool `yaml:"enabled"`
+	// Token is the bot's token (Discord Developer Portal -> Bot).
+	Token string `yaml:"token,omitempty"`
+	// Quiet: don't tell Discord when someone enters or leaves a room.
+	Quiet bool `yaml:"quiet,omitempty"`
 }

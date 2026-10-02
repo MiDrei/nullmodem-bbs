@@ -7,6 +7,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { auth } from '$lib/auth.svelte';
+	import ChatSettings from '$lib/admin/ChatSettings.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import {
 		listChatRooms,
@@ -18,7 +19,8 @@
 		type ChatRoom,
 		type ChatLine,
 		type ChatPresence,
-		type Oneliner
+		type Oneliner,
+		type ChatRoomSettings
 	} from '$lib/api';
 
 	let rooms = $state<ChatRoom[]>([]);
@@ -27,6 +29,7 @@
 	let present = $state<ChatPresence[]>([]);
 	let text = $state('');
 	let oneliners = $state<Oneliner[]>([]);
+	let settings = $state<ChatRoomSettings[]>([]);
 	let box = $state<HTMLDivElement | undefined>();
 	let roomTimer: ReturnType<typeof setInterval> | undefined;
 	let listTimer: ReturnType<typeof setInterval> | undefined;
@@ -139,15 +142,17 @@
 	});
 
 	const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	const label = (name: string) => (name === 'main' ? 'Teleconference' : name.startsWith('page-') ? `${name.slice(5)} (page)` : name);
+	const label = (name: string) =>
+		settings.find((r) => r.name === name)?.title ?? (name === 'main' ? 'Teleconference' : name.startsWith('page-') ? `${name.slice(5)} (page)` : name);
+	const bridged = (name: string) => !!settings.find((r) => r.name === name)?.discord_channel;
 	const who = (p: ChatPresence[]) => p.map((x) => (x.source === 'web' ? `${x.username} (web)` : `${x.username} (${x.source})`)).join(', ');
 </script>
 
 <div class="mb-6">
 	<h1 class="page-title">Chat & One-liners</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
-		Talk with the callers on Telnet and SSH. A caller paging you waits in their own room -- you get a
-		notification, and it's at the top here.
+		Talk with the callers on Telnet and SSH -- and, through a bridged room, with Discord. A caller paging
+		you waits in their own room -- you get a notification, and it's at the top here.
 	</p>
 </div>
 
@@ -161,6 +166,7 @@
 			>
 				<span class="flex w-full items-center gap-2">
 					<span class="flex-1 truncate {r.paging ? 'font-semibold text-fuchsia-300' : 'text-ink-strong'}">{label(r.name)}</span>
+					{#if bridged(r.name)}<span class="text-[11px] text-indigo-400" title="Bridged to Discord">↔ Discord</span>{/if}
 					{#if r.present.length}<span class="r-badge rounded-full bg-accent px-1.5 text-[11px] text-black">{r.present.length}</span>{/if}
 				</span>
 				{#if r.paging}
@@ -192,7 +198,12 @@
 						{:else if l.kind === 'page'}
 							<span class="font-semibold text-fuchsia-300">{l.username} paged you: {l.text}</span>
 						{:else}
-							<span class="text-accent">{l.username}:</span> <span class="text-ink">{l.text}</span>
+							{#if l.source === 'discord'}
+								<span class="text-indigo-400">{l.username}@discord:</span>
+							{:else}
+								<span class="text-accent">{l.username}:</span>
+							{/if}
+							<span class="text-ink">{l.text}</span>
 						{/if}
 					</div>
 				{/each}
@@ -204,6 +215,10 @@
 			</form>
 		{/if}
 	</section>
+</div>
+
+<div class="mt-4">
+	<ChatSettings onchange={(r) => (settings = r)} />
 </div>
 
 <section class="card mt-4">

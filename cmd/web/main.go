@@ -34,6 +34,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/binkplog"
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/db"
+	"git.maik.ch/nullmodem/bbs/internal/discord"
 	"git.maik.ch/nullmodem/bbs/internal/file"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
@@ -154,6 +155,21 @@ func main() {
 		return c.Backup.On(), c.Backup.RunHour(), web.BackupOptions(c), srv.BackupSources(c)
 	}, logger)
 
+	// The chat rooms' bridge to Discord, as set in the web admin.
+	srv.Discord = &discord.Bridge{
+		Chat:   srv.Chat,
+		Logger: logger,
+		// Read fresh: a token saved in the admin applies at once (Reload).
+		Settings: func() discord.Settings {
+			c, err := config.Load(cfg.BBSConfigPath)
+			if err != nil {
+				c = current()
+			}
+			return discord.Settings{DiscordConfig: c.Discord, BBSName: c.BBS.Name}
+		},
+	}
+	go srv.Discord.Run(context.Background())
+
 	// Watching that everything keeps working: problems go to the
 	// sysops' phones (when they have the reader's notifications on)
 	// and onto the dashboard.
@@ -163,6 +179,12 @@ func main() {
 		Self:      services.Web,
 		StartedAt: time.Now(),
 		Disk:      web.DiskUsage,
+		Extra: func() []health.Problem {
+			if down, detail := srv.Discord.Down(15 * time.Minute); down {
+				return []health.Problem{{Key: "discord", Title: "The Discord bridge is not connected", Detail: detail}}
+			}
+			return nil
+		},
 	}, 5*time.Minute, logger, func(p health.Problem, ok bool) {
 		if srv.Push == nil {
 			return

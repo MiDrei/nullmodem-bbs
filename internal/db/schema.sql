@@ -604,3 +604,16 @@ CREATE TABLE IF NOT EXISTS door_sessions (
     seconds    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_door_sessions_started ON door_sessions(started_at);
+
+-- Chat rooms callers may enter (internal/chat): the teleconference
+-- "main" and whatever the sysop adds; each may be bridged to a Discord
+-- channel. Page rooms ("page-<handle>") are never listed here.
+CREATE TABLE IF NOT EXISTS chat_rooms (
+    name            TEXT PRIMARY KEY,
+    title           TEXT NOT NULL,
+    topic           TEXT NOT NULL DEFAULT '',
+    min_sl          INTEGER NOT NULL DEFAULT 0,
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    discord_channel TEXT NOT NULL DEFAULT ''
+);
+INSERT OR IGNORE INTO chat_rooms (name, title, topic) VALUES ('main', 'Teleconference', 'Everyone''s room');

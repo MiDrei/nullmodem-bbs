@@ -31,6 +31,9 @@ var roomRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`)
 // ValidRoom reports whether name may be a room.
 func ValidRoom(name string) bool { return roomRE.MatchString(name) }
 
+// SourceDiscord marks a line said on Discord (internal/discord).
+const SourceDiscord = "discord"
+
 // Kinds of line.
 const (
 	Say   = "say"
@@ -107,6 +110,10 @@ func (s *Store) Lines(room string, afterID int64, limit int) ([]Line, error) {
 		return nil, fmt.Errorf("chat: %w", err)
 	}
 	defer rows.Close()
+	return scanLines(rows)
+}
+
+func scanLines(rows *sql.Rows) ([]Line, error) {
 	out := []Line{}
 	for rows.Next() {
 		var l Line
@@ -189,8 +196,8 @@ type Room struct {
 	Paging bool `json:"paging"`
 }
 
-// Rooms returns the rooms with something going on, the main room
-// always, page rooms with someone waiting first.
+// Rooms returns the rooms callers may enter and any other with
+// something going on, page rooms with someone waiting first.
 func (s *Store) Rooms() ([]Room, error) {
 	since := s.now().Add(-24 * time.Hour).UnixMilli()
 	rows, err := s.db.Query(`SELECT DISTINCT room FROM chat_lines WHERE at > ?
@@ -205,6 +212,12 @@ func (s *Store) Rooms() ([]Room, error) {
 		names[n] = true
 	}
 	rows.Close()
+	// And every room callers may enter, quiet or not.
+	if listed, err := s.ListRooms(); err == nil {
+		for _, r := range listed {
+			names[r.Name] = true
+		}
+	}
 	var out []Room
 	for n := range names {
 		r := Room{Name: n}

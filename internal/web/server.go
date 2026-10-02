@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/community"
+	"git.maik.ch/nullmodem/bbs/internal/discord"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
 	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	"git.maik.ch/nullmodem/bbs/internal/push"
@@ -77,6 +78,8 @@ type Server struct {
 	Community *community.Store
 	// Stats records web logins and reports; nil: no statistics.
 	Stats *stats.Store
+	// Discord is the chat rooms' bridge; nil: none.
+	Discord *discord.Bridge
 	// TerminalAddr is the bbs daemon's Telnet port for the web
 	// terminal (terminal_handler.go); empty turns it off.
 	TerminalAddr string
@@ -157,6 +160,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/chat/rooms", s.requireAuth(http.HandlerFunc(s.handleListChatRooms)))
 	mux.Handle("GET /api/chat/rooms/{room}", s.requireAuth(http.HandlerFunc(s.handleGetChatRoom)))
 	mux.Handle("POST /api/chat/rooms/{room}", s.requireAuth(http.HandlerFunc(s.handleChatAction)))
+	mux.Handle("GET /api/chat/room-settings", s.requireAuth(http.HandlerFunc(s.handleListChatRoomSettings)))
+	mux.Handle("PUT /api/chat/room-settings/{room}", s.requireAuth(http.HandlerFunc(s.handleSaveChatRoom)))
+	mux.Handle("DELETE /api/chat/room-settings/{room}", s.requireAuth(http.HandlerFunc(s.handleDeleteChatRoom)))
+	mux.Handle("GET /api/chat/discord", s.requireAuth(http.HandlerFunc(s.handleGetDiscord)))
+	mux.Handle("PUT /api/chat/discord", s.requireAuth(http.HandlerFunc(s.handlePutDiscord)))
 	mux.Handle("GET /api/oneliners", s.requireAuth(http.HandlerFunc(s.handleListOneliners)))
 	mux.Handle("DELETE /api/oneliners/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteOneliner)))
 	mux.Handle("GET /api/nodelists", s.requireAuth(http.HandlerFunc(s.handleNodelistStatus)))

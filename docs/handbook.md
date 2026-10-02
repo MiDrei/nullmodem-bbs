@@ -146,7 +146,7 @@ erscheinen unter System → Services.
 | R / T | neue Nachrichten lesen / Nachrichten an mich |
 | M / F | Message-Areas (dort S = Nachrichten suchen) / File-Areas (N = neue Dateien, S = Suche) |
 | N / I | Netmail / Nodeliste |
-| C / P | Chat (Teleconference) / Sysop rufen |
+| C / P | Chat (Teleconference; dort `/rooms`, `/join name`) / Sysop rufen |
 | L / V / B | One-Liner / Abstimmungen / BBS-Liste |
 | W / D | Wer ist online (mit Node-Nachricht) / Doors |
 | O / U / K | QWK holen / QWK-Antworten hochladen / Area-Auswahl |
@@ -181,6 +181,31 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   als Push.
 - **Chat & One-Liner:** Community → Chat & One-liners — dort antwortest du, wenn
   jemand pagt, und räumst die One-Liner-Wand auf.
+- **Chat-Räume:** ebenda unter „Rooms“. Neben der Teleconference (`main`)
+  beliebig viele, je mit Thema und Mindest-SL. Anrufer sehen sie in der
+  Teleconference mit `/rooms` und wechseln mit `/join name`.
+- **Discord-Brücke:** Ein Raum kann mit einem Discord-Kanal verbunden werden:
+  Was in der BBS gesagt wird, erscheint dort unter dem Namen des Anrufers, was
+  in Discord geschrieben wird, in der BBS als `name@discord`. Die BBS baut nur
+  ausgehende Verbindungen auf, es braucht keinen offenen Port und keinen
+  eigenen Server. Einrichten (ca. 10 Minuten):
+  1. Eigener Discord-Server, falls noch keiner da ist: im Discord-Programm
+     unten in der Serverliste **+** → „Create My Own“.
+  2. [Developer Portal](https://discord.com/developers/applications) → **New
+     Application** (der Name wird der Name des Bots).
+  3. **Bot** → **Message Content Intent** einschalten → Save.
+  4. **Bot** → **Reset Token** → Token kopieren, in der BBS unter Community →
+     Chat & One-liners → Discord bridge einfügen → **Turn on**.
+  5. Sobald dort „Connected“ steht: **Add it to your server** — der Link fragt
+     die nötigen Rechte an (Kanäle sehen, schreiben, Verlauf lesen, Webhooks
+     verwalten).
+  6. Bei jedem Raum unter **Edit** den Kanal wählen.
+
+  Ohne das Recht „Webhooks verwalten“ schreibt der Bot selbst (`**name**:
+  text`). Ein- und Austritte meldet er, solange „Don't tell Discord …“ aus
+  ist. Ist die Brücke eingeschaltet, aber länger als 15 Minuten getrennt,
+  erscheint das unter „Needs attention“. Das Token steht in `bbs.yaml` und
+  wird im Web nie wieder angezeigt.
 - **Abstimmungen / BBS-Liste:** Community → Polls & BBS List.
 - **Statistik:** System → Statistics — Anrufe pro Tag und Stunde, aktivste
   Anrufer, Schreiber und Areas, Echomail pro Netzwerk, Doors, Downloads,

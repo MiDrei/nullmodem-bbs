@@ -52,6 +52,9 @@ Teil der NullModem-Familie:
 - Threads: Antworten über REPLY-Kludge, direkte Antworten oder den Betreff
   verknüpft; Thread-Ansicht im Portal und in der Reader-App, `[`/`]` im
   Telnet-Reader, REPLY in ausgehender Echomail, Referenznummer im QWK-Paket
+- Chat-Räume (`/rooms`, `/join` in der Teleconference) mit Brücke zu
+  Discord-Kanälen: BBS-Anrufer erscheinen dort unter ihrem Namen, Discord in
+  der BBS als `name@discord`; nur ausgehende Verbindungen
 - Statistik (Admin → System → Statistics): Anrufe, Schreiber, Areas,
   Echomail pro Netzwerk, Doors, Downloads, BinkP-Sitzungen
 - Portal für Benutzer (`/login`, `/message-areas` …): Nachrichten, Netmail, Dateien, QWK, Profil —

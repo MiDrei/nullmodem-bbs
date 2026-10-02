@@ -1821,6 +1821,46 @@ export function chatAction(token: string, room: string, action: 'enter' | 'say' 
 	return request(`/api/chat/rooms/${encodeURIComponent(room)}`, { method: 'POST', body: JSON.stringify({ action, text }) }, token);
 }
 
+/** A room callers may enter; discord_channel bridges it (a channel ID). */
+export interface ChatRoomSettings {
+	name: string;
+	title: string;
+	topic: string;
+	min_sl: number;
+	sort_order: number;
+	discord_channel: string;
+}
+
+export function listChatRoomSettings(token: string): Promise<ChatRoomSettings[]> {
+	return request('/api/chat/room-settings', { method: 'GET' }, token);
+}
+
+export function saveChatRoom(token: string, r: ChatRoomSettings): Promise<ChatRoomSettings> {
+	return request(`/api/chat/room-settings/${encodeURIComponent(r.name)}`, { method: 'PUT', body: JSON.stringify(r) }, token);
+}
+
+export function deleteChatRoom(token: string, name: string): Promise<void> {
+	return request(`/api/chat/room-settings/${encodeURIComponent(name)}`, { method: 'DELETE' }, token);
+}
+
+/** The Discord bridge's bot -- never its token. */
+export interface DiscordState {
+	enabled: boolean;
+	has_token: boolean;
+	quiet: boolean;
+	status: { enabled: boolean; has_token: boolean; connected: boolean; bot?: string; bot_id?: string; error?: string; since?: string; guilds?: string[] };
+	channels: { id: string; name: string; guild: string }[];
+	invite_url?: string;
+}
+
+export function getDiscord(token: string): Promise<DiscordState> {
+	return request('/api/chat/discord', { method: 'GET' }, token);
+}
+
+export function saveDiscord(token: string, d: { enabled: boolean; quiet: boolean; token?: string; clear_token?: boolean }): Promise<DiscordState> {
+	return request('/api/chat/discord', { method: 'PUT', body: JSON.stringify(d) }, token);
+}
+
 export interface Oneliner {
 	id: number;
 	username: string;

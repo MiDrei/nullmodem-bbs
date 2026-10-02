@@ -202,11 +202,28 @@ func (s *Server) teleconference(term *Terminal, u *user.User) error {
 				return err
 			}
 			if a = strings.ToLower(strings.TrimSpace(a)); a == "" || a == "y" || a == "yes" {
-				return s.chatRoom(term, u, r.Name, "Chat with "+who, "")
+				_, err := s.chatRoom(term, u, r.Name, "Chat with "+who, "", false)
+				return err
 			}
 		}
 	}
-	return s.chatRoom(term, u, chat.Main, "Teleconference", "")
+	// The rooms: /join switches, /q leaves.
+	room := chat.Main
+	for {
+		title, intro := "Teleconference", ""
+		if info, err := s.Chat.RoomByName(room); err == nil {
+			title = info.Title
+			if info.DiscordChannel != "" {
+				title += " (+ Discord)"
+			}
+			intro = info.Topic
+		}
+		next, err := s.chatRoom(term, u, room, title, intro, true)
+		if err != nil || next == "" {
+			return err
+		}
+		room = next
+	}
 }
 
 // pageWait keeps a caller from paging more than once in a while.
@@ -223,7 +240,8 @@ func (s *Server) pageSysop(term *Terminal, u *user.User) error {
 	if last, err := s.Chat.Lines(room, 0, 50); err == nil {
 		for i := len(last) - 1; i >= 0; i-- {
 			if last[i].Kind == chat.Page && time.Since(last[i].At) < pageWait {
-				return s.chatRoom(term, u, room, "Waiting for the sysop", "You paged a moment ago -- the sysop has been told. Wait here, or /q to leave.")
+				_, err := s.chatRoom(term, u, room, "Waiting for the sysop", "You paged a moment ago -- the sysop has been told. Wait here, or /q to leave.", false)
+				return err
 			}
 		}
 	}
@@ -246,8 +264,9 @@ func (s *Server) pageSysop(term *Terminal, u *user.User) error {
 		su, err := s.Users.ByUsername(name)
 		return err == nil && su.SecurityLevel >= user.SLSysop
 	}, fmt.Sprintf("%s (node %d) is paging you: %s -- [C] Chat to answer.", u.Username, term.Node, reason))
-	return s.chatRoom(term, u, room, "Waiting for the sysop",
-		"The sysop has been told. Wait here for an answer, or /q to leave.")
+	_, err = s.chatRoom(term, u, room, "Waiting for the sysop",
+		"The sysop has been told. Wait here for an answer, or /q to leave.", false)
+	return err
 }
 
 // chatEvent is a key read for the chat screen.
@@ -257,11 +276,13 @@ type chatEvent struct {
 }
 
 // chatRoom is the chat screen: what's said in room above, what the
-// caller types below; Enter sends, /q (or Ctrl-Z) leaves.
-func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro string) error {
+// caller types below; Enter sends, /q (or Ctrl-Z) leaves. With rooms,
+// /rooms lists the others and /join names the one to go to next
+// (returned; "" when leaving).
+func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro string, rooms bool) (next string, err error) {
 	source := fmt.Sprintf("node %d", term.Node)
 	if err := s.Chat.Enter(room, u.Username, source); err != nil {
-		return err
+		return "", err
 	}
 	defer s.Chat.Exit(room, u.Username, source)
 
@@ -293,7 +314,11 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		case chat.Page:
 			addRow(ansi.FG(ansi.Magenta, true), fmt.Sprintf("%s  %s paged the sysop: %s", at, l.Username, l.Text))
 		default:
-			addRow(ansi.FG(ansi.White, false), fmt.Sprintf("%s  %s: %s", at, l.Username, l.Text))
+			who := l.Username
+			if l.Source == chat.SourceDiscord {
+				who += "@discord"
+			}
+			addRow(ansi.FG(ansi.White, false), fmt.Sprintf("%s  %s: %s", at, who, l.Text))
 		}
 	}
 	if intro != "" {
@@ -330,12 +355,16 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		}
 		return fmt.Sprintf("\x1b[%d;1H%s%s> %s%s\x1b[K", areaTop+areaRows+1, ansi.Reset, ansi.FG(ansi.Yellow, true), ansi.Reset, visible)
 	}
+	hint := "Enter send  /q leave  /who who's here  ^L redraw"
+	if rooms {
+		hint = "Enter send  /q leave  /who  /rooms  /join <room>  ^L redraw"
+	}
 	full := func() error {
 		rule := ansi.FG(ansi.Blue, false) + strings.Repeat("\xc4", width) + ansi.Reset
 		return term.Print(ansi.ClearScreen() + headline() +
 			fmt.Sprintf("\x1b[2;1H%s", rule) + area() +
 			fmt.Sprintf("\x1b[%d;1H%s", areaTop+areaRows, rule) +
-			fmt.Sprintf("\x1b[%d;1H%sEnter send  /q leave  /who who's here  ^L redraw%s", areaTop+areaRows+2, ansi.FG(ansi.White, false), ansi.Reset) +
+			fmt.Sprintf("\x1b[%d;1H%s%s%s", areaTop+areaRows+2, ansi.FG(ansi.White, false), hint, ansi.Reset) +
 			inputRow())
 	}
 	refreshPresent := func() {
@@ -355,18 +384,18 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 	}
 	refreshPresent()
 	if err := full(); err != nil {
-		return err
+		return "", err
 	}
 
 	// Keys come from a goroutine that reads one and waits to be told
 	// to read the next -- so none is read (and lost) after leaving.
 	events := make(chan chatEvent)
-	next := make(chan bool)
+	nextKey := make(chan bool)
 	go func() {
 		for {
 			k, err := term.ReadKey()
 			events <- chatEvent{k, err}
-			if err != nil || !<-next {
+			if err != nil || !<-nextKey {
 				return
 			}
 		}
@@ -379,9 +408,9 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		select {
 		case ev := <-events:
 			if ev.err != nil {
-				return ev.err
+				return "", ev.err
 			}
-			leave, redraw := false, false
+			leave, redraw, joinRoom := false, false, ""
 			switch k := ev.key; {
 			case k.Type == KeyChar:
 				if len(input) < chat.MaxText {
@@ -406,7 +435,24 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 					refreshPresent()
 					addRow(ansi.FG(ansi.Cyan, false), present)
 					redraw = true
+				case "/rooms", "/list":
+					if rooms {
+						s.listChatRooms(u, room, func(line string) { addRow(ansi.FG(ansi.Cyan, false), line) })
+						redraw = true
+						break
+					}
+					fallthrough
 				default:
+					if name, ok := strings.CutPrefix(strings.ToLower(text), "/join "); ok && rooms {
+						target, msg := s.chatJoinTarget(u, room, strings.TrimSpace(name))
+						if target != "" {
+							joinRoom, leave = target, true
+						} else {
+							addRow(ansi.FG(ansi.Red, true), msg)
+							redraw = true
+						}
+						break
+					}
 					if _, err := s.Chat.Post(room, u.Username, source, chat.Say, text); err != nil {
 						s.logWarn("chat: %v", err)
 					}
@@ -415,17 +461,17 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 				}
 			}
 			if leave {
-				next <- false
+				nextKey <- false
 				term.Print(ansi.ClearScreen() + ansi.Reset)
-				return nil
+				return joinRoom, nil
 			}
-			next <- true
+			nextKey <- true
 			if redraw {
 				if err := term.Print(headline() + area() + inputRow()); err != nil {
-					return err
+					return "", err
 				}
 			} else if err := term.Print(inputRow()); err != nil {
-				return err
+				return "", err
 			}
 		case <-poll.C:
 			changed := s.pollChat(room, &lastID, addLine)
@@ -445,11 +491,48 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 			}
 			if changed {
 				if err := term.Print(headline() + area() + inputRow()); err != nil {
-					return err
+					return "", err
 				}
 			}
 		}
 	}
+}
+
+// listChatRooms adds a line per room u may enter, with who's there.
+func (s *Server) listChatRooms(u *user.User, current string, add func(string)) {
+	list, err := s.Chat.RoomsFor(u.SecurityLevel)
+	if err != nil {
+		return
+	}
+	add("Rooms (/join <name>):")
+	for _, r := range list {
+		mark := "  "
+		if r.Name == current {
+			mark = "> "
+		}
+		line := fmt.Sprintf("%s%-12s %s", mark, r.Name, r.Title)
+		if ps, err := s.Chat.Present(r.Name); err == nil && len(ps) > 0 {
+			line += fmt.Sprintf("  (%d here)", len(ps))
+		}
+		if r.DiscordChannel != "" {
+			line += "  + Discord"
+		}
+		add(line)
+	}
+}
+
+// chatJoinTarget checks a /join: the room to go to, or why not.
+func (s *Server) chatJoinTarget(u *user.User, current, name string) (string, string) {
+	r, err := s.Chat.RoomByName(name)
+	switch {
+	case name == "":
+		return "", "Join which room? /rooms lists them."
+	case err != nil || u.SecurityLevel < r.MinSL:
+		return "", fmt.Sprintf("There's no room %q -- /rooms lists them.", name)
+	case r.Name == current:
+		return "", "You're in it."
+	}
+	return r.Name, ""
 }
 
 // pollChat adds room's lines after *lastID; true if there were any.

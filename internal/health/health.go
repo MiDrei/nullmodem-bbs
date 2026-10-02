@@ -49,6 +49,9 @@ type Env struct {
 	// Disk returns free and total bytes where dir is; nil skips.
 	Disk func(dir string) (free, total uint64)
 	Now  func() time.Time
+	// Extra adds problems only the running daemon knows (the Discord
+	// bridge); nil adds none.
+	Extra func() []Problem
 }
 
 func (e Env) now() time.Time {
@@ -163,6 +166,9 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 	}
 	if stuck > 0 {
 		add("netmail", fmt.Sprintf("%d netmail waiting to go out for over two days", stuck), "see Admin -> FTN for the uplinks")
+	}
+	if e.Extra != nil {
+		out = append(out, e.Extra()...)
 	}
 	return out, nil
 }
