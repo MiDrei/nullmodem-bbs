@@ -59,6 +59,9 @@ type Area struct {
 	// KeepDays is this area's own cleanup limit (internal/maintenance):
 	// 0 the configured default, -1 keep everything, more a limit in days.
 	KeepDays int
+	// Public: anyone may download its files, without login, through a
+	// share link (internal/web's /share/f/ and /dl/).
+	Public bool
 }
 
 // CanDownload reports whether an account at securityLevel may browse
@@ -139,7 +142,7 @@ func (s *Store) CreateArea(tag, name, description, network string, minSLDownload
 // AreaByID loads a single area by primary key.
 func (s *Store) AreaByID(id int64) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
+		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days, public
 		 FROM file_areas WHERE id = ?`, id,
 	))
 }
@@ -147,14 +150,14 @@ func (s *Store) AreaByID(id int64) (*Area, error) {
 // AreaByTag loads a single area by its short tag (case-insensitive).
 func (s *Store) AreaByTag(tag string) (*Area, error) {
 	return s.scanArea(s.db.QueryRow(
-		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
+		`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days, public
 		 FROM file_areas WHERE tag = ?`, tag,
 	))
 }
 
 func (s *Store) scanArea(row *sql.Row) (*Area, error) {
 	var a Area
-	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.KeepDays); err != nil {
+	if err := row.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.KeepDays, &a.Public); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAreaNotFound
 		}
@@ -201,7 +204,7 @@ func (s *Store) Networks() ([]string, error) {
 // Network -- sort first) then ordered for menu display within each
 // group. A pending area (see EnsureArea) never appears here.
 func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days, public
 		 FROM file_areas WHERE min_sl_download <= ? AND pending = 0 ORDER BY network, sort_order, name`, securityLevel)
 }
 
@@ -210,14 +213,14 @@ func (s *Store) ListAreas(securityLevel int) ([]Area, error) {
 // a file into), in the same network-grouped order as ListAreas. See
 // PendingAreas for the areas this excludes.
 func (s *Store) AllAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days, public
 		 FROM file_areas WHERE pending = 0 ORDER BY network, sort_order, name`)
 }
 
 // PendingAreas returns every area awaiting sysop review (see
 // EnsureArea), oldest first.
 func (s *Store) PendingAreas() ([]Area, error) {
-	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days
+	return s.queryAreas(`SELECT id, tag, name, description, network, min_sl_download, min_sl_upload, sort_order, created_at, pending, keep_days, public
 		 FROM file_areas WHERE pending = 1 ORDER BY created_at`)
 }
 
@@ -268,7 +271,7 @@ func (s *Store) queryAreas(query string, args ...any) ([]Area, error) {
 	var areas []Area
 	for rows.Next() {
 		var a Area
-		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.KeepDays); err != nil {
+		if err := rows.Scan(&a.ID, &a.Tag, &a.Name, &a.Description, &a.Network, &a.MinSLDownload, &a.MinSLUpload, &a.SortOrder, &a.CreatedAt, &a.Pending, &a.KeepDays, &a.Public); err != nil {
 			return nil, fmt.Errorf("file: scan area: %w", err)
 		}
 		areas = append(areas, a)
@@ -295,7 +298,7 @@ type AreaWithStats struct {
 // a pending area never appears here.
 func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats, error) {
 	rows, err := s.db.Query(
-		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at, a.pending, a.keep_days,
+		`SELECT a.id, a.tag, a.name, a.description, a.network, a.min_sl_download, a.min_sl_upload, a.sort_order, a.created_at, a.pending, a.keep_days, a.public,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id) AS total,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id AND f.uploaded_by = ?) AS yours,
 		        (SELECT COUNT(1) FROM files f WHERE f.area_id = a.id
@@ -315,7 +318,7 @@ func (s *Store) ListAreaStats(securityLevel int, userID int64) ([]AreaWithStats,
 	for rows.Next() {
 		var st AreaWithStats
 		if err := rows.Scan(&st.Area.ID, &st.Area.Tag, &st.Area.Name, &st.Area.Description, &st.Area.Network,
-			&st.Area.MinSLDownload, &st.Area.MinSLUpload, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending, &st.Area.KeepDays,
+			&st.Area.MinSLDownload, &st.Area.MinSLUpload, &st.Area.SortOrder, &st.Area.CreatedAt, &st.Area.Pending, &st.Area.KeepDays, &st.Area.Public,
 			&st.Total, &st.Yours, &st.New); err != nil {
 			return nil, fmt.Errorf("file: scan area stats: %w", err)
 		}
@@ -737,6 +740,19 @@ func (s *Store) ReplaceMatching(areaID int64, pattern string, keepID int64) ([]s
 		deleted = append(deleted, f.Filename)
 	}
 	return deleted, nil
+}
+
+// SetAreaPublic opens an area's files to anyone (Area.Public), or not.
+func (s *Store) SetAreaPublic(id int64, public bool) error {
+	if _, err := s.db.Exec(`UPDATE file_areas SET public = ? WHERE id = ?`, public, id); err != nil {
+		return fmt.Errorf("file: set area %d public: %w", id, err)
+	}
+	return nil
+}
+
+// PublicFiles returns the newest files of the public areas.
+func (s *Store) PublicFiles(limit int) ([]File, error) {
+	return s.queryFiles(`WHERE f.area_id IN (SELECT id FROM file_areas WHERE public = 1 AND pending = 0) ORDER BY f.uploaded_at DESC, f.id DESC LIMIT ?`, limit)
 }
 
 // SetAreaKeepDays sets an area's own cleanup limit (Area.KeepDays).

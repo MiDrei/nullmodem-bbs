@@ -29,6 +29,8 @@ type fileAreaDTO struct {
 	// KeepDays is the area's own cleanup limit (file.Area.KeepDays): 0
 	// default, -1 keep all. On update, absent means unchanged.
 	KeepDays *int `json:"keep_days,omitempty"`
+	// Public: share links, downloads without login. Absent: unchanged.
+	Public *bool `json:"public,omitempty"`
 }
 
 func toFileAreaDTO(a file.Area) fileAreaDTO {
@@ -43,6 +45,7 @@ func toFileAreaDTO(a file.Area) fileAreaDTO {
 		SortOrder:     a.SortOrder,
 		Pending:       a.Pending,
 		KeepDays:      &a.KeepDays,
+		Public:        &a.Public,
 	}
 }
 
@@ -105,6 +108,11 @@ func (s *Server) handleCreateFileArea(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not create file area")
 		return
 	}
+	if dto.Public != nil && *dto.Public {
+		if err := s.Files.SetAreaPublic(area.ID, true); err == nil {
+			area.Public = true
+		}
+	}
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s created file area %q (%s) via web", claims.Subject, area.Name, area.Tag)
 	}
@@ -142,6 +150,13 @@ func (s *Server) handleUpdateFileArea(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		area.KeepDays = *dto.KeepDays
+	}
+	if dto.Public != nil && *dto.Public != area.Public {
+		if err := s.Files.SetAreaPublic(id, *dto.Public); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not update file area")
+			return
+		}
+		area.Public = *dto.Public
 	}
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s updated file area %q (%s)", claims.Subject, area.Name, area.Tag)

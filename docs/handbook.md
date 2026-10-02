@@ -106,7 +106,10 @@ Was zu tun ist, wenn ein Hub nicht antwortet, steht unter
   und Schreiben, eigene Aufbewahrung (Tage / Anzahl). Daten-Areas wie
   `FSX_DAT` (InterBBS-Daten) als „hidden“ markieren (Content → Message Areas) — dann sehen Anrufer sie
   nicht.
-- **File Areas:** analog, mit Download-/Upload-SL. TIC-Dateien mit „Replaces“
+- **File Areas:** analog, mit Download-/Upload-SL. Mit „Public“ darf jeder ihre
+  Dateien ohne Login laden: jede Datei hat eine Seite zum Teilen
+  (`/share/f/<id>`, mit Link-Vorschau), das Portal zeigt dafür „Copy share
+  link“, und die Startseite listet die neuesten. TIC-Dateien mit „Replaces“
   ersetzen ältere Versionen automatisch.
 - **Aufräumen:** System → Maintenance — Grenzen einstellen, „Preview“ zeigt,
   was weg würde, nachts läuft es von selbst.

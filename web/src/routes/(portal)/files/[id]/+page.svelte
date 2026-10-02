@@ -171,6 +171,21 @@
 		{#if kind === 'image' || kind === 'text'}
 			<button class="btn-secondary" onclick={openPreview}>Preview</button>
 		{/if}
+		{#if file.share_page}
+			<button
+				class="btn-secondary"
+				title="A page anyone can download it from, no login needed"
+				onclick={async () => {
+					const url = location.origin + file!.share_page;
+					try {
+						await navigator.clipboard.writeText(url);
+						toast.push('Share link copied: ' + url, 'success');
+					} catch {
+						prompt('The share link:', url);
+					}
+				}}>Copy share link</button
+			>
+		{/if}
 	</div>
 
 	{#if kind === 'archive'}

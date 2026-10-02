@@ -172,6 +172,8 @@ export interface FileArea {
 	pending: boolean;
 	/** Own cleanup limit: 0 = the default, -1 = keep everything, else days. */
 	keep_days?: number;
+	/** Anyone may download its files through a share link, without login. */
+	public?: boolean;
 }
 
 export interface PendingAreas {
@@ -191,6 +193,34 @@ export interface BBSFile {
 	download_count: number;
 	/** Only present from the BBS portal's file listing (see listBBSAreaFiles), not the sysop admin one. */
 	unread?: boolean;
+	/** The file's public page (/share/f/…), when its area is public. */
+	share_page?: string;
+}
+
+/** A file anyone may download (a public file area). */
+export interface PublicFile {
+	id: number;
+	filename: string;
+	summary: string;
+	description?: string;
+	preformatted?: boolean;
+	grid?: Grid;
+	size: string;
+	area: string;
+	network?: string;
+	uploaded_by: string;
+	uploaded_at: string;
+	downloads: number;
+	page: string;
+	download: string;
+}
+
+export function listPublicFiles(limit = 8): Promise<PublicFile[]> {
+	return request(`/api/public/files?limit=${limit}`, { method: 'GET' });
+}
+
+export function getPublicFile(id: number): Promise<PublicFile> {
+	return request(`/api/public/files/${id}`, { method: 'GET' });
 }
 
 export interface MenuItem {

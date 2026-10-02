@@ -6,7 +6,7 @@
 	import { onMount } from 'svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
-	import { getPublicFeeds, getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
+	import { listPublicFiles, type PublicFile, getPublicFeeds, getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
 	import StatsBoard from '$lib/stats/StatsBoard.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import Icon from '$lib/Icon.svelte';
@@ -14,6 +14,7 @@
 	let o = $state<PublicOverview | null>(null);
 	let welcome = $state<WelcomeScreen | null>(null);
 	let report = $state<StatsReport | null>(null);
+	let files = $state<PublicFile[]>([]);
 	let feeds = $state<{ tag: string; name: string; network: string; url: string }[]>([]);
 	let copied = $state('');
 	const host = typeof location === 'undefined' ? '' : location.hostname;
@@ -36,6 +37,9 @@
 			.catch(() => {});
 		getPublicFeeds()
 			.then((f) => (feeds = f))
+			.catch(() => {});
+		listPublicFiles(6)
+			.then((f) => (files = f))
 			.catch(() => {});
 		const t = setInterval(refresh, 60_000);
 		return () => clearInterval(t);
@@ -265,6 +269,23 @@
 				<section>
 					<h2 class="card-label mb-3">The last 30 days</h2>
 					<StatsBoard r={report} />
+				</section>
+			{/if}
+
+			{#if files.length}
+				<section class="card">
+					<h2 class="card-label mb-3">Files to download</h2>
+					<ul class="flex flex-col divide-y divide-line">
+						{#each files as f (f.id)}
+							<li>
+								<a href={f.page} class="flex items-baseline gap-3 py-2 text-sm hover:text-accent">
+									<span class="shrink-0 font-mono text-ink-strong">{f.filename}</span>
+									<span class="min-w-0 flex-1 truncate text-ink-soft">{f.summary}</span>
+									<span class="shrink-0 text-xs text-faint">{f.size}</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
 				</section>
 			{/if}
 

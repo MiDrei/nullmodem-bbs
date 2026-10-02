@@ -106,12 +106,17 @@ func (s *Server) shareMeta(r *http.Request) string {
 	}
 	parts = append(parts, "terminal in the browser, reader app, QWK")
 	desc := "A bulletin board system -- " + strings.Join(parts, " · ")
+	title, url := c.BBS.Name, base+"/"
+	// A shared file's page: the file in the preview.
+	if ft, fd, ok := s.fileShareMeta(r, c.BBS.Name); ok {
+		title, desc, url = ft, fd, base+r.URL.Path
+	}
 	e := html.EscapeString
 	var b strings.Builder
 	fmt.Fprintf(&b, `<meta name="description" content="%s">`, e(desc))
 	fmt.Fprintf(&b, `<meta property="og:type" content="website"><meta property="og:site_name" content="%s">`, e(c.BBS.Name))
-	fmt.Fprintf(&b, `<meta property="og:title" content="%s"><meta property="og:description" content="%s">`, e(c.BBS.Name), e(desc))
-	fmt.Fprintf(&b, `<meta property="og:url" content="%s/">`, e(base))
+	fmt.Fprintf(&b, `<meta property="og:title" content="%s"><meta property="og:description" content="%s">`, e(title), e(desc))
+	fmt.Fprintf(&b, `<meta property="og:url" content="%s">`, e(url))
 	if _, err := os.Stat(filepath.Join(c.BBS.ScreensDir, welcomeScreenFile)); err == nil {
 		fmt.Fprintf(&b, `<meta property="og:image" content="%s/og-image.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">`, e(base))
 		b.WriteString(`<meta name="twitter:card" content="summary_large_image">`)

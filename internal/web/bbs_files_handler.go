@@ -3,6 +3,7 @@ package web
 import (
 	"archive/zip"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -74,6 +75,8 @@ type bbsFileDTO struct {
 	UploadedAt    string `json:"uploaded_at"`
 	DownloadCount int    `json:"download_count"`
 	Unread        bool   `json:"unread"`
+	// SharePage: the file's public page, when its area is public.
+	SharePage string `json:"share_page,omitempty"`
 }
 
 // handleListBBSAreaFiles is handleListBBSMessages' counterpart for
@@ -176,7 +179,15 @@ func (s *Server) handleGetBBSFile(w http.ResponseWriter, r *http.Request) {
 		UploadedBy:    f.UploadedByName,
 		UploadedAt:    f.UploadedAt.Format(time.RFC3339),
 		DownloadCount: f.DownloadCount,
+		SharePage:     sharePage(area, f.ID),
 	})
+}
+
+func sharePage(a *file.Area, id int64) string {
+	if a == nil || !a.Public {
+		return ""
+	}
+	return fmt.Sprintf("/share/f/%d", id)
 }
 
 // handleDownloadBBSFile streams a file straight over HTTP -- unlike

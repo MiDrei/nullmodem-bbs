@@ -28,7 +28,8 @@
 			min_sl_download: 0,
 			min_sl_upload: 0,
 			sort_order: 0,
-			keep_days: 0
+			keep_days: 0,
+			public: false
 		};
 	}
 
@@ -127,7 +128,8 @@
 			min_sl_download: area.min_sl_download,
 			min_sl_upload: area.min_sl_upload,
 			sort_order: area.sort_order,
-			keep_days: area.keep_days ?? 0
+			keep_days: area.keep_days ?? 0,
+			public: area.public ?? false
 		};
 	}
 
@@ -303,6 +305,14 @@
 				<input type="number" class="field field-sm" bind:value={d.sort_order} />
 			</label>
 		</div>
+		<label class="col-span-2 flex items-start gap-2 text-sm">
+			<input type="checkbox" class="check mt-0.5" bind:checked={d.public} />
+			<span>
+				<span class="text-ink">Public</span>
+				<span class="block text-xs text-faint">Anyone may download its files without login: each gets a page to share
+					(with a link preview), and the front page lists the newest.</span>
+			</span>
+		</label>
 		<label class="col-span-2 flex flex-col gap-1.5">
 			<span class="text-xs text-muted">Keep days</span>
 			<input type="number" min="-1" class="field field-sm max-w-40" bind:value={d.keep_days} />
