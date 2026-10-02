@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"git.maik.ch/nullmodem/bbs/internal/doors"
 	"time"
 )
 
@@ -88,5 +90,23 @@ func TestWelcomeScreenReadEachCall(t *testing.T) {
 	}
 	if !strings.Contains(conn.out.String(), "NEW Board") {
 		t.Fatalf("got %q", conn.out.String())
+	}
+}
+
+func TestDoorsMenuShowsBulletins(t *testing.T) {
+	s := testServer(t)
+	s.Users.Register("sysop", "password123", 255)
+	u, _ := s.Users.Register("alice", "password123", 10)
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "SCORES.ANS"), []byte("\x1b[1;33mHALL OF FAME\x1b[0m\r\n1. alice\r\n"), 0o644)
+	s.Doors = []doors.Door{{Name: "Game", Dir: dir, Bulletins: []doors.Bulletin{{Title: "Game scores", File: "scores.ans"}}}}
+	conn := newFakeConn("B\r1\r\rQ\rQ\r")
+	term := NewTerminal(conn)
+	if err := s.showDoors(term, u); err != nil {
+		t.Fatal(err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "B) Bulletins") || !strings.Contains(out, "HALL OF FAME") || !strings.Contains(out, "Game scores") {
+		t.Fatalf("no bulletin:\n%q", out)
 	}
 }

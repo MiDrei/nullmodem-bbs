@@ -6,7 +6,8 @@
 	import { onMount } from 'svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
-	import { listPublicFiles, type PublicFile, getPublicFeeds, getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
+	import DoorBulletins from '$lib/DoorBulletins.svelte';
+	import { getPublicDoorBulletins, type DoorBulletinView, listPublicFiles, type PublicFile, getPublicFeeds, getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
 	import StatsBoard from '$lib/stats/StatsBoard.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import Icon from '$lib/Icon.svelte';
@@ -15,6 +16,7 @@
 	let welcome = $state<WelcomeScreen | null>(null);
 	let report = $state<StatsReport | null>(null);
 	let files = $state<PublicFile[]>([]);
+	let scores = $state<DoorBulletinView[]>([]);
 	let feeds = $state<{ tag: string; name: string; network: string; url: string }[]>([]);
 	let copied = $state('');
 	const host = typeof location === 'undefined' ? '' : location.hostname;
@@ -40,6 +42,9 @@
 			.catch(() => {});
 		listPublicFiles(6)
 			.then((f) => (files = f))
+			.catch(() => {});
+		getPublicDoorBulletins()
+			.then((b) => (scores = b))
 			.catch(() => {});
 		const t = setInterval(refresh, 60_000);
 		return () => clearInterval(t);
@@ -269,6 +274,13 @@
 				<section>
 					<h2 class="card-label mb-3">The last 30 days</h2>
 					<StatsBoard r={report} />
+				</section>
+			{/if}
+
+			{#if scores.length}
+				<section class="card">
+					<h2 class="card-label mb-3">Door scores</h2>
+					<DoorBulletins list={scores} />
 				</section>
 			{/if}
 

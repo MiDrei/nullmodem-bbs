@@ -133,6 +133,15 @@ Anrufer aus — nie, während jemand spielt, dann eben etwas später. Ergebnis u
 Ausgabe stehen in der Door-Liste, „Run maintenance“ startet ihn sofort; ein
 Fehlschlag erscheint unter „Needs attention“.
 
+**Bulletins (Bestenlisten, News):** Viele Doors schreiben ihre Scoreboards
+und News in Dateien. Beim Door unter „Bulletins“ Titel und Datei (relativ zum
+Door-Verzeichnis) eintragen, „public“ zeigt sie auch auf der Startseite.
+Anrufer lesen sie im Doors-Menü (B) und im Portal unter Community → Door
+scores. Für Immortal Barons und Usurper Reborn kennt die BBS die Dateien:
+„Use the template's …“ trägt sie ein — bei Immortal Barons schaltet das auch
+`BulletinDir` in `data/bbs.cfg` ein und setzt die tägliche Wartung
+(`immortal-barons -maint`), die sie jeden Tag neu schreibt.
+
 Hintergrundprogramme (z. B. die MRC-Bridge) laufen als eigener Dienst und
 erscheinen unter System → Services.
 

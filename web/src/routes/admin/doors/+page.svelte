@@ -7,6 +7,7 @@
 		listDoors,
 		putDoors,
 		runDoorDaily,
+		applyDoorTemplateBulletins,
 		listDoorTemplates,
 		addDoorFromTemplate,
 		getMRCConfig,
@@ -62,6 +63,7 @@
 			template: '',
 			daily: '',
 			daily_at: '',
+			bulletins: [],
 			program: [],
 			installed: false
 		};
@@ -127,6 +129,25 @@
 			return false;
 		} finally {
 			saving = false;
+		}
+	}
+
+	// The template's bulletins for an installed door: saved at once
+	// (the game is told to write them, too).
+	async function applyTemplateBulletins() {
+		if (!auth.token || editing === null || editing < 0) return;
+		const name = doors[editing].name;
+		try {
+			const res = await applyDoorTemplateBulletins(auth.token, name);
+			doors = res.doors;
+			const d = res.doors.find((x) => x.name === name);
+			if (d) {
+				draft.bulletins = d.bulletins ?? [];
+				if (!draft.daily) draft.daily = d.daily;
+			}
+			toast.push(`${name} writes its bulletins from its next game day on.`, 'success');
+		} catch (err) {
+			toast.push(err instanceof ApiError ? err.message : 'Could not do that.', 'error');
 		}
 	}
 
@@ -418,6 +439,27 @@
 				<span class="text-xs text-muted">at</span>
 				<input class="field field-sm font-mono" bind:value={draft.daily_at} placeholder="00:05" />
 			</label>
+		</div>
+		<div class="flex flex-col gap-1.5">
+			<span class="text-xs text-muted">Bulletins (optional)</span>
+			{#each draft.bulletins ?? [] as b, i (i)}
+				<div class="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
+					<input class="field field-sm" bind:value={b.title} placeholder="Title (Scoreboard)" />
+					<input class="field field-sm font-mono" bind:value={b.file} placeholder="data/bull/scores.ans" />
+					<label class="flex items-center gap-1 text-xs text-muted" title="Also on the public front page"><input type="checkbox" bind:checked={b.public} /> public</label>
+					<button type="button" class="btn-secondary btn-xs" onclick={() => draft && (draft.bulletins = (draft.bulletins ?? []).filter((_, k) => k !== i))}>✕</button>
+				</div>
+			{/each}
+			<div class="flex flex-wrap items-center gap-2">
+				<button type="button" class="btn-secondary btn-xs" onclick={() => draft && (draft.bulletins = [...(draft.bulletins ?? []), { title: '', file: '', public: false }])}>+ Bulletin</button>
+				{#if !(draft.bulletins ?? []).length && draft.template_bulletins?.length && editing !== null && editing >= 0}
+					<button type="button" class="btn-primary btn-xs" onclick={applyTemplateBulletins}>Use the template's ({draft.template_bulletins.map((b) => b.title).join(', ')})</button>
+				{/if}
+			</div>
+			<span class="text-xs leading-relaxed text-faint">
+				Files the door writes for the board -- its scoreboard, its news -- relative to its directory. Callers read them in the
+				doors menu (B) and the portal's Community; public ones are on the front page too.
+			</span>
 		</div>
 		<div class="grid gap-3 sm:grid-cols-2">
 			<label class="flex flex-col gap-1.5">

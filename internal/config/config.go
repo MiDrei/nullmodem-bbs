@@ -291,6 +291,11 @@ type DoorConfig struct {
 	// internal/bbs's rlogin.go) and passes everything through.
 	Remote RemoteDoor `yaml:"remote,omitempty"`
 
+	// Bulletins are files the door writes for the board -- its
+	// scoreboard, its news -- shown in the doors menu and the portal;
+	// Public ones also on the front page.
+	Bulletins []DoorBulletin `yaml:"bulletins,omitempty"`
+
 	// Template names the door template (internal/doors.Templates) this
 	// entry was created from, if any -- informational, shown in the
 	// web admin.
@@ -603,4 +608,13 @@ type MatrixConfig struct {
 	Token  string `yaml:"token,omitempty"`
 	// Quiet: don't tell Matrix when someone enters or leaves a room.
 	Quiet bool `yaml:"quiet,omitempty"`
+}
+
+// DoorBulletin is a file a door writes for the board: File relative to
+// the door's directory (its DOSBox directory for a DOS door), ANSI or
+// text.
+type DoorBulletin struct {
+	Title  string `yaml:"title" json:"title"`
+	File   string `yaml:"file" json:"file"`
+	Public bool   `yaml:"public,omitempty" json:"public"`
 }

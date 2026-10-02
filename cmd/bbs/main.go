@@ -245,6 +245,7 @@ func doorsFromConfig(entries []config.DoorConfig) []doors.Door {
 			Remote:            d.Remote,
 			Daily:             d.Daily,
 			DailyAt:           d.DailyAt,
+			Bulletins:         bulletinsFromConfig(d.Bulletins),
 		})
 	}
 	return list
@@ -264,4 +265,12 @@ func programsFromConfig(entries []config.DoorConfig) []doors.Program {
 		list = append(list, doors.Program{Door: d.Name, Dir: d.Dir, Command: d.Program})
 	}
 	return list
+}
+
+func bulletinsFromConfig(in []config.DoorBulletin) []doors.Bulletin {
+	var out []doors.Bulletin
+	for _, b := range in {
+		out = append(out, doors.Bulletin{Title: b.Title, File: b.File, Public: b.Public})
+	}
+	return out
 }

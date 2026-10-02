@@ -1539,6 +1539,10 @@ export interface Door {
 	daily_at: string;
 	/** How its last run went, read-only. */
 	daily_state?: { last_at: string; ok: boolean; detail: string } | null;
+	/** Files the door writes for the board (scores, news); public ones also on the front page. */
+	bulletins?: DoorBulletin[];
+	/** What its template offers, while it has none. */
+	template_bulletins?: DoorBulletin[];
 	/** Native doors only: a background program kept running while the door is set up (uMRC's umrc-bridge). */
 	program: string[];
 	/** Read-only: the door's directory exists and has files. */
@@ -2206,6 +2210,34 @@ export function searchMessages(token: string, q: string, areaId = 0): Promise<Se
 	const p = new URLSearchParams({ q });
 	if (areaId) p.set('area_id', String(areaId));
 	return request(`/api/bbs/messages/search?${p}`, { method: 'GET' }, token);
+}
+
+export interface DoorBulletin {
+	title: string;
+	file: string;
+	public: boolean;
+}
+
+/** A bulletin a door has written, drawn: for the portal and the front page. */
+export interface DoorBulletinView {
+	door: string;
+	title: string;
+	updated: string;
+	grid: Grid;
+	public: boolean;
+}
+
+/** Gives a door its template's bulletins (and tells the game to write them). */
+export function applyDoorTemplateBulletins(token: string, name: string): Promise<{ doors: Door[] }> {
+	return request(`/api/door-bulletins/${encodeURIComponent(name)}`, { method: 'POST' }, token);
+}
+
+export function getDoorBulletins(token: string): Promise<DoorBulletinView[]> {
+	return request('/api/bbs/door-bulletins', { method: 'GET' }, token);
+}
+
+export function getPublicDoorBulletins(): Promise<DoorBulletinView[]> {
+	return request('/api/public/door-bulletins', { method: 'GET' });
 }
 
 /** Runs a door's daily maintenance now (the BBS service picks it up within half a minute). */

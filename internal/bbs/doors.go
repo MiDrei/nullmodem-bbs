@@ -44,6 +44,10 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 		for i, d := range available {
 			b.WriteString(fmt.Sprintf("%2d) %s\r\n", i+1, d.Name))
 		}
+		bulletins := doorBulletinList(available)
+		if len(bulletins) > 0 {
+			b.WriteString(" B) Bulletins (scores, news)\r\n")
+		}
 		b.WriteString(" Q) Back to menu\r\n\r\nPlay which? " + ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
@@ -59,6 +63,12 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 		}
 		if strings.EqualFold(choice, "q") {
 			return nil
+		}
+		if strings.EqualFold(choice, "b") && len(bulletins) > 0 {
+			if err := s.showDoorBulletins(term, bulletins); err != nil {
+				return err
+			}
+			continue
 		}
 		idx, convErr := strconv.Atoi(choice)
 		if convErr != nil || idx < 1 || idx > len(available) {

@@ -52,6 +52,32 @@ type Template struct {
 	// MRC marks uMRC: installing it asks for what the chat network
 	// shows about this board (see MRCConfig).
 	MRC bool `json:"mrc,omitempty"`
+	// Bulletins are the files the door writes for the board (scores,
+	// news), relative to its directory; EnableBulletins, if set, turns
+	// their writing on in an installed door (dir is its directory).
+	Bulletins       []Bulletin                      `json:"bulletins,omitempty"`
+	EnableBulletins func(dir, bbsName string) error `json:"-"`
+	// Daily is the daily maintenance command it should get, if any.
+	Daily string `json:"daily,omitempty"`
+}
+
+// Bulletin is a file a door writes for the board.
+type Bulletin struct {
+	Title  string `json:"title"`
+	File   string `json:"file"`
+	Public bool   `json:"public"`
+}
+
+// TemplateFor is the template door was installed from: by its
+// template ID, else by its directory's name.
+func TemplateFor(id, dir string) (Template, bool) {
+	base := filepath.Base(filepath.Clean(dir))
+	for _, t := range Templates {
+		if (id != "" && t.ID == id) || (id == "" && dir != "" && t.Dir == base) {
+			return t, true
+		}
+	}
+	return Template{}, false
 }
 
 // Download says how Install fetches and unpacks a door.
@@ -128,6 +154,15 @@ var Templates = []Template{
 		},
 		Setup:     `Installed with the default game settings. To change them later (turns per day and so on), run "immortal-barons -reset -data data" in the door's directory -- that also starts a new game.`,
 		SourceURL: "https://github.com/andy5995/immortal-barons",
+		// Written on each game day (the daily maintenance, or the
+		// first login of a day), into BulletinDir.
+		Bulletins: []Bulletin{
+			{Title: "Immortal Barons: scoreboard", File: "data/bull/scores.ans", Public: true},
+			{Title: "Immortal Barons: today's news", File: "data/bull/tdynews.ans"},
+			{Title: "Immortal Barons: yesterday's news", File: "data/bull/yesnews.ans"},
+		},
+		EnableBulletins: enableImmortalBaronsBulletins,
+		Daily:           "immortal-barons -maint -data data",
 	},
 	{
 		ID:          "usurper-reborn",
@@ -149,6 +184,7 @@ var Templates = []Template{
 		},
 		Setup:     `A large download (about 55 MB). Players can also reach the game's public online server from its menu.`,
 		SourceURL: "https://github.com/binary-knight/usurper-reborn",
+		Bulletins: []Bulletin{{Title: "Usurper Reborn: news", File: "SCORES/NEWS.txt", Public: true}},
 	},
 	{
 		ID:          "usurper",
@@ -280,6 +316,9 @@ func prepareImmortalBarons(ctx context.Context, dir, _, _ string) error {
 	if err := os.WriteFile(filepath.Join(data, "door.json"), cfg, 0o644); err != nil {
 		return fmt.Errorf("doors: writing door.json: %w", err)
 	}
+	if err := enableImmortalBaronsBulletins(dir, ""); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, filepath.Join(dir, "immortal-barons"), "-reset-from-config", "-data", "data")
@@ -332,6 +371,38 @@ func prepareUsurper(ctx context.Context, dir, bbsName, sysopName string) error {
 	}
 	if entries, err := os.ReadDir(filepath.Join(dir, "DATA")); err != nil || len(entries) == 0 {
 		return errors.New("doors: Usurper's EDITOR.EXE did not create its game data")
+	}
+	return nil
+}
+
+// enableImmortalBaronsBulletins sets BulletinDir in data/bbs.cfg (the
+// game writes its scores and news there), unless one is set already;
+// the rest of the file stays as it is.
+func enableImmortalBaronsBulletins(dir, bbsName string) error {
+	path := filepath.Join(dir, "data", "bbs.cfg")
+	old, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("doors: %w", err)
+	}
+	for _, line := range strings.Split(string(old), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && strings.EqualFold(f[0], "BulletinDir") {
+			return nil
+		}
+	}
+	add := "BulletinDir      bull\n"
+	if bbsName != "" && !strings.Contains(strings.ToLower(string(old)), "bbsname") {
+		add += "BBSName          " + bbsName + "\n"
+	}
+	text := string(old)
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("doors: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(text+add), 0o644); err != nil {
+		return fmt.Errorf("doors: writing bbs.cfg: %w", err)
 	}
 	return nil
 }

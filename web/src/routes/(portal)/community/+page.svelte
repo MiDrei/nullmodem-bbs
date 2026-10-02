@@ -7,6 +7,7 @@
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import LastCallersList from '$lib/LastCallersList.svelte';
+	import DoorBulletins from '$lib/DoorBulletins.svelte';
 	import {
 		listBBSPolls,
 		voteBBSPoll,
@@ -14,7 +15,9 @@
 		saveBBSListEntry,
 		deleteBBSListEntry,
 		searchNodelist,
+		getDoorBulletins,
 		ApiError,
+		type DoorBulletinView,
 		type Poll,
 		type BBSListEntry,
 		type BBSListInput,
@@ -22,7 +25,7 @@
 		type NodelistImport
 	} from '$lib/api';
 
-	type Tab = 'polls' | 'bbs' | 'callers' | 'nodelist';
+	type Tab = 'polls' | 'bbs' | 'callers' | 'doors' | 'nodelist';
 	let tab = $state<Tab>((page.url.searchParams.get('tab') as Tab) || 'polls');
 
 	let polls = $state<Poll[]>([]);
@@ -32,6 +35,7 @@
 	let found = $state<NodelistEntry[]>([]);
 	let imports = $state<NodelistImport[]>([]);
 	let searched = $state(false);
+	let bulletins = $state<DoorBulletinView[]>([]);
 
 	async function failed(err: unknown, fallback: string) {
 		if (err instanceof ApiError && err.status === 401) {
@@ -51,6 +55,7 @@
 		try {
 			[polls, bbs] = await Promise.all([listBBSPolls(t), listBBSList(t)]);
 			imports = (await searchNodelist(t, '__nothing__')).imports;
+			bulletins = await getDoorBulletins(t);
 		} catch (err) {
 			await failed(err, 'Could not load the page.');
 		}
@@ -218,6 +223,12 @@
 			</div>
 		{/each}
 	</div>
+{:else if tab === 'doors'}
+	{#if bulletins.length === 0}
+		<p class="text-sm text-muted">No scoreboards yet -- the doors write them as they're played.</p>
+	{:else}
+		<DoorBulletins list={bulletins} />
+	{/if}
 {:else if tab === 'callers'}
 	<p class="mb-3 text-xs text-muted">Who was on which board of the network lately, newest first.</p>
 	<LastCallersList />

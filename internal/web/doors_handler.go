@@ -46,6 +46,11 @@ type doorDTO struct {
 	// Program is the door's background program -- see
 	// config.DoorConfig.Program.
 	Program []string `json:"program"`
+	// Bulletins are the door's score and news files.
+	Bulletins []config.DoorBulletin `json:"bulletins"`
+	// TemplateBulletins: what the door's template offers, when the
+	// door has none yet.
+	TemplateBulletins []config.DoorBulletin `json:"template_bulletins,omitempty"`
 	// Installed reports whether the door's directory exists and has
 	// files in it. Read-only.
 	Installed bool `json:"installed"`
@@ -106,6 +111,8 @@ func toDoorDTO(d config.DoorConfig) doorDTO {
 		Daily:             d.Daily,
 		DailyAt:           d.DailyAt,
 		Program:           orEmpty(d.Program),
+		Bulletins:         bulletinsOrEmpty(d.Bulletins),
+		TemplateBulletins: offeredBulletins(d),
 		Installed:         nonEmptyDir(dir),
 	}
 }
@@ -143,7 +150,31 @@ func fromDoorDTO(d doorDTO) config.DoorConfig {
 		Daily:             strings.TrimSpace(d.Daily),
 		DailyAt:           strings.TrimSpace(d.DailyAt),
 		Program:           trimmed(d.Program),
+		Bulletins:         cleanBulletins(d.Bulletins),
 	}
+}
+
+func bulletinsOrEmpty(b []config.DoorBulletin) []config.DoorBulletin {
+	if b == nil {
+		return []config.DoorBulletin{}
+	}
+	return b
+}
+
+// cleanBulletins drops empty rows and trims.
+func cleanBulletins(in []config.DoorBulletin) []config.DoorBulletin {
+	var out []config.DoorBulletin
+	for _, b := range in {
+		b.Title, b.File = strings.TrimSpace(b.Title), strings.TrimSpace(b.File)
+		if b.File == "" {
+			continue
+		}
+		if b.Title == "" {
+			b.Title = b.File
+		}
+		out = append(out, b)
+	}
+	return out
 }
 
 // validateDoors checks a whole door list before it's saved.
@@ -158,6 +189,11 @@ func validateDoors(list []config.DoorConfig) string {
 			return fmt.Sprintf("door name %q is used twice", d.Name)
 		}
 		seen[key] = true
+		for _, b := range d.Bulletins {
+			if _, err := doors.BulletinPath("door", b.File); err != nil {
+				return fmt.Sprintf("%s: bulletin %q -- a file inside the door's directory, like data/bull/scores.ans", d.Name, b.File)
+			}
+		}
 		if d.MinSL < 0 || d.MinSL > 255 {
 			return fmt.Sprintf("%s: security level must be 0-255", d.Name)
 		}
@@ -380,6 +416,8 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		DropFileInDoorDir: t.DropFileInDoorDir,
 		LockFiles:         t.LockFiles,
 		Template:          t.ID,
+		Bulletins:         templateBulletins(t),
+		Daily:             t.Daily,
 	}
 	if t.Kind == "native" {
 		entry.Exe = filepath.Join(dir, t.Exe)
@@ -510,4 +548,72 @@ func (s *Server) handleRunDoorDaily(w http.ResponseWriter, r *http.Request) {
 		s.logInfo("%s asked for %s's daily maintenance now", claims.Subject, name)
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func templateBulletins(t doors.Template) []config.DoorBulletin {
+	var out []config.DoorBulletin
+	for _, b := range t.Bulletins {
+		out = append(out, config.DoorBulletin{Title: b.Title, File: b.File, Public: b.Public})
+	}
+	return out
+}
+
+// offeredBulletins: the template's bulletins, for a door without any.
+func offeredBulletins(d config.DoorConfig) []config.DoorBulletin {
+	if len(d.Bulletins) > 0 {
+		return nil
+	}
+	dir := d.Dir
+	if d.Kind == "dosbox" {
+		dir = d.DOSBoxDir
+	}
+	if t, ok := doors.TemplateFor(d.Template, dir); ok {
+		return templateBulletins(t)
+	}
+	return nil
+}
+
+// handleDoorTemplateBulletins: POST /api/door-bulletins/{name} -- the
+// door gets its template's bulletins (and the game is told to write
+// them, and the daily maintenance, if it has none, that writes them).
+func (s *Server) handleDoorTemplateBulletins(w http.ResponseWriter, r *http.Request) {
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	name := r.PathValue("name")
+	for i := range c.Doors {
+		d := &c.Doors[i]
+		if d.Name != name {
+			continue
+		}
+		dir := d.Dir
+		if d.Kind == "dosbox" {
+			dir = d.DOSBoxDir
+		}
+		t, ok := doors.TemplateFor(d.Template, dir)
+		if !ok || len(t.Bulletins) == 0 {
+			writeError(w, http.StatusBadRequest, "no bulletins known for this door -- add them by hand")
+			return
+		}
+		if t.EnableBulletins != nil {
+			if err := t.EnableBulletins(dir, c.BBS.Name); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		d.Bulletins = templateBulletins(t)
+		if d.Daily == "" && t.Daily != "" {
+			d.Daily = t.Daily
+		}
+		if err := config.Save(s.BBSConfigPath, c); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not save config")
+			return
+		}
+		s.logInfo("door %s: the template's bulletins added", name)
+		writeJSON(w, http.StatusOK, s.doorsResponse(c))
+		return
+	}
+	writeError(w, http.StatusNotFound, "no such door")
 }

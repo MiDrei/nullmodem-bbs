@@ -141,6 +141,8 @@ type Door struct {
 	// config.DoorConfig.Daily and RunDaily).
 	Daily   string
 	DailyAt string
+	// Bulletins are the files it writes for the board (scores, news).
+	Bulletins []Bulletin
 }
 
 // Session carries the caller-specific fields Run writes into the

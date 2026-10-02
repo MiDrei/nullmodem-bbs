@@ -60,6 +60,9 @@ Teil der NullModem-Familie:
   ausgehende Verbindungen
 - Meine Areas: jeder Anrufer nimmt Areas aus New-Scan, QWK und Reader-App heraus
   (Telnet K, Portal ✓, Reader); neue Areas sind automatisch drin
+- Chat auch im Portal und in der Reader-App; öffentliche Download-Links für
+  Dateien freigegebener Areas (Seite mit Link-Vorschau); Door-Bulletins
+  (Scoreboards, News) im Doors-Menü, Portal und auf der Startseite
 - BBS-Liste mit stündlichem Online-Check; Monatsrückblick per Netmail an die
   Sysops
 - Menü-Editor (Admin → Content → Menus): Punkte, Aktionen, SL, neue Menüs,
