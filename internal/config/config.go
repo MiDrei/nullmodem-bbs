@@ -102,6 +102,8 @@ type Config struct {
 	// Discord bridges chat rooms to Discord channels (internal/discord;
 	// which room goes where is set per room in the web admin).
 	Discord DiscordConfig `yaml:"discord,omitempty"`
+	// Matrix bridges chat rooms to Matrix rooms (internal/matrix).
+	Matrix MatrixConfig `yaml:"matrix,omitempty"`
 	// Security is the login protection and new-user approval (see
 	// internal/guard).
 	Security SecurityConfig `yaml:"security"`
@@ -587,5 +589,18 @@ type DiscordConfig struct {
 	// Token is the bot's token (Discord Developer Portal -> Bot).
 	Token string `yaml:"token,omitempty"`
 	// Quiet: don't tell Discord when someone enters or leaves a room.
+	Quiet bool `yaml:"quiet,omitempty"`
+}
+
+// MatrixConfig is the Matrix bridge's bot account.
+type MatrixConfig struct {
+	Enabled bool `yaml:"enabled"`
+	// Homeserver is the bot's server, e.g. https://matrix.org.
+	Homeserver string `yaml:"homeserver,omitempty"`
+	// UserID is the bot, e.g. @maiksplace:matrix.org; Token its access
+	// token (the web admin logs in once and keeps only this).
+	UserID string `yaml:"user_id,omitempty"`
+	Token  string `yaml:"token,omitempty"`
+	// Quiet: don't tell Matrix when someone enters or leaves a room.
 	Quiet bool `yaml:"quiet,omitempty"`
 }

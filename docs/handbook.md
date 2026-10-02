@@ -229,6 +229,17 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   ist. Ist die Brücke eingeschaltet, aber länger als 15 Minuten getrennt,
   erscheint das unter „Needs attention“. Das Token steht in `bbs.yaml` und
   wird im Web nie wieder angezeigt.
+- **Matrix-Brücke:** genauso, für Matrix-Räume (z. B. auf matrix.org): ein
+  Konto für den Bot anlegen (etwa über Element), unter „Matrix bridge“
+  Homeserver, Bot-Name und Passwort eintragen → „Log in and turn on“ (es wird
+  nur das Zugriffstoken gespeichert). Mit dem eigenen Konto einen Raum **ohne
+  Verschlüsselung** anlegen und den Bot einladen (oder den Raum öffentlich
+  machen), dann beim BBS-Raum unter Edit den Matrix-Raum wählen oder seine
+  Adresse `#raum:server` eintragen. In Matrix schreibt der Bot „name: text“,
+  in der BBS erscheint `name@matrix`. Verschlüsselte Räume kann der Bot nicht
+  lesen — das Admin warnt dann. Ein Raum kann gleichzeitig mit Discord und
+  Matrix verbunden sein; was in Discord gesagt wird, kommt dann auch in Matrix
+  an und umgekehrt.
 - **Abstimmungen / BBS-Liste:** Community → Polls & BBS List. Die BBS prüft
   stündlich, ob die Boards der Liste antworten (TCP-Verbindung, nichts wird
   gesendet) und zeigt „up/down“ bzw. „online/offline“; Adressen im eigenen

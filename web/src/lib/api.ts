@@ -1887,6 +1887,8 @@ export interface ChatRoomSettings {
 	min_sl: number;
 	sort_order: number;
 	discord_channel: string;
+	/** The Matrix room ID it's bridged to (an address "#room:server" is accepted when saving). */
+	matrix_room: string;
 }
 
 export function listChatRoomSettings(token: string): Promise<ChatRoomSettings[]> {
@@ -1917,6 +1919,28 @@ export function getDiscord(token: string): Promise<DiscordState> {
 
 export function saveDiscord(token: string, d: { enabled: boolean; quiet: boolean; token?: string; clear_token?: boolean }): Promise<DiscordState> {
 	return request('/api/chat/discord', { method: 'PUT', body: JSON.stringify(d) }, token);
+}
+
+/** The Matrix bridge's bot -- never its token. */
+export interface MatrixState {
+	enabled: boolean;
+	homeserver: string;
+	user_id: string;
+	has_token: boolean;
+	quiet: boolean;
+	status: { enabled: boolean; has_token: boolean; connected: boolean; user_id?: string; error?: string; warnings?: string[] };
+	rooms: { id: string; name: string }[];
+}
+
+export function getMatrix(token: string): Promise<MatrixState> {
+	return request('/api/chat/matrix', { method: 'GET' }, token);
+}
+
+export function saveMatrix(
+	token: string,
+	m: { enabled: boolean; quiet: boolean; homeserver?: string; user?: string; password?: string; forget?: boolean }
+): Promise<MatrixState> {
+	return request('/api/chat/matrix', { method: 'PUT', body: JSON.stringify(m) }, token);
 }
 
 export interface Oneliner {

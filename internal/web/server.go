@@ -13,6 +13,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/discord"
+	"git.maik.ch/nullmodem/bbs/internal/matrix"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
 	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	"git.maik.ch/nullmodem/bbs/internal/push"
@@ -80,6 +81,8 @@ type Server struct {
 	Stats *stats.Store
 	// Discord is the chat rooms' bridge; nil: none.
 	Discord *discord.Bridge
+	// Matrix is the chat rooms' bridge to Matrix; nil: none.
+	Matrix *matrix.Bridge
 	// MenuDefaultsDir holds this version's stock menus (the image's
 	// configs-defaults/menus), "" for none: the menu editor offers
 	// what's new in them.
@@ -173,6 +176,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/chat/room-settings/{room}", s.requireAuth(http.HandlerFunc(s.handleDeleteChatRoom)))
 	mux.Handle("GET /api/chat/discord", s.requireAuth(http.HandlerFunc(s.handleGetDiscord)))
 	mux.Handle("PUT /api/chat/discord", s.requireAuth(http.HandlerFunc(s.handlePutDiscord)))
+	mux.Handle("GET /api/chat/matrix", s.requireAuth(http.HandlerFunc(s.handleGetMatrix)))
+	mux.Handle("PUT /api/chat/matrix", s.requireAuth(http.HandlerFunc(s.handlePutMatrix)))
 	mux.Handle("GET /api/oneliners", s.requireAuth(http.HandlerFunc(s.handleListOneliners)))
 	mux.Handle("DELETE /api/oneliners/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteOneliner)))
 	mux.Handle("GET /api/nodelists", s.requireAuth(http.HandlerFunc(s.handleNodelistStatus)))

@@ -10,9 +10,12 @@
 		deleteChatRoom,
 		getDiscord,
 		saveDiscord,
+		getMatrix,
+		saveMatrix,
 		ApiError,
 		type ChatRoomSettings,
-		type DiscordState
+		type DiscordState,
+		type MatrixState
 	} from '$lib/api';
 
 	let { onchange }: { onchange?: (rooms: ChatRoomSettings[]) => void } = $props();
@@ -21,6 +24,8 @@
 	let editing = $state<ChatRoomSettings | null>(null);
 	let isNew = $state(false);
 	let dc = $state<DiscordState | null>(null);
+	let mx = $state<MatrixState | null>(null);
+	let mxLogin = $state({ homeserver: 'https://matrix.org', user: '', password: '' });
 	let tokenInput = $state('');
 	let saving = $state(false);
 	let timer: ReturnType<typeof setInterval> | undefined;
@@ -30,7 +35,8 @@
 	async function load() {
 		if (!auth.token) return;
 		try {
-			[rooms, dc] = await Promise.all([listChatRoomSettings(auth.token), getDiscord(auth.token)]);
+			[rooms, dc, mx] = await Promise.all([listChatRoomSettings(auth.token), getDiscord(auth.token), getMatrix(auth.token)]);
+			if (mx.homeserver) mxLogin.homeserver = mx.homeserver;
 			onchange?.(rooms);
 		} catch (err) {
 			fail(err, 'Could not load the rooms.');
@@ -42,13 +48,14 @@
 		// While connecting, the status and channels change by themselves.
 		timer = setInterval(async () => {
 			if (auth.token && dc?.enabled) dc = await getDiscord(auth.token).catch(() => dc);
+			if (auth.token && mx?.enabled) mx = await getMatrix(auth.token).catch(() => mx);
 		}, 5000);
 	});
 	onDestroy(() => clearInterval(timer));
 
 	function edit(r?: ChatRoomSettings) {
 		isNew = !r;
-		editing = r ? { ...r } : { name: '', title: '', topic: '', min_sl: 0, sort_order: (rooms.length + 1) * 10, discord_channel: '' };
+		editing = r ? { ...r } : { name: '', title: '', topic: '', min_sl: 0, sort_order: (rooms.length + 1) * 10, discord_channel: '', matrix_room: '' };
 	}
 
 	async function saveRoom(e: SubmitEvent) {
@@ -88,6 +95,29 @@
 			saving = false;
 		}
 	}
+
+	async function saveMx(enabled: boolean, extra: { forget?: boolean; login?: boolean } = {}) {
+		if (!auth.token || !mx) return;
+		saving = true;
+		try {
+			mx = await saveMatrix(auth.token, {
+				enabled,
+				quiet: mx.quiet,
+				homeserver: mxLogin.homeserver,
+				...(extra.login ? { user: mxLogin.user, password: mxLogin.password } : {}),
+				...(extra.forget ? { forget: true } : {})
+			});
+			mxLogin.password = '';
+			toast.push(extra.login ? 'Logged in -- the bot connects in a moment.' : 'Saved.', 'success');
+			setTimeout(load, 3000);
+		} catch (err) {
+			fail(err, 'Could not save.');
+		} finally {
+			saving = false;
+		}
+	}
+
+	const matrixName = (id: string) => mx?.rooms.find((r) => r.id === id)?.name ?? id;
 
 	const channelName = (id: string) => {
 		const c = dc?.channels.find((x) => x.id === id);
@@ -140,6 +170,22 @@
 						<input class="field font-mono" bind:value={editing.discord_channel} placeholder="channel ID, or connect the bot first" />
 					{/if}
 				</label>
+				<label class="flex flex-col gap-1 text-xs text-muted sm:col-span-2">
+					Matrix room
+					{#if mx?.rooms.length}
+						<select class="field" bind:value={editing.matrix_room}>
+							<option value="">— not bridged —</option>
+							{#each mx.rooms as r (r.id)}
+								<option value={r.id}>{r.name}</option>
+							{/each}
+							{#if editing.matrix_room && !mx.rooms.some((r) => r.id === editing?.matrix_room)}
+								<option value={editing.matrix_room}>{editing.matrix_room}</option>
+							{/if}
+						</select>
+						<span class="text-[11px] text-faint">Rooms the bot is in. Another one: invite the bot there, or type its address below.</span>
+					{/if}
+					<input class="field font-mono" bind:value={editing.matrix_room} placeholder="#room:matrix.org or !id:matrix.org" />
+				</label>
 				<div class="flex justify-end gap-2 sm:col-span-2">
 					<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>Cancel</button>
 					<button type="submit" class="btn-primary btn-sm">Save</button>
@@ -156,6 +202,9 @@
 						</div>
 						{#if r.discord_channel}
 							<div class="text-xs text-indigo-400">↔ Discord {channelName(r.discord_channel)}</div>
+						{/if}
+						{#if r.matrix_room}
+							<div class="text-xs text-emerald-500">↔ Matrix {matrixName(r.matrix_room)}</div>
 						{/if}
 					</div>
 					<button class="btn-secondary btn-xs" onclick={() => edit(r)}>Edit</button>
@@ -225,6 +274,67 @@
 					<li><b>Bot</b> → <b>Reset Token</b> → copy it into the field above → <b>Turn on</b>.</li>
 					<li>Once it says “Connected”: <b>Add it to your server</b> (the link above) — it asks for the permissions it needs.</li>
 					<li>Give each room its channel (Edit on the left). In Discord, what the callers say appears under their names.</li>
+				</ol>
+			</details>
+		{/if}
+	</section>
+
+	<section class="card lg:col-span-2">
+		<h2 class="card-label mb-3">Matrix bridge</h2>
+		{#if mx}
+			<div class="mb-3 flex items-center gap-2 text-sm">
+				<span class="inline-block h-2 w-2 rounded-full {mx.status.connected ? 'bg-emerald-400' : mx.enabled ? 'bg-amber-400' : 'bg-line-strong'}"></span>
+				{#if mx.status.connected}
+					<span>Connected as <span class="text-ink-strong">{mx.status.user_id}</span>{#if mx.rooms.length}{` · in ${mx.rooms.length} room(s)`}{/if}</span>
+				{:else if mx.enabled}
+					<span class="text-amber-300">{mx.status.error || 'Connecting…'}</span>
+				{:else if mx.has_token}
+					<span class="text-muted">Off (logged in as {mx.user_id})</span>
+				{:else}
+					<span class="text-muted">Off</span>
+				{/if}
+			</div>
+			{#each mx.status.warnings ?? [] as w (w)}
+				<p class="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-300">{w}</p>
+			{/each}
+			<div class="grid gap-3 sm:grid-cols-3">
+				<label class="flex flex-col gap-1 text-xs text-muted">
+					Homeserver
+					<input class="field font-mono" bind:value={mxLogin.homeserver} placeholder="https://matrix.org" />
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-muted">
+					Bot user {mx.has_token ? '(to log in again)' : ''}
+					<input class="field font-mono" bind:value={mxLogin.user} placeholder={mx.user_id || 'maiksplace-bot'} autocomplete="off" />
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-muted">
+					Its password (only used to log in, not kept)
+					<input class="field" type="password" bind:value={mxLogin.password} autocomplete="new-password" />
+				</label>
+			</div>
+			<label class="mt-3 flex items-center gap-2 text-sm">
+				<input type="checkbox" bind:checked={mx.quiet} />
+				Don't tell Matrix when someone enters or leaves a room
+			</label>
+			<div class="mt-3 flex flex-wrap justify-end gap-2">
+				{#if mx.has_token && !mx.enabled}
+					<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveMx(false, { forget: true })}>Log out</button>
+				{/if}
+				{#if mx.enabled}
+					<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveMx(false)}>Turn off</button>
+				{/if}
+				{#if mxLogin.password}
+					<button class="btn-primary btn-sm" disabled={saving || !mxLogin.user.trim()} onclick={() => saveMx(true, { login: true })}>Log in and turn on</button>
+				{:else}
+					<button class="btn-primary btn-sm" disabled={saving || !mx.has_token} onclick={() => saveMx(true)}>{mx.enabled ? 'Save' : 'Turn on'}</button>
+				{/if}
+			</div>
+			<details class="mt-4 text-xs leading-relaxed text-muted">
+				<summary class="cursor-pointer text-ink-soft">How to set it up (about 10 minutes)</summary>
+				<ol class="mt-2 ml-4 list-decimal space-y-1.5">
+					<li>An account for the bot, e.g. on <a href="https://app.element.io/#/register" target="_blank" rel="noopener" class="text-accent hover:underline">matrix.org via Element</a> (any homeserver works).</li>
+					<li>Enter the homeserver, the bot's user name and password above → <b>Log in and turn on</b>. Only the access token is kept.</li>
+					<li>With your own account: create a room <b>without encryption</b> (the bot can't read encrypted rooms) and invite the bot -- or make the room public.</li>
+					<li>Give each BBS room its Matrix room (Edit on the left). Matrix shows "name: text" from the bot; the BBS shows "name@matrix".</li>
 				</ol>
 			</details>
 		{/if}

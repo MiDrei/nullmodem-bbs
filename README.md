@@ -54,9 +54,10 @@ Teil der NullModem-Familie:
 - Threads: Antworten über REPLY-Kludge, direkte Antworten oder den Betreff
   verknüpft; Thread-Ansicht im Portal und in der Reader-App, Thread-Liste (T)
   und `[`/`]` im Telnet, REPLY in ausgehender Echomail, Referenznummer im QWK-Paket
-- Chat-Räume (`/rooms`, `/join` in der Teleconference) mit Brücke zu
-  Discord-Kanälen: BBS-Anrufer erscheinen dort unter ihrem Namen, Discord in
-  der BBS als `name@discord`; nur ausgehende Verbindungen
+- Chat-Räume (`/rooms`, `/join` in der Teleconference) mit Brücken zu
+  Discord-Kanälen und Matrix-Räumen: BBS-Anrufer erscheinen dort unter ihrem
+  Namen, die anderen in der BBS als `name@discord` / `name@matrix`; nur
+  ausgehende Verbindungen
 - Meine Areas: jeder Anrufer nimmt Areas aus New-Scan, QWK und Reader-App heraus
   (Telnet K, Portal ✓, Reader); neue Areas sind automatisch drin
 - BBS-Liste mit stündlichem Online-Check; Monatsrückblick per Netmail an die

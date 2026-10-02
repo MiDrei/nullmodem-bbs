@@ -35,6 +35,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/db"
 	"git.maik.ch/nullmodem/bbs/internal/discord"
+	"git.maik.ch/nullmodem/bbs/internal/matrix"
 	"git.maik.ch/nullmodem/bbs/internal/file"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
@@ -183,6 +184,18 @@ func main() {
 		},
 	}
 	go srv.Discord.Run(context.Background())
+	srv.Matrix = &matrix.Bridge{
+		Chat:   srv.Chat,
+		Logger: logger,
+		Settings: func() matrix.Settings {
+			c, err := config.Load(cfg.BBSConfigPath)
+			if err != nil {
+				c = current()
+			}
+			return matrix.Settings{MatrixConfig: c.Matrix, BBSName: c.BBS.Name}
+		},
+	}
+	go srv.Matrix.Run(context.Background())
 
 	// Watching that everything keeps working: problems go to the
 	// sysops' phones (when they have the reader's notifications on)
@@ -194,10 +207,14 @@ func main() {
 		StartedAt: time.Now(),
 		Disk:      web.DiskUsage,
 		Extra: func() []health.Problem {
+			var out []health.Problem
 			if down, detail := srv.Discord.Down(15 * time.Minute); down {
-				return []health.Problem{{Key: "discord", Title: "The Discord bridge is not connected", Detail: detail}}
+				out = append(out, health.Problem{Key: "discord", Title: "The Discord bridge is not connected", Detail: detail})
 			}
-			return nil
+			if down, detail := srv.Matrix.Down(15 * time.Minute); down {
+				out = append(out, health.Problem{Key: "matrix", Title: "The Matrix bridge is not connected", Detail: detail})
+			}
+			return out
 		},
 	}, 5*time.Minute, logger, func(p health.Problem, ok bool) {
 		if srv.Push == nil {

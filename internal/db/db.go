@@ -208,6 +208,10 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := ensureColumn(sqlDB, "chat_rooms", "matrix_room", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	for _, col := range []string{"checked_at", "online", "last_up_at"} {
 		if err := ensureColumn(sqlDB, "bbs_list", col, "INTEGER NOT NULL DEFAULT 0"); err != nil {
 			sqlDB.Close()

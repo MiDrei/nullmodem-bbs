@@ -336,37 +336,9 @@ func (b *Bridge) forward(set Settings) {
 	}
 }
 
-// outgoing is what a room's line says on Discord, and under which name;
-// false for lines that stay on the BBS.
+// outgoing is what a room's line says on Discord, and under which name.
 func outgoing(l chat.Line, set Settings) (name, text string, ok bool) {
-	if l.Source == chat.SourceDiscord {
-		return "", "", false // came from there
-	}
-	bbs := set.BBSName
-	if bbs == "" {
-		bbs = "BBS"
-	}
-	switch l.Kind {
-	case chat.Say:
-		if strings.TrimSpace(l.Text) == "" {
-			return "", "", false
-		}
-		return l.Username, l.Text, true
-	case chat.Join, chat.Leave:
-		if set.Quiet {
-			return "", "", false
-		}
-		via := "on the BBS"
-		if l.Source == "web" {
-			via = "on the web"
-		}
-		verb := "joined"
-		if l.Kind == chat.Leave {
-			verb, via = "left", ""
-		}
-		return bbs, "*" + strings.TrimSpace(l.Username+" "+verb+" "+via) + "*", true
-	}
-	return "", "", false
+	return chat.BridgeLine(l, chat.SourceDiscord, set.Quiet, set.BBSName)
 }
 
 // send says text in channel under name: through the bridge's webhook,

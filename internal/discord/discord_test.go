@@ -27,6 +27,8 @@ func TestOutgoing(t *testing.T) {
 		{chat.Line{Username: "maik", Source: "node 1", Kind: chat.Leave}, false, "Maiks Place", "*maik left*", true},
 		{chat.Line{Username: "maik", Source: "node 1", Kind: chat.Join}, true, "", "", false},
 		{chat.Line{Username: "maik", Source: "node 1", Kind: chat.Page, Text: "help"}, false, "", "", false},
+		{chat.Line{Username: "Eve", Source: chat.SourceMatrix, Kind: chat.Say, Text: "hi all"}, false, "Eve@matrix", "hi all", true},
+		{chat.Line{Username: "Eve", Source: chat.SourceMatrix, Kind: chat.Join}, false, "", "", false},
 	} {
 		set.Quiet = c.quiet
 		name, text, ok := outgoing(c.l, set)

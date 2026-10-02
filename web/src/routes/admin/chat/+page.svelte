@@ -144,14 +144,17 @@
 	const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	const label = (name: string) =>
 		settings.find((r) => r.name === name)?.title ?? (name === 'main' ? 'Teleconference' : name.startsWith('page-') ? `${name.slice(5)} (page)` : name);
-	const bridged = (name: string) => !!settings.find((r) => r.name === name)?.discord_channel;
+	const bridged = (name: string) => {
+		const r = settings.find((x) => x.name === name);
+		return [r?.discord_channel && 'Discord', r?.matrix_room && 'Matrix'].filter(Boolean).join(', ');
+	};
 	const who = (p: ChatPresence[]) => p.map((x) => (x.source === 'web' ? `${x.username} (web)` : `${x.username} (${x.source})`)).join(', ');
 </script>
 
 <div class="mb-6">
 	<h1 class="page-title">Chat & One-liners</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
-		Talk with the callers on Telnet and SSH -- and, through a bridged room, with Discord. A caller paging
+		Talk with the callers on Telnet and SSH -- and, through a bridged room, with Discord and Matrix. A caller paging
 		you waits in their own room -- you get a notification, and it's at the top here.
 	</p>
 </div>
@@ -166,7 +169,7 @@
 			>
 				<span class="flex w-full items-center gap-2">
 					<span class="flex-1 truncate {r.paging ? 'font-semibold text-fuchsia-300' : 'text-ink-strong'}">{label(r.name)}</span>
-					{#if bridged(r.name)}<span class="text-[11px] text-indigo-400" title="Bridged to Discord">↔ Discord</span>{/if}
+					{#if bridged(r.name)}<span class="text-[11px] text-indigo-400" title="Bridged">↔ {bridged(r.name)}</span>{/if}
 					{#if r.present.length}<span class="r-badge rounded-full bg-accent px-1.5 text-[11px] text-black">{r.present.length}</span>{/if}
 				</span>
 				{#if r.paging}
@@ -198,8 +201,8 @@
 						{:else if l.kind === 'page'}
 							<span class="font-semibold text-fuchsia-300">{l.username} paged you: {l.text}</span>
 						{:else}
-							{#if l.source === 'discord'}
-								<span class="text-indigo-400">{l.username}@discord:</span>
+							{#if l.source === 'discord' || l.source === 'matrix'}
+								<span class="text-indigo-400">{l.username}@{l.source}:</span>
 							{:else}
 								<span class="text-accent">{l.username}:</span>
 							{/if}

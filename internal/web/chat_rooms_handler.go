@@ -10,6 +10,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/discord"
+	"git.maik.ch/nullmodem/bbs/internal/matrix"
 )
 
 // The rooms callers may enter (the teleconference and the sysop's
@@ -62,6 +63,36 @@ func (s *Server) handleSaveChatRoom(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if in.MatrixRoom = strings.TrimSpace(in.MatrixRoom); in.MatrixRoom != "" {
+		if !strings.HasPrefix(in.MatrixRoom, "!") && !strings.HasPrefix(in.MatrixRoom, "#") {
+			writeError(w, http.StatusBadRequest, "a Matrix room is its ID (!abc:server) or an address (#room:server)")
+			return
+		}
+		// The bot joins it (and an address becomes the room's ID).
+		var c *matrix.Client
+		if s.Matrix != nil {
+			c = s.Matrix.Client()
+		}
+		if c != nil {
+			id, err := c.Join(r.Context(), in.MatrixRoom)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "the bot couldn't join "+in.MatrixRoom+" -- invite it there first ("+err.Error()+")")
+				return
+			}
+			in.MatrixRoom = id
+		} else if strings.HasPrefix(in.MatrixRoom, "#") {
+			writeError(w, http.StatusBadRequest, "connect the Matrix bot first, or give the room's ID (!abc:server)")
+			return
+		}
+		if rooms, err := s.Chat.ListRooms(); err == nil {
+			for _, o := range rooms {
+				if o.Name != in.Name && o.MatrixRoom == in.MatrixRoom {
+					writeError(w, http.StatusBadRequest, fmt.Sprintf("that Matrix room is already bridged to %s", o.Name))
+					return
+				}
+			}
+		}
+	}
 	if err := s.Chat.SaveRoom(in); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save the room")
 		return
@@ -69,6 +100,9 @@ func (s *Server) handleSaveChatRoom(w http.ResponseWriter, r *http.Request) {
 	s.logInfo("chat room %s saved", in.Name)
 	if s.Discord != nil {
 		s.Discord.Reload()
+	}
+	if s.Matrix != nil {
+		s.Matrix.Reload()
 	}
 	saved, _ := s.Chat.RoomByName(in.Name)
 	writeJSON(w, http.StatusOK, saved)
@@ -170,4 +204,97 @@ func (s *Server) handlePutDiscord(w http.ResponseWriter, r *http.Request) {
 		s.Discord.Reload()
 	}
 	writeJSON(w, http.StatusOK, s.discordState(c))
+}
+
+type matrixDTO struct {
+	Enabled    bool          `json:"enabled"`
+	Homeserver string        `json:"homeserver"`
+	UserID     string        `json:"user_id"`
+	HasToken   bool          `json:"has_token"`
+	Quiet      bool          `json:"quiet"`
+	Status     matrix.Status `json:"status"`
+	Rooms      []matrix.Room `json:"rooms"`
+}
+
+func (s *Server) matrixState(r *http.Request, c *config.Config) matrixDTO {
+	out := matrixDTO{Enabled: c.Matrix.Enabled, Homeserver: c.Matrix.Homeserver, UserID: c.Matrix.UserID,
+		HasToken: c.Matrix.Token != "", Quiet: c.Matrix.Quiet, Rooms: []matrix.Room{}}
+	if s.Matrix != nil {
+		out.Status = s.Matrix.Status()
+		if cl := s.Matrix.Client(); cl != nil && out.Status.Connected {
+			if rooms, err := cl.JoinedRooms(r.Context()); err == nil {
+				out.Rooms = rooms
+			}
+		}
+	}
+	return out
+}
+
+// handleGetMatrix: GET /api/chat/matrix -- never the token.
+func (s *Server) handleGetMatrix(w http.ResponseWriter, r *http.Request) {
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.matrixState(r, c))
+}
+
+// handlePutMatrix: PUT /api/chat/matrix {enabled, quiet, homeserver,
+// user, password, forget} -- with a password the bot logs in and only
+// its access token is kept.
+func (s *Server) handlePutMatrix(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Enabled    bool   `json:"enabled"`
+		Quiet      bool   `json:"quiet"`
+		Homeserver string `json:"homeserver"`
+		User       string `json:"user"`
+		Password   string `json:"password"`
+		Forget     bool   `json:"forget"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	hs := strings.TrimRight(strings.TrimSpace(in.Homeserver), "/")
+	if hs != "" && !strings.HasPrefix(hs, "https://") && !strings.HasPrefix(hs, "http://") {
+		hs = "https://" + hs
+	}
+	switch {
+	case in.Forget:
+		c.Matrix.Token, c.Matrix.UserID = "", ""
+	case in.Password != "":
+		if hs == "" || strings.TrimSpace(in.User) == "" {
+			writeError(w, http.StatusBadRequest, "the homeserver and the bot's user name, please")
+			return
+		}
+		userID, token, err := matrix.Login(r.Context(), hs, strings.TrimSpace(in.User), in.Password)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "the login failed: "+err.Error())
+			return
+		}
+		c.Matrix.Homeserver, c.Matrix.UserID, c.Matrix.Token = hs, userID, token
+	case hs != "" && hs != c.Matrix.Homeserver:
+		writeError(w, http.StatusBadRequest, "a new homeserver needs a login (user and password)")
+		return
+	}
+	c.Matrix.Enabled, c.Matrix.Quiet = in.Enabled, in.Quiet
+	if c.Matrix.Enabled && c.Matrix.Token == "" {
+		writeError(w, http.StatusBadRequest, "the bridge needs the bot to log in first")
+		return
+	}
+	if err := config.Save(s.BBSConfigPath, c); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save config")
+		return
+	}
+	s.logInfo("Matrix bridge %s (%s)", map[bool]string{true: "on", false: "off"}[c.Matrix.Enabled], c.Matrix.UserID)
+	if s.Matrix != nil {
+		s.Matrix.Reload()
+	}
+	writeJSON(w, http.StatusOK, s.matrixState(r, c))
 }

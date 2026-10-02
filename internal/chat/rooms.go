@@ -17,6 +17,8 @@ type RoomInfo struct {
 	MinSL          int    `json:"min_sl"`
 	SortOrder      int    `json:"sort_order"`
 	DiscordChannel string `json:"discord_channel"`
+	// MatrixRoom, if set, is the Matrix room ID it's bridged to.
+	MatrixRoom string `json:"matrix_room"`
 }
 
 // ErrNoRoom: no such room.
@@ -27,7 +29,7 @@ var ErrMainRoom = errors.New("chat: the teleconference stays")
 
 // ListRooms returns the rooms, the teleconference first.
 func (s *Store) ListRooms() ([]RoomInfo, error) {
-	rows, err := s.db.Query(`SELECT name, title, topic, min_sl, sort_order, discord_channel FROM chat_rooms
+	rows, err := s.db.Query(`SELECT name, title, topic, min_sl, sort_order, discord_channel, matrix_room FROM chat_rooms
 		ORDER BY name != 'main', sort_order, name`)
 	if err != nil {
 		return nil, fmt.Errorf("chat: %w", err)
@@ -36,7 +38,7 @@ func (s *Store) ListRooms() ([]RoomInfo, error) {
 	out := []RoomInfo{}
 	for rows.Next() {
 		var r RoomInfo
-		if err := rows.Scan(&r.Name, &r.Title, &r.Topic, &r.MinSL, &r.SortOrder, &r.DiscordChannel); err != nil {
+		if err := rows.Scan(&r.Name, &r.Title, &r.Topic, &r.MinSL, &r.SortOrder, &r.DiscordChannel, &r.MatrixRoom); err != nil {
 			return nil, fmt.Errorf("chat: %w", err)
 		}
 		out = append(out, r)
@@ -62,8 +64,8 @@ func (s *Store) RoomsFor(securityLevel int) ([]RoomInfo, error) {
 // RoomByName returns a listed room.
 func (s *Store) RoomByName(name string) (*RoomInfo, error) {
 	var r RoomInfo
-	err := s.db.QueryRow(`SELECT name, title, topic, min_sl, sort_order, discord_channel FROM chat_rooms WHERE name = ?`,
-		strings.ToLower(name)).Scan(&r.Name, &r.Title, &r.Topic, &r.MinSL, &r.SortOrder, &r.DiscordChannel)
+	err := s.db.QueryRow(`SELECT name, title, topic, min_sl, sort_order, discord_channel, matrix_room FROM chat_rooms WHERE name = ?`,
+		strings.ToLower(name)).Scan(&r.Name, &r.Title, &r.Topic, &r.MinSL, &r.SortOrder, &r.DiscordChannel, &r.MatrixRoom)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoRoom
 	}
@@ -83,10 +85,10 @@ func (s *Store) SaveRoom(r RoomInfo) error {
 	if r.Title == "" {
 		r.Title = r.Name
 	}
-	if _, err := s.db.Exec(`INSERT INTO chat_rooms (name, title, topic, min_sl, sort_order, discord_channel) VALUES (?, ?, ?, ?, ?, ?)
+	if _, err := s.db.Exec(`INSERT INTO chat_rooms (name, title, topic, min_sl, sort_order, discord_channel, matrix_room) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET title = excluded.title, topic = excluded.topic, min_sl = excluded.min_sl,
-			sort_order = excluded.sort_order, discord_channel = excluded.discord_channel`,
-		r.Name, r.Title, strings.TrimSpace(r.Topic), r.MinSL, r.SortOrder, strings.TrimSpace(r.DiscordChannel)); err != nil {
+			sort_order = excluded.sort_order, discord_channel = excluded.discord_channel, matrix_room = excluded.matrix_room`,
+		r.Name, r.Title, strings.TrimSpace(r.Topic), r.MinSL, r.SortOrder, strings.TrimSpace(r.DiscordChannel), strings.TrimSpace(r.MatrixRoom)); err != nil {
 		return fmt.Errorf("chat: %w", err)
 	}
 	return nil

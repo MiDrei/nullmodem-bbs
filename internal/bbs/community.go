@@ -213,8 +213,15 @@ func (s *Server) teleconference(term *Terminal, u *user.User) error {
 		title, intro := "Teleconference", ""
 		if info, err := s.Chat.RoomByName(room); err == nil {
 			title = info.Title
+			var bridges []string
 			if info.DiscordChannel != "" {
-				title += " (+ Discord)"
+				bridges = append(bridges, "Discord")
+			}
+			if info.MatrixRoom != "" {
+				bridges = append(bridges, "Matrix")
+			}
+			if len(bridges) > 0 {
+				title += " (+ " + strings.Join(bridges, ", ") + ")"
 			}
 			intro = info.Topic
 		}
@@ -314,11 +321,7 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		case chat.Page:
 			addRow(ansi.FG(ansi.Magenta, true), fmt.Sprintf("%s  %s paged the sysop: %s", at, l.Username, l.Text))
 		default:
-			who := l.Username
-			if l.Source == chat.SourceDiscord {
-				who += "@discord"
-			}
-			addRow(ansi.FG(ansi.White, false), fmt.Sprintf("%s  %s: %s", at, who, l.Text))
+			addRow(ansi.FG(ansi.White, false), fmt.Sprintf("%s  %s: %s", at, chat.Speaker(l), l.Text))
 		}
 	}
 	if intro != "" {
@@ -516,6 +519,9 @@ func (s *Server) listChatRooms(u *user.User, current string, add func(string)) {
 		}
 		if r.DiscordChannel != "" {
 			line += "  + Discord"
+		}
+		if r.MatrixRoom != "" {
+			line += "  + Matrix"
 		}
 		add(line)
 	}
