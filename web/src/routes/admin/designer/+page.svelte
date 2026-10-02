@@ -334,12 +334,7 @@
 		saving = true;
 		try {
 			await saveScreenGrid(auth.token, selectedName, grid);
-			toast.push(
-				selectedName === 'welcome.ans'
-					? 'Saved welcome.ans. Restart the bbs daemon for the connect screen to change.'
-					: `Saved ${selectedName} -- callers see it the next time it's shown.`,
-				'success'
-			);
+			toast.push(`Saved ${selectedName} -- callers see it the next time it's shown.`, 'success');
 		} catch (err) {
 			toast.push(err instanceof ApiError ? err.message : 'Could not save screen.', 'error');
 		} finally {

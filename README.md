@@ -59,6 +59,8 @@ Teil der NullModem-Familie:
   der BBS als `name@discord`; nur ausgehende Verbindungen
 - Meine Areas: jeder Anrufer nimmt Areas aus New-Scan, QWK und Reader-App heraus
   (Telnet K, Portal ✓, Reader); neue Areas sind automatisch drin
+- BBS-Liste mit stündlichem Online-Check; Monatsrückblick per Netmail an die
+  Sysops
 - Menü-Editor (Admin → Content → Menus): Punkte, Aktionen, SL, neue Menüs,
   Vorschau wie im Telnet mit Abgleich gegen den Bildschirm, neue Standardpunkte
   einer Version per Klick; Änderungen gelten ohne Neustart

@@ -21,10 +21,12 @@ type Config struct {
 		NewUserSL int    `yaml:"new_user_sl"`
 		// PublicFeeds offers an RSS feed of every area a new caller may
 		// read, without login (the front page lists them).
-		PublicFeeds bool   `yaml:"public_feeds,omitempty"`
-		MenusDir    string `yaml:"menus_dir"`
-		ScreensDir  string `yaml:"screens_dir"`
-		FilesDir    string `yaml:"files_dir"`
+		PublicFeeds bool `yaml:"public_feeds,omitempty"`
+		// MonthlyRecapOff stops the monthly recap netmail to the sysops.
+		MonthlyRecapOff bool   `yaml:"monthly_recap_off,omitempty"`
+		MenusDir        string `yaml:"menus_dir"`
+		ScreensDir      string `yaml:"screens_dir"`
+		FilesDir        string `yaml:"files_dir"`
 		// DoorsDir is where doors installed from the web admin's
 		// templates go, one directory each.
 		DoorsDir string `yaml:"doors_dir"`

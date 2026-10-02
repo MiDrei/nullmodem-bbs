@@ -161,6 +161,14 @@ func main() {
 		srv.MenuDefaultsDir = "configs-defaults/menus"
 	}
 
+	// The monthly recap netmail to the sysops.
+	go srv.RunRecaps(context.Background())
+
+	// Whether the boards on the BBS list answer.
+	if srv.Community != nil {
+		go srv.Community.RunChecks(context.Background())
+	}
+
 	// The chat rooms' bridge to Discord, as set in the web admin.
 	srv.Discord = &discord.Bridge{
 		Chat:   srv.Chat,

@@ -38,6 +38,8 @@ export interface BBSConfig {
 	new_user_sl: number;
 	/** An RSS feed per area a new caller may read, without login. */
 	public_feeds: boolean;
+	/** The monthly recap netmail to the sysops (on the 1st). */
+	monthly_recap: boolean;
 	/** This system's own FTN addresses/AKAs (zone:net/node.point), if any. The first is "primary": stamped on outgoing netmail. Most systems have exactly one; more than one is for a point reachable through the same uplink under multiple FTN networks. */
 	ftn_addresses: string[];
 	/** The FTN networks this system belongs to: short name (the group of their areas, what an uplink names) and FTN domain. */
@@ -352,6 +354,11 @@ export function getPublicFeeds(): Promise<{ tag: string; name: string; network: 
 
 export function getPublicStats(): Promise<StatsReport> {
 	return request('/api/public/stats', { method: 'GET' });
+}
+
+/** A recap of the last 30 days to every sysop's netmail, now. */
+export function sendRecap(token: string): Promise<{ sent: number }> {
+	return request('/api/stats/recap', { method: 'POST' }, token);
 }
 
 export function getStats(token: string, days: number): Promise<StatsReport> {
@@ -2026,6 +2033,10 @@ export interface BBSListEntry {
 	added_by_id: number;
 	added_by: string;
 	updated_at: string;
+	/** The online check: zero times ("0001-…") mean not yet. */
+	checked_at: string;
+	online: boolean;
+	last_up_at: string;
 }
 
 export type BBSListInput = Pick<BBSListEntry, 'name' | 'address' | 'sysop' | 'software' | 'description'>;

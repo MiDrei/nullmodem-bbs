@@ -64,7 +64,8 @@ In `configs/web.yaml` für das Web-Terminal im Docker-Betrieb:
 5. **Grunddaten:** System → Settings (Name, Sysop, Ort — erscheint im
    BinkP-Handshake und auf den Bildschirmen).
 6. **Bildschirme:** Content → Screens → Begrüßung, Hauptmenü usw. im ANSI-Designer
-   anpassen. Rahmen mit `{FILL:x}` bauen, damit sie bei jeder Breite schließen.
+   anpassen. Rahmen mit `{FILL:x}` bauen, damit sie bei jeder Breite schließen. Gespeichert gilt
+   sofort, auch für den Begrüßungsbildschirm.
    **Menüs:** Content → Menus — Punkte (Taste, Text, was er tut, ab welchem
    SL) ändern, umsortieren, neue Menüs anlegen und verknüpfen. Die Vorschau
    zeigt das Menü wie ein Anrufer oder der Sysop und warnt, wenn Bildschirm und
@@ -228,7 +229,15 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   ist. Ist die Brücke eingeschaltet, aber länger als 15 Minuten getrennt,
   erscheint das unter „Needs attention“. Das Token steht in `bbs.yaml` und
   wird im Web nie wieder angezeigt.
-- **Abstimmungen / BBS-Liste:** Community → Polls & BBS List.
+- **Abstimmungen / BBS-Liste:** Community → Polls & BBS List. Die BBS prüft
+  stündlich, ob die Boards der Liste antworten (TCP-Verbindung, nichts wird
+  gesendet) und zeigt „up/down“ bzw. „online/offline“; Adressen im eigenen
+  oder einem privaten Netz werden nie angefragt.
+- **Monatsrückblick:** Am 1. um 07:00 bekommt jeder Sysop eine Netmail mit dem
+  Vormonat — Anrufe, Schreiber, Areas, Echomail pro Netzwerk, Doors, Downloads,
+  BinkP-Sitzungen, Backup und was gerade nicht stimmt. Abschalten unter
+  Settings → Monthly recap; System → Statistics → „Send a recap now“ schickt
+  sofort einen.
 - **Statistik:** System → Statistics — Anrufe pro Tag und Stunde, aktivste
   Anrufer, Schreiber und Areas, Echomail pro Netzwerk, Doors, Downloads,
   BinkP-Sitzungen, neue Konten (7 Tage bis 1 Jahr). Die letzten 30 Tage ohne

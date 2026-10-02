@@ -192,6 +192,11 @@ type BBS struct {
 	AddedByID   int64     `json:"added_by_id"`
 	AddedBy     string    `json:"added_by"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// The online check (CheckBBSList): when it last looked, whether the
+	// board answered, and when it last did; zero times: not yet.
+	CheckedAt time.Time `json:"checked_at"`
+	Online    bool      `json:"online"`
+	LastUpAt  time.Time `json:"last_up_at"`
 }
 
 // Limits of a BBS list entry's fields.
@@ -230,8 +235,12 @@ func (s *Store) SaveBBS(b BBS) (int64, error) {
 		}
 		return res.LastInsertId()
 	}
-	res, err := s.db.Exec(`UPDATE bbs_list SET name = ?, address = ?, sysop = ?, software = ?, description = ?, updated_at = ? WHERE id = ?`,
-		b.Name, b.Address, b.Sysop, b.Software, b.Description, now, b.ID)
+	// A new address hasn't been checked yet.
+	res, err := s.db.Exec(`UPDATE bbs_list SET name = ?, address = ?, sysop = ?, software = ?, description = ?, updated_at = ?,
+			checked_at = CASE WHEN address = ? THEN checked_at ELSE 0 END,
+			online = CASE WHEN address = ? THEN online ELSE 0 END
+		WHERE id = ?`,
+		b.Name, b.Address, b.Sysop, b.Software, b.Description, now, b.Address, b.Address, b.ID)
 	if err != nil {
 		return 0, fmt.Errorf("community: %w", err)
 	}
@@ -243,7 +252,8 @@ func (s *Store) SaveBBS(b BBS) (int64, error) {
 
 // BBSList returns the list, by name.
 func (s *Store) BBSList() ([]BBS, error) {
-	rows, err := s.db.Query(`SELECT id, name, address, sysop, software, description, COALESCE(added_by_id, 0), added_by, updated_at
+	rows, err := s.db.Query(`SELECT id, name, address, sysop, software, description, COALESCE(added_by_id, 0), added_by, updated_at,
+			checked_at, online, last_up_at
 		FROM bbs_list ORDER BY name COLLATE NOCASE`)
 	if err != nil {
 		return nil, fmt.Errorf("community: %w", err)
@@ -252,11 +262,18 @@ func (s *Store) BBSList() ([]BBS, error) {
 	out := []BBS{}
 	for rows.Next() {
 		var b BBS
-		var at int64
-		if err := rows.Scan(&b.ID, &b.Name, &b.Address, &b.Sysop, &b.Software, &b.Description, &b.AddedByID, &b.AddedBy, &at); err != nil {
+		var at, checked, up int64
+		if err := rows.Scan(&b.ID, &b.Name, &b.Address, &b.Sysop, &b.Software, &b.Description, &b.AddedByID, &b.AddedBy, &at,
+			&checked, &b.Online, &up); err != nil {
 			return nil, fmt.Errorf("community: %w", err)
 		}
 		b.UpdatedAt = time.UnixMilli(at)
+		if checked > 0 {
+			b.CheckedAt = time.UnixMilli(checked)
+		}
+		if up > 0 {
+			b.LastUpAt = time.UnixMilli(up)
+		}
 		out = append(out, b)
 	}
 	return out, rows.Err()

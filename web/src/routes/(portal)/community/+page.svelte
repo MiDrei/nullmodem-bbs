@@ -109,6 +109,16 @@
 	}
 
 	const pct = (p: Poll, votes: number) => (p.total ? Math.round((votes * 100) / p.total) : 0);
+
+	// The online check's verdict, for a dot and a tooltip.
+	const seen = (iso: string) => (iso && !iso.startsWith('0001') ? new Date(iso) : null);
+	function status(e: BBSListEntry): { cls: string; label: string; text: string } {
+		const checked = seen(e.checked_at);
+		if (!checked) return { cls: 'bg-line-strong', label: 'not checked yet', text: 'not checked yet' };
+		if (e.online) return { cls: 'bg-emerald-400', label: 'online', text: `online · checked ${checked.toLocaleString()}` };
+		const up = seen(e.last_up_at);
+		return { cls: 'bg-red-400', label: 'offline', text: up ? `offline · last seen ${up.toLocaleDateString()}` : 'not reachable' };
+	}
 </script>
 
 <div class="mb-5">
@@ -187,7 +197,11 @@
 		{#each bbs as e (e.id)}
 			<div class="flex flex-wrap items-start gap-3 py-3">
 				<div class="min-w-0 flex-1">
-					<div class="font-medium text-ink-strong">{e.name}</div>
+					<div class="flex items-center gap-2 font-medium text-ink-strong">
+						<span class="inline-block h-2 w-2 shrink-0 rounded-full {status(e).cls}" title={status(e).text}></span>
+						{e.name}
+						<span class="text-[11px] font-normal text-faint" title={status(e).text}>{status(e).label}</span>
+					</div>
 					<div class="font-mono text-xs text-accent">{e.address}</div>
 					<div class="mt-0.5 text-xs text-muted">
 						{[e.sysop && `Sysop ${e.sysop}`, e.software].filter(Boolean).join(' · ')}

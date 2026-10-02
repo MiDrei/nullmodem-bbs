@@ -36,8 +36,9 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 			return string(r) + strings.Repeat(" ", n-len(r))
 		}
 		for i, e := range list {
-			fmt.Fprintf(&b, "  %s%3d%s  %s%s %s%s%s\r\n", ansi.FG(ansi.Yellow, true), i+1, ansi.Reset,
-				ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)), ansi.FG(ansi.Cyan, false), toCP437(cut(e.Address, 38)), ansi.Reset)
+			fmt.Fprintf(&b, "  %s%3d%s  %s%s %s%s %s%s\r\n", ansi.FG(ansi.Yellow, true), i+1, ansi.Reset,
+				ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)), ansi.FG(ansi.Cyan, false), toCP437(cut(e.Address, 32)),
+				bbsStatus(e), ansi.Reset)
 		}
 		keys := "number = details"
 		if u.Validated {
@@ -86,6 +87,16 @@ func (s *Server) showBBS(term *Terminal, u *user.User, e community.BBS) error {
 	row("Software", e.Software)
 	row("About", e.Description)
 	row("Added by", e.AddedBy)
+	switch {
+	case e.CheckedAt.IsZero():
+		row("Online", "not checked yet")
+	case e.Online:
+		row("Online", "yes, checked "+term.Time(e.CheckedAt).Format("2006-01-02 15:04"))
+	case !e.LastUpAt.IsZero():
+		row("Online", "no -- last seen "+term.Time(e.LastUpAt).Format("2006-01-02"))
+	default:
+		row("Online", "no answer so far")
+	}
 	if !s.mayChangeBBS(u, e) {
 		if err := term.Print(b.String()); err != nil {
 			return err
@@ -162,4 +173,15 @@ func (s *Server) editBBS(term *Terminal, u *user.User, e community.BBS) error {
 	}
 	s.logInfo("%s saved %s in the BBS list", u.Username, e.Name)
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "  Saved." + ansi.Reset)
+}
+
+// bbsStatus is the online check's verdict, five columns wide.
+func bbsStatus(e community.BBS) string {
+	switch {
+	case e.CheckedAt.IsZero():
+		return ansi.FG(ansi.White, false) + "  ?  "
+	case e.Online:
+		return ansi.FG(ansi.Green, true) + " up  "
+	}
+	return ansi.FG(ansi.Red, true) + "down "
 }

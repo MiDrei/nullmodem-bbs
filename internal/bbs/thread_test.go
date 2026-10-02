@@ -1,6 +1,8 @@
 package bbs
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -71,5 +73,20 @@ func TestMessageListThreadView(t *testing.T) {
 	read, _ := s.Messages.ReadMessageIDs(u.ID, area.ID)
 	if len(read) != 2 {
 		t.Errorf("read %d messages, want Topic A and its reply", len(read))
+	}
+}
+
+func TestWelcomeScreenReadEachCall(t *testing.T) {
+	s := testServer(t)
+	s.ScreensDir = t.TempDir()
+	s.WelcomeScreen = "OLD"
+	os.WriteFile(filepath.Join(s.ScreensDir, "welcome.ans"), []byte("NEW {BBSNAME}"), 0o644)
+	s.BBSName = "Board"
+	conn := newFakeConn("")
+	if err := s.welcome(NewTerminal(conn), 1); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(conn.out.String(), "NEW Board") {
+		t.Fatalf("got %q", conn.out.String())
 	}
 }

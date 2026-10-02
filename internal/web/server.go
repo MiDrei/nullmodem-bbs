@@ -153,6 +153,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/archive/retoss", s.requireAuth(http.HandlerFunc(s.handleRetossArchiveEntries)))
 	mux.Handle("GET /api/dashboard", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	mux.Handle("GET /api/stats", s.requireAuth(http.HandlerFunc(s.handleStats)))
+	mux.Handle("POST /api/stats/recap", s.requireAuth(http.HandlerFunc(s.handleSendRecap)))
 	mux.Handle("GET /api/users", s.requireAuth(http.HandlerFunc(s.handleListUsers)))
 	mux.Handle("PUT /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleSetUserSecurityLevel)))
 	mux.Handle("PUT /api/users/{id}/password", s.requireAuth(http.HandlerFunc(s.handleSetUserPassword)))

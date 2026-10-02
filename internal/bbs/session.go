@@ -245,7 +245,15 @@ func (s *Server) Handle(conn Conn) {
 }
 
 func (s *Server) welcome(term *Terminal, node int) error {
-	rendered := ansi.Render(s.WelcomeScreen, s.baseVars(node))
+	// welcome.ans as it is now (edited in the designer), else the one
+	// read at startup.
+	screen := s.WelcomeScreen
+	if s.ScreensDir != "" {
+		if raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, "welcome.ans")); err == nil {
+			screen = raw
+		}
+	}
+	rendered := ansi.Render(screen, s.baseVars(node))
 	return term.Print(ansi.Layout(rendered, term.Width()))
 }
 

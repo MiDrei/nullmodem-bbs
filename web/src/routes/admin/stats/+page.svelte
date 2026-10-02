@@ -5,7 +5,8 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
-	import { getStats, ApiError, type StatsReport } from '$lib/api';
+	import { getStats, sendRecap, ApiError, type StatsReport } from '$lib/api';
+	import { toast } from '$lib/toast.svelte';
 	import StatsBoard from '$lib/stats/StatsBoard.svelte';
 
 	let days = $state(30);
@@ -35,6 +36,20 @@
 		await load();
 	});
 
+	let sending = $state(false);
+	async function recapNow() {
+		if (!auth.token) return;
+		sending = true;
+		try {
+			const r = await sendRecap(auth.token);
+			toast.push(`Recap sent to ${r.sent} sysop(s) -- it's in the netmail.`, 'success');
+		} catch (err) {
+			toast.push(err instanceof ApiError ? err.message : 'Could not send it.', 'error');
+		} finally {
+			sending = false;
+		}
+	}
+
 	function pick(d: number) {
 		days = d;
 		load();
@@ -59,7 +74,11 @@
 	<p class="text-sm text-muted">Loading…</p>
 {:else}
 	<StatsBoard r={report} full />
-	<p class="mt-4 text-xs text-faint">
+	<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+		<p class="text-xs text-faint">On the 1st, a recap of the month goes to your netmail (Settings → Monthly recap).</p>
+		<button class="btn-secondary btn-sm" disabled={sending} onclick={recapNow}>{sending ? 'Sending…' : 'Send a recap now'}</button>
+	</div>
+	<p class="mt-2 text-xs text-faint">
 		Calls are counted since this version (and from the login lines still in the log); a web or reader login counts once per half hour.
 	</p>
 {/if}

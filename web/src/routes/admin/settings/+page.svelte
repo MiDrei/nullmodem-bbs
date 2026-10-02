@@ -104,6 +104,16 @@
 					</span>
 				</span>
 			</label>
+			<label class="flex items-start gap-2 text-sm">
+				<input type="checkbox" class="check mt-0.5" bind:checked={config.monthly_recap} />
+				<span>
+					<span class="text-slate-400">Monthly recap</span>
+					<span class="block text-xs text-slate-500">
+						On the 1st, a netmail to every sysop: calls, messages, networks, doors, downloads, BinkP sessions and what
+						needs attention. Statistics → "Send a recap now" shows one right away.
+					</span>
+				</span>
+			</label>
 		</section>
 
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
