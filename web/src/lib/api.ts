@@ -1487,6 +1487,7 @@ export interface MaintenanceSettings {
 	transcript_keep_days: number;
 	archive_keep_days: number;
 	vacuum: boolean;
+	pending_user_days: number;
 }
 
 /** What a cleanup deleted -- or, as a preview (dry_run), would delete. */
@@ -1502,6 +1503,7 @@ export interface MaintenanceReport {
 	logs: number;
 	transcripts: number;
 	archive: number;
+	pending_users?: number;
 	db_bytes_before: number;
 	db_bytes_after: number;
 	wal_bytes: number;

@@ -433,6 +433,9 @@ type MaintenanceConfig struct {
 	ArchiveKeepDays    *int `yaml:"archive_keep_days,omitempty"`
 	// Vacuum compacts the database afterwards; default on.
 	Vacuum *bool `yaml:"vacuum,omitempty"`
+	// PendingUserDays deletes accounts still waiting for approval
+	// after this many days (bots that signed up); default 30, 0 keeps.
+	PendingUserDays *int `yaml:"pending_user_days,omitempty"`
 }
 
 // BackupConfig is the nightly backup (internal/backup), written by the
@@ -485,7 +488,7 @@ type SecurityConfig struct {
 	// RequireAdminTOTP: sysop accounts without two-factor login can't
 	// get into the web admin or the Telnet sysop menu.
 	RequireAdminTOTP bool `yaml:"require_admin_totp,omitempty"`
-	PendingSL       *int  `yaml:"pending_sl,omitempty"`
+	PendingSL        *int `yaml:"pending_sl,omitempty"`
 	// BlockedHandles can't be registered, in addition to the built-in
 	// ones (sysop, admin, root, ...).
 	BlockedHandles []string `yaml:"blocked_handles,omitempty"`
@@ -518,6 +521,7 @@ func (m MaintenanceConfig) LogRows() int        { return intOr(m.LogKeepRows, 50
 func (m MaintenanceConfig) TranscriptDays() int { return intOr(m.TranscriptKeepDays, 5) }
 func (m MaintenanceConfig) ArchiveDays() int    { return intOr(m.ArchiveKeepDays, 5) }
 func (m MaintenanceConfig) VacuumAfter() bool   { return m.Vacuum == nil || *m.Vacuum }
+func (m MaintenanceConfig) PendingDays() int    { return intOr(m.PendingUserDays, 30) }
 
 // Cached returns a loader for the config at path that reads it again
 // at most every ttl -- for settings the web admin changes while a

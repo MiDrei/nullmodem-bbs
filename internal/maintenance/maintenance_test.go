@@ -145,3 +145,37 @@ func TestCompactVacuumsOnlyWhenWorthItAndTruncatesTheWAL(t *testing.T) {
 		t.Errorf("WAL is %d bytes after compacting, want 0", wal)
 	}
 }
+
+func TestUnapprovedAccountsGoAfterTheirDays(t *testing.T) {
+	sqlDB, err := db.Open(filepath.Join(t.TempDir(), "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	users := user.NewStore(sqlDB)
+	users.Register("maik", "password123", user.SLSysop)
+	old, _ := users.RegisterNew("spambot", "password123", 5, true)
+	fresh, _ := users.RegisterNew("newbie", "password123", 5, true)
+	approved, _ := users.RegisterNew("friend", "password123", 5, true)
+	users.Approve(approved.ID, 10)
+	for _, id := range []int64{old.ID, approved.ID} {
+		sqlDB.Exec(`UPDATE users SET created_at = ? WHERE id = ?`, sqlTime(time.Now().Add(-40*24*time.Hour)), id)
+	}
+	cfg := config.MaintenanceConfig{}
+	r := Run(context.Background(), Deps{DB: sqlDB}, cfg, true)
+	if r.PendingUsers != 1 {
+		t.Fatalf("preview counts %d unapproved accounts, want 1", r.PendingUsers)
+	}
+	if _, err := users.ByID(old.ID); err != nil {
+		t.Fatal("the preview deleted")
+	}
+	Run(context.Background(), Deps{DB: sqlDB}, cfg, false)
+	if _, err := users.ByID(old.ID); err == nil {
+		t.Error("the 40-day-old unapproved account is still there")
+	}
+	for _, id := range []int64{fresh.ID, approved.ID} {
+		if _, err := users.ByID(id); err != nil {
+			t.Errorf("account %d deleted", id)
+		}
+	}
+}

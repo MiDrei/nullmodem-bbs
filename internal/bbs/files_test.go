@@ -207,7 +207,7 @@ func TestFileAreasLightbarNewCountUnaffectedByJustVisitingList(t *testing.T) {
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
-	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [Q] Back")
+	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [N] New files   [S] Search   [Q] Back")
 	if len(renders) < 3 {
 		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
 	}
@@ -242,7 +242,7 @@ func TestFileAreasLightbarNewCountClearsAfterReadingFile(t *testing.T) {
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
-	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [Q] Back")
+	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [N] New files   [S] Search   [Q] Back")
 	if len(renders) < 3 {
 		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
 	}

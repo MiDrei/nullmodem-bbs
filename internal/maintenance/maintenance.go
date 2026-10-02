@@ -22,6 +22,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/binkplog"
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/file"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 // MinAge protects every message younger than this -- as long as a
@@ -59,6 +60,9 @@ type Report struct {
 	Logs         int         `json:"logs"`
 	Transcripts  int         `json:"transcripts"`
 	Archive      int         `json:"archive"`
+	// PendingUsers are accounts deleted for waiting too long for
+	// approval.
+	PendingUsers int `json:"pending_users"`
 	// DBBytesBefore and DBBytesAfter are the database file's size,
 	// WALBytes the write-ahead log's beside it after the run.
 	DBBytesBefore int64 `json:"db_bytes_before"`
@@ -106,6 +110,11 @@ func Run(ctx context.Context, d Deps, cfg config.MaintenanceConfig, dry bool) Re
 		n, err := d.Archive.PruneOlderThan(now, days(cfg.ArchiveDays()), dry)
 		r.Archive = n
 		fail("inbound archive", err)
+	}
+	if keep := cfg.PendingDays(); keep > 0 {
+		n, err := pendingUsers(d.DB, now.Add(-days(keep)), dry)
+		r.PendingUsers = n
+		fail("unapproved accounts", err)
 	}
 	if !dry && cfg.VacuumAfter() {
 		vacuumed, err := compact(ctx, d.DB)
@@ -396,8 +405,8 @@ type Logger interface {
 
 // Summary is a report in one line, for the log.
 func (r Report) Summary() string {
-	s := fmt.Sprintf("%d message(s), %d file(s) (%.1f MB), %d netmail, %d log entries, %d transcript(s), %d archived file(s)",
-		r.Messages, r.Files, float64(r.FileBytes)/(1<<20), r.Netmail, r.Logs, r.Transcripts, r.Archive)
+	s := fmt.Sprintf("%d message(s), %d file(s) (%.1f MB), %d netmail, %d log entries, %d transcript(s), %d archived file(s), %d unapproved account(s)",
+		r.Messages, r.Files, float64(r.FileBytes)/(1<<20), r.Netmail, r.Logs, r.Transcripts, r.Archive, r.PendingUsers)
 	if r.DBBytesBefore > 0 {
 		s += fmt.Sprintf("; database %.1f -> %.1f MB", float64(r.DBBytesBefore)/(1<<20), float64(r.DBBytesAfter)/(1<<20))
 		if r.Vacuumed {
@@ -438,4 +447,27 @@ func Nightly(ctx context.Context, cfg func() config.MaintenanceConfig, d Deps, l
 			log.Warn("maintenance: %s", e)
 		}
 	}
+}
+
+// pendingUsers deletes (or with dry, counts) the accounts that signed
+// up before cutoff and were never approved -- bots, mostly.
+func pendingUsers(db *sql.DB, cutoff time.Time, dry bool) (int, error) {
+	users := user.NewStore(db)
+	list, err := users.Pending()
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, u := range list {
+		if !u.CreatedAt.Before(cutoff) {
+			continue
+		}
+		if !dry {
+			if err := users.DeletePending(u.ID); err != nil {
+				return n, err
+			}
+		}
+		n++
+	}
+	return n, nil
 }

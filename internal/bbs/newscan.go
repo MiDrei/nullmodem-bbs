@@ -212,7 +212,13 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 	for _, a := range areas {
 		newTotal += a.New
 	}
-	if netmail == 0 && len(toMe) == 0 && newTotal == 0 {
+	newFiles := 0
+	if s.Files != nil {
+		if _, n, err := s.Files.UnreadFiles(u.ID, u.SecurityLevel, 0); err == nil {
+			newFiles = n
+		}
+	}
+	if netmail == 0 && len(toMe) == 0 && newTotal == 0 && newFiles == 0 {
 		return nil
 	}
 
@@ -231,6 +237,7 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 	b.WriteString(label("To you") + value(len(toMe), plural(len(toMe), "message", "messages")))
 	b.WriteString(label("New") + value(newTotal, fmt.Sprintf("%s in %s",
 		plural(newTotal, "message", "messages"), plural(len(areas), "area", "areas"))))
+	b.WriteString(label("Files") + value(newFiles, plural(newFiles, "new file", "new files")))
 
 	var keys []string
 	if newTotal > 0 {
@@ -241,6 +248,9 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 	}
 	if netmail > 0 {
 		keys = append(keys, "[N] Netmail")
+	}
+	if newFiles > 0 {
+		keys = append(keys, "[F] Files")
 	}
 	keys = append(keys, "[Enter] Main menu")
 	b.WriteString("\r\n  " + ansi.FG(ansi.Yellow, true) + strings.Join(keys, "  ") + ansi.Reset + " ")
@@ -259,6 +269,8 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 			return s.toMe(term, u)
 		case netmail > 0 && isKey(key, 'n'):
 			return s.showNetmail(term, u)
+		case newFiles > 0 && isKey(key, 'f'):
+			return s.newFiles(term, u)
 		case key.Type == KeyEnter, key.Type == KeyEscape, isKey(key, 'q'):
 			return nil
 		}

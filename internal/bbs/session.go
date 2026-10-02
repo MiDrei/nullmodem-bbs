@@ -502,6 +502,8 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"oneliners":      (*Server).showOneliners,
 	"nodelist":       (*Server).browseNodelist,
 	"polls":          (*Server).votingBooth,
+	"newfiles":       (*Server).newFiles,
+	"filesearch":     (*Server).searchFiles,
 	"bbslist":        (*Server).bbsList,
 }
 

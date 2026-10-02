@@ -23,6 +23,7 @@ type maintenanceDTO struct {
 	TranscriptKeepDays int  `json:"transcript_keep_days"`
 	ArchiveKeepDays    int  `json:"archive_keep_days"`
 	Vacuum             bool `json:"vacuum"`
+	PendingUserDays    int  `json:"pending_user_days"`
 }
 
 func toMaintenanceDTO(m config.MaintenanceConfig) maintenanceDTO {
@@ -31,6 +32,7 @@ func toMaintenanceDTO(m config.MaintenanceConfig) maintenanceDTO {
 		MessageKeepDays: m.MessageDays(), MessageKeepMax: m.MessageMax(), DataAreaKeepDays: m.DataAreaDays(),
 		FileKeepDays: m.FileDays(), NetmailKeepDays: m.NetmailDays(), LogKeepRows: m.LogRows(),
 		TranscriptKeepDays: m.TranscriptDays(), ArchiveKeepDays: m.ArchiveDays(), Vacuum: m.VacuumAfter(),
+		PendingUserDays: m.PendingDays(),
 	}
 }
 
@@ -42,6 +44,7 @@ func fromMaintenanceDTO(d maintenanceDTO) config.MaintenanceConfig {
 		MessageKeepDays: p(d.MessageKeepDays), MessageKeepMax: p(d.MessageKeepMax), DataAreaKeepDays: p(d.DataAreaKeepDays),
 		FileKeepDays: p(d.FileKeepDays), NetmailKeepDays: p(d.NetmailKeepDays), LogKeepRows: p(d.LogKeepRows),
 		TranscriptKeepDays: p(d.TranscriptKeepDays), ArchiveKeepDays: p(d.ArchiveKeepDays), Vacuum: &vac,
+		PendingUserDays: p(d.PendingUserDays),
 	}
 }
 
@@ -80,7 +83,7 @@ func (s *Server) handlePutMaintenance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "hour must be 0-23")
 		return
 	case d.MessageKeepDays < 0 || d.MessageKeepMax < 0 || d.DataAreaKeepDays < 0 || d.FileKeepDays < 0 ||
-		d.NetmailKeepDays < 0 || d.TranscriptKeepDays < 0 || d.ArchiveKeepDays < 0:
+		d.NetmailKeepDays < 0 || d.TranscriptKeepDays < 0 || d.ArchiveKeepDays < 0 || d.PendingUserDays < 0:
 		writeError(w, http.StatusBadRequest, "limits must not be negative (0 keeps everything)")
 		return
 	case d.LogKeepRows < 100:

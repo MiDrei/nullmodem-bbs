@@ -90,7 +90,8 @@
 		{ key: 'netmail_keep_days', label: 'Read netmail: keep days', hint: '0 = keep. Unread never goes.' },
 		{ key: 'log_keep_rows', label: 'Log: keep entries', hint: 'The newest ones.' },
 		{ key: 'transcript_keep_days', label: 'BinkP transcripts: keep days', hint: 'Session logs.' },
-		{ key: 'archive_keep_days', label: 'Inbound archive: keep days', hint: 'Copies of received files.' }
+		{ key: 'archive_keep_days', label: 'Inbound archive: keep days', hint: 'Copies of received files.' },
+		{ key: 'pending_user_days', label: 'Unapproved accounts: days', hint: 'Never approved (bots); 0 = keep.' }
 	];
 </script>
 
@@ -113,6 +114,8 @@
 			<dd class="text-ink">{r.transcripts}</dd>
 			<dt class="text-muted">Archived files</dt>
 			<dd class="text-ink">{r.archive}</dd>
+			<dt class="text-muted">Unapproved accounts</dt>
+			<dd class="text-ink">{r.pending_users ?? 0}</dd>
 			{#if !r.dry_run && r.db_bytes_before}
 				<dt class="text-muted">Database</dt>
 				<dd class="text-ink">

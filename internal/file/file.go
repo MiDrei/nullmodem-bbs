@@ -630,6 +630,66 @@ func (s *Store) ListFiles(areaID int64) ([]File, error) {
 	return files, nil
 }
 
+// queryFiles is ListFiles' SELECT with its own conditions.
+func (s *Store) queryFiles(rest string, args ...any) ([]File, error) {
+	rows, err := s.db.Query(
+		`SELECT f.id, f.area_id, f.filename, f.description, f.size_bytes, f.storage_path,
+		        f.uploaded_by, COALESCE(u.username, f.uploaded_by_name) AS uploaded_by_name, f.uploaded_at, f.download_count, f.seen_by, f.replaces
+		 FROM files f LEFT JOIN users u ON u.id = f.uploaded_by
+		 JOIN file_areas a ON a.id = f.area_id `+rest, args...)
+	if err != nil {
+		return nil, fmt.Errorf("file: query files: %w", err)
+	}
+	defer rows.Close()
+	var files []File
+	for rows.Next() {
+		var f File
+		var replaces string
+		if err := rows.Scan(&f.ID, &f.AreaID, &f.Filename, &f.Description, &f.SizeBytes, &f.StoragePath,
+			&f.UploadedBy, &f.UploadedByName, &f.UploadedAt, &f.DownloadCount, &f.SeenBy, &replaces); err != nil {
+			return nil, fmt.Errorf("file: scan file: %w", err)
+		}
+		f.Replaces = splitReplaces(replaces)
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+// UnreadFiles returns the files userID hasn't opened in the areas
+// securityLevel may download from, newest first (at most limit) --
+// the new-files scan -- and how many there are in all.
+func (s *Store) UnreadFiles(userID int64, securityLevel, limit int) ([]File, int, error) {
+	where := `WHERE a.min_sl_download <= ? AND a.pending = 0
+		AND NOT EXISTS (SELECT 1 FROM file_reads r WHERE r.user_id = ? AND r.file_id = f.id)`
+	var total int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM files f JOIN file_areas a ON a.id = f.area_id `+where,
+		securityLevel, userID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("file: count unread: %w", err)
+	}
+	files, err := s.queryFiles(where+` ORDER BY f.uploaded_at DESC, f.id DESC LIMIT ?`, securityLevel, userID, limit)
+	return files, total, err
+}
+
+// SearchFiles finds files by name or description in the areas
+// securityLevel may download from, newest first.
+func (s *Store) SearchFiles(securityLevel int, q string, limit int) ([]File, error) {
+	return s.queryFiles(`WHERE a.min_sl_download <= ? AND a.pending = 0
+		AND (instr(lower(f.filename), lower(?)) > 0 OR instr(lower(f.description), lower(?)) > 0)
+		ORDER BY f.uploaded_at DESC, f.id DESC LIMIT ?`, securityLevel, q, q, limit)
+}
+
+// MarkAllFilesRead marks every file userID may see as opened ("seen
+// them all") and returns how many that were new.
+func (s *Store) MarkAllFilesRead(userID int64, securityLevel int) (int64, error) {
+	res, err := s.db.Exec(`INSERT OR IGNORE INTO file_reads (user_id, file_id)
+		SELECT ?, f.id FROM files f JOIN file_areas a ON a.id = f.area_id WHERE a.min_sl_download <= ? AND a.pending = 0`,
+		userID, securityLevel)
+	if err != nil {
+		return 0, fmt.Errorf("file: mark all read: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 func isUniqueConstraintErr(err error) bool {
 	return err != nil && strings.Contains(strings.ToLower(err.Error()), "unique constraint")
 }

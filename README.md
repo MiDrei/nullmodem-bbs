@@ -19,7 +19,8 @@ Teil der NullModem-Familie:
 **Telnet/SSH**
 - ANSI-Bildschirme mit Platzhaltern (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
   Menüs aus YAML, Lightbar-Listen, Security Levels 0–255
-- Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche
+- Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche — mit
+  „neue Dateien“ über alle Areas und Dateisuche
 - Unter den Anrufern: One-liner-Wand nach dem Login, Teleconference (Chat),
   Node-Nachrichten an andere Online-Anrufer (bei „Who's online“), Sysop rufen
   („Page“): der Sysop bekommt eine Push-Nachricht und antwortet im Web-Admin
@@ -134,6 +135,8 @@ go test ./...
 
 ## Weitere Dokumentation
 
+- [docs/handbook.md](docs/handbook.md) — **Sysop-Handbuch**: Aufsetzen, Netzwerke,
+  Areas, Doors, Benutzer, Alltag, Updates, Fehlersuche
 - [docs/docker.md](docs/docker.md) — Betrieb mit Docker
 - [docs/adding-a-door.md](docs/adding-a-door.md) — Doors einrichten, nativ und
   unter DOSBox-X
