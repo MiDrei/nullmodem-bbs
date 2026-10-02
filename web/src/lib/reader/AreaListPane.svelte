@@ -4,7 +4,8 @@
 	// on the device).
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { listBBSMessageAreas, listBBSNetmail, type BBSMessageArea } from '$lib/api';
+	import { listBBSMessageAreas, listBBSNetmail, setMyArea, type BBSMessageArea } from '$lib/api';
+	import { toast } from '$lib/toast.svelte';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import { forgetOffline, offline, syncAhead } from '$lib/reader/offline.svelte';
@@ -35,8 +36,22 @@
 	let showAll = $state(false);
 	let settingsOpen = $state(false);
 
-	// The open area stays listed even once it's all read.
-	let visible = $derived(showAll ? areas : areas.filter((a) => a.new > 0 || a.id === selectedAreaId));
+	// Unread: in the caller's areas (the open one stays listed even once
+	// it's all read). All: every area, ✓ marking theirs.
+	let visible = $derived(showAll ? areas : areas.filter((a) => (a.mine && a.new > 0) || a.id === selectedAreaId));
+
+	async function toggleMine(a: BBSMessageArea) {
+		const token = await readerToken();
+		if (!token) return;
+		a.mine = !a.mine;
+		try {
+			await setMyArea(token, a.id, a.mine);
+		} catch (err) {
+			a.mine = !a.mine;
+			if (await readerAuthFailed(err)) return;
+			toast.push(errorText(err, 'Could not save it.'), 'error');
+		}
+	}
 	let groups = $derived.by(() => {
 		const out: { network: string; areas: BBSMessageArea[] }[] = [];
 		for (const a of visible) {
@@ -131,18 +146,31 @@
 	{#each groups as g (g.network)}
 		<div class="r-section">{g.network}</div>
 		{#each g.areas as a (a.id)}
-			<button class="r-row {a.id === selectedAreaId ? 'bg-surface' : ''}" onclick={() => onArea(a.id)}>
-				<span class="min-w-0 flex-1">
-					<span class="block truncate {a.new > 0 ? 'font-medium text-ink-strong' : 'text-ink-soft'}"
-						>{a.name}</span
+			<div class="flex items-stretch {a.id === selectedAreaId ? 'bg-surface' : ''}">
+				{#if showAll}
+					<button
+						class="w-11 shrink-0 border-b border-line text-lg {a.mine ? 'text-accent' : 'text-faint'}"
+						aria-label={a.mine ? `Take ${a.name} out of my areas` : `Add ${a.name} to my areas`}
+						aria-pressed={a.mine}
+						onclick={() => toggleMine(a)}>{a.mine ? '✓' : '+'}</button
 					>
-					<span class="block truncate font-mono text-xs text-faint">{a.tag}</span>
-				</span>
-				{#if a.new > 0}<span class="r-badge">{a.new}</span>{/if}
-				<span class="text-faint">›</span>
-			</button>
+				{/if}
+				<button class="r-row min-w-0 flex-1 {showAll ? 'pl-1' : ''}" onclick={() => onArea(a.id)}>
+					<span class="min-w-0 flex-1">
+						<span class="block truncate {a.new > 0 && a.mine ? 'font-medium text-ink-strong' : 'text-ink-soft'}"
+							>{a.name}</span
+						>
+						<span class="block truncate font-mono text-xs text-faint">{a.tag}</span>
+					</span>
+					{#if a.new > 0}<span class="r-badge {a.mine ? '' : 'opacity-50'}">{a.new}</span>{/if}
+					<span class="text-faint">›</span>
+				</button>
+			</div>
 		{/each}
 	{:else}
 		<p class="r-note">{showAll ? 'No areas.' : 'Nothing unread.'}</p>
 	{/each}
+	{#if showAll}
+		<p class="r-note text-xs">✓ = your areas: the unread list, fetching ahead for offline, the new scan and QWK include them.</p>
+	{/if}
 {/if}

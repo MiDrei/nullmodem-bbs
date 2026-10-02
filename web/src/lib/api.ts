@@ -1001,6 +1001,13 @@ export interface BBSMessageArea {
 	total: number;
 	new: number;
 	yours: number;
+	/** One of the caller's areas: in the new scan, QWK and the reader. */
+	mine: boolean;
+}
+
+/** Puts an area into the caller's areas, or takes it out. */
+export function setMyArea(token: string, areaId: number, mine: boolean): Promise<void> {
+	return request(`/api/bbs/message-areas/${areaId}/mine`, { method: 'PUT', body: JSON.stringify({ mine }) }, token);
 }
 
 export interface BBSMessageSummary {

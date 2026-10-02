@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/dustin/go-humanize"
@@ -159,104 +157,4 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 		}
 	}
 	return nil
-}
-
-// configureQWKAreas is the "builtin:qwkareas" command: a numbered
-// checklist letting the caller pick exactly which message areas their
-// QWK packets include (see message.Store.QWKSelectedAreaIDs/
-// buildQWKPacketForUser -- leaving every area unchecked, or never
-// visiting this menu at all, includes every readable area with new
-// mail).
-func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
-	areaStats, err := s.Messages.ListAreaStats(u.SecurityLevel, u.ID)
-	if err != nil {
-		return err
-	}
-	if len(areaStats) == 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "No message areas available.")
-	}
-	sort.Slice(areaStats, func(i, j int) bool { return areaStats[i].Area.SortOrder < areaStats[j].Area.SortOrder })
-
-	selected, err := s.Messages.QWKSelectedAreaIDs(u.ID)
-	if err != nil {
-		return err
-	}
-	// An empty selection means "everything" -- reflect that in the
-	// checklist by starting every box checked, matching what a
-	// download would actually include right now.
-	checked := make(map[int64]bool, len(areaStats))
-	for _, st := range areaStats {
-		checked[st.Area.ID] = len(selected) == 0 || selected[st.Area.ID]
-	}
-
-	for {
-		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "Area selection -- which areas the new scan (R) and your QWK packets include:" + ansi.Reset); err != nil {
-			return err
-		}
-		for i, st := range areaStats {
-			box := "[ ]"
-			if checked[st.Area.ID] {
-				box = ansi.FG(ansi.Green, true) + "[x]" + ansi.Reset
-			}
-			if err := term.Println(fmt.Sprintf("%3d. %s %s", i+1, box, st.Area.Name)); err != nil {
-				return err
-			}
-		}
-		if err := term.Print(ansi.Reset + "\n" +
-			"Enter numbers to toggle (space/comma separated), A=all, N=none/default, S=save, Q=quit: " +
-			ansi.FG(ansi.Yellow, true)); err != nil {
-			return err
-		}
-		line, err := term.ReadLine(false)
-		if err != nil {
-			return err
-		}
-		line = strings.TrimSpace(line)
-
-		switch strings.ToUpper(line) {
-		case "", "Q":
-			return term.Println(ansi.Reset + "Cancelled -- no changes saved.")
-		case "A":
-			for _, st := range areaStats {
-				checked[st.Area.ID] = true
-			}
-			continue
-		case "N":
-			for _, st := range areaStats {
-				checked[st.Area.ID] = false
-			}
-			continue
-		case "S":
-			var ids []int64
-			allChecked := true
-			for _, st := range areaStats {
-				if checked[st.Area.ID] {
-					ids = append(ids, st.Area.ID)
-				} else {
-					allChecked = false
-				}
-			}
-			// Storing "every area checked" is indistinguishable from
-			// "none configured" (both mean "everything"), so clear
-			// the selection outright in that case rather than writing
-			// out every ID -- functionally identical, tidier storage.
-			if allChecked {
-				ids = nil
-			}
-			if err := s.Messages.SetQWKSelectedAreas(u.ID, ids); err != nil {
-				return err
-			}
-			s.logInfo("%s updated their QWK area selection: %d area(s)", u.Username, len(ids))
-			return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Saved.")
-		}
-
-		for _, tok := range strings.FieldsFunc(line, func(r rune) bool { return r == ',' || r == ' ' }) {
-			n, err := strconv.Atoi(tok)
-			if err != nil || n < 1 || n > len(areaStats) {
-				continue
-			}
-			id := areaStats[n-1].Area.ID
-			checked[id] = !checked[id]
-		}
-	}
 }

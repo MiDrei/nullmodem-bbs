@@ -155,8 +155,14 @@ erscheinen unter System → Services.
 | C / P | Chat (Teleconference; dort `/rooms`, `/join name`) / Sysop rufen |
 | L / V / B | One-Liner / Abstimmungen / BBS-Liste |
 | W / D | Wer ist online (mit Node-Nachricht) / Doors |
-| O / U / K | QWK holen / QWK-Antworten hochladen / Area-Auswahl |
+| O / U / K | QWK holen / QWK-Antworten hochladen / Meine Areas |
 | Y / ? | Profil (u. a. Zeileneditor statt Vollbild) / Version |
+
+**Meine Areas** (K, im Portal „My areas / All areas“ mit ✓ pro Area, in der
+Reader-App unter „All“): Was dort drin ist, nehmen New-Scan, QWK-Pakete und die
+Reader-App (Ungelesen-Liste, Offline-Vorabladen) mit. Alles ist drin, bis man
+eine Area herausnimmt — neue Areas kommen also automatisch dazu. Nachrichten
+*an mich* (T) und Push-Meldungen dafür kommen aus allen Areas.
 
 Im Nachrichten-Reader: `]` (oder `T`) springt zur nächsten Nachricht im
 Thread, `[` zur vorherigen — Antworten in der Reihenfolge, wie sie aufeinander

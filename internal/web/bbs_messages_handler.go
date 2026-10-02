@@ -34,6 +34,8 @@ type bbsMessageAreaDTO struct {
 	Total       int    `json:"total"`
 	New         int    `json:"new"`
 	Yours       int    `json:"yours"`
+	// Mine: one of the caller's areas (new scan, QWK, the reader).
+	Mine bool `json:"mine"`
 }
 
 func toBBSMessageAreaDTO(a message.AreaWithStats) bbsMessageAreaDTO {
@@ -66,11 +68,49 @@ func (s *Server) handleListBBSMessageAreas(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "could not list message areas")
 		return
 	}
+	mine, err := s.Messages.InMyAreas(claims.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list message areas")
+		return
+	}
 	dtos := make([]bbsMessageAreaDTO, len(stats))
 	for i, st := range stats {
 		dtos[i] = toBBSMessageAreaDTO(st)
+		dtos[i].Mine = mine(st.Area.ID)
 	}
 	writeJSON(w, http.StatusOK, dtos)
+}
+
+// handleSetMyArea: PUT /api/bbs/message-areas/{id}/mine {mine} -- the
+// area into the caller's areas, or out.
+func (s *Server) handleSetMyArea(w http.ResponseWriter, r *http.Request) {
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	areaID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid area id")
+		return
+	}
+	var req struct {
+		Mine bool `json:"mine"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	area, err := s.Messages.AreaByID(areaID)
+	if err != nil || !area.CanRead(claims.SecurityLevel) {
+		writeError(w, http.StatusNotFound, "message area not found")
+		return
+	}
+	if err := s.Messages.SetAreaSubscribed(claims.UserID, areaID, req.Mine); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleFirstUnreadMessagePosition reports where (in the area's own

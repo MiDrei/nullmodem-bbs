@@ -95,20 +95,20 @@ func isKey(k Key, r rune) bool {
 	return k.Type == KeyChar && (k.Rune == r || k.Rune == r-'a'+'A')
 }
 
-// scanAreas are the caller's areas with something unread, in the area
-// list's order, limited to their area selection if they made one.
+// scanAreas are the caller's areas ("my areas", Telnet K) with
+// something unread, in the area list's order.
 func (s *Server) scanAreas(u *user.User) ([]message.AreaWithStats, error) {
 	stats, err := s.Messages.ListAreaStats(u.SecurityLevel, u.ID)
 	if err != nil {
 		return nil, err
 	}
-	selected, err := s.Messages.QWKSelectedAreaIDs(u.ID)
+	mine, err := s.Messages.InMyAreas(u.ID)
 	if err != nil {
 		return nil, err
 	}
 	var out []message.AreaWithStats
 	for _, st := range stats {
-		if st.New > 0 && (len(selected) == 0 || selected[st.Area.ID]) {
+		if st.New > 0 && mine(st.Area.ID) {
 			out = append(out, st)
 		}
 	}

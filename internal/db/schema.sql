@@ -617,3 +617,12 @@ CREATE TABLE IF NOT EXISTS chat_rooms (
     discord_channel TEXT NOT NULL DEFAULT ''
 );
 INSERT OR IGNORE INTO chat_rooms (name, title, topic) VALUES ('main', 'Teleconference', 'Everyone''s room');
+
+-- Areas a caller took out of "their areas" (internal/message): the new
+-- scan, QWK packets and the reader app leave them out. Everything else
+-- is in -- a new area too.
+CREATE TABLE IF NOT EXISTS area_unsubscribed (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    area_id  INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, area_id)
+);

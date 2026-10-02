@@ -55,6 +55,8 @@ Teil der NullModem-Familie:
 - Chat-Räume (`/rooms`, `/join` in der Teleconference) mit Brücke zu
   Discord-Kanälen: BBS-Anrufer erscheinen dort unter ihrem Namen, Discord in
   der BBS als `name@discord`; nur ausgehende Verbindungen
+- Meine Areas: jeder Anrufer nimmt Areas aus New-Scan, QWK und Reader-App heraus
+  (Telnet K, Portal ✓, Reader); neue Areas sind automatisch drin
 - Menü-Editor (Admin → Content → Menus): Punkte, Aktionen, SL, neue Menüs,
   Vorschau wie im Telnet mit Abgleich gegen den Bildschirm, neue Standardpunkte
   einer Version per Klick; Änderungen gelten ohne Neustart

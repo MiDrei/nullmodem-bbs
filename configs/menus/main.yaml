@@ -51,7 +51,7 @@ items:
     action: "builtin:qwkrep"
     min_sl: 0
   - key: K
-    label: "Area selection (new scan and QWK)"
+    label: "My areas (new scan, QWK, reader)"
     action: "builtin:qwkareas"
     min_sl: 0
   - key: Y

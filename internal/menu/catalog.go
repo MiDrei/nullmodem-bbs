@@ -33,7 +33,7 @@ var Builtins = []Builtin{
 	{Name: "doors", Label: "Doors", Description: "The doors (games) the caller may play"},
 	{Name: "qwk", Label: "Download QWK offline mail", Description: "A QWK packet of the new messages, by Zmodem"},
 	{Name: "qwkrep", Label: "Upload QWK reply packet", Description: "Replies written offline (.REP), by Zmodem"},
-	{Name: "qwkareas", Label: "Area selection", Description: "Which areas the new scan and QWK packets include"},
+	{Name: "qwkareas", Label: "My areas", Description: "Which areas the new scan, QWK packets and the reader app include"},
 	{Name: "profile", Label: "Your profile", Description: "Real name, time zone, password, editor, QWK settings"},
 	{Name: "stats", Label: "Your profile (stats)", Description: "Same as profile"},
 	{Name: "polls", Label: "Voting booth", Description: "The sysop's polls"},

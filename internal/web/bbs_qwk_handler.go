@@ -39,7 +39,7 @@ func (s *Server) handleListBBSQWKAreas(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not list message areas")
 		return
 	}
-	selected, err := s.Messages.QWKSelectedAreaIDs(claims.UserID)
+	mine, err := s.Messages.InMyAreas(claims.UserID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load qwk area selection")
 		return
@@ -50,16 +50,15 @@ func (s *Server) handleListBBSQWKAreas(w http.ResponseWriter, r *http.Request) {
 			ID:          st.Area.ID,
 			Name:        st.Area.Name,
 			Description: st.Area.Description,
-			Selected:    len(selected) == 0 || selected[st.Area.ID],
+			Selected:    mine(st.Area.ID),
 		}
 	}
 	writeJSON(w, http.StatusOK, dtos)
 }
 
-// handleSetBBSQWKAreas replaces the caller's QWK area selection.
-// Selecting every readable area (or none at all) is stored as "no
-// selection" -- see message.Store.SetQWKSelectedAreas -- since both
-// mean the same thing: include everything.
+// handleSetBBSQWKAreas sets the caller's areas (message.Store's
+// "my areas", the same for the new scan and the reader) from the
+// picked ones: every readable area not picked is out.
 func (s *Server) handleSetBBSQWKAreas(w http.ResponseWriter, r *http.Request) {
 	claims, ok := claimsFromContext(r.Context())
 	if !ok {
@@ -79,25 +78,22 @@ func (s *Server) handleSetBBSQWKAreas(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not list message areas")
 		return
 	}
-	readable := make(map[int64]bool, len(stats))
-	for _, st := range stats {
-		readable[st.Area.ID] = true
-	}
-	var ids []int64
+	// The readable areas not picked are out; none picked is none.
+	picked := make(map[int64]bool, len(req.AreaIDs))
 	for _, id := range req.AreaIDs {
-		if readable[id] {
-			ids = append(ids, id)
+		picked[id] = true
+	}
+	var out []int64
+	for _, st := range stats {
+		if !picked[st.Area.ID] {
+			out = append(out, st.Area.ID)
 		}
 	}
-	if len(ids) == len(stats) {
-		ids = nil // every readable area selected == no explicit selection
-	}
-
-	if err := s.Messages.SetQWKSelectedAreas(claims.UserID, ids); err != nil {
+	if err := s.Messages.SetUnsubscribedAreas(claims.UserID, out); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save qwk area selection")
 		return
 	}
-	s.logInfo("%s updated their QWK area selection via the BBS portal: %d area(s)", claims.Subject, len(ids))
+	s.logInfo("%s changed their areas via the BBS portal: %d of %d", claims.Subject, len(stats)-len(out), len(stats))
 	w.WriteHeader(http.StatusNoContent)
 }
 

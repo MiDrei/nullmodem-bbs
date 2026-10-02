@@ -55,9 +55,8 @@ type BuildResult struct {
 }
 
 // BuildPacketForUser gathers u's unread netmail plus unread messages
-// in every area u has selected for QWK (see message.Store's
-// QWKSelectedAreaIDs -- an empty selection means every readable area
-// with new mail) and writes a .QWK packet into dir, shared by both
+// in u's areas (message.Store.InMyAreas: every readable area they
+// didn't take out) and writes a .QWK packet into dir, shared by both
 // the Telnet/SSH qwk builtin (internal/bbs) and the web portal's HTTP
 // QWK endpoints (internal/web) so the two surfaces can't drift.
 //
@@ -114,9 +113,9 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 	if err != nil {
 		return BuildResult{}, fmt.Errorf("qwk: listing areas: %w", err)
 	}
-	selected, err := messages.QWKSelectedAreaIDs(u.ID)
+	mine, err := messages.InMyAreas(u.ID)
 	if err != nil {
-		return BuildResult{}, fmt.Errorf("qwk: loading area selection: %w", err)
+		return BuildResult{}, fmt.Errorf("qwk: loading the caller's areas: %w", err)
 	}
 
 	markRead := map[int64][]int64{}
@@ -124,7 +123,7 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		if st.New == 0 {
 			continue
 		}
-		if len(selected) > 0 && !selected[st.Area.ID] {
+		if !mine(st.Area.ID) {
 			continue
 		}
 		conferences = append(conferences, qwk.ConferenceInfo{Number: int(st.Area.ID), Name: st.Area.Name})

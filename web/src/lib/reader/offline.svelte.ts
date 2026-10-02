@@ -82,7 +82,8 @@ export async function syncAhead(force = false): Promise<void> {
 		const [areas, netmail] = await Promise.all([listBBSMessageAreas(token), listBBSNetmail(token)]);
 		for (const m of netmail) if (m.unread) ids.push(`/api/bbs/netmail/${m.id}?peek=1`);
 		for (const a of areas) {
-			if (a.new <= 0 || ids.length >= AHEAD_MAX) continue;
+			// Only the caller's areas (as in the new scan and QWK).
+			if (!a.mine || a.new <= 0 || ids.length >= AHEAD_MAX) continue;
 			const pos = await getFirstUnreadMessagePosition(token, a.id);
 			const page = await listBBSMessages(token, a.id, LIST_PAGE, Math.max(0, pos.position - 3));
 			for (const m of page.messages) if (m.unread) ids.push(`/api/bbs/messages/${m.id}?peek=1`);

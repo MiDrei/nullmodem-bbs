@@ -310,8 +310,8 @@ func TestBuildQWKPacketForUserRespectsAreaSelection(t *testing.T) {
 }
 
 // TestConfigureQWKAreasTogglesAndSaves drives the qwkareas builtin
-// through a real Terminal over a net.Pipe: deselect the seeded
-// "general" area (toggle #1) then save, and confirm the selection
+// ("My areas") through a real Terminal over a net.Pipe: take the
+// seeded "general" area out (Space on the first row) then save, and confirm the selection
 // actually persisted via message.Store.QWKSelectedAreaIDs.
 func TestConfigureQWKAreasTogglesAndSaves(t *testing.T) {
 	s := testServer(t)
@@ -341,10 +341,12 @@ func TestConfigureQWKAreasTogglesAndSaves(t *testing.T) {
 	go io.Copy(io.Discard, clientSide)
 
 	go func() {
-		// Toggle area #1 (general) off, then save.
-		clientSide.Write([]byte("1\r\n"))
+		// The first row (general) out with Space, then save.
+		clientSide.Write([]byte(" "))
 		time.Sleep(50 * time.Millisecond)
-		clientSide.Write([]byte("S\r\n"))
+		clientSide.Write([]byte("S"))
+		time.Sleep(50 * time.Millisecond)
+		clientSide.Write([]byte("\r")) // past "Saved"
 	}()
 
 	select {
@@ -425,4 +427,20 @@ func headerNumbers(msgs []qwk.PackedMessage) []int {
 		out[i] = m.Header.Number
 	}
 	return out
+}
+
+// A new area joins everyone's areas, also theirs who took some out.
+func TestMyAreasNewAreaIsIn(t *testing.T) {
+	s := testServer(t)
+	u, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	general, _ := s.Messages.AreaByTag("general")
+	s.Messages.SetAreaSubscribed(u.ID, general.ID, false)
+	fresh, _ := s.Messages.CreateArea("fresh", "Fresh", "", "", 0, 0)
+	mine, err := s.Messages.InMyAreas(u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mine(general.ID) || !mine(fresh.ID) {
+		t.Fatalf("general in: %v, fresh in: %v", mine(general.ID), mine(fresh.ID))
+	}
 }
