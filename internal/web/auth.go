@@ -29,6 +29,15 @@ type ctxKey int
 
 const claimsCtxKey ctxKey = iota
 
+// Audiences keep the two logins apart: an admin token (two-factor
+// checked, if the account has it) is no good for the portal and,
+// above all, a portal token -- which the reader, QWK clients and the
+// portal get without a second factor -- is no good for the admin.
+const (
+	adminAudience = "nullmodem-admin"
+	bbsAudience   = "nullmodem-bbs"
+)
+
 // handleLogin authenticates against the shared user store and, for
 // accounts at sysop level, issues a JWT for use against the rest of
 // the admin API.
@@ -36,6 +45,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		// Code is the authenticator's (or a recovery code), for an
+		// account with two-factor login.
+		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -56,19 +68,44 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "authentication failed")
 		return
 	}
-	s.loginSucceeded(ip)
 	if u.SecurityLevel < user.SLSysop {
+		s.loginSucceeded(ip)
 		s.logWarn("admin login rejected for %s: not sysop-level", u.Username)
 		writeError(w, http.StatusForbidden, "sysop access required")
 		return
 	}
+	switch {
+	case u.TwoFactor && req.Code == "":
+		// The password was right: now the code.
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "enter the code from your authenticator app", "totp_required": true})
+		return
+	case u.TwoFactor:
+		if err := s.Users.VerifyTOTP(u.ID, req.Code, time.Now()); err != nil {
+			s.logWarn("wrong two-factor code for %s from %s", u.Username, ip)
+			if s.Guard != nil {
+				if v, err := s.Guard.Fail(ip, u.Username, "admin 2fa"); err == nil && v.Blocked {
+					writeError(w, http.StatusTooManyRequests, v.Message())
+					return
+				}
+			}
+			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "wrong code", "totp_required": true})
+			return
+		}
+	case s.adminRequiresTOTP():
+		s.logWarn("admin login refused for %s: two-factor login required, none set up", u.Username)
+		writeError(w, http.StatusForbidden, "this BBS requires two-factor login for the admin -- another sysop can turn that off")
+		return
+	}
+	s.loginSucceeded(ip)
 	s.logInfo("%s logged into the admin UI", u.Username)
 
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		SecurityLevel: u.SecurityLevel,
+		UserID:        u.ID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   u.Username,
+			Audience:  jwt.ClaimStrings{adminAudience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenTTL)),
 		},
@@ -105,15 +142,18 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 				return nil, errors.New("unexpected signing method")
 			}
 			return s.JWTSecret, nil
-		})
+		}, jwt.WithAudience(adminAudience))
 		if err != nil || !token.Valid {
 			writeError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
-		if c.SecurityLevel < user.SLSysop {
+		// Still a sysop now -- not just when the token was issued.
+		u, err := s.Users.ByUsername(c.Subject)
+		if err != nil || u.SecurityLevel < user.SLSysop {
 			writeError(w, http.StatusForbidden, "sysop access required")
 			return
 		}
+		c.SecurityLevel, c.UserID = u.SecurityLevel, u.ID
 
 		ctx := context.WithValue(r.Context(), claimsCtxKey, c)
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -168,6 +208,7 @@ func (s *Server) handleBBSLogin(w http.ResponseWriter, r *http.Request) {
 		UserID:        u.ID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   u.Username,
+			Audience:  jwt.ClaimStrings{bbsAudience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(tokenTTL)),
 		},
@@ -212,8 +253,22 @@ func (s *Server) requireBBSUser(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
+		// An admin token isn't a portal login.
+		for _, a := range c.Audience {
+			if a == adminAudience {
+				writeError(w, http.StatusUnauthorized, "not a portal session")
+				return
+			}
+		}
 
 		ctx := context.WithValue(r.Context(), claimsCtxKey, c)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// adminRequiresTOTP reports whether sysops need two-factor login for
+// the admin (config.SecurityConfig.RequireAdminTOTP).
+func (s *Server) adminRequiresTOTP() bool {
+	c, err := s.loadBBSConfig()
+	return err == nil && c.Security.RequireAdminTOTP
 }

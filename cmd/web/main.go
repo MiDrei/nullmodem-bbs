@@ -6,6 +6,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
+	"git.maik.ch/nullmodem/bbs/internal/health"
 	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	"net"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
@@ -150,6 +151,30 @@ func main() {
 		}
 		return c.Backup.On(), c.Backup.RunHour(), web.BackupOptions(c), srv.BackupSources(c)
 	}, logger)
+
+	// Watching that everything keeps working: problems go to the
+	// sysops' phones (when they have the reader's notifications on)
+	// and onto the dashboard.
+	go health.Monitor(context.Background(), health.Env{
+		DB:        sqlDB,
+		Config:    current,
+		Self:      services.Web,
+		StartedAt: time.Now(),
+		Disk:      web.DiskUsage,
+	}, 5*time.Minute, logger, func(p health.Problem, ok bool) {
+		if srv.Push == nil {
+			return
+		}
+		n := push.Notification{Title: "⚠ " + p.Title, Body: p.Detail, URL: "/admin/dashboard", Tag: "health-" + p.Key}
+		if ok {
+			n = push.Notification{Title: "✓ Fixed: " + p.Title, URL: "/admin/dashboard", Tag: "health-" + p.Key}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := srv.Push.ToSysops(ctx, sqlDB, n); err != nil {
+			logger.Warn("health notification: %v", err)
+		}
+	})
 
 	logger.Info("web admin API listening on %s", cfg.Addr)
 	logger.Fatal("%v", http.ListenAndServe(cfg.Addr, srv.Routes()))

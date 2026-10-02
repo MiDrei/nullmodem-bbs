@@ -95,6 +95,9 @@ type User struct {
 	// LineEditor: messages are written line by line (/S to save), not
 	// in the full-screen editor -- for terminals without cursor keys.
 	LineEditor bool
+	// TwoFactor: the account logs into the admin (and the Telnet sysop
+	// menu) with a code from an authenticator app too (totp.go).
+	TwoFactor bool
 }
 
 // Location returns the zone to show this user's times in: their
@@ -143,14 +146,14 @@ func ValidateRealName(realName string) error {
 
 // userColumns is the column list every single-/multi-row user query
 // selects, in scanUser's order.
-const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated, line_editor`
+const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated, line_editor, totp_secret <> ''`
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
 func scanUser(row rowScanner, u *User) error {
-	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated, &u.LineEditor)
+	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated, &u.LineEditor, &u.TwoFactor)
 }
 
 // Store persists User accounts in the shared SQLite database.

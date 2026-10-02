@@ -23,3 +23,19 @@ func freeBytes(dir string) uint64 {
 		dir = parent
 	}
 }
+
+// DiskUsage is the free and total bytes of the file system dir is on
+// (or would be created on); zeros if unknown.
+func DiskUsage(dir string) (free, total uint64) {
+	for {
+		var st unix.Statfs_t
+		if err := unix.Statfs(dir, &st); err == nil {
+			return st.Bavail * uint64(st.Bsize), st.Blocks * uint64(st.Bsize)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return 0, 0
+		}
+		dir = parent
+	}
+}

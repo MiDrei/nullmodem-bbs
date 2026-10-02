@@ -26,6 +26,9 @@ type Terminal struct {
 	// recording failed logins (internal/guard).
 	RemoteIP string
 	Protocol string
+	// sysopOK is set once the caller passed the two-factor check for
+	// the sysop functions (sysopGate) this session.
+	sysopOK bool
 	// pending holds at most one byte pushed back by ReadKey's escape-
 	// sequence lookahead (an 0x1b not followed by '[').
 	pending []byte

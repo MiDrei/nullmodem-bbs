@@ -20,6 +20,8 @@ type userDTO struct {
 	TotalCalls    int     `json:"total_calls"`
 	// Validated is false while the account waits for approval.
 	Validated bool `json:"validated"`
+	// TwoFactor: logs into the admin with an authenticator code too.
+	TwoFactor bool `json:"two_factor"`
 }
 
 func toUserDTO(u user.User) userDTO {
@@ -31,6 +33,7 @@ func toUserDTO(u user.User) userDTO {
 		CreatedAt:     u.CreatedAt.Format(time.RFC3339),
 		TotalCalls:    u.TotalCalls,
 		Validated:     u.Validated,
+		TwoFactor:     u.TwoFactor,
 	}
 	if u.LastLoginAt.Valid {
 		formatted := u.LastLoginAt.Time.Format(time.RFC3339)

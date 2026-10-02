@@ -77,6 +77,18 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	// Two-factor login (user/totp.go): the secret ('' off), one set up
+	// but not confirmed yet, and the last time step used (no replays).
+	for _, col := range [][2]string{
+		{"totp_secret", "TEXT NOT NULL DEFAULT ''"},
+		{"totp_pending", "TEXT NOT NULL DEFAULT ''"},
+		{"totp_last", "INTEGER NOT NULL DEFAULT 0"},
+	} {
+		if err := ensureColumn(sqlDB, "users", col[0], col[1]); err != nil {
+			sqlDB.Close()
+			return nil, err
+		}
+	}
 	if err := ensureColumn(sqlDB, "users", "validated", "INTEGER NOT NULL DEFAULT 1"); err != nil {
 		sqlDB.Close()
 		return nil, err

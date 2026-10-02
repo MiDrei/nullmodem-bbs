@@ -550,3 +550,20 @@ CREATE TABLE IF NOT EXISTS bbs_list (
     added_by     TEXT NOT NULL DEFAULT '',
     updated_at   INTEGER NOT NULL
 );
+
+-- Two-factor login (user/totp.go): one-time recovery codes, bcrypt-
+-- hashed, for an account whose authenticator is lost.
+CREATE TABLE IF NOT EXISTS totp_recovery (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    hash     TEXT NOT NULL,
+    used     INTEGER NOT NULL DEFAULT 0
+);
+
+-- internal/health: the problems the monitor sees now, so each is
+-- announced once when it starts and once when it's over.
+CREATE TABLE IF NOT EXISTS health_problems (
+    key     TEXT PRIMARY KEY,
+    title   TEXT NOT NULL,
+    detail  TEXT NOT NULL DEFAULT '',
+    since   INTEGER NOT NULL
+);

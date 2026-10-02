@@ -117,6 +117,7 @@ export interface Dashboard {
 	locked_out_count: number;
 	/** Page rooms with a caller waiting for the sysop ("page-bob"). */
 	paging: string[];
+	problems: HealthProblem[];
 }
 
 export interface BBSUser {
@@ -130,6 +131,8 @@ export interface BBSUser {
 	total_calls: number;
 	/** False while the account waits for the sysop's approval. */
 	validated: boolean;
+	/** Logs into the admin with an authenticator code too. */
+	two_factor: boolean;
 }
 
 export interface MessageArea {
@@ -302,11 +305,19 @@ export async function getWelcomeScreen(): Promise<WelcomeScreen | null> {
 	}
 }
 
-export function login(username: string, password: string): Promise<LoginResponse> {
-	return request<LoginResponse>('/api/auth/login', {
+/** Thrown by login when the account needs its two-factor code (again). */
+export class TwoFactorRequired extends ApiError {}
+
+export async function login(username: string, password: string, code = ''): Promise<LoginResponse> {
+	const res = await fetch('/api/auth/login', {
 		method: 'POST',
-		body: JSON.stringify({ username, password })
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ username, password, code })
 	});
+	const body = await res.json().catch(() => ({}));
+	if (res.ok) return body as LoginResponse;
+	if (body?.totp_required) throw new TwoFactorRequired(res.status, body.error ?? 'Enter your code.');
+	throw new ApiError(res.status, body?.error ?? res.statusText);
 }
 
 export function getConfig(token: string): Promise<BBSConfig> {
@@ -1609,6 +1620,7 @@ export interface SecuritySettings {
 	pending_sl: number;
 	new_user_sl: number;
 	blocked_handles: string[];
+	require_admin_totp: boolean;
 }
 
 export interface IPLockout {
@@ -1840,4 +1852,53 @@ export function adminListBBSList(token: string): Promise<BBSListEntry[]> {
 
 export function adminDeleteBBSListEntry(token: string, id: number): Promise<void> {
 	return request(`/api/bbslist/${id}`, { method: 'DELETE' }, token);
+}
+
+/** The signed-in sysop's two-factor login. */
+export interface TOTPStatus {
+	enabled: boolean;
+	recovery_codes_left: number;
+}
+
+export interface TOTPSetup {
+	secret: string;
+	url: string;
+	/** PNG data URL of the QR code. */
+	qr: string;
+}
+
+export function getTOTP(token: string): Promise<TOTPStatus> {
+	return request('/api/account/totp', { method: 'GET' }, token);
+}
+
+export function startTOTP(token: string): Promise<TOTPSetup> {
+	return request('/api/account/totp/start', { method: 'POST' }, token);
+}
+
+export function confirmTOTP(token: string, code: string): Promise<{ recovery_codes: string[] }> {
+	return request('/api/account/totp/confirm', { method: 'POST', body: JSON.stringify({ code }) }, token);
+}
+
+export function disableTOTP(token: string, code: string): Promise<TOTPStatus> {
+	return request('/api/account/totp/disable', { method: 'POST', body: JSON.stringify({ code }) }, token);
+}
+
+export function newRecoveryCodes(token: string, code: string): Promise<{ recovery_codes: string[] }> {
+	return request('/api/account/totp/recovery', { method: 'POST', body: JSON.stringify({ code }) }, token);
+}
+
+export function setUserPassword(token: string, id: number, password: string): Promise<void> {
+	return request(`/api/users/${id}/password`, { method: 'PUT', body: JSON.stringify({ password }) }, token);
+}
+
+export function resetUserTOTP(token: string, id: number): Promise<void> {
+	return request(`/api/users/${id}/totp`, { method: 'DELETE' }, token);
+}
+
+/** Something the health monitor sees not working (internal/health). */
+export interface HealthProblem {
+	key: string;
+	title: string;
+	detail: string;
+	since: string;
 }

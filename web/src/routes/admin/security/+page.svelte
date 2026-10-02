@@ -12,10 +12,12 @@
 		unlockIP,
 		addIPRule,
 		deleteIPRule,
+		getTOTP,
 		ApiError,
 		type SecuritySettings,
 		type SecurityState
 	} from '$lib/api';
+	import TwoFactorCard from '$lib/TwoFactorCard.svelte';
 
 	let sec = $state<SecurityState | null>(null);
 	let settings = $state<SecuritySettings | null>(null);
@@ -26,6 +28,7 @@
 	let ruleKind = $state<'allow' | 'block'>('allow');
 	let ruleNote = $state('');
 	let timer: ReturnType<typeof setInterval> | undefined;
+	let myTwoFactor = $state(false);
 
 	async function failed(err: unknown, fallback: string) {
 		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
@@ -51,6 +54,7 @@
 		}
 		try {
 			apply(await getSecurity(auth.token));
+			getTOTP(auth.token).then((t) => (myTwoFactor = t.enabled)).catch(() => {});
 		} catch (err) {
 			loadError = err instanceof ApiError ? err.message : 'Could not load the security settings.';
 		}
@@ -132,6 +136,7 @@
 	<p class="text-sm text-muted">Loading…</p>
 {:else}
 	<div class="flex flex-col gap-4">
+		<TwoFactorCard onChange={(on) => (myTwoFactor = on)} />
 		{#if !youAllowed}
 			<p class="rounded-xl border border-line bg-sunken px-4 py-3 text-sm text-muted">
 				You're connected from <span class="font-mono text-ink">{sec.your_ip}</span>.
@@ -172,6 +177,16 @@
 					<span class="text-[11px] text-faint">at the same time; 0 no limit</span>
 				</label>
 			</div>
+
+			<label class="flex items-start gap-2 text-sm">
+				<input type="checkbox" class="check mt-0.5" bind:checked={settings.require_admin_totp} disabled={!myTwoFactor && !settings.require_admin_totp} />
+				<span>
+					<span class="text-ink">Require two-factor login for the admin and the Telnet sysop menu</span>
+					<span class="block text-xs text-faint">
+						Sysop accounts without it can't get in any more. Turn on your own first{myTwoFactor ? '' : ' (above)'}.
+					</span>
+				</span>
+			</label>
 
 			<h2 class="card-label mt-2">New users</h2>
 			<label class="flex items-center gap-2 text-sm">

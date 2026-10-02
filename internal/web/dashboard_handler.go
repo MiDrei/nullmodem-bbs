@@ -1,6 +1,7 @@
 package web
 
 import (
+	"git.maik.ch/nullmodem/bbs/internal/health"
 	"net/http"
 	"time"
 
@@ -55,6 +56,8 @@ type dashboardDTO struct {
 	LockedOutCount   int `json:"locked_out_count"`
 	// Paging are callers waiting in their page room for the sysop.
 	Paging []string `json:"paging"`
+	// Problems are what the health monitor sees not working now.
+	Problems []health.Problem `json:"problems"`
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +164,13 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	problems := []health.Problem{}
+	if s.DB != nil {
+		if p, err := health.Current(s.DB); err == nil {
+			problems = p
+		}
+	}
+
 	writeJSON(w, http.StatusOK, dashboardDTO{
 		BBSName:                 cfg.BBS.Name,
 		Version:                 version.Version,
@@ -175,5 +185,6 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		PendingUserCount:        len(pendingUsers),
 		LockedOutCount:          lockedOut,
 		Paging:                  paging,
+		Problems:                problems,
 	})
 }

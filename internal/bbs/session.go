@@ -550,12 +550,26 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 
 		case strings.HasPrefix(item.Action, "goto:"):
 			target := strings.TrimPrefix(item.Action, "goto:")
+			if target == "sysop" {
+				if ok, err := s.sysopGate(term, u); err != nil {
+					return err
+				} else if !ok {
+					continue
+				}
+			}
 			if err := s.runMenu(term, u, node, target); err != nil {
 				return err
 			}
 
 		case strings.HasPrefix(item.Action, "builtin:"):
 			name := strings.TrimPrefix(item.Action, "builtin:")
+			if sysopBuiltins[name] {
+				if ok, err := s.sysopGate(term, u); err != nil {
+					return err
+				} else if !ok {
+					continue
+				}
+			}
 			fn, ok := builtins[name]
 			if !ok {
 				if err := term.Println("\nUnimplemented command: " + name); err != nil {

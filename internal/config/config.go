@@ -482,6 +482,9 @@ type SecurityConfig struct {
 	// the sysop's approval before they may post; approval raises them
 	// to bbs.new_user_sl. Default on, PendingSL 5.
 	ApproveNewUsers *bool `yaml:"approve_new_users,omitempty"`
+	// RequireAdminTOTP: sysop accounts without two-factor login can't
+	// get into the web admin or the Telnet sysop menu.
+	RequireAdminTOTP bool `yaml:"require_admin_totp,omitempty"`
 	PendingSL       *int  `yaml:"pending_sl,omitempty"`
 	// BlockedHandles can't be registered, in addition to the built-in
 	// ones (sysop, admin, root, ...).

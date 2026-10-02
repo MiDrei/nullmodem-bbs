@@ -3,7 +3,16 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
 	import { toast } from '$lib/toast.svelte';
-	import { listUsers, setUserSecurityLevel, approveUser, deletePendingUser, ApiError, type BBSUser } from '$lib/api';
+	import {
+		listUsers,
+		setUserSecurityLevel,
+		approveUser,
+		deletePendingUser,
+		setUserPassword,
+		resetUserTOTP,
+		ApiError,
+		type BBSUser
+	} from '$lib/api';
 
 	interface Row {
 		user: BBSUser;
@@ -67,6 +76,31 @@
 	}
 
 	let pending = $derived(rows.filter((r) => !r.user.validated));
+
+	// A new password for a caller who forgot theirs: typed here, told
+	// to them however you reach them.
+	async function newPassword(row: Row) {
+		if (!auth.token) return;
+		const pw = prompt(`New password for ${row.user.username} (at least 6 characters):`);
+		if (!pw) return;
+		try {
+			await setUserPassword(auth.token, row.user.id, pw);
+			toast.push(`New password set for ${row.user.username}.`, 'success');
+		} catch (err) {
+			toast.push(err instanceof ApiError ? err.message : 'Could not set it.', 'error');
+		}
+	}
+
+	async function resetTwoFactor(row: Row) {
+		if (!auth.token || !confirm(`Turn off two-factor login for ${row.user.username}? They can set it up again afterwards.`)) return;
+		try {
+			await resetUserTOTP(auth.token, row.user.id);
+			row.user = { ...row.user, two_factor: false };
+			toast.push(`Two-factor login is off for ${row.user.username}.`, 'success');
+		} catch (err) {
+			toast.push(err instanceof ApiError ? err.message : 'Could not reset it.', 'error');
+		}
+	}
 
 	async function approve(row: Row) {
 		if (!auth.token) return;
@@ -168,6 +202,7 @@
 								{/if}
 								{row.user.username}
 								{#if !row.user.validated}<span class="rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400 uppercase">waiting</span>{/if}
+								{#if row.user.two_factor}<span class="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400 uppercase" title="Two-factor login">2FA</span>{/if}
 							</div>
 						</td>
 						<td class="p-3">
@@ -191,7 +226,11 @@
 						<td class="p-3 text-slate-400">{row.user.total_calls}</td>
 						<td class="p-3 text-slate-400">{formatDate(row.user.last_login_at)}</td>
 						<td class="p-3 text-slate-400">{formatDate(row.user.created_at)}</td>
-						<td class="p-3">
+						<td class="flex flex-wrap gap-1.5 p-3">
+							<button class="btn-secondary btn-sm" onclick={() => newPassword(row)}>Password…</button>
+							{#if row.user.two_factor && row.user.username !== auth.username}
+								<button class="btn-secondary btn-sm" onclick={() => resetTwoFactor(row)}>Reset 2FA</button>
+							{/if}
 							<button
 								class="btn-primary btn-sm"
 								disabled={row.saving ||

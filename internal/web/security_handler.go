@@ -25,6 +25,9 @@ type securitySettingsDTO struct {
 	PendingSL           int      `json:"pending_sl"`
 	NewUserSL           int      `json:"new_user_sl"`
 	BlockedHandles      []string `json:"blocked_handles"`
+	// RequireAdminTOTP: no admin (or Telnet sysop menu) without
+	// two-factor login.
+	RequireAdminTOTP bool `json:"require_admin_totp"`
 }
 
 type securityResponse struct {
@@ -47,6 +50,7 @@ func toSecurityDTO(c *config.Config) securitySettingsDTO {
 		LockoutEnabled: sc.Lockout(), MaxFailures: sc.Failures(), WindowMinutes: sc.Window(),
 		LockoutMinutes: sc.LockoutMins(), MaxLockoutHours: sc.MaxLockout(), MaxConnectionsPerIP: sc.MaxConnections(),
 		ApproveNewUsers: sc.Approval(), PendingSL: sc.Pending(), NewUserSL: c.BBS.NewUserSL, BlockedHandles: blocked,
+		RequireAdminTOTP: sc.RequireAdminTOTP,
 	}
 }
 
@@ -107,6 +111,15 @@ func (s *Server) handlePutSecuritySettings(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "the waiting level must be below the new-user level")
 		return
 	}
+	if d.RequireAdminTOTP {
+		// Only with two-factor on oneself -- else it locks the asker out.
+		if claims, ok := claimsFromContext(r.Context()); ok {
+			if me, err := s.Users.ByID(claims.UserID); err != nil || !me.TwoFactor {
+				writeError(w, http.StatusBadRequest, "turn on two-factor login for your own account first")
+				return
+			}
+		}
+	}
 	c, err := s.loadBBSConfig()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load config")
@@ -124,6 +137,7 @@ func (s *Server) handlePutSecuritySettings(w http.ResponseWriter, r *http.Reques
 		LockoutEnabled: b(d.LockoutEnabled), MaxFailures: p(d.MaxFailures), WindowMinutes: p(d.WindowMinutes),
 		LockoutMinutes: p(d.LockoutMinutes), MaxLockoutHours: p(d.MaxLockoutHours), MaxConnectionsPerIP: p(d.MaxConnectionsPerIP),
 		ApproveNewUsers: b(d.ApproveNewUsers), PendingSL: p(d.PendingSL), BlockedHandles: handles,
+		RequireAdminTOTP: d.RequireAdminTOTP,
 	}
 	c.BBS.NewUserSL = d.NewUserSL
 	if err := config.Save(s.BBSConfigPath, c); err != nil {

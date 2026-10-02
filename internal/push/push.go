@@ -196,3 +196,27 @@ func (sn *Sender) Send(ctx context.Context, s Subscription, n Notification) erro
 	}
 	return nil
 }
+
+// ToSysops sends n to every device of every sysop.
+func (sn *Sender) ToSysops(ctx context.Context, db *sql.DB, n Notification) error {
+	ids, err := (&Notifier{DB: db}).sysops(ctx)
+	if err != nil {
+		return err
+	}
+	var errs []string
+	for _, id := range ids {
+		subs, err := sn.Store.ForUser(id)
+		if err != nil {
+			return err
+		}
+		for _, s := range subs {
+			if err := sn.Send(ctx, s, n); err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("push: %s", errs[0])
+	}
+	return nil
+}

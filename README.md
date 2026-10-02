@@ -62,6 +62,9 @@ Teil der NullModem-Familie:
   Limit gleichzeitiger Verbindungen pro Adresse; Allow- und Blocklisten (IP oder
   Bereich). Neue Benutzer warten auf Freischaltung (lesen und Netmail an den
   Sysop dürfen sie schon), Push an den Sysop bei Neuanmeldung; gesperrte Handles
+- Zwei-Faktor-Login (TOTP) für Admin und Telnet-Sysop-Menü, Passwort-Reset für
+  Benutzer, Warnungen per Push (Dienst steht, Uplink unerreichbar, Backup fehlt,
+  Platte voll, Netmail hängt) — siehe [docs/security.md](docs/security.md)
 - Nächtliches Backup (Admin → Backups): Datenbank, Konfiguration, Menüs,
   Bildschirme und Schlüssel als ein `.tar.gz`, wahlweise mit Dateien und Doors;
   Download im Admin, Zurückspielen siehe [docs/backup.md](docs/backup.md)
