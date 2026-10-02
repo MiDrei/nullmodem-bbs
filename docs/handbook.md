@@ -115,6 +115,14 @@ sich mit einem Klick installieren. Eigene Doors: [adding-a-door.md](adding-a-doo
 | Native Linux | Linux-Doors über DOOR32.SYS oder stdio |
 | Remote (RLogin) | Door-Netzwerke wie DoorParty oder eine andere BBS |
 
+**Tägliche Wartung:** Viele Doors (TradeWars, BRE, Usurper …) wollen einmal am
+Tag ein Wartungsprogramm laufen sehen (neue Züge, Tagesereignisse). Im Door unter
+„Daily maintenance“ den Befehl eintragen (bei DOS-Doors die DOS-Befehle, z. B.
+`USURPER /MAINT`), dazu die Uhrzeit (Standard 00:05). Die BBS führt ihn ohne
+Anrufer aus — nie, während jemand spielt, dann eben etwas später. Ergebnis und
+Ausgabe stehen in der Door-Liste, „Run maintenance“ startet ihn sofort; ein
+Fehlschlag erscheint unter „Needs attention“.
+
 Hintergrundprogramme (z. B. die MRC-Bridge) laufen als eigener Dienst und
 erscheinen unter System → Services.
 
@@ -146,7 +154,12 @@ erscheinen unter System → Services.
 
 Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
 
-**Web:** Portal (`/`) mit allem aus Telnet (Suche über das Feld bei den Message Areas), Reader-App (`/reader`) fürs Handy
+**Startseite (`/`):** öffentlich, ohne Login — Begrüßungsbildschirm, alle
+Zugänge (Web-Terminal, Telnet/SSH, Portal, Reader-App, QWK), wer online ist,
+letzte Anrufer, One-Liner, Doors und die FTN-Adressen für andere Sysops. Die
+Adresse, die man weitergibt.
+
+**Web:** Portal (`/message-areas` …, Login unter `/login`) mit allem aus Telnet (Suche über das Feld bei den Message Areas), Reader-App (`/reader`) fürs Handy
 mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
 
 ## 9. Im Alltag
@@ -160,7 +173,8 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
 - **Abstimmungen / BBS-Liste:** Community → Polls & BBS List.
 - **Logs:** System → Logs — „All“ mit „Warnings & errors“ als schneller
   Überblick; „BinkP sessions“ zeigt jede Sitzung samt Mitschnitt.
-- **Nachts automatisch:** 03:00 Backup, 04:00 Maintenance (Serverzeit).
+- **Nachts automatisch:** 00:05 Door-Wartung (pro Door einstellbar), 03:00
+  Backup, 04:00 Maintenance (Serverzeit).
 
 ## 10. Updates
 

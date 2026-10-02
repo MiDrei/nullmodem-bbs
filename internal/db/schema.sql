@@ -567,3 +567,15 @@ CREATE TABLE IF NOT EXISTS health_problems (
     detail  TEXT NOT NULL DEFAULT '',
     since   INTEGER NOT NULL
 );
+
+-- internal/doors daily maintenance: per door, when its nightly command
+-- last ran and how it went; requested_at asks for a run now (the web
+-- admin's "Run now", carried out by the bbs daemon). Times Unix ms.
+CREATE TABLE IF NOT EXISTS door_daily (
+    door          TEXT PRIMARY KEY,
+    last_day      TEXT NOT NULL DEFAULT '',
+    last_at       INTEGER NOT NULL DEFAULT 0,
+    ok            INTEGER NOT NULL DEFAULT 0,
+    detail        TEXT NOT NULL DEFAULT '',
+    requested_at  INTEGER NOT NULL DEFAULT 0
+);

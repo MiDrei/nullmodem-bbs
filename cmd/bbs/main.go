@@ -179,6 +179,10 @@ func main() {
 	}
 	go supervisor.Run(context.Background())
 
+	// Doors' daily maintenance (new turns, the day's events), headless,
+	// at each door's time -- or when "Run now" is pressed in the admin.
+	go (&doors.Scheduler{DB: sqlDB, Doors: loadDoors, Logger: logger}).Run(context.Background())
+
 	errCh := make(chan error, 2)
 
 	if cfg.Telnet.Enabled {
@@ -235,6 +239,8 @@ func doorsFromConfig(entries []config.DoorConfig) []doors.Door {
 			Stdio:             d.Stdio,
 			ANSI16:            d.ANSI16,
 			Remote:            d.Remote,
+			Daily:             d.Daily,
+			DailyAt:           d.DailyAt,
 		})
 	}
 	return list

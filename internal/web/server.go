@@ -98,6 +98,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/bbs/info", s.handleBBSInfo)
+	mux.HandleFunc("GET /api/public/overview", s.handlePublicOverview)
 	mux.HandleFunc("GET /api/terminal", s.handleTerminal)
 	mux.HandleFunc("GET /api/bbs/welcome-screen", s.handleWelcomeScreen)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
@@ -161,6 +162,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/polls/{id}", s.requireAuth(http.HandlerFunc(s.handleDeletePoll)))
 	mux.Handle("GET /api/bbslist", s.requireAuth(http.HandlerFunc(s.handleListBBSList)))
 	mux.Handle("DELETE /api/bbslist/{id}", s.requireAuth(http.HandlerFunc(s.handleAdminDeleteBBSListEntry)))
+	mux.Handle("POST /api/door-daily/{name}", s.requireAuth(http.HandlerFunc(s.handleRunDoorDaily)))
 	mux.Handle("GET /api/security", s.requireAuth(http.HandlerFunc(s.handleGetSecurity)))
 	mux.Handle("PUT /api/security/settings", s.requireAuth(http.HandlerFunc(s.handlePutSecuritySettings)))
 	mux.Handle("POST /api/security/unlock", s.requireAuth(http.HandlerFunc(s.handleUnlockIP)))

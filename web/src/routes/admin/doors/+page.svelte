@@ -6,6 +6,7 @@
 	import {
 		listDoors,
 		putDoors,
+		runDoorDaily,
 		listDoorTemplates,
 		addDoorFromTemplate,
 		getMRCConfig,
@@ -59,6 +60,8 @@
 			ansi16: false,
 			remote: { host: '', port: 513, client_user: '', server_user: '', term_type: '' },
 			template: '',
+			daily: '',
+			daily_at: '',
 			program: [],
 			installed: false
 		};
@@ -230,6 +233,17 @@
 		}
 	}
 
+	async function runDaily(d: Door) {
+		if (!auth.token) return;
+		try {
+			await runDoorDaily(auth.token, d.name);
+			toast.push(`${d.name}'s daily maintenance starts within half a minute -- reload to see how it went.`, 'success');
+		} catch (err) {
+			if (await authFailed(err)) return;
+			toast.push(err instanceof ApiError ? err.message : 'Could not start it.', 'error');
+		}
+	}
+
 	function doorDir(d: Door): string {
 		if (d.kind === 'rlogin') return `${d.remote.host}:${d.remote.port || 513}`;
 		return d.kind === 'dosbox' ? d.dosbox_dir : d.dir;
@@ -387,6 +401,24 @@
 		{/if}
 
 		{#if draft.kind !== 'rlogin'}
+		<div class="grid gap-3 sm:grid-cols-[1fr_7rem]">
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">Daily maintenance (optional)</span>
+				{#if draft.kind === 'dosbox'}
+					<textarea class="field field-sm h-[2.35rem] resize-y font-mono" bind:value={draft.daily} placeholder="TWMAINT.EXE"></textarea>
+				{:else}
+					<input class="field field-sm font-mono" bind:value={draft.daily} placeholder="./maint --daily" />
+				{/if}
+				<span class="text-xs leading-relaxed text-faint">
+					Run once a day without a caller -- new turns, the day's events. {draft.kind === 'dosbox' ? 'DOS commands from C:, one per line.' : 'A command line in the door directory.'}
+					Never while someone plays; then it waits.
+				</span>
+			</label>
+			<label class="flex flex-col gap-1.5">
+				<span class="text-xs text-muted">at</span>
+				<input class="field field-sm font-mono" bind:value={draft.daily_at} placeholder="00:05" />
+			</label>
+		</div>
 		<div class="grid gap-3 sm:grid-cols-2">
 			<label class="flex flex-col gap-1.5">
 				<span class="text-xs text-muted">Drop file</span>
@@ -473,12 +505,20 @@
 								{/if}
 							</div>
 							<div class="mt-1 truncate font-mono text-[11px] text-faint">
-								{doorDir(d) || '—'}{d.kind === 'rlogin' ? '' : ` · ${dropfileLabel(d)}`}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''}{d.ansi16 ? ' · 16 colours' : ''}{d.program.length ? ` · runs ${d.program[0]}` : ''} · SL {d.min_sl}+
+								{doorDir(d) || '—'}{d.kind === 'rlogin' ? '' : ` · ${dropfileLabel(d)}`}{d.daily ? ` · daily ${d.daily_at || '00:05'}` : ''}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''}{d.ansi16 ? ' · 16 colours' : ''}{d.program.length ? ` · runs ${d.program[0]}` : ''} · SL {d.min_sl}+
 							</div>
+							{#if d.daily_state}
+								<div class="mt-0.5 truncate text-[11px] {d.daily_state.ok ? 'text-emerald-500' : 'text-red-400'}" title={d.daily_state.detail}>
+									Daily maintenance {d.daily_state.ok ? 'ran' : 'failed'} {new Date(d.daily_state.last_at).toLocaleString()}{d.daily_state.ok ? '' : ` -- ${d.daily_state.detail.split('\n')[0]}`}
+								</div>
+							{/if}
 						</div>
 						<div class="flex shrink-0 gap-1.5">
 							{#if d.template === 'umrc'}
 								<button class="btn-secondary btn-xs" onclick={() => openMRC(null)}>Chat settings</button>
+							{/if}
+							{#if d.daily && d.kind !== 'rlogin'}
+								<button class="btn-secondary btn-xs" onclick={() => runDaily(d)}>Run maintenance</button>
 							{/if}
 							<button class="btn-secondary btn-xs" onclick={() => startEdit(i)} disabled={editing !== null}>
 								Edit

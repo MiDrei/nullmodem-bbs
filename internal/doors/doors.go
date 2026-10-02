@@ -137,6 +137,10 @@ type Door struct {
 	// Remote is where a door of kind "rlogin" is played (see
 	// config.RemoteDoor); played by internal/bbs, not Run.
 	Remote config.RemoteDoor
+	// Daily and DailyAt are the door's daily maintenance (see
+	// config.DoorConfig.Daily and RunDaily).
+	Daily   string
+	DailyAt string
 }
 
 // Session carries the caller-specific fields Run writes into the

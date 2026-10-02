@@ -289,6 +289,28 @@ export function getBBSInfo(): Promise<BBSInfo> {
 	return request('/api/bbs/info', { method: 'GET' });
 }
 
+/** The public front page's data (GET /api/public/overview, no login): how to reach the board and what's going on, handles only. */
+export interface PublicOverview {
+	name: string;
+	sysop: string;
+	location: string;
+	version: string;
+	telnet_port?: string;
+	ssh_port?: string;
+	binkp_port?: string;
+	networks: { name: string; addresses: string[] }[];
+	online: { node: number; handle: string; since: string }[];
+	callers: { handle: string; at: string; place?: string }[];
+	oneliners: { handle: string; text: string; at: string }[];
+	doors: string[];
+	stats: Record<string, number>;
+	since_year?: number;
+}
+
+export function getPublicOverview(): Promise<PublicOverview> {
+	return request('/api/public/overview', { method: 'GET' });
+}
+
 export interface WelcomeScreen {
 	html: string;
 	preformatted: boolean;
@@ -1348,6 +1370,12 @@ export interface Door {
 	/** Kind "rlogin": the door server and the user names sent to it. */
 	remote: RemoteDoor;
 	template: string;
+	/** Daily maintenance: DOS commands (dosbox) or a command line (native); "" none. */
+	daily: string;
+	/** Its time, "HH:MM" ("" = 00:05). */
+	daily_at: string;
+	/** How its last run went, read-only. */
+	daily_state?: { last_at: string; ok: boolean; detail: string } | null;
 	/** Native doors only: a background program kept running while the door is set up (uMRC's umrc-bridge). */
 	program: string[];
 	/** Read-only: the door's directory exists and has files. */
@@ -1922,4 +1950,9 @@ export function searchMessages(token: string, q: string, areaId = 0): Promise<Se
 	const p = new URLSearchParams({ q });
 	if (areaId) p.set('area_id', String(areaId));
 	return request(`/api/bbs/messages/search?${p}`, { method: 'GET' }, token);
+}
+
+/** Runs a door's daily maintenance now (the BBS service picks it up within half a minute). */
+export function runDoorDaily(token: string, name: string): Promise<void> {
+	return request(`/api/door-daily/${encodeURIComponent(name)}`, { method: 'POST' }, token);
 }

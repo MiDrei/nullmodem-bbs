@@ -38,6 +38,11 @@ type doorDTO struct {
 	// Remote is a door of kind "rlogin": where and as whom.
 	Remote   config.RemoteDoor `json:"remote"`
 	Template string            `json:"template"`
+	// Daily is the daily maintenance command, DailyAt its time;
+	// DailyState how its last run went (read-only).
+	Daily      string            `json:"daily"`
+	DailyAt    string            `json:"daily_at"`
+	DailyState *doors.DailyState `json:"daily_state"`
 	// Program is the door's background program -- see
 	// config.DoorConfig.Program.
 	Program []string `json:"program"`
@@ -98,6 +103,8 @@ func toDoorDTO(d config.DoorConfig) doorDTO {
 		ANSI16:            d.ANSI16,
 		Remote:            d.Remote,
 		Template:          d.Template,
+		Daily:             d.Daily,
+		DailyAt:           d.DailyAt,
 		Program:           orEmpty(d.Program),
 		Installed:         nonEmptyDir(dir),
 	}
@@ -133,6 +140,8 @@ func fromDoorDTO(d doorDTO) config.DoorConfig {
 		ANSI16:            d.ANSI16,
 		Remote:            trimRemote(d.Remote, kind),
 		Template:          d.Template,
+		Daily:             strings.TrimSpace(d.Daily),
+		DailyAt:           strings.TrimSpace(d.DailyAt),
 		Program:           trimmed(d.Program),
 	}
 }
@@ -180,6 +189,14 @@ func validateDoors(list []config.DoorConfig) string {
 				return fmt.Sprintf("%s: unknown drop file format %q", d.Name, d.DropFile)
 			}
 		}
+		if d.DailyAt != "" {
+			if _, err := time.Parse("15:04", d.DailyAt); err != nil {
+				return fmt.Sprintf("%s: the daily maintenance time must be HH:MM", d.Name)
+			}
+		}
+		if d.Daily != "" && d.Kind == "rlogin" {
+			return fmt.Sprintf("%s: a remote door is maintained by its own system", d.Name)
+		}
 		if len(d.Program) > 0 && d.Kind != "" {
 			return fmt.Sprintf("%s: only a native door can have a background program", d.Name)
 		}
@@ -193,9 +210,17 @@ func validateDoors(list []config.DoorConfig) string {
 }
 
 func (s *Server) doorsResponse(c *config.Config) doorsDTO {
+	states := map[string]doors.DailyState{}
+	if s.DB != nil {
+		states, _ = doors.DailyStates(s.DB)
+	}
 	list := make([]doorDTO, len(c.Doors))
 	for i, d := range c.Doors {
 		list[i] = toDoorDTO(d)
+		if st, ok := states[d.Name]; ok && !st.LastAt.IsZero() {
+			st := st
+			list[i].DailyState = &st
+		}
 	}
 	return doorsDTO{Doors: list, DropFileFormats: doors.DropFileFormats, DoorsDir: c.BBS.DoorsDir}
 }
@@ -458,4 +483,31 @@ func trimRemote(r config.RemoteDoor, kind string) config.RemoteDoor {
 	r.ServerUser = strings.TrimSpace(r.ServerUser)
 	r.TermType = strings.TrimSpace(r.TermType)
 	return r
+}
+
+// handleRunDoorDaily: POST /api/door-daily/{name} -- the bbs daemon
+// runs the door's daily maintenance within half a minute.
+func (s *Server) handleRunDoorDaily(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	found := false
+	for _, d := range c.Doors {
+		found = found || (d.Name == name && d.Daily != "")
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "no such door with a daily maintenance")
+		return
+	}
+	if err := doors.RequestDaily(s.DB, name); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not ask for it")
+		return
+	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s asked for %s's daily maintenance now", claims.Subject, name)
+	}
+	w.WriteHeader(http.StatusAccepted)
 }

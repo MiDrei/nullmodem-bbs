@@ -41,12 +41,15 @@ Teil der NullModem-Familie:
 - QWK-Pakete holen und Antworten hochladen, Auswahl der Bereiche
 - Remote-Doors über RLogin (Door-Netzwerke wie DoorParty, andere BBS):
   Host und die beiden Benutzernamen mit Platzhaltern im Web-Admin
-- Doors: native Linux-Doors per `DOOR32.SYS` und DOS-Doors unter DOSBox-X (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), verwaltet im Web-Admin mit Vorlagen (per Klick installierbar: MRC Chat (uMRC), Immortal Barons, Usurper, Usurper Reborn, Judge Dredd; vorbereitet: LORD, TradeWars, OO2, DoorMUD)
+- Doors: native Linux-Doors per `DOOR32.SYS` und DOS-Doors unter DOSBox-X (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), verwaltet im Web-Admin mit Vorlagen (per Klick installierbar: MRC Chat (uMRC), Immortal Barons, Usurper, Usurper Reborn, Judge Dredd; vorbereitet: LORD, TradeWars, OO2, DoorMUD); tägliche Wartung pro Door (zur eingestellten Zeit, nie während jemand spielt)
 - Profil: Realname, Zeitzone, Passwort, QWK-Einstellungen
 - Wer sich als Erster registriert, wird Sysop
 
 **Web** (`:8090`)
-- Portal für Benutzer (`/`): Nachrichten, Netmail, Dateien, QWK, Profil —
+- Öffentliche Startseite (`/`): Begrüßungsbildschirm, alle Zugänge (Web-Terminal,
+  Telnet/SSH, Portal, Reader-App, QWK), wer online ist, letzte Anrufer,
+  One-Liner, Doors, FTN-Adressen
+- Portal für Benutzer (`/login`, `/message-areas` …): Nachrichten, Netmail, Dateien, QWK, Profil —
   dieselben Funktionen wie über Telnet
 - Web-Terminal (`/terminal`): die BBS im Browser, ohne Telnet-Client — mit dem
   Pixel-Font der ANSI-Bildschirme, Tastenleiste fürs Handy; Sperren und

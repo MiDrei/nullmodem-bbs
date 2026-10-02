@@ -269,6 +269,12 @@ type DoorConfig struct {
 	// ANSI16 reduces the door's colours to the 16 classic ones -- see
 	// internal/doors.Door.ANSI16.
 	ANSI16 bool `yaml:"ansi16,omitempty"`
+	// Daily is the door's daily maintenance (new turns, events): DOS
+	// commands for a "dosbox" door (one per line, run from C:), a
+	// command line for a native one (relative to Dir); run headless
+	// once a day at DailyAt ("HH:MM", default "00:05"). Empty: none.
+	Daily   string `yaml:"daily,omitempty"`
+	DailyAt string `yaml:"daily_at,omitempty"`
 	// Remote is where a door of kind "rlogin" is played: a door
 	// server (DoorParty, a friend's BBS) reached over RLogin. The BBS
 	// connects, names the caller (RemoteUser/RemotePassword, see

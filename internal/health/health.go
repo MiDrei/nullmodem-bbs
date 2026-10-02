@@ -140,6 +140,20 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 		}
 	}
 
+	// Doors' daily maintenance that failed (the last run).
+	rows, err := e.DB.QueryContext(ctx, `SELECT door, detail FROM door_daily WHERE last_at > 0 AND ok = 0`)
+	if err == nil {
+		for rows.Next() {
+			var door, detail string
+			rows.Scan(&door, &detail)
+			if i := strings.IndexByte(detail, '\n'); i > 0 {
+				detail = detail[:i]
+			}
+			add("door-daily:"+door, door+"'s daily maintenance failed", detail)
+		}
+		rows.Close()
+	}
+
 	// Netmail waiting to go out.
 	var stuck int
 	cutoff := now.Add(-NetmailStuck).UTC().Format("2006-01-02 15:04:05")
