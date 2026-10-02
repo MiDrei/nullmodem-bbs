@@ -1051,3 +1051,30 @@ func TestReceiveEchoStoresUTC(t *testing.T) {
 		t.Errorf("stored %q, want the UTC time 2026-10-01 17:26:00", raw)
 	}
 }
+
+func TestSearchFindsAcrossReadableAreasOnly(t *testing.T) {
+	s, users := newTestStore(t)
+	bob, _ := users.Register("bob", "password123", user.SLNewUser)
+	general, _ := s.AreaByTag("general")
+	secret, _ := s.CreateArea("SYSOPS", "Sysops", "", "", 200, 200)
+	data, _ := s.CreateArea("FSX_DAT", "Data", "", "fsxNet", 0, 0)
+	s.SetAreaHidden(data.ID, true)
+	s.PostMessage(general.ID, bob.ID, "All", "Mystic tips", "How do I set up MRC?")
+	s.PostMessage(general.ID, bob.ID, "Avon", "hello", "nothing here")
+	s.PostMessage(secret.ID, bob.ID, "All", "MRC passwords", "x")
+	s.PostMessage(data.ID, bob.ID, "All", "MRC data", "x")
+
+	got, err := s.Search(10, "mrc", 0, 10)
+	if err != nil || len(got) != 1 || got[0].Subject != "Mystic tips" {
+		t.Fatalf("search mrc: %+v %v", got, err)
+	}
+	if got, _ := s.Search(10, "AVON", 0, 10); len(got) != 1 || got[0].Subject != "hello" {
+		t.Fatalf("by recipient: %+v", got)
+	}
+	if got, _ := s.Search(10, "bob", general.ID, 10); len(got) != 2 {
+		t.Fatalf("by sender in one area: %d", len(got))
+	}
+	if got, _ := s.Search(255, "mrc", 0, 10); len(got) != 2 {
+		t.Fatalf("sysop sees the sysop area too (but no data area): %d", len(got))
+	}
+}

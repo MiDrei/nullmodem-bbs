@@ -150,9 +150,18 @@
 {:else}
 	<div class="mt-1.5 mb-4 flex items-center justify-between gap-4">
 		<h1 class="page-title">{area?.name ?? 'Area'}</h1>
-		{#if area && area.min_sl_write <= 255 && !composing}
-			<button class="btn-primary" onclick={() => (composing = true)}>+ New Message</button>
-		{/if}
+		<div class="flex items-center gap-2">
+			{#if area}
+				<form action="/search" class="hidden sm:flex">
+					<input type="hidden" name="area" value={area.id} />
+					<input type="hidden" name="name" value={area.name} />
+					<input name="q" class="field field-sm w-44" placeholder="Search here…" minlength="2" />
+				</form>
+			{/if}
+			{#if area && area.min_sl_write <= 255 && !composing}
+				<button class="btn-primary" onclick={() => (composing = true)}>+ New Message</button>
+			{/if}
+		</div>
 	</div>
 
 	{#if composing}

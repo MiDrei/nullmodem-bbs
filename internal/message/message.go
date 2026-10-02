@@ -678,6 +678,29 @@ func (s *Store) UnreadToUser(userID int64, securityLevel int, names []string) ([
 		ORDER BY m.posted_at, m.id`, args...)
 }
 
+// Search finds messages whose subject, text, sender or recipient
+// contains q (ignoring case), newest first, in the areas
+// securityLevel may read -- or only areaID, if set -- leaving out data
+// areas (hidden).
+func (s *Store) Search(securityLevel int, q string, areaID int64, limit int) ([]Message, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return nil, nil
+	}
+	where := `JOIN message_areas a ON a.id = m.area_id
+		WHERE a.min_sl_read <= ? AND a.pending = 0 AND a.hidden = 0
+		AND (instr(lower(m.subject), lower(?)) > 0 OR instr(lower(m.body), lower(?)) > 0
+			OR instr(lower(m.from_name), lower(?)) > 0 OR instr(lower(m.to_name), lower(?)) > 0
+			OR instr(lower(COALESCE(u.username, '')), lower(?)) > 0)`
+	args := []any{securityLevel, q, q, q, q, q}
+	if areaID > 0 {
+		where += ` AND m.area_id = ?`
+		args = append(args, areaID)
+	}
+	args = append(args, limit)
+	return s.queryMessages(where+` ORDER BY m.posted_at DESC, m.id DESC LIMIT ?`, args...)
+}
+
 // queryMessages is ListMessages' SELECT with its own WHERE/ORDER.
 func (s *Store) queryMessages(rest string, args ...any) ([]Message, error) {
 	rows, err := s.db.Query(

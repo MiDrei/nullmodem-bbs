@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"git.maik.ch/nullmodem/kit/ansi"
@@ -36,12 +37,12 @@ const (
 
 // scanRead shows msgs one after another, marking each read as it's
 // shown; areaOf is each message's area. withAreaKeys offers S and M.
-func (s *Server) scanRead(term *Terminal, u *user.User, msgs []message.Message, areaOf func(*message.Message) *message.Area, withAreaKeys bool) (scanExit, error) {
+func (s *Server) scanRead(term *Terminal, u *user.User, msgs []message.Message, start int, areaOf func(*message.Message) *message.Area, withAreaKeys bool) (scanExit, error) {
 	hint := "[N] Next  [P] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Stop"
 	if withAreaKeys {
 		hint = "[N] Next  [P] Prev  [R] Reply  [S] Skip area  [M] Area read  [Q] Stop"
 	}
-	idx, scrollOffset := 0, 0
+	idx, scrollOffset := start, 0
 	for {
 		m := &msgs[idx]
 		area := areaOf(m)
@@ -132,7 +133,7 @@ func (s *Server) newScan(term *Terminal, u *user.User) error {
 		if len(msgs) == 0 {
 			continue
 		}
-		exit, err := s.scanRead(term, u, msgs, func(*message.Message) *message.Area { return &area }, true)
+		exit, err := s.scanRead(term, u, msgs, 0, func(*message.Message) *message.Area { return &area }, true)
 		if err != nil {
 			return err
 		}
@@ -162,19 +163,7 @@ func (s *Server) toMe(term *Terminal, u *user.User) error {
 	if len(msgs) == 0 {
 		return s.scanNote(term, "No new messages to you.")
 	}
-	areas := map[int64]*message.Area{}
-	areaOf := func(m *message.Message) *message.Area {
-		if a, ok := areas[m.AreaID]; ok {
-			return a
-		}
-		a, err := s.Messages.AreaByID(m.AreaID)
-		if err != nil {
-			a = &message.Area{ID: m.AreaID, Name: "?"}
-		}
-		areas[m.AreaID] = a
-		return a
-	}
-	if _, err := s.scanRead(term, u, msgs, areaOf, false); err != nil {
+	if _, err := s.scanRead(term, u, msgs, 0, s.areaLookup(), false); err != nil {
 		return err
 	}
 	return nil
@@ -283,4 +272,93 @@ func plural(n int, one, many string) string {
 		return "1 " + one
 	}
 	return fmt.Sprintf("%d %s", n, many)
+}
+
+// areaLookup returns each message's area, looked up once.
+func (s *Server) areaLookup() func(*message.Message) *message.Area {
+	areas := map[int64]*message.Area{}
+	return func(m *message.Message) *message.Area {
+		if a, ok := areas[m.AreaID]; ok {
+			return a
+		}
+		a, err := s.Messages.AreaByID(m.AreaID)
+		if err != nil {
+			a = &message.Area{ID: m.AreaID, Name: "?"}
+		}
+		areas[m.AreaID] = a
+		return a
+	}
+}
+
+// searchMessages asks for words and lists the messages that have them
+// (subject, text, from, to) in the areas the caller may read; a number
+// reads from there, N/P stepping through the results.
+func (s *Server) searchMessages(term *Terminal, u *user.User) error {
+	if err := term.Print(ansi.Reset + "\r\nSearch messages (subject, text, from, to; Enter = back): " + ansi.FG(ansi.Yellow, true)); err != nil {
+		return err
+	}
+	q, err := term.ReadLine(false)
+	if err != nil {
+		return err
+	}
+	// Stored text is CP437, as typed here: searched as it is.
+	if q = strings.TrimSpace(q); q == "" {
+		return term.Print(ansi.Reset)
+	}
+	msgs, err := s.Messages.Search(u.SecurityLevel, q, 0, 100)
+	if err != nil {
+		return err
+	}
+	if len(msgs) == 0 {
+		return s.scanNote(term, "Nothing found.")
+	}
+	areaOf := s.areaLookup()
+	perPage := max(5, term.Height()-6)
+	start := 0
+	for {
+		end := min(start+perPage, len(msgs))
+		var b strings.Builder
+		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + "  Messages matching \"" + q + "\"" + ansi.Reset + "\r\n\r\n")
+		cut := func(v string, n int) string {
+			r := []rune(v)
+			if len(r) > n {
+				r = r[:n]
+			}
+			return string(r) + strings.Repeat(" ", n-len(r))
+		}
+		for i := start; i < end; i++ {
+			m := &msgs[i]
+			fmt.Fprintf(&b, "  %s%4d%s  %s%s%s %s %s%s %s%s\r\n",
+				ansi.FG(ansi.Yellow, true), i+1, ansi.Reset,
+				ansi.FG(ansi.White, true), cut(m.Subject, 28), ansi.Reset,
+				cut(m.FromName, 15),
+				ansi.FG(ansi.Cyan, false), cut(areaOf(m).Tag, 14),
+				ansi.FG(ansi.White, false)+term.Time(m.PostedAt).Format("2006-01-02"), ansi.Reset)
+		}
+		keys := "number = read (N/P to step on)"
+		if end < len(msgs) {
+			keys += ", Enter = more"
+		}
+		fmt.Fprintf(&b, "\r\n  %s, Q = back (%d-%d of %d): %s", keys, start+1, end, len(msgs), ansi.FG(ansi.Yellow, true))
+		if err := term.Print(b.String()); err != nil {
+			return err
+		}
+		in, err := term.ReadLine(false)
+		if err != nil {
+			return err
+		}
+		in = strings.ToUpper(strings.TrimSpace(in))
+		switch {
+		case in == "Q", in == "" && end >= len(msgs):
+			return term.Print(ansi.Reset)
+		case in == "":
+			start = end
+		default:
+			if n, err := strconv.Atoi(in); err == nil && n >= 1 && n <= len(msgs) {
+				if _, err := s.scanRead(term, u, msgs, n-1, areaOf, false); err != nil {
+					return err
+				}
+			}
+		}
+	}
 }

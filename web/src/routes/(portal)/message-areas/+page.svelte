@@ -62,9 +62,14 @@
 	);
 </script>
 
-<div class="mb-4">
-	<h1 class="page-title">Message Areas</h1>
-	<p class="page-subtitle">Boards you can read and post to</p>
+<div class="mb-4 flex flex-wrap items-end justify-between gap-4">
+	<div>
+		<h1 class="page-title">Message Areas</h1>
+		<p class="page-subtitle">Boards you can read and post to</p>
+	</div>
+	<form action="/search" class="flex gap-2">
+		<input name="q" class="field field-sm w-56" placeholder="Search messages…" minlength="2" />
+	</form>
 </div>
 
 {#if loadError}

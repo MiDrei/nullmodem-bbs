@@ -209,6 +209,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/bbs/message-areas/{id}/messages", s.requireBBSUser(http.HandlerFunc(s.handlePostBBSMessage)))
 	mux.Handle("GET /api/bbs/message-areas/{id}/first-unread", s.requireBBSUser(http.HandlerFunc(s.handleFirstUnreadMessagePosition)))
 	mux.Handle("POST /api/bbs/message-areas/{id}/mark-read", s.requireBBSUser(http.HandlerFunc(s.handleMarkBBSAreaRead)))
+	mux.Handle("GET /api/bbs/messages/search", s.requireBBSUser(http.HandlerFunc(s.handleSearchBBSMessages)))
 	mux.Handle("GET /api/bbs/messages/{id}", s.requireBBSUser(http.HandlerFunc(s.handleGetBBSMessage)))
 	mux.Handle("GET /api/bbs/push/key", s.requireBBSUser(http.HandlerFunc(s.handleGetPushKey)))
 	mux.Handle("GET /api/bbs/push/subscription", s.requireBBSUser(http.HandlerFunc(s.handleGetPushSubscription)))

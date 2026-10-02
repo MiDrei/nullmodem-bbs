@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { toast } from '$lib/toast.svelte';
+	import LastCallersList from '$lib/LastCallersList.svelte';
 	import {
 		listBBSPolls,
 		voteBBSPoll,
@@ -21,7 +22,7 @@
 		type NodelistImport
 	} from '$lib/api';
 
-	type Tab = 'polls' | 'bbs' | 'nodelist';
+	type Tab = 'polls' | 'bbs' | 'callers' | 'nodelist';
 	let tab = $state<Tab>((page.url.searchParams.get('tab') as Tab) || 'polls');
 
 	let polls = $state<Poll[]>([]);
@@ -112,11 +113,11 @@
 
 <div class="mb-5">
 	<h1 class="page-title">Community</h1>
-	<p class="page-subtitle">Polls, the BBS list our callers keep, and the FTN nodelists.</p>
+	<p class="page-subtitle">Polls, the BBS list our callers keep, who called around the network, and the FTN nodelists.</p>
 </div>
 
 <div class="mb-5 flex gap-1 border-b border-line">
-	{#each [['polls', 'Polls'], ['bbs', 'BBS List'], ['nodelist', 'Nodelist']] as [t, label] (t)}
+	{#each [['polls', 'Polls'], ['bbs', 'BBS List'], ['callers', 'Last Callers'], ['nodelist', 'Nodelist']] as [t, label] (t)}
 		<button
 			class="border-b-2 px-3 py-2 text-sm font-medium transition {tab === t ? 'border-accent text-ink-strong' : 'border-transparent text-muted hover:text-ink'}"
 			onclick={() => select(t as Tab)}>{label}</button
@@ -203,6 +204,9 @@
 			</div>
 		{/each}
 	</div>
+{:else if tab === 'callers'}
+	<p class="mb-3 text-xs text-muted">Who was on which board of the network lately, newest first.</p>
+	<LastCallersList />
 {:else}
 	<p class="mb-3 text-xs text-muted">
 		{#if imports.length}

@@ -20,7 +20,8 @@ Teil der NullModem-Familie:
 - ANSI-Bildschirme mit Platzhaltern (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
   Menüs aus YAML, Lightbar-Listen, Security Levels 0–255
 - Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche — mit
-  „neue Dateien“ über alle Areas und Dateisuche
+  Nachrichtensuche (Telnet, Portal, Reader), „neue Dateien“ über alle Areas
+  und Dateisuche
 - Unter den Anrufern: One-liner-Wand nach dem Login, Teleconference (Chat),
   Node-Nachrichten an andere Online-Anrufer (bei „Who's online“), Sysop rufen
   („Page“): der Sysop bekommt eine Push-Nachricht und antwortet im Web-Admin

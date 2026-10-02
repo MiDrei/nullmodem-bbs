@@ -1904,3 +1904,22 @@ export interface HealthProblem {
 	detail: string;
 	since: string;
 }
+
+/** A message search result (subject, text, from, to). */
+export interface SearchHit {
+	id: number;
+	area_id: number;
+	area_tag: string;
+	area_name: string;
+	subject: string;
+	from_name: string;
+	to_name: string;
+	posted_at: string;
+	snippet: string;
+}
+
+export function searchMessages(token: string, q: string, areaId = 0): Promise<SearchHit[]> {
+	const p = new URLSearchParams({ q });
+	if (areaId) p.set('area_id', String(areaId));
+	return request(`/api/bbs/messages/search?${p}`, { method: 'GET' }, token);
+}

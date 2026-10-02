@@ -30,6 +30,11 @@ import (
 // the [V]ersion menu command.
 const Version = version.Version
 
+// sysopMenuSL is the level the stock main menu opens the sysop menu
+// at (configs/menus/main.yaml's S item) -- for the {SYSOP_ITEM}
+// placeholder on the main menu screen.
+const sysopMenuSL = 200
+
 // maxLoginAttempts is how many wrong passwords a session may try
 // before being disconnected.
 const maxLoginAttempts = 3
@@ -265,6 +270,11 @@ func (s *Server) userVars(u *user.User, node int) ansi.Vars {
 	vars["USERNAME"] = u.Username
 	vars["SL"] = strconv.Itoa(u.SecurityLevel)
 	vars["TOTALCALLS"] = strconv.Itoa(u.TotalCalls)
+	// The sysop menu's entry, shown to those who may use it only.
+	vars["SYSOP_ITEM"] = ""
+	if u.SecurityLevel >= sysopMenuSL {
+		vars["SYSOP_ITEM"] = ansi.FG(ansi.Yellow, true) + "[S]" + ansi.FG(ansi.Green, true) + " Sysop Menu"
+	}
 	return vars
 }
 
@@ -544,6 +554,10 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 		}
 
 		switch {
+		case item.Action == "back":
+			// Back to the menu this one was opened from (main, at the top).
+			return nil
+
 		case item.Action == "logoff":
 			if err := s.printLogoffScreen(term, u, node); err != nil {
 				return err

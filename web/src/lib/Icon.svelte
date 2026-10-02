@@ -23,7 +23,19 @@
 		| 'archive'
 		| 'doors'
 		| 'sun'
-		| 'moon';
+		| 'moon'
+		| 'content'
+		| 'uplink'
+		| 'nodelist'
+		| 'chat'
+		| 'poll'
+		| 'lock'
+		| 'matrix'
+		| 'backup'
+		| 'wrench'
+		| 'server'
+		| 'callers'
+		| 'search';
 	let { name, size = 15 }: { name: Name; size?: number } = $props();
 </script>
 
@@ -111,6 +123,47 @@
 		<path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
 	{:else if name === 'moon'}
 		<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+	{:else if name === 'content'}
+		<path d="M12 3l9 4.5-9 4.5-9-4.5L12 3z" />
+		<path d="M3 12l9 4.5 9-4.5" />
+		<path d="M3 16.5L12 21l9-4.5" />
+	{:else if name === 'uplink'}
+		<path d="M10 14a5 5 0 0 0 7.1 0l3-3a5 5 0 0 0-7.1-7.1l-1.2 1.2" />
+		<path d="M14 10a5 5 0 0 0-7.1 0l-3 3a5 5 0 0 0 7.1 7.1l1.2-1.2" />
+	{:else if name === 'nodelist'}
+		<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H20v15H5.5A1.5 1.5 0 0 0 4 19.5v-15z" />
+		<path d="M4 19.5A1.5 1.5 0 0 0 5.5 21H20v-3" />
+		<path d="M8 7.5h8M8 11h5" />
+	{:else if name === 'chat'}
+		<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1z" />
+		<path d="M8.5 11h.01M12 11h.01M15.5 11h.01" />
+	{:else if name === 'poll'}
+		<path d="M4 20h16" />
+		<path d="M7 16V10M12 16V5M17 16v-4" />
+	{:else if name === 'lock'}
+		<rect x="4" y="10" width="16" height="11" rx="2" />
+		<path d="M8 10V7a4 4 0 0 1 8 0v3" />
+		<path d="M12 14.5v2.5" />
+	{:else if name === 'matrix'}
+		<rect x="3" y="3" width="18" height="18" rx="2" />
+		<path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+	{:else if name === 'backup'}
+		<ellipse cx="12" cy="5.5" rx="8" ry="2.5" />
+		<path d="M4 5.5v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-6" />
+		<path d="M4 11.5v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-6" />
+	{:else if name === 'wrench'}
+		<path d="M14.7 6.3a4 4 0 0 0 5 5L21 12.6 12.6 21a2.1 2.1 0 0 1-3-3L18 9.6" />
+		<path d="M14.7 6.3L11 2.6a4 4 0 0 0-5 5l2.9 2.9" />
+		<path d="M3 21l6-6" />
+	{:else if name === 'server'}
+		<rect x="3" y="4" width="18" height="7" rx="1.5" />
+		<rect x="3" y="13" width="18" height="7" rx="1.5" />
+		<path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6" />
+	{:else if name === 'callers'}
+		<path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" />
+	{:else if name === 'search'}
+		<circle cx="11" cy="11" r="7" />
+		<path d="M20 20l-3.5-3.5" />
 	{:else if name === 'doors'}
 		<rect x="2" y="7" width="20" height="11" rx="4" />
 		<path d="M7 10.5v4M5 12.5h4" />

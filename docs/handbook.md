@@ -63,7 +63,7 @@ In `configs/web.yaml` für das Web-Terminal im Docker-Betrieb:
    hast — dann sperrst du dich nie selbst aus.
 5. **Grunddaten:** System → Settings (Name, Sysop, Ort — erscheint im
    BinkP-Handshake und auf den Bildschirmen).
-6. **Bildschirme:** Screens → Begrüßung, Hauptmenü usw. im ANSI-Designer
+6. **Bildschirme:** Content → Screens → Begrüßung, Hauptmenü usw. im ANSI-Designer
    anpassen. Rahmen mit `{FILL:x}` bauen, damit sie bei jeder Breite schließen.
 7. **Benachrichtigungen:** Die Reader-App (`/reader`) aufs Handy legen und unter
    ⚙ Benachrichtigungen einschalten — dann kommen Warnungen, neue Benutzer und
@@ -97,7 +97,7 @@ Was zu tun ist, wenn ein Hub nicht antwortet, steht unter
 
 - **Message Areas:** Name, Beschreibung, Netzwerk, Security Level fürs Lesen
   und Schreiben, eigene Aufbewahrung (Tage / Anzahl). Daten-Areas wie
-  `FSX_DAT` (InterBBS-Daten) als „hidden“ markieren — dann sehen Anrufer sie
+  `FSX_DAT` (InterBBS-Daten) als „hidden“ markieren (Content → Message Areas) — dann sehen Anrufer sie
   nicht.
 - **File Areas:** analog, mit Download-/Upload-SL. TIC-Dateien mit „Replaces“
   ersetzen ältere Versionen automatisch.
@@ -106,7 +106,7 @@ Was zu tun ist, wenn ein Hub nicht antwortet, steht unter
 
 ## 6. Doors
 
-Areas → Doors. Fertige Vorlagen (MRC Chat, Usurper, Immortal Barons …) lassen
+Content → Doors. Fertige Vorlagen (MRC Chat, Usurper, Immortal Barons …) lassen
 sich mit einem Klick installieren. Eigene Doors: [adding-a-door.md](adding-a-door.md).
 
 | Art | Wofür |
@@ -136,7 +136,7 @@ erscheinen unter System → Services.
 | Taste | |
 |---|---|
 | R / T | neue Nachrichten lesen / Nachrichten an mich |
-| M / F | Message- / File-Areas (dort N = neue Dateien, S = Suche) |
+| M / F | Message-Areas (dort S = Nachrichten suchen) / File-Areas (N = neue Dateien, S = Suche) |
 | N / I | Netmail / Nodeliste |
 | C / P | Chat (Teleconference) / Sysop rufen |
 | L / V / B | One-Liner / Abstimmungen / BBS-Liste |
@@ -146,7 +146,7 @@ erscheinen unter System → Services.
 
 Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
 
-**Web:** Portal (`/`) mit allem aus Telnet, Reader-App (`/reader`) fürs Handy
+**Web:** Portal (`/`) mit allem aus Telnet (Suche über das Feld bei den Message Areas), Reader-App (`/reader`) fürs Handy
 mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
 
 ## 9. Im Alltag
@@ -155,9 +155,9 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   unerreichbar, Backup überfällig, Platte voll, Netmail hängt), wartende
   Benutzer, gesperrte Adressen und wer dich gerade ruft. Probleme kommen auch
   als Push.
-- **Chat & One-Liner:** Users → Chat & One-liners — dort antwortest du, wenn
+- **Chat & One-Liner:** Community → Chat & One-liners — dort antwortest du, wenn
   jemand pagt, und räumst die One-Liner-Wand auf.
-- **Abstimmungen / BBS-Liste:** Users → Polls & BBS List.
+- **Abstimmungen / BBS-Liste:** Community → Polls & BBS List.
 - **Logs:** System → Logs — „All“ mit „Warnings & errors“ als schneller
   Überblick; „BinkP sessions“ zeigt jede Sitzung samt Mitschnitt.
 - **Nachts automatisch:** 03:00 Backup, 04:00 Maintenance (Serverzeit).

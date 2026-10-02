@@ -105,6 +105,7 @@
 <header class="r-bar">
 	<span class="r-title">Reader</span>
 	<button class="r-btn text-base" onclick={toggleAll}>{showAll ? 'Unread' : 'All'}</button>
+	<button class="r-btn text-xl" onclick={() => goto('/reader/search')} aria-label="Search">⌕</button>
 	<button class="r-btn text-xl" onclick={load} aria-label="Refresh">↻</button>
 	<button class="r-btn text-xl" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙</button>
 </header>

@@ -24,7 +24,7 @@ items:
     min_sl: 200
   - key: M
     label: "Back to main menu"
-    action: "goto:main"
+    action: "back"
     min_sl: 0
   - key: Q
     label: "Quit"

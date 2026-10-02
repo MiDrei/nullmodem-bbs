@@ -58,6 +58,11 @@ outer:
 					return err
 				}
 				continue outer
+			case isKey(key, 's'):
+				if err := s.searchMessages(term, u); err != nil {
+					return err
+				}
+				continue outer
 			case key.Type == KeyEscape:
 				return nil
 			case key.Type == KeyChar && (key.Rune == 'q' || key.Rune == 'Q'):
@@ -245,7 +250,7 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(rows))
 	}
 	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [Q] Back" + ansi.Reset)
+	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [S] Search   [Q] Back" + ansi.Reset)
 	return scrollOffset, term.Print(b.String())
 }
 

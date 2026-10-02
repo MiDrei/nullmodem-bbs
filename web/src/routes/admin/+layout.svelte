@@ -55,21 +55,23 @@
 
 	const groups: NavGroup[] = [
 		{
-			label: 'Areas',
-			icon: 'areas',
+			label: 'Content',
+			icon: 'content',
 			links: [
 				{ href: '/admin/message-areas', label: 'Message Areas', icon: 'areas' },
 				{ href: '/admin/file-areas', label: 'File Areas', icon: 'files' },
 				{ href: '/admin/pending-areas', label: 'Pending Areas', icon: 'pending' },
-				{ href: '/admin/doors', label: 'Doors', icon: 'doors' }
+				{ href: '/admin/doors', label: 'Doors', icon: 'doors' },
+				{ href: '/admin/screens', label: 'Screens', icon: 'screens' },
+				{ href: '/admin/designer', label: 'ANSI Designer', icon: 'designer' }
 			]
 		},
 		{
-			label: 'Screens',
-			icon: 'screens',
+			label: 'Community',
+			icon: 'chat',
 			links: [
-				{ href: '/admin/screens', label: 'Screens', icon: 'screens' },
-				{ href: '/admin/designer', label: 'ANSI Designer', icon: 'designer' }
+				{ href: '/admin/chat', label: 'Chat & One-liners', icon: 'chat' },
+				{ href: '/admin/polls', label: 'Polls & BBS List', icon: 'poll' }
 			]
 		},
 		{
@@ -77,10 +79,10 @@
 			icon: 'binkp',
 			links: [
 				{ href: '/admin/binkp', label: 'Networks & Addresses', icon: 'binkp', exact: true },
-				{ href: '/admin/binkp/uplinks', label: 'Uplinks (Nodes/Points)', icon: 'binkp' },
+				{ href: '/admin/binkp/uplinks', label: 'Uplinks (Nodes/Points)', icon: 'uplink' },
 				{ href: '/admin/areafix', label: 'Areafix / Filefix', icon: 'areafix' },
+				{ href: '/admin/nodelists', label: 'Nodelists', icon: 'nodelist' },
 				{ href: '/admin/netmail', label: 'Undeliverable Netmail', icon: 'undeliverable' },
-				{ href: '/admin/nodelists', label: 'Nodelists', icon: 'binkp' },
 				{ href: '/admin/archive', label: 'Packet Analyzer', icon: 'archive' }
 			]
 		},
@@ -89,10 +91,8 @@
 			icon: 'users',
 			links: [
 				{ href: '/admin/users', label: 'Users', icon: 'users' },
-				{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'shield' },
-				{ href: '/admin/security', label: 'Security', icon: 'shield' },
-				{ href: '/admin/chat', label: 'Chat & One-liners', icon: 'users' },
-				{ href: '/admin/polls', label: 'Polls & BBS List', icon: 'users' }
+				{ href: '/admin/security', label: 'Security', icon: 'lock' },
+				{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'matrix' }
 			]
 		},
 		{
@@ -100,9 +100,9 @@
 			icon: 'system',
 			links: [
 				{ href: '/admin/settings', label: 'Settings', icon: 'system' },
-				{ href: '/admin/services', label: 'Services', icon: 'dashboard' },
-				{ href: '/admin/maintenance', label: 'Maintenance', icon: 'archive' },
-				{ href: '/admin/backups', label: 'Backups', icon: 'archive' },
+				{ href: '/admin/services', label: 'Services', icon: 'server' },
+				{ href: '/admin/maintenance', label: 'Maintenance', icon: 'wrench' },
+				{ href: '/admin/backups', label: 'Backups', icon: 'backup' },
 				{ href: '/admin/logs', label: 'Logs', icon: 'logs' }
 			]
 		}

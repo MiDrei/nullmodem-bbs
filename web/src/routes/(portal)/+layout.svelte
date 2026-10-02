@@ -25,8 +25,7 @@
 		{ href: '/netmail', label: 'Netmail', icon: 'netmail', match: ['/netmail'] },
 		{ href: '/file-areas', label: 'Files', icon: 'files', match: ['/file-areas', '/files'] },
 		{ href: '/qwk', label: 'QWK Mail', icon: 'qwk', match: ['/qwk'] },
-		{ href: '/last-callers', label: 'Last Callers', icon: 'users', match: ['/last-callers'] },
-		{ href: '/community', label: 'Community', icon: 'users', match: ['/community'] },
+		{ href: '/community', label: 'Community', icon: 'users', match: ['/community', '/last-callers'] },
 		{ href: '/profile', label: 'Profile', icon: 'profile', match: ['/profile'] }
 	] as const;
 
