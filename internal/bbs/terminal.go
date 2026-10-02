@@ -49,6 +49,8 @@ type Terminal struct {
 	// caller's profile time zone once logged in (see SetLocation), UTC
 	// until then.
 	loc *time.Location
+	// threadView: the message lists show threads (T), for this call.
+	threadView bool
 }
 
 // SetLocation sets the zone Time converts to, e.g. after login or when

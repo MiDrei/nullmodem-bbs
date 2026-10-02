@@ -567,7 +567,7 @@ func TestMessageListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Up/Down] Move   [Enter] Read   [P] Post   [Q] Back")
+	renders := strings.Split(out, "[Up/Down] Move   [Enter] Read   [P] Post   [T] Threads   [Q] Back")
 	if len(renders) < 4 {
 		t.Fatalf("expected at least three message-list redraws, got %d: %q", len(renders)-1, out)
 	}
@@ -617,7 +617,7 @@ func TestMessageListScrollsAndKeepsHeaderVisibleWithManyMessages(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Up/Down] Move   [Enter] Read   [P] Post   [Q] Back")
+	renders := strings.Split(out, "[Up/Down] Move   [Enter] Read   [P] Post   [T] Threads   [Q] Back")
 	if len(renders) < 2 {
 		t.Fatalf("expected at least one message-list redraw, got: %q", out)
 	}
@@ -808,7 +808,7 @@ func TestMessageListFooterAnchoredRegardlessOfMessageCount(t *testing.T) {
 		}
 		out := conn.out.String()
 		colIdx := strings.Index(out, "Subject")
-		hintIdx := strings.Index(out, "[Up/Down] Move   [Enter] Read   [P] Post   [Q] Back")
+		hintIdx := strings.Index(out, "[Up/Down] Move   [Enter] Read   [P] Post   [T] Threads   [Q] Back")
 		if colIdx < 0 || hintIdx < 0 || hintIdx < colIdx {
 			t.Fatalf("expected both the column header and the hint line to appear in order, got: %q", out)
 		}

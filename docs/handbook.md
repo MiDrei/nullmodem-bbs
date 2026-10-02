@@ -164,6 +164,10 @@ Reader-App (Ungelesen-Liste, Offline-Vorabladen) mit. Alles ist drin, bis man
 eine Area herausnimmt — neue Areas kommen also automatisch dazu. Nachrichten
 *an mich* (T) und Push-Meldungen dafür kommen aus allen Areas.
 
+In der Nachrichtenliste einer Area schaltet `T` auf Threads um: eine Zeile
+pro Thread (Anzahl Nachrichten, wer ihn begann, letzte Aktivität, NEW solange
+etwas ungelesen ist), Enter liest den Thread in Antwort-Reihenfolge.
+
 Im Nachrichten-Reader: `]` (oder `T`) springt zur nächsten Nachricht im
 Thread, `[` zur vorherigen — Antworten in der Reihenfolge, wie sie aufeinander
 antworten, über die ganze Area hinweg.

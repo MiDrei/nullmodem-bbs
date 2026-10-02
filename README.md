@@ -50,8 +50,8 @@ Teil der NullModem-Familie:
   Telnet/SSH, Portal, Reader-App, QWK), wer online ist, letzte Anrufer,
   One-Liner, Doors, FTN-Adressen, Statistik der letzten 30 Tage
 - Threads: Antworten über REPLY-Kludge, direkte Antworten oder den Betreff
-  verknüpft; Thread-Ansicht im Portal und in der Reader-App, `[`/`]` im
-  Telnet-Reader, REPLY in ausgehender Echomail, Referenznummer im QWK-Paket
+  verknüpft; Thread-Ansicht im Portal und in der Reader-App, Thread-Liste (T)
+  und `[`/`]` im Telnet, REPLY in ausgehender Echomail, Referenznummer im QWK-Paket
 - Chat-Räume (`/rooms`, `/join` in der Teleconference) mit Brücke zu
   Discord-Kanälen: BBS-Anrufer erscheinen dort unter ihrem Namen, Discord in
   der BBS als `name@discord`; nur ausgehende Verbindungen

@@ -372,6 +372,14 @@ outer:
 			}
 			continue
 		}
+		// The thread view (T): a row per thread, by latest activity.
+		var threads []message.ThreadSummary
+		if term.threadView {
+			if threads, _, err = s.Messages.AreaThreads(area.ID, u.ID, 2000, 0); err != nil {
+				return err
+			}
+			msgs, readIDs = threadRows(threads)
+		}
 		if selected < 0 {
 			selected = firstUnreadIndex(msgs, readIDs)
 			scrollOffset = selected
@@ -399,9 +407,25 @@ outer:
 					selected++
 				}
 			case key.Type == KeyEnter:
+				if term.threadView {
+					thread, start, err := s.threadMessages(u, threads[selected].Root.ID)
+					if err != nil {
+						return err
+					}
+					if len(thread) > 0 {
+						if err := s.readMessage(term, u, area, thread, start); err != nil {
+							return err
+						}
+					}
+					continue outer
+				}
 				if err := s.readMessage(term, u, area, msgs, selected); err != nil {
 					return err
 				}
+				continue outer
+			case key.Type == KeyChar && (key.Rune == 't' || key.Rune == 'T'):
+				term.threadView = !term.threadView
+				selected = -1
 				continue outer
 			case key.Type == KeyChar && (key.Rune == 'p' || key.Rune == 'P'):
 				if err := s.attemptPostMessage(term, u, area, canWrite); err != nil {
@@ -415,6 +439,53 @@ outer:
 			}
 		}
 	}
+}
+
+// threadRows shows threads in the message list: the subject with the
+// number of messages in front, who started it, the latest activity;
+// NEW while any message in it is unread.
+func threadRows(threads []message.ThreadSummary) ([]message.Message, map[int64]bool) {
+	rows := make([]message.Message, len(threads))
+	read := map[int64]bool{}
+	for i, t := range threads {
+		rows[i] = t.Root
+		rows[i].Subject = fmt.Sprintf("(%d) %s", t.Replies+1, t.Root.Subject)
+		rows[i].PostedAt = t.LastAt
+		if t.Unread == 0 {
+			read[t.Root.ID] = true
+		}
+	}
+	return rows, read
+}
+
+// threadMessages loads the thread rootID starts, in reading order, and
+// where to start: the first unread message (or the first).
+func (s *Server) threadMessages(u *user.User, rootID int64) ([]message.Message, int, error) {
+	entries, err := s.Messages.ThreadOf(rootID)
+	if err != nil {
+		return nil, 0, err
+	}
+	var msgs []message.Message
+	for _, e := range entries {
+		m, err := s.Messages.MessageByID(e.ID)
+		if err != nil {
+			continue
+		}
+		msgs = append(msgs, *m)
+	}
+	if len(msgs) == 0 {
+		return nil, 0, nil
+	}
+	read, err := s.Messages.ReadMessageIDs(u.ID, msgs[0].AreaID)
+	if err != nil {
+		return nil, 0, err
+	}
+	for i, m := range msgs {
+		if !read[m.ID] {
+			return msgs, i, nil
+		}
+	}
+	return msgs, 0, nil
 }
 
 // drawEmptyMessageList shows just the header banner and a hint bar
@@ -465,9 +536,13 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 	rowSelectedTemplate := s.loadOptionalScreen(msgListRowSelectedScreen, fallbackMsgListRowSelected)
 	columns := s.loadOptionalScreen(msgListColumnsScreen, fallbackMsgListColumns)
 
-	hint := "[Up/Down] Move   [Enter] Read   [Q] Back"
+	view := "[T] Threads"
+	if term.threadView {
+		view = "[T] All messages"
+	}
+	hint := "[Up/Down] Move   [Enter] Read   " + view + "   [Q] Back"
 	if canWrite {
-		hint = "[Up/Down] Move   [Enter] Read   [P] Post   [Q] Back"
+		hint = "[Up/Down] Move   [Enter] Read   [P] Post   " + view + "   [Q] Back"
 	}
 
 	var b strings.Builder
