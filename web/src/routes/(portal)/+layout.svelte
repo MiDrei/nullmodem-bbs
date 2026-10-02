@@ -93,7 +93,7 @@
 		</header>
 	{/if}
 
-	<main class="mx-auto w-full max-w-4xl flex-1 px-6 py-7 md:px-10">
+	<main class="mx-auto w-full max-w-5xl flex-1 px-6 py-7 md:px-10">
 		{@render children()}
 	</main>
 
