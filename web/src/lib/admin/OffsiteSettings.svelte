@@ -18,6 +18,8 @@
 	let o = $state<OffsiteSettings | null>(null);
 	let sftpPassword = $state('');
 	let swiftPassword = $state('');
+	let s3Secret = $state('');
+	let davPassword = $state('');
 	let privateKey = $state(''); // shown once, never stored here
 	let keySaved = $state(false);
 	let busy = $state<string | null>(null);
@@ -44,9 +46,11 @@
 				...o,
 				...(sftpPassword ? { sftp_password: sftpPassword } : {}),
 				...(swiftPassword ? { swift_password: swiftPassword } : {}),
+				...(s3Secret ? { s3_secret_key: s3Secret } : {}),
+				...(davPassword ? { webdav_password: davPassword } : {}),
 				...extra
 			});
-			sftpPassword = swiftPassword = '';
+			sftpPassword = swiftPassword = s3Secret = davPassword = '';
 			return true;
 		} catch (err) {
 			fail(err, 'Could not save.');
@@ -128,7 +132,7 @@
 <section class="card">
 	<h2 class="card-label mb-1">Off-site copy</h2>
 	<p class="mb-4 text-xs leading-relaxed text-muted">
-		Each backup also goes to a storage service -- encrypted first with your key, so neither the service nor anyone who gets
+		Each backup also goes to a storage service (S3, OpenStack Swift, SFTP or WebDAV) -- encrypted first with your key, so neither the service nor anyone who gets
 		hold of this server can read the copies there. Only the private key you keep opens them.
 	</p>
 	{#if o}
@@ -160,8 +164,8 @@
 			<div class="rounded-lg border border-line p-3">
 				<div class="mb-3 flex flex-wrap items-center gap-3">
 					<span class="text-sm font-medium text-ink-strong">2. Where to</span>
-					{#each [['swift', 'OpenStack Swift'], ['sftp', 'SFTP']] as [k, label] (k)}
-						<button class="pill {o.kind === k ? 'pill-active' : ''}" onclick={() => o && (o.kind = k as 'sftp' | 'swift')}>{label}</button>
+					{#each [['s3', 'S3'], ['swift', 'OpenStack Swift'], ['sftp', 'SFTP'], ['webdav', 'WebDAV']] as [k, label] (k)}
+						<button class="pill {o.kind === k ? 'pill-active' : ''}" onclick={() => o && (o.kind = k as 'sftp' | 'swift' | 's3' | 'webdav')}>{label}</button>
 					{/each}
 				</div>
 				{#if o.kind === 'swift'}
@@ -186,6 +190,37 @@
 							<input class="field field-sm font-mono" bind:value={o.swift_prefix} placeholder="bbs/" /></label>
 					</div>
 					<p class="mt-2 text-[11px] text-faint">Infomaniak Swiss Backup: the values are in the device's "OpenStack" / rclone settings (OpenRC file).</p>
+				{:else if o.kind === 's3'}
+					<div class="grid gap-2.5 sm:grid-cols-2">
+						<label class="flex flex-col gap-1 text-xs text-muted">Endpoint
+							<input class="field field-sm font-mono" bind:value={o.s3_endpoint} placeholder="s3.amazonaws.com" /></label>
+						<label class="flex flex-col gap-1 text-xs text-muted">Region
+							<input class="field field-sm font-mono" bind:value={o.s3_region} placeholder="eu-central-1" /></label>
+						<label class="flex flex-col gap-1 text-xs text-muted">Bucket
+							<input class="field field-sm font-mono" bind:value={o.s3_bucket} placeholder="nullmodem-backups" /></label>
+						<label class="flex flex-col gap-1 text-xs text-muted">Prefix (optional)
+							<input class="field field-sm font-mono" bind:value={o.s3_prefix} placeholder="bbs/" /></label>
+						<label class="flex flex-col gap-1 text-xs text-muted">Access key
+							<input class="field field-sm font-mono" bind:value={o.s3_access_key} autocomplete="off" /></label>
+						<label class="flex flex-col gap-1 text-xs text-muted">Secret key {o.s3_has_secret_key ? '(saved)' : ''}
+							<input class="field field-sm" type="password" bind:value={s3Secret} autocomplete="new-password" placeholder={o.s3_has_secret_key ? '••••••••' : ''} /></label>
+					</div>
+					<label class="mt-2 flex items-center gap-2 text-xs text-muted"><input type="checkbox" bind:checked={o.s3_path_style} /> path-style addressing (MinIO and some older services)</label>
+					<p class="mt-2 text-[11px] leading-relaxed text-faint">
+						AWS: <span class="font-mono">s3.amazonaws.com</span> · Hetzner: <span class="font-mono">fsn1.your-objectstorage.com</span> ·
+						Infomaniak: see the S3 details of your Swiss Backup device · Wasabi: <span class="font-mono">s3.eu-central-1.wasabisys.com</span> ·
+						Backblaze B2: <span class="font-mono">s3.eu-central-003.backblazeb2.com</span>. The bucket is made if it isn't there.
+					</p>
+				{:else if o.kind === 'webdav'}
+					<div class="grid gap-2.5 sm:grid-cols-2">
+						<label class="flex flex-col gap-1 text-xs text-muted sm:col-span-2">Folder URL
+							<input class="field field-sm font-mono" bind:value={o.webdav_url} placeholder="https://cloud.example.org/remote.php/dav/files/me/bbs-backups" /></label>
+						<label class="flex flex-col gap-1 text-xs text-muted">User
+							<input class="field field-sm font-mono" bind:value={o.webdav_user} autocomplete="off" /></label>
+						<label class="flex flex-col gap-1 text-xs text-muted">Password {o.webdav_has_password ? '(saved)' : '(an app password, ideally)'}
+							<input class="field field-sm" type="password" bind:value={davPassword} autocomplete="new-password" placeholder={o.webdav_has_password ? '••••••••' : ''} /></label>
+					</div>
+					<p class="mt-2 text-[11px] text-faint">Nextcloud/ownCloud: Settings → WebDAV shows the address; kDrive and Storage Boxes speak WebDAV too. The folder is made if missing.</p>
 				{:else}
 					<div class="grid gap-2.5 sm:grid-cols-[1fr_6rem]">
 						<label class="flex flex-col gap-1 text-xs text-muted">Host

@@ -76,7 +76,7 @@ In `configs/web.yaml` für das Web-Terminal im Docker-Betrieb:
    ⚙ Benachrichtigungen einschalten — dann kommen Warnungen, neue Benutzer und
    Pages aufs Handy.
 8. **Backup prüfen:** System → Backups → „Back up now“, und die
-   verschlüsselte Kopie außer Haus einrichten (SFTP oder OpenStack Swift,
+   verschlüsselte Kopie außer Haus einrichten (S3, Swift, SFTP oder WebDAV,
    [backup.md](backup.md)).
 
 ## 4. FTN-Netzwerke

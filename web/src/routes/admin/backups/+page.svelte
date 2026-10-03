@@ -136,7 +136,7 @@
 		<p class="rounded-xl border border-line bg-sunken px-4 py-3 text-sm text-muted">
 			The backups are on the same disk as the BBS: they help against mistakes and a broken database,
 			not a broken disk or a lost server. For that, turn on the off-site copy below -- encrypted, to
-			an SFTP server or OpenStack Swift.
+			S3, OpenStack Swift, SFTP or WebDAV.
 		</p>
 
 		<form class="card flex flex-col gap-4" onsubmit={save}>

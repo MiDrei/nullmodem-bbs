@@ -492,8 +492,35 @@ type OffsiteConfig struct {
 	KeepDaily  *int `yaml:"keep_daily,omitempty"`
 	KeepWeekly *int `yaml:"keep_weekly,omitempty"`
 
-	SFTP  OffsiteSFTP  `yaml:"sftp,omitempty"`
-	Swift OffsiteSwift `yaml:"swift,omitempty"`
+	SFTP   OffsiteSFTP   `yaml:"sftp,omitempty"`
+	Swift  OffsiteSwift  `yaml:"swift,omitempty"`
+	S3     OffsiteS3     `yaml:"s3,omitempty"`
+	WebDAV OffsiteWebDAV `yaml:"webdav,omitempty"`
+}
+
+// OffsiteS3 is an S3 bucket: AWS or any compatible service (Hetzner
+// Object Storage, Infomaniak, Wasabi, Backblaze B2, Exoscale, MinIO).
+// Endpoint is the service's host ("s3.amazonaws.com", "fsn1.your-
+// objectstorage.com"); PathStyle for services that need path-style
+// addressing (MinIO).
+type OffsiteS3 struct {
+	Endpoint  string `yaml:"endpoint,omitempty"`
+	Region    string `yaml:"region,omitempty"`
+	Bucket    string `yaml:"bucket,omitempty"`
+	AccessKey string `yaml:"access_key,omitempty"`
+	SecretKey string `yaml:"secret_key,omitempty"`
+	Prefix    string `yaml:"prefix,omitempty"`
+	PathStyle bool   `yaml:"path_style,omitempty"`
+	// Insecure uses plain HTTP (a MinIO on the LAN, tests).
+	Insecure bool `yaml:"insecure,omitempty"`
+}
+
+// OffsiteWebDAV is a WebDAV folder (Nextcloud, ownCloud, kDrive,
+// a Storage Box's WebDAV): URL is the folder, with Basic auth.
+type OffsiteWebDAV struct {
+	URL      string `yaml:"url,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Password string `yaml:"password,omitempty"`
 }
 
 func (o OffsiteConfig) Daily() int  { return intOr(o.KeepDaily, 14) }

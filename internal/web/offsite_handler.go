@@ -12,7 +12,8 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/offsite"
 )
 
-// The off-site copy of the backups (internal/offsite): where to, the
+// The off-site copy of the backups (internal/offsite): where to (SFTP,
+// Swift, S3, WebDAV), the
 // encryption key, a test, "copy now". Secrets never leave the server.
 
 const sshKeyComment = "nullmodem-bbs-backup"
@@ -42,6 +43,18 @@ type offsiteDTO struct {
 	SwiftContainer     string `json:"swift_container"`
 	SwiftPrefix        string `json:"swift_prefix"`
 
+	S3Endpoint     string `json:"s3_endpoint"`
+	S3Region       string `json:"s3_region"`
+	S3Bucket       string `json:"s3_bucket"`
+	S3AccessKey    string `json:"s3_access_key"`
+	S3HasSecretKey bool   `json:"s3_has_secret_key"`
+	S3Prefix       string `json:"s3_prefix"`
+	S3PathStyle    bool   `json:"s3_path_style"`
+
+	WebDAVURL         string `json:"webdav_url"`
+	WebDAVUser        string `json:"webdav_user"`
+	WebDAVHasPassword bool   `json:"webdav_has_password"`
+
 	Status offsite.Status `json:"status"`
 }
 
@@ -53,6 +66,9 @@ func (s *Server) offsiteState(c *config.Config) offsiteDTO {
 		SwiftAuthURL: o.Swift.AuthURL, SwiftUser: o.Swift.User, SwiftHasPassword: o.Swift.Password != "",
 		SwiftProject: o.Swift.Project, SwiftUserDomain: o.Swift.UserDomain, SwiftProjectDomain: o.Swift.ProjectDomain,
 		SwiftRegion: o.Swift.Region, SwiftContainer: o.Swift.Container, SwiftPrefix: o.Swift.Prefix,
+		S3Endpoint: o.S3.Endpoint, S3Region: o.S3.Region, S3Bucket: o.S3.Bucket, S3AccessKey: o.S3.AccessKey,
+		S3HasSecretKey: o.S3.SecretKey != "", S3Prefix: o.S3.Prefix, S3PathStyle: o.S3.PathStyle,
+		WebDAVURL: o.WebDAV.URL, WebDAVUser: o.WebDAV.User, WebDAVHasPassword: o.WebDAV.Password != "",
 		Status: offsite.LoadStatus(s.DB)}
 	if o.SFTP.Key != "" {
 		d.SFTPPublicKey = offsite.PublicKeyOf(o.SFTP.Key, sshKeyComment)
@@ -75,9 +91,11 @@ func (s *Server) handleGetOffsite(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePutOffsite(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		offsiteDTO
-		SFTPPassword  string `json:"sftp_password"`
-		SwiftPassword string `json:"swift_password"`
-		ForgetSFTPKey bool   `json:"forget_sftp_key"`
+		SFTPPassword   string `json:"sftp_password"`
+		SwiftPassword  string `json:"swift_password"`
+		S3SecretKey    string `json:"s3_secret_key"`
+		WebDAVPassword string `json:"webdav_password"`
+		ForgetSFTPKey  bool   `json:"forget_sftp_key"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -89,8 +107,10 @@ func (s *Server) handlePutOffsite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	o := &c.Backup.Offsite
-	if in.Kind != "" && in.Kind != "sftp" && in.Kind != "swift" {
-		writeError(w, http.StatusBadRequest, "kind is sftp or swift")
+	switch in.Kind {
+	case "", "sftp", "swift", "s3", "webdav":
+	default:
+		writeError(w, http.StatusBadRequest, "kind is sftp, swift, s3 or webdav")
 		return
 	}
 	in.Recipient = strings.TrimSpace(in.Recipient)
@@ -128,6 +148,16 @@ func (s *Server) handlePutOffsite(w http.ResponseWriter, r *http.Request) {
 		Region: strings.TrimSpace(in.SwiftRegion), Container: strings.TrimSpace(in.SwiftContainer), Prefix: strings.TrimSpace(in.SwiftPrefix)}
 	if in.SwiftPassword != "" {
 		o.Swift.Password = in.SwiftPassword
+	}
+	o.S3 = config.OffsiteS3{Endpoint: strings.TrimSpace(in.S3Endpoint), Region: strings.TrimSpace(in.S3Region), Bucket: strings.TrimSpace(in.S3Bucket),
+		AccessKey: strings.TrimSpace(in.S3AccessKey), SecretKey: o.S3.SecretKey, Prefix: strings.TrimSpace(in.S3Prefix), PathStyle: in.S3PathStyle,
+		Insecure: o.S3.Insecure}
+	if in.S3SecretKey != "" {
+		o.S3.SecretKey = in.S3SecretKey
+	}
+	o.WebDAV = config.OffsiteWebDAV{URL: strings.TrimSpace(in.WebDAVURL), User: strings.TrimSpace(in.WebDAVUser), Password: o.WebDAV.Password}
+	if in.WebDAVPassword != "" {
+		o.WebDAV.Password = in.WebDAVPassword
 	}
 	if err := config.Save(s.BBSConfigPath, c); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save config")

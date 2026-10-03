@@ -121,7 +121,7 @@ func openSFTP(ctx context.Context, c config.OffsiteSFTP) (Target, error) {
 	return &sftpTarget{ssh: client, c: sc, dir: dir}, nil
 }
 
-func (t *sftpTarget) Put(ctx context.Context, name string, r io.Reader) error {
+func (t *sftpTarget) Put(ctx context.Context, name string, r io.Reader, size int64) error {
 	tmp := path.Join(t.dir, name+".part")
 	f, err := t.c.Create(tmp)
 	if err != nil {

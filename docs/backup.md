@@ -39,7 +39,7 @@ eintragen).
 ## Kopie außer Haus (verschlüsselt)
 
 Admin → System → Backups → **Off-site copy**: Jedes Backup geht danach
-zusätzlich an einen Speicherdienst — vorher mit [age](https://age-encryption.org)
+zusätzlich an einen Speicherdienst (S3, OpenStack Swift, SFTP oder WebDAV) — vorher mit [age](https://age-encryption.org)
 verschlüsselt. Die BBS kennt nur den öffentlichen Schlüssel; weder der
 Dienst noch jemand, der an den Server kommt, kann die Kopien lesen. Nur der
 private Schlüssel öffnet sie.
@@ -55,6 +55,15 @@ private Schlüssel öffnet sie.
      Passwort, Projekt, Region, Container — die Werte stehen in der
      OpenRC-/rclone-Konfiguration des Geräts. Der Container wird angelegt,
      falls es ihn nicht gibt.
+   - **S3** (AWS, Hetzner Object Storage, Infomaniak, Wasabi, Backblaze B2,
+     Exoscale, MinIO …): Endpoint (z. B. `s3.amazonaws.com`,
+     `fsn1.your-objectstorage.com`), Region, Bucket, Access- und Secret-Key,
+     optional ein Präfix. Den Bucket legt die BBS an, falls es ihn nicht gibt;
+     „path-style“ nur für Dienste, die es verlangen (MinIO). Am besten einen
+     Schlüssel, der nur diesen Bucket darf.
+   - **WebDAV** (Nextcloud, ownCloud, kDrive, Storage Box): die URL des Ordners
+     (Nextcloud: Einstellungen → WebDAV, plus Ordnername), Benutzer und — am
+     besten ein App-Passwort. Fehlende Ordner werden angelegt.
    - **SFTP** (z. B. Hetzner Storage Box: Host `uNNNNNN.your-storagebox.de`,
      Port 23): Benutzer und Passwort, oder besser „Make a key“ und die
      angezeigte Zeile in `.ssh/authorized_keys` der Box eintragen. Beim
@@ -69,8 +78,8 @@ Dort bleiben die neuesten 14 plus je das neueste der letzten 8 Wochen
 (einstellbar). Schlägt eine Kopie fehl, versucht es die BBS stündlich
 wieder und meldet es unter „Needs attention“.
 
-**Eine Kopie zurückholen:** herunterladen (Swift: Webinterface oder
-`rclone`, SFTP: `sftp`), dann entschlüsseln:
+**Eine Kopie zurückholen:** herunterladen (Webinterface des Dienstes,
+`rclone`, `sftp` …), dann entschlüsseln:
 
 ```sh
 age -d -i nullmodem-backup-key.txt nullmodem-JJJJMMTT-HHMMSS.tar.gz.age > nullmodem-JJJJMMTT-HHMMSS.tar.gz

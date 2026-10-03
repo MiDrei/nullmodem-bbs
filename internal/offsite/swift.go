@@ -126,9 +126,16 @@ func (t *swiftTarget) objectURL(name string) string {
 }
 
 func (t *swiftTarget) do(ctx context.Context, method, u string, body io.Reader, ok ...int) (*http.Response, error) {
+	return t.doSized(ctx, method, u, body, -1, ok...)
+}
+
+func (t *swiftTarget) doSized(ctx context.Context, method, u string, body io.Reader, size int64, ok ...int) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
 		return nil, err
+	}
+	if size >= 0 && body != nil {
+		req.ContentLength = size
 	}
 	req.Header.Set("X-Auth-Token", t.token)
 	res, err := t.http.Do(req)
@@ -145,9 +152,8 @@ func (t *swiftTarget) do(ctx context.Context, method, u string, body io.Reader, 
 	return nil, fmt.Errorf("offsite: Swift %s: HTTP %d %s", method, res.StatusCode, strings.TrimSpace(string(msg)))
 }
 
-func (t *swiftTarget) Put(ctx context.Context, name string, r io.Reader) error {
-	// Streamed (chunked): the encrypted size isn't known up front.
-	res, err := t.do(ctx, http.MethodPut, t.objectURL(name), r, http.StatusCreated)
+func (t *swiftTarget) Put(ctx context.Context, name string, r io.Reader, size int64) error {
+	res, err := t.doSized(ctx, http.MethodPut, t.objectURL(name), r, size, http.StatusCreated)
 	if err != nil {
 		return err
 	}

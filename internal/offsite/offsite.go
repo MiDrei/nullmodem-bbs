@@ -29,8 +29,8 @@ const Suffix = ".age"
 
 // Target is a place copies go.
 type Target interface {
-	// Put stores r as name.
-	Put(ctx context.Context, name string, r io.Reader) error
+	// Put stores r (size bytes) as name.
+	Put(ctx context.Context, name string, r io.Reader, size int64) error
 	// List returns the names there (only ours: nullmodem-*.age).
 	List(ctx context.Context) ([]string, error)
 	Delete(ctx context.Context, name string) error
@@ -46,8 +46,12 @@ func Open(ctx context.Context, c config.OffsiteConfig) (Target, error) {
 		return openSFTP(ctx, c.SFTP)
 	case "swift":
 		return openSwift(ctx, c.Swift)
+	case "s3":
+		return openS3(ctx, c.S3)
+	case "webdav":
+		return openWebDAV(ctx, c.WebDAV)
 	}
-	return nil, fmt.Errorf("offsite: no such kind %q (sftp or swift)", c.Kind)
+	return nil, fmt.Errorf("offsite: no such kind %q (sftp, swift, s3 or webdav)", c.Kind)
 }
 
 // NewKey makes an age key pair: the private key (for the sysop to keep
@@ -66,30 +70,46 @@ func CheckRecipient(r string) error {
 	return err
 }
 
-// encrypting returns the file at path, encrypted to recipient, as a
-// stream.
-func encrypting(path, recipient string) (io.ReadCloser, error) {
+// encryptTo writes the file at path, encrypted to recipient, into a
+// temporary file beside it and returns that file (rewound) and its
+// size; the caller closes and removes it.
+func encryptTo(path, recipient string) (*os.File, int64, error) {
 	rcp, err := age.ParseX25519Recipient(strings.TrimSpace(recipient))
 	if err != nil {
-		return nil, fmt.Errorf("offsite: the public key: %w", err)
+		return nil, 0, fmt.Errorf("offsite: the public key: %w", err)
 	}
-	f, err := os.Open(path)
+	in, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	pr, pw := io.Pipe()
-	go func() {
-		defer f.Close()
-		w, err := age.Encrypt(pw, rcp)
-		if err == nil {
-			_, err = io.Copy(w, f)
-			if cerr := w.Close(); err == nil {
-				err = cerr
-			}
-		}
-		pw.CloseWithError(err)
-	}()
-	return pr, nil
+	defer in.Close()
+	out, err := os.CreateTemp(filepath.Dir(path), ".offsite-*.age")
+	if err != nil {
+		return nil, 0, err
+	}
+	fail := func(err error) (*os.File, int64, error) {
+		out.Close()
+		os.Remove(out.Name())
+		return nil, 0, err
+	}
+	w, err := age.Encrypt(out, rcp)
+	if err != nil {
+		return fail(err)
+	}
+	if _, err := io.Copy(w, in); err != nil {
+		return fail(err)
+	}
+	if err := w.Close(); err != nil {
+		return fail(err)
+	}
+	size, err := out.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return fail(err)
+	}
+	if _, err := out.Seek(0, io.SeekStart); err != nil {
+		return fail(err)
+	}
+	return out, size, nil
 }
 
 // Status is how the copies are going; kept in the database's meta
@@ -185,12 +205,13 @@ func (c *Copier) Copy(ctx context.Context, cfg config.BackupConfig, b backup.Inf
 			return err
 		}
 		defer t.Close()
-		r, err := encrypting(filepath.Join(cfg.Directory(), b.Name), cfg.Offsite.Recipient)
+		f, size, err := encryptTo(filepath.Join(cfg.Directory(), b.Name), cfg.Offsite.Recipient)
 		if err != nil {
 			return err
 		}
-		defer r.Close()
-		if err := t.Put(ctx, b.Name+Suffix, r); err != nil {
+		defer os.Remove(f.Name())
+		defer f.Close()
+		if err := t.Put(ctx, b.Name+Suffix, f, size); err != nil {
 			return err
 		}
 		n, err := prune(ctx, t, cfg.Offsite.Daily(), cfg.Offsite.Weekly())
@@ -261,7 +282,7 @@ func Test(ctx context.Context, cfg config.OffsiteConfig) error {
 	defer t.Close()
 	name := fmt.Sprintf("nullmodem-test-%d.txt", time.Now().UnixNano())
 	const body = "NullModem BBS off-site test\n"
-	if err := t.Put(ctx, name, strings.NewReader(body)); err != nil {
+	if err := t.Put(ctx, name, strings.NewReader(body), int64(len(body))); err != nil {
 		return fmt.Errorf("writing: %w", err)
 	}
 	r, err := t.Get(ctx, name)

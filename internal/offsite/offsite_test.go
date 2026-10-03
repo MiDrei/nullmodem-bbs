@@ -223,7 +223,7 @@ func TestSFTPWithPinnedHostKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tg.Put(context.Background(), "nullmodem-20261003-030000.tar.gz.age", strings.NewReader("x"))
+	tg.Put(context.Background(), "nullmodem-20261003-030000.tar.gz.age", strings.NewReader("x"), 1)
 	names, _ := tg.List(context.Background())
 	tg.Close()
 	if len(names) != 1 {

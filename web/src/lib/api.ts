@@ -2005,7 +2005,7 @@ export function bbsChatAction(token: string, room: string, action: 'enter' | 'sa
 /** The off-site copy of the backups -- never its passwords or keys. */
 export interface OffsiteSettings {
 	enabled: boolean;
-	kind: '' | 'sftp' | 'swift';
+	kind: '' | 'sftp' | 'swift' | 's3' | 'webdav';
 	recipient: string;
 	keep_daily: number;
 	keep_weekly: number;
@@ -2025,12 +2025,27 @@ export interface OffsiteSettings {
 	swift_region: string;
 	swift_container: string;
 	swift_prefix: string;
+	s3_endpoint: string;
+	s3_region: string;
+	s3_bucket: string;
+	s3_access_key: string;
+	s3_has_secret_key: boolean;
+	s3_prefix: string;
+	s3_path_style: boolean;
+	webdav_url: string;
+	webdav_user: string;
+	webdav_has_password: boolean;
 	status: { last_ok: string; last_name: string; last_try: string; last_error: string; remote: number };
 }
 
-export type OffsiteInput = Omit<OffsiteSettings, 'status' | 'sftp_has_password' | 'swift_has_password' | 'sftp_public_key'> & {
+export type OffsiteInput = Omit<
+	OffsiteSettings,
+	'status' | 'sftp_has_password' | 'swift_has_password' | 'sftp_public_key' | 's3_has_secret_key' | 'webdav_has_password'
+> & {
 	sftp_password?: string;
 	swift_password?: string;
+	s3_secret_key?: string;
+	webdav_password?: string;
 	forget_sftp_key?: boolean;
 };
 

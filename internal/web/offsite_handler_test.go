@@ -38,6 +38,14 @@ func TestOffsiteSettingsKeepSecrets(t *testing.T) {
 	if c.Backup.Offsite.Swift.Password != "pw-swift" || c.Backup.Offsite.Recipient != keys["public"] {
 		t.Fatalf("config %+v", c.Backup.Offsite)
 	}
+	// S3 and WebDAV secrets likewise.
+	settings["kind"], settings["s3_endpoint"], settings["s3_bucket"], settings["s3_access_key"], settings["s3_secret_key"] = "s3", "fsn1.your-objectstorage.com", "bbs", "AK", "sk-secret"
+	settings["webdav_url"], settings["webdav_password"] = "https://dav.example/bbs", "dav-secret"
+	rec = doJSON(t, h, http.MethodPut, "/api/backups/offsite", settings, token)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "sk-secret") || strings.Contains(rec.Body.String(), "dav-secret") ||
+		!strings.Contains(rec.Body.String(), `"s3_has_secret_key":true`) {
+		t.Fatalf("s3: %d %s", rec.Code, rec.Body)
+	}
 	// The SFTP login key: kept, only its public line shown.
 	rec = doJSON(t, h, http.MethodPost, "/api/backups/offsite/ssh-key", nil, token)
 	if !strings.Contains(rec.Body.String(), `"sftp_public_key":"ssh-ed25519 `) || strings.Contains(rec.Body.String(), "PRIVATE KEY") {
