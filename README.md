@@ -93,6 +93,7 @@ Teil der NullModem-Familie:
   Platte voll, Netmail hängt) — siehe [docs/security.md](docs/security.md)
 - Nächtliches Backup (Admin → Backups): Datenbank, Konfiguration, Menüs,
   Bildschirme und Schlüssel als ein `.tar.gz`, wahlweise mit Dateien und Doors;
+  verschlüsselte Kopie außer Haus (age) per SFTP oder OpenStack Swift;
   Download im Admin, Zurückspielen siehe [docs/backup.md](docs/backup.md)
 - REST-API; die QWK-Endpunkte nutzen auch NullModem Reader und die Skripte in
   `scripts/multimail/`

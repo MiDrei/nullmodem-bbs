@@ -64,6 +64,10 @@ const timeLayout = "20060102-150405"
 
 var nameRE = regexp.MustCompile(`^nullmodem-(\d{8}-\d{6})\.tar\.gz$`)
 
+// stampRE finds the time in a backup's name, also an off-site copy's
+// ("….tar.gz.age").
+var stampRE = regexp.MustCompile(`^nullmodem-(\d{8}-\d{6})\.tar\.gz`)
+
 // ValidName reports whether name is a backup's file name (and nothing
 // that could reach outside the directory).
 func ValidName(name string) bool { return nameRE.MatchString(name) }
@@ -277,6 +281,23 @@ func Prune(dir string, keepDaily, keepWeekly int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	keep := Keep(list, keepDaily, keepWeekly)
+	var deleted []string
+	for _, b := range list {
+		if keep[b.Name] {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, b.Name)); err != nil {
+			return deleted, fmt.Errorf("backup: %w", err)
+		}
+		deleted = append(deleted, b.Name)
+	}
+	return deleted, nil
+}
+
+// Keep picks the backups to keep from list (newest first): the newest
+// keepDaily, and the newest of each of the last keepWeekly weeks.
+func Keep(list []Info, keepDaily, keepWeekly int) map[string]bool {
 	keep := map[string]bool{}
 	for i, b := range list {
 		if i < keepDaily {
@@ -296,17 +317,18 @@ func Prune(dir string, keepDaily, keepWeekly int) ([]string, error) {
 		weeks[key] = true
 		keep[b.Name] = true
 	}
-	var deleted []string
-	for _, b := range list {
-		if keep[b.Name] {
-			continue
-		}
-		if err := os.Remove(filepath.Join(dir, b.Name)); err != nil {
-			return deleted, fmt.Errorf("backup: %w", err)
-		}
-		deleted = append(deleted, b.Name)
+	return keep
+}
+
+// TimeOf reads the time a backup's name carries ("nullmodem-
+// 20261003-030000.tar.gz", with or without a suffix after it).
+func TimeOf(name string) (time.Time, bool) {
+	m := stampRE.FindStringSubmatch(name)
+	if m == nil {
+		return time.Time{}, false
 	}
-	return deleted, nil
+	t, err := time.ParseInLocation(timeLayout, m[1], time.Local)
+	return t, err == nil
 }
 
 // Logger is what the nightly backup reports to.

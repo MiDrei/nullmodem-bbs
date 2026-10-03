@@ -39,6 +39,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/matrix"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"git.maik.ch/nullmodem/bbs/internal/offsite"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/session"
 	"git.maik.ch/nullmodem/bbs/internal/stats"
@@ -161,6 +162,15 @@ func main() {
 	if st, err := os.Stat("configs-defaults/menus"); err == nil && st.IsDir() {
 		srv.MenuDefaultsDir = "configs-defaults/menus"
 	}
+
+	// Encrypted copies of the backups to a storage service.
+	go (&offsite.Copier{DB: sqlDB, Logger: logger, Config: func() config.BackupConfig {
+		c, err := config.Load(cfg.BBSConfigPath)
+		if err != nil {
+			c = current()
+		}
+		return c.Backup
+	}}).Run(context.Background())
 
 	// The monthly recap netmail to the sysops.
 	go srv.RunRecaps(context.Background())

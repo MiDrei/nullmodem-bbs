@@ -2002,6 +2002,48 @@ export function bbsChatAction(token: string, room: string, action: 'enter' | 'sa
 	return request(`/api/bbs/chat/rooms/${encodeURIComponent(room)}`, { method: 'POST', body: JSON.stringify({ action, text }), keepalive: action === 'leave' }, token);
 }
 
+/** The off-site copy of the backups -- never its passwords or keys. */
+export interface OffsiteSettings {
+	enabled: boolean;
+	kind: '' | 'sftp' | 'swift';
+	recipient: string;
+	keep_daily: number;
+	keep_weekly: number;
+	sftp_host: string;
+	sftp_port: number;
+	sftp_user: string;
+	sftp_dir: string;
+	sftp_has_password: boolean;
+	sftp_public_key: string;
+	sftp_host_key: string;
+	swift_auth_url: string;
+	swift_user: string;
+	swift_has_password: boolean;
+	swift_project: string;
+	swift_user_domain: string;
+	swift_project_domain: string;
+	swift_region: string;
+	swift_container: string;
+	swift_prefix: string;
+	status: { last_ok: string; last_name: string; last_try: string; last_error: string; remote: number };
+}
+
+export type OffsiteInput = Omit<OffsiteSettings, 'status' | 'sftp_has_password' | 'swift_has_password' | 'sftp_public_key'> & {
+	sftp_password?: string;
+	swift_password?: string;
+	forget_sftp_key?: boolean;
+};
+
+export const getOffsite = (token: string): Promise<OffsiteSettings> => request('/api/backups/offsite', { method: 'GET' }, token);
+export const saveOffsite = (token: string, o: OffsiteInput): Promise<OffsiteSettings> =>
+	request('/api/backups/offsite', { method: 'PUT', body: JSON.stringify(o) }, token);
+export const newOffsiteAgeKey = (token: string): Promise<{ private: string; public: string }> =>
+	request('/api/backups/offsite/age-key', { method: 'POST' }, token);
+export const newOffsiteSSHKey = (token: string): Promise<OffsiteSettings> => request('/api/backups/offsite/ssh-key', { method: 'POST' }, token);
+export const testOffsite = (token: string): Promise<{ ok?: boolean; remote?: string[]; host_key?: string; error?: string }> =>
+	request('/api/backups/offsite/test', { method: 'POST' }, token);
+export const runOffsite = (token: string): Promise<OffsiteSettings> => request('/api/backups/offsite/run', { method: 'POST' }, token);
+
 export interface Oneliner {
 	id: number;
 	username: string;

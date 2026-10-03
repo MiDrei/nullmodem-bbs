@@ -29,11 +29,55 @@ Die neuesten 7 (`keep_daily`) plus das neueste jeder der letzten 4
 Wochen (`keep_weekly`). Ältere werden nach jedem Backup gelöscht.
 
 Die Backups liegen auf derselben Platte wie die BBS: Sie helfen gegen
-Fehler und eine kaputte Datenbank, nicht gegen eine kaputte Platte. Ab
-und zu eines herunterladen, oder das Verzeichnis auf eine andere Platte
-bzw. ein NAS legen (im Container gemountet, z. B. `/backup` in der
+Fehler und eine kaputte Datenbank, nicht gegen eine kaputte Platte —
+dafür die verschlüsselte Kopie außer Haus (unten) einschalten, ab und zu
+eines herunterladen, oder das Verzeichnis auf eine andere Platte bzw. ein
+NAS legen (im Container gemountet, z. B. `/backup` in der
 `docker-compose.yml` beim Dienst `web` und als Verzeichnis `/backup`
 eintragen).
+
+## Kopie außer Haus (verschlüsselt)
+
+Admin → System → Backups → **Off-site copy**: Jedes Backup geht danach
+zusätzlich an einen Speicherdienst — vorher mit [age](https://age-encryption.org)
+verschlüsselt. Die BBS kennt nur den öffentlichen Schlüssel; weder der
+Dienst noch jemand, der an den Server kommt, kann die Kopien lesen. Nur der
+private Schlüssel öffnet sie.
+
+1. **Schlüssel:** „Make a key“ — der private Schlüssel
+   (`AGE-SECRET-KEY-1…`) wird **nur einmal** angezeigt. Herunterladen bzw.
+   in den Passwort-Manager, nicht auf dem Server lassen. Ohne ihn sind die
+   Kopien wertlos. (Oder einen eigenen öffentlichen `age1…`-Schlüssel
+   einfügen.)
+2. **Ziel:**
+   - **OpenStack Swift** (z. B. Infomaniak Swiss Backup): Auth-URL
+     (`https://swiss-backupNN.infomaniak.com/identity/v3`), Benutzer,
+     Passwort, Projekt, Region, Container — die Werte stehen in der
+     OpenRC-/rclone-Konfiguration des Geräts. Der Container wird angelegt,
+     falls es ihn nicht gibt.
+   - **SFTP** (z. B. Hetzner Storage Box: Host `uNNNNNN.your-storagebox.de`,
+     Port 23): Benutzer und Passwort, oder besser „Make a key“ und die
+     angezeigte Zeile in `.ssh/authorized_keys` der Box eintragen. Beim
+     ersten Test zeigt die BBS den Schlüssel des Servers zum Bestätigen
+     (mit den Angaben des Anbieters vergleichen); danach verbindet sie sich
+     nur noch mit genau diesem Server.
+3. **Save and test** schreibt, liest und löscht eine kleine Datei. Dann
+   „after each backup“ einschalten; „Copy the newest now“ schickt sofort
+   eines.
+
+Dort bleiben die neuesten 14 plus je das neueste der letzten 8 Wochen
+(einstellbar). Schlägt eine Kopie fehl, versucht es die BBS stündlich
+wieder und meldet es unter „Needs attention“.
+
+**Eine Kopie zurückholen:** herunterladen (Swift: Webinterface oder
+`rclone`, SFTP: `sftp`), dann entschlüsseln:
+
+```sh
+age -d -i nullmodem-backup-key.txt nullmodem-JJJJMMTT-HHMMSS.tar.gz.age > nullmodem-JJJJMMTT-HHMMSS.tar.gz
+```
+
+(`age` gibt es für Linux, macOS und Windows, z. B. `apt install age`.)
+Danach wie unten zurückspielen.
 
 ## Zurückspielen
 

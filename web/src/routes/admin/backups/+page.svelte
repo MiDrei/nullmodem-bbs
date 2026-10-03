@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
 	import { toast } from '$lib/toast.svelte';
+	import OffsiteSettings from '$lib/admin/OffsiteSettings.svelte';
 	import {
 		getBackups,
 		putBackupSettings,
@@ -134,8 +135,8 @@
 		{/if}
 		<p class="rounded-xl border border-line bg-sunken px-4 py-3 text-sm text-muted">
 			The backups are on the same disk as the BBS: they help against mistakes and a broken database,
-			not a broken disk. Download one now and then, or set the directory to another disk or a NAS
-			mounted into the container.
+			not a broken disk or a lost server. For that, turn on the off-site copy below -- encrypted, to
+			an SFTP server or OpenStack Swift.
 		</p>
 
 		<form class="card flex flex-col gap-4" onsubmit={save}>
@@ -208,5 +209,6 @@
 				</table>
 			{/if}
 		</section>
+		<OffsiteSettings />
 	</div>
 {/if}

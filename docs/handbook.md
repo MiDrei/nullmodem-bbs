@@ -75,8 +75,9 @@ In `configs/web.yaml` für das Web-Terminal im Docker-Betrieb:
 7. **Benachrichtigungen:** Die Reader-App (`/reader`) aufs Handy legen und unter
    ⚙ Benachrichtigungen einschalten — dann kommen Warnungen, neue Benutzer und
    Pages aufs Handy.
-8. **Backup prüfen:** System → Backups → „Back up now“, und für eine Kopie
-   außerhalb des Servers sorgen ([backup.md](backup.md)).
+8. **Backup prüfen:** System → Backups → „Back up now“, und die
+   verschlüsselte Kopie außer Haus einrichten (SFTP oder OpenStack Swift,
+   [backup.md](backup.md)).
 
 ## 4. FTN-Netzwerke
 

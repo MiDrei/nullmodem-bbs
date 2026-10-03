@@ -474,6 +474,57 @@ type BackupConfig struct {
 	Dir string `yaml:"dir,omitempty"`
 	// IncludeFiles adds the file areas and doors (large).
 	IncludeFiles bool `yaml:"include_files,omitempty"`
+	// Offsite copies each backup, encrypted, to a storage service.
+	Offsite OffsiteConfig `yaml:"offsite,omitempty"`
+}
+
+// OffsiteConfig is where encrypted copies of the backups go
+// (internal/offsite): an SFTP server (a Hetzner Storage Box, say) or
+// OpenStack Swift (Infomaniak Swiss Backup, say).
+type OffsiteConfig struct {
+	Enabled bool `yaml:"enabled"`
+	// Kind is "sftp" or "swift".
+	Kind string `yaml:"kind,omitempty"`
+	// Recipient is the age public key ("age1...") copies are encrypted
+	// to; only the sysop holds the private key.
+	Recipient string `yaml:"recipient,omitempty"`
+	// KeepDaily / KeepWeekly copies are kept there (default 14 / 8).
+	KeepDaily  *int `yaml:"keep_daily,omitempty"`
+	KeepWeekly *int `yaml:"keep_weekly,omitempty"`
+
+	SFTP  OffsiteSFTP  `yaml:"sftp,omitempty"`
+	Swift OffsiteSwift `yaml:"swift,omitempty"`
+}
+
+func (o OffsiteConfig) Daily() int  { return intOr(o.KeepDaily, 14) }
+func (o OffsiteConfig) Weekly() int { return intOr(o.KeepWeekly, 8) }
+
+// OffsiteSFTP is an SFTP server. Key is a private key the web admin
+// made (its public half goes onto the server); HostKey pins the
+// server's key (SHA256 fingerprint), learned on the first connect.
+type OffsiteSFTP struct {
+	Host     string `yaml:"host,omitempty"`
+	Port     int    `yaml:"port,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Password string `yaml:"password,omitempty"`
+	Key      string `yaml:"key,omitempty"`
+	HostKey  string `yaml:"host_key,omitempty"`
+	Dir      string `yaml:"dir,omitempty"`
+}
+
+// OffsiteSwift is an OpenStack Swift account, logged in through
+// Keystone v3 (AuthURL ".../identity/v3").
+type OffsiteSwift struct {
+	AuthURL       string `yaml:"auth_url,omitempty"`
+	User          string `yaml:"user,omitempty"`
+	Password      string `yaml:"password,omitempty"`
+	Project       string `yaml:"project,omitempty"`
+	UserDomain    string `yaml:"user_domain,omitempty"`
+	ProjectDomain string `yaml:"project_domain,omitempty"`
+	Region        string `yaml:"region,omitempty"`
+	Container     string `yaml:"container,omitempty"`
+	// Prefix goes before the names ("bbs/"), "" for none.
+	Prefix string `yaml:"prefix,omitempty"`
 }
 
 func (b BackupConfig) On() bool     { return b.Enabled == nil || *b.Enabled }

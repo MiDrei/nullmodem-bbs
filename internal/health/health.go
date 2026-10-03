@@ -16,6 +16,7 @@ import (
 
 	"git.maik.ch/nullmodem/bbs/internal/backup"
 	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/offsite"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 )
 
@@ -140,6 +141,17 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 			if free, total := e.Disk(b.Directory()); total > 0 && (free < DiskMinFree || float64(free) < DiskMinShare*float64(total)) {
 				add("disk", "The disk is nearly full", fmt.Sprintf("%.1f GB free of %.0f GB", float64(free)/(1<<30), float64(total)/(1<<30)))
 			}
+		}
+	}
+
+	// The off-site copy of the backups.
+	if o := cfg.Backup.Offsite; o.Enabled {
+		st := offsite.LoadStatus(e.DB)
+		switch {
+		case st.LastError != "":
+			add("offsite", "The off-site backup copy failed", st.LastError)
+		case !st.LastOK.IsZero() && now.Sub(st.LastOK) > 2*BackupAge:
+			add("offsite", "The off-site backup copy is overdue", fmt.Sprintf("the last went out %s", st.LastOK.Format("02.01. 15:04")))
 		}
 	}
 
