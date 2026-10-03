@@ -11,6 +11,7 @@
 	import { forgetOffline, offline, syncAhead } from '$lib/reader/offline.svelte';
 	import { disablePush } from '$lib/reader/push';
 	import SettingsSheet from '$lib/reader/SettingsSheet.svelte';
+	import Icon from '$lib/Icon.svelte';
 
 	let {
 		selectedAreaId = null,
@@ -120,9 +121,11 @@
 <header class="r-bar">
 	<span class="r-title">Reader</span>
 	<button class="r-btn text-base" onclick={toggleAll}>{showAll ? 'Unread' : 'All'}</button>
-	<button class="r-btn text-xl" onclick={() => goto('/reader/search')} aria-label="Search">⌕</button>
-	<button class="r-btn text-xl" onclick={load} aria-label="Refresh">↻</button>
-	<button class="r-btn text-xl" onclick={() => (settingsOpen = true)} aria-label="Settings">⚙</button>
+	<button class="r-btn inline-flex items-center justify-center" onclick={() => goto('/reader/search')} aria-label="Search"
+		><Icon name="search" size={21} /></button
+	>
+	<button class="r-btn inline-flex items-center justify-center" onclick={load} aria-label="Refresh"><Icon name="refresh" size={21} /></button>
+	<button class="r-btn inline-flex items-center justify-center" onclick={() => (settingsOpen = true)} aria-label="Settings"><Icon name="system" size={21} /></button>
 </header>
 {#if !offline.online || offline.outbox}
 	<p class="border-b border-line bg-surface px-4 py-1.5 text-xs text-muted">

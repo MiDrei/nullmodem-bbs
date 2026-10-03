@@ -37,7 +37,8 @@
 		| 'callers'
 		| 'search'
 		| 'chart'
-		| 'menu';
+		| 'menu'
+		| 'refresh';
 	let { name, size = 15 }: { name: Name; size?: number } = $props();
 </script>
 
@@ -169,6 +170,9 @@
 	{:else if name === 'chart'}
 		<path d="M4 20h16" />
 		<path d="M7 16v-5M12 16V6M17 16v-8" />
+	{:else if name === 'refresh'}
+		<path d="M20 12a8 8 0 1 1-2.3-5.7" />
+		<path d="M20 4v4.5h-4.5" />
 	{:else if name === 'search'}
 		<circle cx="11" cy="11" r="7" />
 		<path d="M20 20l-3.5-3.5" />
