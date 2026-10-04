@@ -155,7 +155,8 @@
 		[t('web.profile.calls'), String(profile.total_calls)],
 		[t('web.profile.since'), formatDate(profile.created_at)],
 		[t('web.profile.timezone'), profile.timezone || t('web.profile.zone_unset', { ZONE: browserZone })],
-		[t('web.profile.location'), profile.location || '—']
+		[t('web.profile.location'), profile.location || '—'],
+		...(profile.email ? [[t('web.profile.email'), profile.email]] : [])
 	]}
 	<div class="flex flex-col gap-4">
 		<section class="card">

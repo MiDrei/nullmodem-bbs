@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/emailgw"
 	"net/http"
 	"strings"
 	"time"
@@ -32,6 +33,18 @@ type profileDTO struct {
 	// Language is the language the caller reads the board in (an
 	// internal/i18n code), "" for the board's own.
 	Language string `json:"language"`
+	// Email is the caller's address at the email gateway, "" when they
+	// can't use it.
+	Email string `json:"email,omitempty"`
+}
+
+// profileFor is toProfileDTO with the caller's email address.
+func (s *Server) profileFor(u *user.User) profileDTO {
+	d := toProfileDTO(u)
+	if c, err := s.loadBBSConfig(); err == nil && emailgw.May(c.Email, u) {
+		d.Email = emailgw.Address(c.Email, u.Username)
+	}
+	return d
 }
 
 func toProfileDTO(u *user.User) profileDTO {
@@ -59,7 +72,7 @@ func (s *Server) handleGetBBSProfile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load user")
 		return
 	}
-	writeJSON(w, http.StatusOK, toProfileDTO(u))
+	writeJSON(w, http.StatusOK, s.profileFor(u))
 }
 
 // handleUpdateBBSProfile changes the caller's real name and/or time
@@ -157,7 +170,7 @@ func (s *Server) handleUpdateBBSProfile(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "could not load user")
 		return
 	}
-	writeJSON(w, http.StatusOK, toProfileDTO(u))
+	writeJSON(w, http.StatusOK, s.profileFor(u))
 }
 
 // handleChangeBBSPassword verifies the caller's current password and

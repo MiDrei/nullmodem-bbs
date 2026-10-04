@@ -39,7 +39,8 @@
 		| 'chart'
 		| 'menu'
 		| 'refresh'
-		| 'language';
+		| 'language'
+		| 'email';
 	let { name, size = 15 }: { name: Name; size?: number } = $props();
 </script>
 
@@ -141,6 +142,9 @@
 	{:else if name === 'chat'}
 		<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1z" />
 		<path d="M8.5 11h.01M12 11h.01M15.5 11h.01" />
+	{:else if name === 'email'}
+		<circle cx="12" cy="12" r="4" />
+		<path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.9 7.9" />
 	{:else if name === 'poll'}
 		<path d="M4 20h16" />
 		<path d="M7 16V10M12 16V5M17 16v-4" />

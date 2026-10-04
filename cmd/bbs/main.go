@@ -143,6 +143,7 @@ func main() {
 		Stats:            stats.NewStore(sqlDB),
 		Security:         security,
 		Language:         func() string { return current().BBS.Language },
+		Email:            func() config.EmailConfig { return current().Email },
 	})
 
 	// File and QWK transfers over Telnet/SSH run Synchronet's sexyz.

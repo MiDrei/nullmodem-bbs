@@ -167,7 +167,7 @@ show under System → Services.
 |---|---|
 | R / T | read new messages / messages to me |
 | M / F | message areas (there S = search messages) / file areas (N = new files, S = search) |
-| N / I | netmail / nodelist |
+| N / I | netmail (and email, when the gateway is on) / nodelist |
 | C / P | chat (teleconference; there `/rooms`, `/join name`) / page the sysop |
 | L / V / B | one-liners / polls / BBS list |
 | W / D | who's online (with node message) / doors |
@@ -291,6 +291,28 @@ NullModem Reader.
   as `name@matrix`. The bot can't read encrypted rooms — the admin warns you
   then. A room can be linked to Discord and Matrix at the same time; what's
   said in Discord then arrives in Matrix too, and the other way round.
+- **Email gateway:** Community → Email gateway. Every caller from the level
+  you set gets the address handle@your-domain (SwissMaik is
+  `swissmaik@bbs.example.com`, a space becomes a dot) and can write email
+  wherever they write netmail: an email address as the recipient. Answering
+  a mail answers by email — over Telnet, in the portal, the reader app, a
+  QWK reader and a point's reader (FidoMail). Setting up:
+  1. At your mail provider, a mailbox for the domain with a **catch-all**
+     (all mail to any address of the domain lands in it), and an SMTP login
+     that may send as any address of the domain — usually the same account.
+  2. Enter the domain, the IMAP server (the mailbox) and the SMTP server,
+     **Test**, turn it on, save.
+
+  The BBS fetches the mailbox every minute; unread mail becomes netmail to
+  the caller it's addressed to (`name+anything@` works too) and is marked
+  read, or deleted if you choose so. Mail to unknown addresses, to callers
+  below the level or not yet approved, and mail the provider flagged as spam
+  is dropped. Text only: HTML mail is turned into text, attachments are
+  listed but not delivered. A daily limit per caller keeps an account from
+  becoming a spam source. Mail the receiving server refuses comes back to the
+  writer as netmail with the reason; if the gateway can't fetch or send for
+  half an hour, it shows under "Needs attention". The callers see their
+  address in their profile.
 - **Polls / BBS list:** Community → Polls & BBS List. Every hour the BBS
   checks whether the boards on the list answer (a TCP connection, nothing is
   sent) and shows "up/down" or "online/offline"; addresses in your own or a

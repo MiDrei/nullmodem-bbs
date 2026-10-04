@@ -2,7 +2,7 @@
 	// Netmail received, newest first; New writes one.
 	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
-	import { listBBSNetmail, type BBSNetmailSummary } from '$lib/api';
+	import { listBBSNetmail, getBBSProfile, type BBSNetmailSummary } from '$lib/api';
 	import { toast } from '$lib/toast.svelte';
 	import { sendOrQueue } from '$lib/reader/offline.svelte';
 	import { readerToken, readerAuthFailed, errorText, shortDate } from '$lib/reader/session';
@@ -32,6 +32,8 @@
 	let subject = $state('');
 	let body = $state('');
 	let sending = $state(false);
+	// Whether the caller may write email (the To field says so).
+	let canEmail = $state(false);
 
 	function startNew() {
 		to = toName = subject = body = '';
@@ -57,6 +59,9 @@
 	onMount(async () => {
 		const token = await readerToken();
 		if (!token) return;
+		getBBSProfile(token)
+			.then((p) => (canEmail = !!p.email))
+			.catch(() => {});
 		try {
 			mails = await listBBSNetmail(token);
 		} catch (err) {
@@ -108,7 +113,7 @@
 		bind:to
 		bind:toName
 		askToName
-		toPlaceholder={t('web.reader.netmail_to')}
+		toPlaceholder={canEmail ? t('web.reader.netmail_to_email') : t('web.reader.netmail_to')}
 		bind:subject
 		bind:body
 		busy={sending}

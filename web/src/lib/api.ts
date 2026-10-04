@@ -1181,6 +1181,11 @@ export interface BBSNetmail {
 	next_id?: number;
 	/** False when viewed from the caller's own Sent list (they were the sender, not the recipient) -- Reply/Delete only make sense when true. */
 	is_recipient: boolean;
+	/** A mail through the email gateway: the other side's address. Absent for netmail. */
+	email?: string;
+	/** A mail written here: how sending it goes; email_error says why it's stuck or failed. */
+	email_status?: 'queued' | 'sent' | 'failed';
+	email_error?: string;
 }
 
 export interface BBSFileArea {
@@ -1301,13 +1306,20 @@ export function sendBBSNetmail(
 	subject: string,
 	body: string,
 	toName = '',
-	crash = false
+	crash = false,
+	/** The netmail this answers -- a mail that came in by email is answered by email. */
+	replyTo = 0
 ): Promise<BBSNetmail> {
 	return request<BBSNetmail>(
 		'/api/bbs/netmail',
-		{ method: 'POST', body: JSON.stringify({ to, to_name: toName, subject, body, crash }) },
+		{ method: 'POST', body: JSON.stringify({ to, to_name: toName, subject, body, crash, reply_to: replyTo }) },
 		token
 	);
+}
+
+/** Looks like an email address (the server re-checks). */
+export function isEmailAddress(s: string): boolean {
+	return /^[^\s@<>]+@[^\s@<>:/]+\.[^\s@<>:/]+$/.test(s.trim());
 }
 
 /** Same shape as internal/netmail.IsFTNAddress -- zone:net/node[.point], all-numeric. Used client-side only to decide whether to show the "recipient name" field, not for validation (the server re-checks). */
@@ -1549,6 +1561,8 @@ export interface BBSProfile {
 	location: string;
 	/** The language the caller reads the board in (Telnet and web); "" for the board's own. */
 	language: string;
+	/** The caller's address at the email gateway; absent when they can't use it. */
+	email?: string;
 }
 
 export function getBBSProfile(token: string): Promise<BBSProfile> {
@@ -2364,4 +2378,70 @@ export function getPublicDoorBulletins(): Promise<DoorBulletinView[]> {
 /** Runs a door's daily maintenance now (the BBS service picks it up within half a minute). */
 export function runDoorDaily(token: string, name: string): Promise<void> {
 	return request(`/api/door-daily/${encodeURIComponent(name)}`, { method: 'POST' }, token);
+}
+
+/** A mail server of the email gateway; the password is never sent back. */
+export interface MailServer {
+	host: string;
+	port: number;
+	security: 'tls' | 'starttls' | 'none';
+	user: string;
+	has_password: boolean;
+	/** In: a new password; "" keeps the old one. */
+	password?: string;
+	folder?: string;
+}
+
+export interface EmailMail {
+	id: number;
+	incoming: boolean;
+	user: string;
+	address: string;
+	subject: string;
+	at: string;
+	status: 'received' | 'queued' | 'sent' | 'failed';
+	error?: string;
+}
+
+/** The netmail <-> email gateway (System -> Email gateway). */
+export interface EmailSettings {
+	enabled: boolean;
+	domain: string;
+	imap: MailServer;
+	smtp: MailServer;
+	min_sl: number;
+	daily_limit: number;
+	delete_fetched: boolean;
+	deliver_spam: boolean;
+	status: {
+		last_fetch: string;
+		last_fetch_error: string;
+		last_send: string;
+		last_send_error: string;
+		received: number;
+		sent: number;
+		dropped: number;
+	};
+	waiting: number;
+	failed: number;
+	example: string;
+	recent: EmailMail[];
+}
+
+export function getEmailSettings(token: string): Promise<EmailSettings> {
+	return request<EmailSettings>('/api/email', { method: 'GET' }, token);
+}
+
+export function saveEmailSettings(token: string, s: EmailSettings): Promise<EmailSettings> {
+	return request<EmailSettings>('/api/email', { method: 'PUT', body: JSON.stringify(s) }, token);
+}
+
+/** Logs in to both servers with these (unsaved) settings. */
+export function testEmailSettings(token: string, s: EmailSettings): Promise<{ ok: boolean; error?: string }> {
+	return request<{ ok: boolean; error?: string }>('/api/email/test', { method: 'POST', body: JSON.stringify(s) }, token);
+}
+
+/** Fetches the mailbox and sends what's waiting, now. */
+export function fetchEmailNow(token: string): Promise<{ ok: boolean }> {
+	return request<{ ok: boolean }>('/api/email/fetch', { method: 'POST' }, token);
 }

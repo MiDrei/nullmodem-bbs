@@ -55,6 +55,12 @@ der BBS selbst geschrieben.
   Abonnements: keine Areafix-Anfrage nötig. Wegnehmen beendet sie.
   Areafix geht trotzdem auch.
 
+Ist das E-Mail-Gateway an, kommt per Mail Eingegangenes beim Reader mit
+der Absenderadresse an (wenn sie in die 35 Zeichen des Absenders einer
+Netmail passt); eine Netmail vom Reader an dieses System, adressiert an
+eine E-Mail-Adresse, geht als Mail hinaus, als Antwort auf die letzte Mail
+dieser Adresse.
+
 Ein erneut gesendetes Paket (der Reader hat unsere Bestätigung nicht
 gesehen) wird nicht doppelt gespeichert: Die MSGID des Readers wird
 dafür festgehalten. Der Benutzer muss existieren; wird er umbenannt oder

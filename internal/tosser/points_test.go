@@ -257,3 +257,32 @@ func TestAreafixStopsAtTheTearline(t *testing.T) {
 		t.Fatalf("list=%v changes=%+v, want %%LIST and +FSX_GEN only", list, changes)
 	}
 }
+
+func TestPointMailToAnEmailAddressGoesThroughTheGateway(t *testing.T) {
+	netmailStore, messages, _, users, _, _ := newTestStoresWithRobot(t)
+	sysop, _ := users.Register("sysop", "password123", user.SLSysop)
+	in, err := netmailStore.ReceiveEmail("Joe", "joe@other.ch", sysop.ID, "sysop", "Question", "Hi?", time.Now(), "<q@other.ch>", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	poster, _ := newPointPoster(readerFsx, pointUplinks, users, pointOurAddresses)
+
+	// The copy to the reader comes from the address, so it can answer.
+	copies, err := poster.pointNetmailCopies(netmailStore, readerFsx)
+	if err != nil || len(copies) != 1 || copies[0].FromName != "joe@other.ch" {
+		t.Fatalf("copies %+v, %v", copies, err)
+	}
+
+	msg := mail.Message{OrigAddr: mustAddr(t, "21:3/194.1"), DestAddr: mustAddr(t, "21:3/194"), Written: time.Now(),
+		FromName: "Mike", ToName: "joe@other.ch", Subject: "Re: Question", Body: "\x01MSGID: 21:3/194.1 00000001\nYes.\n--- FidoMail\n"}
+	if _, err := tossInbound(pointPacket(t, msg), nil, netmailStore, messages, users, nil, poster); err != nil {
+		t.Fatal(err)
+	}
+	due, err := netmailStore.PendingEmail(time.Now())
+	if err != nil || len(due) != 1 {
+		t.Fatalf("pending %+v, %v", due, err)
+	}
+	if d := due[0]; d.Email != "joe@other.ch" || d.FromUserID.Int64 != sysop.ID || d.InReplyTo != "<q@other.ch>" || strings.TrimSpace(d.Body) != "Yes." {
+		t.Errorf("email %+v (answering %d)", d, in.ID)
+	}
+}

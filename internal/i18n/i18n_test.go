@@ -155,8 +155,8 @@ func TestKeyBarsFit(t *testing.T) {
 	c := New("")
 	for _, l := range Languages {
 		for _, k := range c.Keys() {
-			if strings.HasPrefix(k, "web.") {
-				continue // the web wraps
+			if strings.HasPrefix(k, "web.") || strings.HasPrefix(k, "admin.") {
+				continue // the web (and its admin) wraps
 			}
 			if !strings.HasSuffix(k, "keys") && !strings.HasSuffix(k, "hint") && !strings.HasSuffix(k, "hint_areas") && !strings.HasSuffix(k, "hint_rooms") && !strings.HasSuffix(k, "keys_reply") && !strings.HasSuffix(k, "keys_post") {
 				continue

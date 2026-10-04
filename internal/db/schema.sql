@@ -626,3 +626,18 @@ CREATE TABLE IF NOT EXISTS area_unsubscribed (
     area_id  INTEGER NOT NULL REFERENCES message_areas(id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, area_id)
 );
+
+-- The email gateway (internal/emailgw): a netmail with
+-- netmail_messages.email set is a mail to (from_user_id set) or from
+-- (from_user_id NULL) that address. Here its Message-ID, the one it
+-- answers, and how sending it goes.
+CREATE TABLE IF NOT EXISTS email_meta (
+    netmail_id   INTEGER PRIMARY KEY REFERENCES netmail_messages(id) ON DELETE CASCADE,
+    message_id   TEXT NOT NULL DEFAULT '',
+    in_reply_to  TEXT NOT NULL DEFAULT '',
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    next_try     INTEGER NOT NULL DEFAULT 0,
+    last_error   TEXT NOT NULL DEFAULT '',
+    failed       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_email_meta_message_id ON email_meta(message_id) WHERE message_id != '';

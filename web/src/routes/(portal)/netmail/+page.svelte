@@ -9,6 +9,7 @@
 		listBBSNetmail,
 		listBBSNetmailSent,
 		sendBBSNetmail,
+		getBBSProfile,
 		isFTNAddress,
 		ApiError,
 		type BBSNetmailSummary
@@ -27,6 +28,8 @@
 	let composeBody = $state('');
 	let composeCrash = $state(false);
 	let sending = $state(false);
+	// The caller's own email address, when they may write email.
+	let myEmail = $state('');
 
 	// A local username needs no extra recipient name (it's unambiguous
 	// on its own); an FTN address does, since a node has many possible
@@ -50,6 +53,9 @@
 				listBBSNetmail(bbsAuth.token),
 				listBBSNetmailSent(bbsAuth.token)
 			]);
+			getBBSProfile(bbsAuth.token)
+				.then((p) => (myEmail = p.email ?? ''))
+				.catch(() => {});
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
@@ -100,6 +106,11 @@
 	<div>
 		<h1 class="page-title">{t('web.nav.netmail')}</h1>
 		<p class="page-subtitle">{t('web.netmail.subtitle')}</p>
+		{#if myEmail}
+			<p class="mt-1 text-[12.5px] text-muted">
+				{t('web.netmail.your_email')} <span class="font-mono text-slate-400">{myEmail}</span>
+			</p>
+		{/if}
 	</div>
 	{#if !composing}
 		<button class="btn-primary" onclick={() => (composing = true)}>+ {t('web.netmail.new')}</button>
@@ -115,7 +126,7 @@
 		}}
 	>
 		<label class="flex flex-col gap-2">
-			<span class="card-label">{t('web.netmail.to')}</span>
+			<span class="card-label">{myEmail ? t('web.netmail.to_email') : t('web.netmail.to')}</span>
 			<input class="field" bind:value={composeTo} />
 		</label>
 		{#if composeToIsFTN}

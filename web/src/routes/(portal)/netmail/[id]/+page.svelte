@@ -77,7 +77,8 @@
 
 	async function sendReply() {
 		if (!bbsAuth.token || !message) return;
-		const to = message.from_address || message.from_name;
+		// A mail that came in by email goes back to its address.
+		const to = message.email || message.from_address || message.from_name;
 		// When the original came from an FTN address, from_name is that
 		// remote user's real name -- pass it along as the reply's
 		// recipient name so it isn't lost (see the compose page's
@@ -85,7 +86,7 @@
 		const toName = message.from_address ? message.from_name : '';
 		sending = true;
 		try {
-			await sendBBSNetmail(bbsAuth.token, to, replySubject, replyBody, toName);
+			await sendBBSNetmail(bbsAuth.token, to, replySubject, replyBody, toName, false, message.id);
 			replying = false;
 			toast.push(t('web.netmail.reply_sent'), 'success');
 		} catch (err) {
@@ -159,9 +160,24 @@
 					{#if message.is_recipient}
 						<span class="text-slate-400">{message.from_name}</span>
 						{#if message.from_address}<span class="font-mono text-faint">{message.from_address}</span>{/if}
+						{#if message.email && message.email !== message.from_name}<span class="font-mono text-faint">&lt;{message.email}&gt;</span>{/if}
 					{:else}
 						{t('web.msg.to_lower')} <span class="text-slate-400">{message.to_name}</span>
 						{#if message.to_address}<span class="font-mono text-faint">{message.to_address}</span>{/if}
+						{#if message.email_status}
+							<span
+								class="ml-1 rounded px-1.5 py-0.5 text-[11px] {message.email_status === 'failed'
+									? 'bg-red-500/15 text-red-400'
+									: message.email_status === 'sent'
+										? 'bg-emerald-500/15 text-emerald-400'
+										: 'bg-amber-500/15 text-amber-400'}"
+								title={message.email_error || ''}>{message.email_status === 'failed'
+									? t('web.netmail.email_failed')
+									: message.email_status === 'sent'
+										? t('web.netmail.email_sent')
+										: t('web.netmail.email_queued')}</span
+							>
+						{/if}
 					{/if}
 					&middot; {formatDateTime(message.posted_at)}
 				</div>

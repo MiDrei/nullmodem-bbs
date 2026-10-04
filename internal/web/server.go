@@ -12,7 +12,9 @@ import (
 	"database/sql"
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/community"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/discord"
+	"git.maik.ch/nullmodem/bbs/internal/emailgw"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
 	"git.maik.ch/nullmodem/bbs/internal/matrix"
 	"git.maik.ch/nullmodem/bbs/internal/nodelist"
@@ -83,6 +85,8 @@ type Server struct {
 	Discord *discord.Bridge
 	// Matrix is the chat rooms' bridge to Matrix; nil: none.
 	Matrix *matrix.Bridge
+	// EmailGateway is the netmail <-> email gateway; nil: none.
+	EmailGateway *emailgw.Gateway
 	// MenuDefaultsDir holds this version's stock menus (the image's
 	// configs-defaults/menus), "" for none: the menu editor offers
 	// what's new in them.
@@ -190,6 +194,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/door-bulletins/{name}", s.requireAuth(http.HandlerFunc(s.handleDoorTemplateBulletins)))
 	mux.Handle("GET /api/chat/matrix", s.requireAuth(http.HandlerFunc(s.handleGetMatrix)))
 	mux.Handle("PUT /api/chat/matrix", s.requireAuth(http.HandlerFunc(s.handlePutMatrix)))
+	mux.Handle("GET /api/email", s.requireAuth(http.HandlerFunc(s.handleGetEmail)))
+	mux.Handle("PUT /api/email", s.requireAuth(http.HandlerFunc(s.handlePutEmail)))
+	mux.Handle("POST /api/email/test", s.requireAuth(http.HandlerFunc(s.handleTestEmail)))
+	mux.Handle("POST /api/email/fetch", s.requireAuth(http.HandlerFunc(s.handleFetchEmail)))
 	mux.Handle("GET /api/oneliners", s.requireAuth(http.HandlerFunc(s.handleListOneliners)))
 	mux.Handle("DELETE /api/oneliners/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteOneliner)))
 	mux.Handle("GET /api/nodelists", s.requireAuth(http.HandlerFunc(s.handleNodelistStatus)))
@@ -348,4 +356,13 @@ func withCORS(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// emailConfig is the email gateway's settings as saved now.
+func (s *Server) emailConfig() config.EmailConfig {
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		return config.EmailConfig{}
+	}
+	return c.Email
 }

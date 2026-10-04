@@ -377,6 +377,11 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 			return err
 		}
 	}
+	if original.IsEmail() && !original.FromUserID.Valid {
+		if ok, err := s.emailAllowed(term, u); !ok {
+			return err
+		}
+	}
 	subject := replySubject(original.Subject)
 	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.reply_title") + ansi.Reset); err != nil {
 		return err
@@ -397,6 +402,10 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("msg.reply_aborted"))
 	}
 
+	if original.IsEmail() && !original.FromUserID.Valid {
+		_, err := s.sendEmail(term, u, original.Email, subject, lines, original.ID)
+		return err
+	}
 	var toUserID int64
 	var toAddress string
 	if original.FromUserID.Valid {
@@ -454,9 +463,13 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 	if m.ToAddress != "" {
 		to = fmt.Sprintf("%s (%s)", m.ToName, m.ToAddress)
 	}
+	from := m.FromName
+	if m.IsEmail() && !m.FromUserID.Valid && m.FromName != m.Email {
+		from = fmt.Sprintf("%s <%s>", m.FromName, m.Email)
+	}
 	metaTemplate := s.loadOptionalScreen(term, netmailReadMetaScreen, fallbackNetmailReadMeta)
 	vars := ansi.Vars{
-		"FROM":    m.FromName,
+		"FROM":    from,
 		"TO":      to,
 		"SUBJECT": m.Subject,
 		"DATE":    term.Time(m.PostedAt).Format("2006-01-02 15:04 MST"),
@@ -533,7 +546,11 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.compose_title") + ansi.Reset); err != nil {
 		return err
 	}
-	if err := term.Print(ansi.Reset + "\n" + term.T("netmail.to_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
+	prompt := "netmail.to_prompt"
+	if s.mayEmail(u) {
+		prompt = "netmail.to_prompt_email"
+	}
+	if err := term.Print(ansi.Reset + "\n" + term.T(prompt) + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	to, err := term.ReadLine(false)
@@ -595,9 +612,15 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		}
 		crashAnswer = strings.ToUpper(strings.TrimSpace(crashAnswer))
 		crash = isYes(term, crashAnswer) || crashAnswer == "YES"
+	} else if netmail.IsEmailAddress(to) {
+		return s.composeEmail(term, u, to)
 	} else {
+		key := "netmail.bad_recipient"
+		if s.mayEmail(u) {
+			key = "netmail.bad_recipient_email"
+		}
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) +
-			term.T("netmail.bad_recipient", "TO", to))
+			term.T(key, "TO", to))
 	}
 
 	if err := term.Print(ansi.Reset + term.T("msg.subject") + " " + ansi.FG(ansi.Yellow, true)); err != nil {

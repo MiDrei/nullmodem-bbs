@@ -5,6 +5,7 @@ package main
 import (
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/community"
+	"git.maik.ch/nullmodem/bbs/internal/emailgw"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
 	"git.maik.ch/nullmodem/bbs/internal/health"
 	"git.maik.ch/nullmodem/bbs/internal/i18n"
@@ -219,6 +220,32 @@ func main() {
 	}
 	go srv.Matrix.Run(context.Background())
 
+	// The netmail <-> email gateway, as set in the web admin.
+	srv.EmailGateway = &emailgw.Gateway{
+		DB:      sqlDB,
+		Netmail: srv.Netmail,
+		Users:   srv.Users,
+		Logger:  logger,
+		Config: func() config.EmailConfig {
+			c, err := config.Load(cfg.BBSConfigPath)
+			if err != nil {
+				c = current()
+			}
+			return c.Email
+		},
+		Lang: func(u *user.User) string {
+			if i18n.Valid(u.Language) {
+				return u.Language
+			}
+			if c, err := config.Load(cfg.BBSConfigPath); err == nil && i18n.Valid(c.BBS.Language) {
+				return c.BBS.Language
+			}
+			return i18n.Fallback
+		},
+		BBSName: func() string { return current().BBS.Name },
+	}
+	go srv.EmailGateway.Run(context.Background())
+
 	// Watching that everything keeps working: problems go to the
 	// sysops' phones (when they have the reader's notifications on)
 	// and onto the dashboard.
@@ -235,6 +262,9 @@ func main() {
 			}
 			if down, detail := srv.Matrix.Down(15 * time.Minute); down {
 				out = append(out, health.Problem{Key: "matrix", Title: i18n.Ref("health.matrix_down"), Detail: detail})
+			}
+			if down, detail := srv.EmailGateway.Down(30 * time.Minute); down {
+				out = append(out, health.Problem{Key: "email", Title: i18n.Ref("health.email_down"), Detail: detail})
 			}
 			return out
 		},

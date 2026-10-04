@@ -43,7 +43,14 @@ type Message struct {
 	// crash-only uplink and dials that uplink immediately instead of
 	// waiting for the next scheduled poll. Meaningless for local mail.
 	Crash bool
+	// Email is the other side's address of a mail through the email
+	// gateway (internal/emailgw): the recipient of one written here
+	// (FromUserID set), the sender of one that came in. "" for netmail.
+	Email string
 }
+
+// IsEmail reports whether m went or came through the email gateway.
+func (m *Message) IsEmail() bool { return m.Email != "" }
 
 // IsLocal reports whether m resolved to a user on this BBS.
 func (m *Message) IsLocal() bool { return m.ToUserID.Valid }
@@ -154,7 +161,7 @@ func (s *Store) Receive(fromName, fromAddress string, toUserID int64, toName, to
 func (s *Store) PendingOutbound() ([]Message, error) {
 	rows, err := s.db.Query(
 		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
-		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash, m.email
 		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.to_user_id IS NULL AND m.to_address != '' AND m.sent_at IS NULL
 		 ORDER BY m.posted_at ASC, m.id ASC`,
@@ -168,7 +175,7 @@ func (s *Store) PendingOutbound() ([]Message, error) {
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
-			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash, &m.Email); err != nil {
 			return nil, fmt.Errorf("netmail: scan pending outbound row: %w", err)
 		}
 		msgs = append(msgs, m)
@@ -197,13 +204,13 @@ func (s *Store) MarkSent(messageID int64) error {
 func (s *Store) MessageByID(id int64) (*Message, error) {
 	row := s.db.QueryRow(
 		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
-		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash, m.email
 		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.id = ?`, id,
 	)
 	var m Message
 	if err := row.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
-		&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+		&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash, &m.Email); err != nil {
 		return nil, fmt.Errorf("netmail: load %d: %w", id, err)
 	}
 	return &m, nil
@@ -215,7 +222,7 @@ func (s *Store) MessageByID(id int64) (*Message, error) {
 func (s *Store) Inbox(userID int64) ([]Message, error) {
 	rows, err := s.db.Query(
 		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
-		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash, m.email
 		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.to_user_id = ?
 		 ORDER BY m.posted_at DESC, m.id DESC`, userID,
@@ -229,7 +236,7 @@ func (s *Store) Inbox(userID int64) ([]Message, error) {
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
-			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash, &m.Email); err != nil {
 			return nil, fmt.Errorf("netmail: scan inbox row: %w", err)
 		}
 		msgs = append(msgs, m)
@@ -247,7 +254,7 @@ func (s *Store) Inbox(userID int64) ([]Message, error) {
 func (s *Store) Sent(userID int64) ([]Message, error) {
 	rows, err := s.db.Query(
 		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
-		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash, m.email
 		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.from_user_id = ?
 		 ORDER BY m.posted_at DESC, m.id DESC`, userID,
@@ -261,7 +268,7 @@ func (s *Store) Sent(userID int64) ([]Message, error) {
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
-			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash, &m.Email); err != nil {
 			return nil, fmt.Errorf("netmail: scan sent row: %w", err)
 		}
 		msgs = append(msgs, m)
@@ -285,9 +292,9 @@ func (s *Store) Sent(userID int64) ([]Message, error) {
 func (s *Store) UnresolvedInbox(limit int) ([]Message, error) {
 	rows, err := s.db.Query(
 		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
-		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash, m.email
 		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
-		 WHERE m.to_user_id IS NULL AND m.to_address = ''
+		 WHERE m.to_user_id IS NULL AND m.to_address = '' AND m.email = ''
 		 ORDER BY m.posted_at DESC, m.id DESC
 		 LIMIT ?`, limit,
 	)
@@ -300,7 +307,7 @@ func (s *Store) UnresolvedInbox(limit int) ([]Message, error) {
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
-			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash, &m.Email); err != nil {
 			return nil, fmt.Errorf("netmail: scan unresolved inbox row: %w", err)
 		}
 		msgs = append(msgs, m)
@@ -316,7 +323,7 @@ func (s *Store) UnresolvedInbox(limit int) ([]Message, error) {
 // admin list's own display cap shouldn't understate the real number.
 func (s *Store) CountUnresolvedInbox() (int, error) {
 	var n int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM netmail_messages WHERE to_user_id IS NULL AND to_address = ''`).Scan(&n)
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM netmail_messages WHERE to_user_id IS NULL AND to_address = '' AND email = ''`).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("netmail: count unresolved inbox: %w", err)
 	}
@@ -334,7 +341,7 @@ func (s *Store) CountUnresolvedInbox() (int, error) {
 func (s *Store) InboxFromAddress(fromAddress string, limit int) ([]Message, error) {
 	rows, err := s.db.Query(
 		`SELECT m.id, m.from_user_id, COALESCE(u.username, m.from_name) AS from_name, m.from_address,
-		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash
+		        m.to_user_id, m.to_name, m.to_address, m.subject, m.body, m.posted_at, m.read_at, m.sent_at, m.crash, m.email
 		 FROM netmail_messages m LEFT JOIN users u ON u.id = m.from_user_id
 		 WHERE m.from_address = ?
 		 ORDER BY m.posted_at DESC, m.id DESC
@@ -349,7 +356,7 @@ func (s *Store) InboxFromAddress(fromAddress string, limit int) ([]Message, erro
 	for rows.Next() {
 		var m Message
 		if err := rows.Scan(&m.ID, &m.FromUserID, &m.FromName, &m.FromAddress,
-			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash); err != nil {
+			&m.ToUserID, &m.ToName, &m.ToAddress, &m.Subject, &m.Body, &m.PostedAt, &m.ReadAt, &m.SentAt, &m.Crash, &m.Email); err != nil {
 			return nil, fmt.Errorf("netmail: scan inbox-from-address row: %w", err)
 		}
 		msgs = append(msgs, m)

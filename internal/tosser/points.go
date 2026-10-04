@@ -167,6 +167,22 @@ func (p *pointPoster) tossEcho(tag string, msg *mail.Message, messages *message.
 func (p *pointPoster) tossNetmail(msg *mail.Message, netmailStore *netmail.Store, users *user.Store) (handled bool, err error) {
 	ours := ourAddressForUplink(p.ourAddresses, msg.DestAddr)
 	text := readerText(msg.Body)
+	if msg.DestAddr == ours && netmail.IsEmailAddress(msg.ToName) {
+		// To an email address: out through the email gateway (which
+		// checks the user may), as the answer to their last mail from
+		// there.
+		var replyTo int64
+		if inbox, err := netmailStore.Inbox(p.user.ID); err == nil {
+			for _, m := range inbox {
+				if m.IsEmail() && strings.EqualFold(m.Email, msg.ToName) {
+					replyTo = m.ID
+					break
+				}
+			}
+		}
+		_, err := netmailStore.SendEmail(p.user.ID, ours.String(), msg.ToName, msg.Subject, text, replyTo)
+		return err == nil, err
+	}
 	if msg.DestAddr == ours {
 		recipient, err := users.ByUsername(msg.ToName)
 		if errors.Is(err, user.ErrNotFound) {
@@ -272,6 +288,11 @@ func (p *pointPoster) pointNetmailCopies(netmailStore *netmail.Store, target con
 		c := m
 		c.ToAddress = chosen.Address
 		c.ToName = p.user.Username
+		if m.IsEmail() && len(m.Email) <= 35 {
+			// A mail: from its address, so a reply goes back by email
+			// (see tossNetmail); the From of a netmail holds 35 bytes.
+			c.FromName = m.Email
+		}
 		c.Body = withoutAddressingKludges(m.Body)
 		out = append(out, c)
 	}

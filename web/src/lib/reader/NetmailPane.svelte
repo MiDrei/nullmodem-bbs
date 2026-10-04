@@ -51,7 +51,7 @@
 	function startReply() {
 		if (!mail) return;
 		// To an FTN sender: its address, with the name alongside.
-		to = mail.from_address ? `${mail.from_name} @ ${mail.from_address}` : mail.from_name;
+		to = mail.email || (mail.from_address ? `${mail.from_name} @ ${mail.from_address}` : mail.from_name);
 		subject = mail.subject.startsWith('Re: ') ? mail.subject : `Re: ${mail.subject}`;
 		body = quoteText(mail.body, mail.from_name, mail.to_name) + '\n\n';
 		replying = true;
@@ -60,11 +60,12 @@
 	async function send() {
 		const token = await readerToken();
 		if (!token || !mail) return;
-		const target = mail.from_address || mail.from_name;
+		// A mail that came in by email goes back to its address.
+		const target = mail.email || mail.from_address || mail.from_name;
 		const toName = mail.from_address ? mail.from_name : '';
 		sending = true;
 		try {
-			const how = await sendOrQueue(token, { kind: 'netmail', to: target, toName, subject, body });
+			const how = await sendOrQueue(token, { kind: 'netmail', to: target, toName, subject, body, replyTo: mail.id });
 			replying = false;
 			toast.push(how === 'queued' ? t('web.reader.queued_reply') : t('web.netmail.reply_sent'), 'success');
 		} catch (err) {
@@ -81,7 +82,11 @@
 {:else if mail}
 	<ReadView
 		title={t('web.nav.netmail')}
-		from={mail.from_address ? `${mail.from_name} (${mail.from_address})` : mail.from_name}
+		from={mail.from_address
+			? `${mail.from_name} (${mail.from_address})`
+			: mail.email && mail.email !== mail.from_name
+				? `${mail.from_name} <${mail.email}>`
+				: mail.from_name}
 		to={mail.to_name}
 		postedAt={mail.posted_at}
 		subject={mail.subject}

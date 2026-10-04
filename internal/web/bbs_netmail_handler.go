@@ -2,6 +2,8 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
+	"git.maik.ch/nullmodem/bbs/internal/emailgw"
 	"git.maik.ch/nullmodem/bbs/internal/textfmt"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 	"net/http"
@@ -104,6 +106,12 @@ type bbsNetmailDTO struct {
 	// frontend uses it to hide Reply/Delete, which only make sense for
 	// the recipient.
 	IsRecipient bool `json:"is_recipient"`
+	// Email is the other side's address of a mail through the email
+	// gateway ("" for netmail); EmailStatus how sending one written
+	// here goes: "queued", "sent" or "failed" (EmailError why).
+	Email       string `json:"email,omitempty"`
+	EmailStatus string `json:"email_status,omitempty"`
+	EmailError  string `json:"email_error,omitempty"`
 }
 
 // toBBSNetmailDTO is toBBSMessageDTO's netmail counterpart -- see its
@@ -129,6 +137,7 @@ func toBBSNetmailDTO(m netmail.Message) bbsNetmailDTO {
 		Preformatted: preformatted,
 		Grid:         grid,
 		PostedAt:     m.PostedAt.Format(time.RFC3339),
+		Email:        m.Email,
 	}
 }
 
@@ -165,6 +174,17 @@ func (s *Server) handleGetBBSNetmail(w http.ResponseWriter, r *http.Request) {
 
 	dto := toBBSNetmailDTO(*m)
 	dto.IsRecipient = isRecipient
+	if m.IsEmail() && m.FromUserID.Valid {
+		dto.EmailStatus = "queued"
+		if m.IsSent() {
+			dto.EmailStatus = "sent"
+		} else if st, err := s.Netmail.EmailStateOf(m.ID); err == nil {
+			if st.Failed {
+				dto.EmailStatus = "failed"
+			}
+			dto.EmailError = st.LastError
+		}
+	}
 	if isRecipient {
 		// ?peek=1: fetched ahead for reading offline (see the messages').
 		if r.URL.Query().Get("peek") != "1" {
@@ -201,6 +221,9 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 		Subject string `json:"subject"`
 		Body    string `json:"body"`
 		Crash   bool   `json:"crash"`
+		// ReplyTo is the netmail this answers; a mail that came in
+		// through the email gateway is answered by email.
+		ReplyTo int64 `json:"reply_to"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -217,6 +240,13 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 	// composeNetmail "Recipient name" prompt, including its fallback
 	// to the address itself when left blank). A local username is
 	// unambiguous on its own, so any ToName is ignored for it.
+	if req.ReplyTo > 0 {
+		if orig, err := s.Netmail.MessageByID(req.ReplyTo); err == nil && orig.IsEmail() && !orig.FromUserID.Valid &&
+			orig.ToUserID.Valid && orig.ToUserID.Int64 == claims.UserID {
+			s.sendBBSEmail(w, r, claims.UserID, orig.Email, req.Subject, req.Body, orig.ID)
+			return
+		}
+	}
 	var toUserID int64
 	var toName, toAddress string
 	recipient, rerr := s.Users.ByUsername(req.To)
@@ -235,6 +265,9 @@ func (s *Server) handleSendBBSNetmail(w http.ResponseWriter, r *http.Request) {
 		if toName == "" {
 			toName = req.To
 		}
+	} else if netmail.IsEmailAddress(req.To) {
+		s.sendBBSEmail(w, r, claims.UserID, req.To, req.Subject, req.Body, 0)
+		return
 	} else {
 		writeError(w, http.StatusBadRequest, "unknown local user and not a valid FTN address")
 		return
@@ -293,4 +326,46 @@ func (s *Server) handleDeleteBBSNetmail(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// sendBBSEmail stores a mail the caller writes to the address to for
+// the email gateway (internal/emailgw) to send; replyTo is the mail it
+// answers (0: none).
+func (s *Server) sendBBSEmail(w http.ResponseWriter, r *http.Request, userID int64, to, subject, body string, replyTo int64) {
+	u, err := s.Users.ByID(userID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "missing auth claims")
+		return
+	}
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	switch err := emailgw.CheckSend(c.Email, s.Netmail, u, time.Now()); {
+	case errors.Is(err, emailgw.ErrOff):
+		writeError(w, http.StatusBadRequest, "email isn't available on this BBS")
+		return
+	case errors.Is(err, emailgw.ErrNotAllowed):
+		writeError(w, http.StatusBadRequest, "your account can't send email") // not 403: the portal logs out on that
+		return
+	case errors.Is(err, emailgw.ErrLimit):
+		writeError(w, http.StatusTooManyRequests, "you've reached today's email limit")
+		return
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, "could not send netmail")
+		return
+	}
+	m, err := s.Netmail.SendEmail(userID, s.FTNAddress, to,
+		string(ansi.EncodeCP437(subject)), string(ansi.EncodeCP437(textfmt.WrapLongLines(body, textfmt.LineWidth))), replyTo)
+	if err != nil {
+		s.logWarn("could not store email from %s to %s: %v", u.Username, to, err)
+		writeError(w, http.StatusInternalServerError, "could not send netmail")
+		return
+	}
+	s.logInfo("%s wrote an email to %s via the BBS portal", u.Username, to)
+	if s.EmailGateway != nil {
+		s.EmailGateway.Wake()
+	}
+	writeJSON(w, http.StatusCreated, toBBSNetmailDTO(*m))
 }

@@ -222,6 +222,11 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	// The other side's address of a mail through the email gateway.
+	if err := ensureColumn(sqlDB, "netmail_messages", "email", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	for _, col := range []string{"checked_at", "online", "last_up_at"} {
 		if err := ensureColumn(sqlDB, "bbs_list", col, "INTEGER NOT NULL DEFAULT 0"); err != nil {
 			sqlDB.Close()

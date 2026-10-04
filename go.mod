@@ -9,6 +9,10 @@ require (
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/coder/websocket v1.8.15
 	github.com/dustin/go-humanize v1.0.1
+	github.com/emersion/go-imap v1.2.1
+	github.com/emersion/go-message v0.18.2
+	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
+	github.com/emersion/go-smtp v0.25.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/pkg/sftp v1.13.11

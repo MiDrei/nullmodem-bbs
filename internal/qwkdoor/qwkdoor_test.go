@@ -1,6 +1,7 @@
 package qwkdoor
 
 import (
+	"git.maik.ch/nullmodem/bbs/internal/config"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -64,7 +65,7 @@ func TestRouteRepliesUsesKludgesReachesNameAtAddressAndReportsRejects(t *testing
 		{Conference: 0, To: "Hans Muster@2:301/1.5", From: "alice", Subject: "netmail out", Text: "hello Hans"},
 		{Conference: 0, To: "nobodyhere", From: "alice", Subject: "lost", Text: "x"},
 		{Conference: 9999, To: "All", From: "alice", Subject: "nowhere", Text: "x"},
-	}))
+	}), config.EmailConfig{})
 	if err != nil {
 		t.Fatalf("RouteReplies: %v", err)
 	}
@@ -205,5 +206,41 @@ func TestEchomailSeenByAndPathOnlyWhenTheUserAsks(t *testing.T) {
 	}
 	if text := packetText(); !strings.Contains(text, "SEEN-BY: 301/1 100") || !strings.Contains(text, "PATH: 301/1") {
 		t.Fatalf("text = %q, want the routing block kept once asked for", text)
+	}
+}
+
+func TestRouteRepliesSendsEmail(t *testing.T) {
+	st := newStores(t)
+	if _, err := st.users.Register("sysop", "password123", user.SLNewUser); err != nil {
+		t.Fatal(err)
+	}
+	alice, err := st.users.Register("alice", "password123", user.SLNewUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := st.netmail.ReceiveEmail("Joe", "joe@other.ch", alice.ID, "alice", "Question", "Hi?", time.Now(), "<q@other.ch>", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.EmailConfig{Enabled: true, Domain: "example.ch"}
+	res, err := RouteReplies(st.messages, st.netmail, st.users, "", alice, replies(t, []qwk.Reply{
+		// To cut short in the header, but the reply's reference says who.
+		{Conference: 0, To: "Joe", From: "alice", Subject: "Re: Question", Text: "Yes.", RefNumber: int(in.ID)},
+		{Conference: 0, To: "new.friend@else.org", From: "alice", Subject: "Hello", Text: "Hi."},
+	}), cfg)
+	if err != nil || res.Sent != 2 || len(res.Rejected) != 0 {
+		t.Fatalf("result %+v, %v", res, err)
+	}
+	due, _ := st.netmail.PendingEmail(time.Now())
+	if len(due) != 2 || due[0].Email != "joe@other.ch" || due[0].InReplyTo != "<q@other.ch>" || due[1].Email != "new.friend@else.org" {
+		t.Fatalf("pending %+v", due)
+	}
+
+	// Without the gateway the address is refused, not sent as netmail.
+	res, _ = RouteReplies(st.messages, st.netmail, st.users, "", alice, replies(t, []qwk.Reply{
+		{Conference: 0, To: "new.friend@else.org", From: "alice", Subject: "Hello", Text: "Hi."},
+	}), config.EmailConfig{})
+	if res.Sent != 0 || len(res.Rejected) != 1 {
+		t.Fatalf("without gateway: %+v", res)
 	}
 }

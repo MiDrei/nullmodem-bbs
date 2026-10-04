@@ -56,6 +56,11 @@ on the BBS itself.
   subscriptions: no Areafix request needed. Unticking one ends it.
   Areafix still works as well.
 
+With the email gateway on, mail that came in by email reaches the reader
+from its address (when it fits the 35 characters of a netmail's From);
+a netmail from the reader to this system addressed to an email address
+goes out by email, as the answer to that address's last mail.
+
 A resent packet (the reader didn't see our acknowledgement) isn't
 posted twice: the reader's MSGID is kept to recognise it. The user must
 exist; if it's renamed or deleted, the reader's sessions fail until

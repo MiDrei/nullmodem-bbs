@@ -54,5 +54,5 @@ Hinter Caddy und Dockers Port-Mapping zählt die weitergereichte Adresse
 Alle 5 Minuten prüft der Web-Dienst: läuft BBS/Mailer/Door-Hintergrundprogramm,
 gab es mit jedem Uplink in den letzten 48 h eine erfolgreiche Sitzung, ist das
 Backup jünger als 26 h, ist genug Platz frei, hängt Netmail seit über zwei
-Tagen. Neue Probleme und deren Behebung kommen als Push aufs Handy (Reader-App
+Tagen, holt und sendet das E-Mail-Gateway (wenn an). Neue Probleme und deren Behebung kommen als Push aufs Handy (Reader-App
 mit Benachrichtigungen) und stehen auf dem Dashboard.

@@ -56,6 +56,10 @@ Part of the NullModem family:
   (language editor), screens per language (`main.de.ans`) or with catalog
   texts (`{T:key}`), menu items with translations; English steps in wherever
   something is missing
+- Email gateway: every caller can write email from netmail and gets mail at
+  handle@your-domain — Telnet, portal, reader app, QWK and a point's reader;
+  answering a mail answers by email. The BBS fetches a (catch-all) mailbox
+  over IMAP and sends over SMTP; a level and a daily limit per caller
 - Profile: real name, time zone, language, password, QWK settings
 - Whoever registers first becomes sysop
 

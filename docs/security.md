@@ -54,6 +54,7 @@ range. Behind Caddy and Docker's port mapping the forwarded address counts
 Every 5 minutes the web service checks: are BBS, mailer and door background
 programs running, was there a successful session with every uplink in the
 last 48 h, is the backup younger than 26 h, is there enough free space, has
-netmail been stuck for more than two days. New problems and their fixes come
+netmail been stuck for more than two days, does the email gateway (when
+on) fetch and send. New problems and their fixes come
 as push notifications to your phone (reader app with notifications) and show
 on the dashboard.

@@ -35,7 +35,7 @@ func (s *Server) commitQWKRead(userID int64, unreadNetmailIDs []int64, markRead 
 // routeQWKReplies is a thin wrapper around qwkdoor.RouteReplies binding it
 // to this Server's own stores/identity.
 func (s *Server) routeQWKReplies(u *user.User, replies []qwk.PackedMessage) (qwkdoor.RouteResult, error) {
-	return qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
+	return qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies, s.emailConfig())
 }
 
 // downloadQWK is the "builtin:qwk" command: it builds the caller's

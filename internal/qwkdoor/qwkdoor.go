@@ -10,6 +10,8 @@ package qwkdoor
 
 import (
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/emailgw"
 	"path/filepath"
 	"strings"
 	"time"
@@ -92,6 +94,9 @@ func BuildPacketForUser(messages *message.Store, nm *netmail.Store, u *user.User
 		from := m.FromName
 		if !m.FromUserID.Valid && m.FromAddress != "" {
 			from = m.FromName + "@" + m.FromAddress
+		}
+		if m.IsEmail() && !m.FromUserID.Valid {
+			from = m.Email // a mail: answered by email
 		}
 		packed = append(packed, qwk.PackedMessage{
 			Header: qwk.MessageHeader{
@@ -251,7 +256,12 @@ type Rejected struct {
 // Subject (the header fields hold 25 bytes); they are used instead of
 // the header and stripped from the text, so they never end up in the
 // posted message.
-func RouteReplies(messages *message.Store, nm *netmail.Store, users *user.Store, ftnAddress string, u *user.User, replies []qwk.PackedMessage) (RouteResult, error) {
+//
+// A netmail reply to an email address -- or to a mail that came in
+// through the email gateway (its RefNumber) -- goes out by email when
+// the caller may (see internal/emailgw), email being that gateway's
+// settings.
+func RouteReplies(messages *message.Store, nm *netmail.Store, users *user.Store, ftnAddress string, u *user.User, replies []qwk.PackedMessage, email config.EmailConfig) (RouteResult, error) {
 	var res RouteResult
 	for i, reply := range replies {
 		conference := reply.Header.Number // REP repurposes this field -- see qwk.MessageHeader's doc comment
@@ -263,6 +273,17 @@ func RouteReplies(messages *message.Store, nm *netmail.Store, users *user.Store,
 		}
 
 		if conference == 0 {
+			if addr, replyTo := emailRecipient(nm, users, u, to, reply.Header.RefNumber); addr != "" {
+				if err := emailgw.CheckSend(email, nm, u, time.Now()); err != nil {
+					reject(fmt.Sprintf("can't send email to %s: %v", addr, strings.TrimPrefix(err.Error(), "emailgw: ")))
+					continue
+				}
+				if _, err := nm.SendEmail(u.ID, ftnAddress, addr, subject, text, replyTo); err != nil {
+					return res, fmt.Errorf("qwk: sending email reply: %w", err)
+				}
+				res.Sent++
+				continue
+			}
 			toUserID, toName, toAddress, ok := netmailRecipient(users, to)
 			if !ok {
 				reject(fmt.Sprintf("unknown recipient %q -- use a username on this BBS or Name@zone:net/node", to))
@@ -327,6 +348,23 @@ func netmailRecipient(users *user.Store, to string) (toUserID int64, toName, toA
 		return 0, to, to, true
 	}
 	return 0, "", "", false
+}
+
+// emailRecipient is the address a netmail reply goes to by email, ""
+// if it isn't one: the sender of the mail it answers (ref, a netmail
+// number in the packet) when that came in through the email gateway,
+// else to itself when it's an email address and not a user here.
+func emailRecipient(nm *netmail.Store, users *user.Store, u *user.User, to string, ref int) (string, int64) {
+	if ref > 0 {
+		if m, err := nm.MessageByID(int64(ref)); err == nil && m.IsEmail() && !m.FromUserID.Valid &&
+			m.ToUserID.Valid && m.ToUserID.Int64 == u.ID {
+			return m.Email, m.ID
+		}
+	}
+	if _, err := users.ByUsername(to); err == nil || !netmail.IsEmailAddress(to) {
+		return "", 0
+	}
+	return to, 0
 }
 
 func firstNonEmpty(values ...string) string {

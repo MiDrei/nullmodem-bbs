@@ -111,6 +111,8 @@ type Config struct {
 	Discord DiscordConfig `yaml:"discord,omitempty"`
 	// Matrix bridges chat rooms to Matrix rooms (internal/matrix).
 	Matrix MatrixConfig `yaml:"matrix,omitempty"`
+	// Email is the netmail <-> email gateway (internal/emailgw).
+	Email EmailConfig `yaml:"email,omitempty"`
 	// Security is the login protection and new-user approval (see
 	// internal/guard).
 	Security SecurityConfig `yaml:"security"`
@@ -711,3 +713,43 @@ type DoorBulletin struct {
 	File   string `yaml:"file" json:"file"`
 	Public bool   `yaml:"public,omitempty" json:"public"`
 }
+
+// EmailConfig is the netmail <-> email gateway: callers write to and
+// get mail from handle@Domain, through a (catch-all) mailbox fetched
+// over IMAP and an SMTP server to send.
+type EmailConfig struct {
+	Enabled bool `yaml:"enabled"`
+	// Domain is the callers' mail domain: SwissMaik is
+	// swissmaik@Domain.
+	Domain string `yaml:"domain,omitempty"`
+	// IMAP is the mailbox the domain's mail arrives in (a catch-all).
+	IMAP MailServer `yaml:"imap,omitempty"`
+	// SMTP sends the callers' mail.
+	SMTP MailServer `yaml:"smtp,omitempty"`
+	// MinSL is the security level from which (approved) callers may use
+	// the gateway; mail to anyone else is dropped.
+	MinSL int `yaml:"min_sl,omitempty"`
+	// DailyLimit is how many mails a caller may send per day; nil: 20.
+	DailyLimit *int `yaml:"daily_limit,omitempty"`
+	// DeleteFetched deletes a mail from the mailbox once it's in the
+	// BBS; otherwise it's only marked read.
+	DeleteFetched bool `yaml:"delete_fetched,omitempty"`
+	// DeliverSpam passes on mail the provider marked as spam.
+	DeliverSpam bool `yaml:"deliver_spam,omitempty"`
+}
+
+// MailServer is an IMAP or SMTP server and the login there.
+type MailServer struct {
+	Host string `yaml:"host,omitempty"`
+	Port int    `yaml:"port,omitempty"`
+	// Security is "tls" (from the start, ports 993/465), "starttls"
+	// (ports 143/587) or "none" (a local relay only).
+	Security string `yaml:"security,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Password string `yaml:"password,omitempty"`
+	// Folder is the IMAP folder to fetch; "" is INBOX.
+	Folder string `yaml:"folder,omitempty"`
+}
+
+// Limit is the daily limit per caller.
+func (e EmailConfig) Limit() int { return intOr(e.DailyLimit, 20) }

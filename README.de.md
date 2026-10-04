@@ -48,6 +48,11 @@ Teil der NullModem-Familie:
   Reader-App, Startseite und Admin; gewählt bei der Registrierung und im Profil; jeder Text im Web-Admin änderbar (Spracheditor),
   Screens pro Sprache (`main.de.ans`) oder mit Katalogtexten (`{T:schlüssel}`),
   Menüpunkte mit Übersetzungen; Englisch springt ein, wo etwas fehlt
+- E-Mail-Gateway: jeder Anrufer schreibt E-Mail aus der Netmail und bekommt
+  Mail unter handle@deine-domain — Telnet, Portal, Reader-App, QWK und der
+  Reader eines Points; wer auf eine Mail antwortet, antwortet per Mail. Die
+  BBS holt ein (Catch-all-)Postfach per IMAP ab und verschickt per SMTP; ein
+  Mindest-Level und ein Tageslimit pro Anrufer
 - Profil: Realname, Zeitzone, Sprache, Passwort, QWK-Einstellungen
 - Wer sich als Erster registriert, wird Sysop
 

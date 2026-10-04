@@ -83,6 +83,9 @@ type Server struct {
 	// config): what callers read before logging in, and after when
 	// they never chose one. nil: English.
 	Language func() string
+	// Email, if set, is the email gateway's settings (re-read from the
+	// config); nil: no gateway.
+	Email func() config.EmailConfig
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -113,6 +116,7 @@ type Options struct {
 	Community        *community.Store
 	Stats            *stats.Store
 	Language         func() string
+	Email            func() config.EmailConfig
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -142,6 +146,7 @@ func NewServer(opts Options) *Server {
 		Community:        opts.Community,
 		Stats:            opts.Stats,
 		Language:         opts.Language,
+		Email:            opts.Email,
 	}
 }
 

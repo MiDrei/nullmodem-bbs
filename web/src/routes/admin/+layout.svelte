@@ -79,6 +79,7 @@
 			icon: 'chat',
 			links: [
 				{ href: '/admin/chat', label: t('admin.nav.chat_one_liners'), icon: 'chat' },
+				{ href: '/admin/email', label: t('admin.nav.email_gateway'), icon: 'email' },
 				{ href: '/admin/polls', label: t('admin.nav.polls_bbs_list'), icon: 'poll' }
 			]
 		},

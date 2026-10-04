@@ -3,6 +3,7 @@ package bbs
 import (
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/emailgw"
 	"strconv"
 	"strings"
 	"time"
@@ -93,6 +94,11 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			profileField(term, "profile.language", toCP437(i18n.NameOf(term.Lang))),
 			profileField(term, "profile.qwk_seenby", onOffText(term, u.QWKRouting)),
 			profileField(term, "profile.editor", editorText(term, u)),
+		}
+		if s.mayEmail(u) {
+			lines = append(lines, profileField(term, "profile.email", emailgw.Address(s.emailConfig(), u.Username)))
+		}
+		lines = append(lines,
 			"",
 			profileOption("R", term.T("profile.opt_real_name")),
 			profileOption("T", term.T("profile.opt_timezone")),
@@ -103,7 +109,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			profileOption("S", term.T("profile.opt_seenby")),
 			profileOption("E", term.T("profile.opt_editor")),
 			profileOption("Q", term.T("common.back")),
-		}
+		)
 		for _, line := range lines {
 			if err := term.Println(line); err != nil {
 				return err

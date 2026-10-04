@@ -258,7 +258,7 @@ func (s *Server) handleUploadBBSQWKReply(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	res, err := qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies)
+	res, err := qwkdoor.RouteReplies(s.Messages, s.Netmail, s.Users, s.FTNAddress, u, replies, s.emailConfig())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not process replies")
 		return

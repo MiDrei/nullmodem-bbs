@@ -79,3 +79,27 @@ binkp:
     # node entry for every address it sees in M_ADR). Empty means
     # unrestricted: every configured address applies to every uplink.
     poll_interval_seconds: 900
+
+# The netmail <-> email gateway (Admin -> Community -> Email gateway,
+# which writes this section): callers get and send mail as
+# handle@domain. Mail to the domain arrives in one mailbox (a
+# catch-all) the web service fetches over IMAP every minute; it sends
+# through an SMTP server that lets the login send as any address of the
+# domain. security: tls (993/465), starttls (143/587) or none.
+# email:
+#     enabled: true
+#     domain: "bbs.example.com"
+#     imap:
+#         host: "imap.example.com"
+#         user: "catchall@bbs.example.com"
+#         password: "..."
+#     smtp:
+#         host: "smtp.example.com"
+#         port: 587
+#         security: starttls
+#         user: "catchall@bbs.example.com"
+#         password: "..."
+#     min_sl: 20          # approved callers from this level
+#     daily_limit: 20     # mails per caller and day
+#     delete_fetched: false
+#     deliver_spam: false

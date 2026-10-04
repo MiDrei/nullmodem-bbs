@@ -167,7 +167,7 @@ erscheinen unter System → Services.
 |---|---|
 | R / T | neue Nachrichten lesen / Nachrichten an mich |
 | M / F | Message-Areas (dort S = Nachrichten suchen) / File-Areas (N = neue Dateien, S = Suche) |
-| N / I | Netmail / Nodeliste |
+| N / I | Netmail (und E-Mail, wenn das Gateway an ist) / Nodeliste |
 | C / P | Chat (Teleconference; dort `/rooms`, `/join name`) / Sysop rufen |
 | L / V / B | One-Liner / Abstimmungen / BBS-Liste |
 | W / D | Wer ist online (mit Node-Nachricht) / Doors |
@@ -292,6 +292,30 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   lesen — das Admin warnt dann. Ein Raum kann gleichzeitig mit Discord und
   Matrix verbunden sein; was in Discord gesagt wird, kommt dann auch in Matrix
   an und umgekehrt.
+- **E-Mail-Gateway:** Community → Email gateway. Jeder Anrufer ab dem
+  eingestellten Level hat die Adresse handle@deine-domain (SwissMaik ist
+  `swissmaik@bbs.example.com`, ein Leerzeichen wird zum Punkt) und schreibt
+  E-Mail überall dort, wo er Netmail schreibt: eine E-Mail-Adresse als
+  Empfänger. Wer auf eine Mail antwortet, antwortet per Mail — über Telnet,
+  im Portal, in der Reader-App, in einem QWK-Reader und im Reader eines
+  Points (FidoMail). Einrichten:
+  1. Beim Mail-Anbieter ein Postfach für die Domain mit **Catch-all** (alle
+     Mail an irgendeine Adresse der Domain landet dort) und ein SMTP-Login,
+     das als jede Adresse der Domain senden darf — meist dasselbe Konto.
+  2. Domain, IMAP-Server (das Postfach) und SMTP-Server eintragen, **Test**,
+     einschalten, speichern.
+
+  Die BBS holt das Postfach jede Minute ab; ungelesene Mail wird zur Netmail
+  an den Anrufer, an den sie geht (`name+irgendwas@` geht auch), und danach
+  als gelesen markiert oder, wenn gewünscht, gelöscht. Mail an unbekannte
+  Adressen, an Anrufer unter dem Level oder noch nicht freigeschaltete und
+  Mail, die der Anbieter als Spam markiert hat, wird verworfen. Nur Text:
+  HTML-Mail wird zu Text, Anhänge werden genannt, aber nicht zugestellt. Ein
+  Tageslimit pro Anrufer verhindert, dass ein Konto zur Spamschleuder wird.
+  Lehnt der Server des Empfängers eine Mail ab, kommt sie als Netmail mit
+  dem Grund zum Schreiber zurück; kann das Gateway eine halbe Stunde lang
+  nicht abholen oder senden, steht es unter „Needs attention“. Die Anrufer
+  sehen ihre Adresse im Profil.
 - **Abstimmungen / BBS-Liste:** Community → Polls & BBS List. Die BBS prüft
   stündlich, ob die Boards der Liste antworten (TCP-Verbindung, nichts wird
   gesendet) und zeigt „up/down“ bzw. „online/offline“; Adressen im eigenen
