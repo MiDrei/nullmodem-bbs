@@ -6,7 +6,6 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/config"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/doors"
 	"git.maik.ch/nullmodem/bbs/internal/file"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/menu"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/netmail"
@@ -79,6 +79,10 @@ type Server struct {
 	Community *community.Store
 	// Stats records calls and door sessions; nil records nothing.
 	Stats *stats.Store
+	// Language, if set, is the board's language (re-read from the
+	// config): what callers read before logging in, and after when
+	// they never chose one. nil: English.
+	Language func() string
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -108,6 +112,7 @@ type Options struct {
 	Nodelist         *nodelist.Store
 	Community        *community.Store
 	Stats            *stats.Store
+	Language         func() string
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -136,6 +141,7 @@ func NewServer(opts Options) *Server {
 		Nodelist:         opts.Nodelist,
 		Community:        opts.Community,
 		Stats:            opts.Stats,
+		Language:         opts.Language,
 	}
 }
 
@@ -164,7 +170,7 @@ func (s *Server) Handle(conn Conn) {
 	if s.Guard != nil {
 		if v, err := s.Guard.Check(ip); err == nil && v.Blocked {
 			s.logWarn("[%s] refused %s: locked out", conn.Protocol(), ip)
-			conn.Write([]byte("\r\n" + v.Message() + "\r\n"))
+			conn.Write([]byte("\r\n" + toCP437(v.MessageIn(s.boardLang())) + "\r\n"))
 			time.Sleep(300 * time.Millisecond)
 			return
 		}
@@ -172,7 +178,7 @@ func (s *Server) Handle(conn Conn) {
 	if s.Security != nil {
 		if !s.conns.Open(ip, s.Security().MaxConnections()) {
 			s.logWarn("[%s] refused %s: too many connections from it", conn.Protocol(), ip)
-			conn.Write([]byte("\r\nToo many connections from your address.\r\n"))
+			conn.Write([]byte("\r\n" + toCP437(i18n.T(s.boardLang(), "guard.too_many")) + "\r\n"))
 			time.Sleep(300 * time.Millisecond)
 			return
 		}
@@ -199,6 +205,7 @@ func (s *Server) Handle(conn Conn) {
 	term.Node = node
 	term.RemoteIP = ip
 	term.Protocol = protocol
+	term.Lang = s.boardLang()
 	defer func() { recover() }()
 
 	if err := s.welcome(term, node); err != nil {
@@ -211,6 +218,7 @@ func (s *Server) Handle(conn Conn) {
 	}
 	s.Nodes.SetUsername(node, u.Username)
 	term.SetLocation(u.Location())
+	term.Lang = s.userLang(u)
 	s.logInfo("[%s] node %d: %s logged in", protocol, node, u.Username)
 	if err := s.Stats.RecordCall(u.ID, protocol); err != nil {
 		s.logWarn("%v", err)
@@ -232,7 +240,7 @@ func (s *Server) Handle(conn Conn) {
 
 	if err := s.runMenu(term, u, node, "main"); err != nil && !errors.Is(err, errLogoff) {
 		s.logWarn("[%s] node %d (%s): menu error: %v", protocol, node, u.Username, err)
-		term.Println("\n" + ansi.FG(ansi.Red, true) + "Menu error: " + err.Error())
+		term.Println("\n" + ansi.FG(ansi.Red, true) + term.T("menu.error", "ERROR", err.Error()))
 	}
 
 	// The telnet/SSH listener closes conn the instant Handle returns
@@ -249,7 +257,7 @@ func (s *Server) welcome(term *Terminal, node int) error {
 	// read at startup.
 	screen := s.WelcomeScreen
 	if s.ScreensDir != "" {
-		if raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, "welcome.ans")); err == nil {
+		if raw, err := s.loadScreen(term.Lang, "welcome.ans"); err == nil {
 			screen = raw
 		}
 	}
@@ -273,7 +281,7 @@ func (s *Server) baseVars(node int) ansi.Vars {
 
 // userVars extends baseVars with placeholders describing the
 // authenticated caller, for use once login has completed.
-func (s *Server) userVars(u *user.User, node int) ansi.Vars {
+func (s *Server) userVars(term *Terminal, u *user.User, node int) ansi.Vars {
 	vars := s.baseVars(node)
 	now := time.Now().In(u.Location())
 	vars["DATE"] = now.Format("2006-01-02")
@@ -282,7 +290,7 @@ func (s *Server) userVars(u *user.User, node int) ansi.Vars {
 	vars["SL"] = strconv.Itoa(u.SecurityLevel)
 	vars["TOTALCALLS"] = strconv.Itoa(u.TotalCalls)
 	// The sysop menu's entry, shown to those who may use it only.
-	vars["SYSOP_ITEM"] = menu.SysopItem(u.SecurityLevel)
+	vars["SYSOP_ITEM"] = menu.SysopItem(u.SecurityLevel, term.T("menu.sysop_item"))
 	return vars
 }
 
@@ -290,7 +298,7 @@ func (s *Server) userVars(u *user.User, node int) ansi.Vars {
 // account or walks a first-time caller through registration.
 func (s *Server) login(term *Terminal) (*user.User, error) {
 	for {
-		if err := term.Print(ansi.Reset + "\nEnter your handle: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + "\n" + term.T("login.handle") + ansi.FG(ansi.Yellow, true)); err != nil {
 			return nil, err
 		}
 		handle, err := term.ReadLine(false)
@@ -320,7 +328,7 @@ func (s *Server) login(term *Terminal) (*user.User, error) {
 		}
 
 		if user.IsRestrictedUsername(handle) || s.blockedHandle(handle) {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That handle is reserved."); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("login.handle_reserved")); err != nil {
 				return nil, err
 			}
 			continue
@@ -342,7 +350,7 @@ func (s *Server) login(term *Terminal) (*user.User, error) {
 // the caller treats as a hard disconnect.
 func (s *Server) authenticateExisting(term *Terminal, handle string) (*user.User, error) {
 	for attempt := 1; attempt <= maxLoginAttempts; attempt++ {
-		if err := term.Print(ansi.Reset + "Password: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + term.T("login.password") + ansi.FG(ansi.Yellow, true)); err != nil {
 			return nil, err
 		}
 		password, err := term.ReadLine(true)
@@ -360,12 +368,12 @@ func (s *Server) authenticateExisting(term *Terminal, handle string) (*user.User
 		if !errors.Is(err, user.ErrInvalidCredentials) {
 			return nil, err
 		}
-		if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid password."); err != nil {
+		if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("login.wrong_password")); err != nil {
 			return nil, err
 		}
 		if s.Guard != nil {
 			if v, err := s.Guard.Fail(term.RemoteIP, handle, term.Protocol); err == nil && v.Blocked {
-				term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + v.Message() + ansi.Reset)
+				term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + toCP437(v.MessageIn(term.Lang)) + ansi.Reset)
 				return nil, nil
 			}
 		}
@@ -377,22 +385,27 @@ func (s *Server) authenticateExisting(term *Terminal, handle string) (*user.User
 // not exist yet. It returns ok=false if the caller declines, so login
 // can loop back to the handle prompt.
 func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, error) {
-	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Green, true) + handle + " is a new handle."); err != nil {
+	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Green, true) + term.T("register.new_handle", "HANDLE", handle)); err != nil {
 		return nil, false, err
 	}
-	if err := term.Print("Create a new account? (Y/n) " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(term.T("register.create") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return nil, false, err
 	}
 	answer, err := term.ReadLine(false)
 	if err != nil {
 		return nil, false, err
 	}
-	if a := strings.ToUpper(strings.TrimSpace(answer)); a != "" && a != "Y" {
+	if a := strings.ToUpper(strings.TrimSpace(answer)); a != "" && !isYes(term, a) {
 		return nil, false, nil
 	}
+	lang, err := s.chooseLanguage(term)
+	if err != nil {
+		return nil, false, err
+	}
+	term.Lang = lang
 
 	for {
-		if err := term.Print(ansi.Reset + fmt.Sprintf("Choose a password (min %d chars): ", user.MinPasswordLength) + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + term.T("register.password", "MIN", user.MinPasswordLength) + ansi.FG(ansi.Yellow, true)); err != nil {
 			return nil, false, err
 		}
 		pw1, err := term.ReadLine(true)
@@ -400,13 +413,13 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 			return nil, false, err
 		}
 		if len(pw1) < user.MinPasswordLength {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Password too short."); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("register.password_short")); err != nil {
 				return nil, false, err
 			}
 			continue
 		}
 
-		if err := term.Print(ansi.Reset + "Confirm password: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + term.T("register.password_confirm") + ansi.FG(ansi.Yellow, true)); err != nil {
 			return nil, false, err
 		}
 		pw2, err := term.ReadLine(true)
@@ -414,7 +427,7 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 			return nil, false, err
 		}
 		if pw1 != pw2 {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Passwords did not match."); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("register.password_mismatch")); err != nil {
 				return nil, false, err
 			}
 			continue
@@ -437,21 +450,25 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 			return nil, false, err
 		}
 		u.RealName = realName
+		if err := s.Users.SetLanguage(u.ID, lang); err != nil {
+			return nil, false, err
+		}
+		u.Language = lang
 		if u.Validated {
 			s.logInfo("new account registered: %s (SL %d)", u.Username, u.SecurityLevel)
 		} else {
 			s.logInfo("new account registered: %s (SL %d), waiting for approval", u.Username, u.SecurityLevel)
 		}
-		if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Account created. Welcome, " + handle + "!"); err != nil {
+		if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("register.created", "HANDLE", handle)); err != nil {
 			return nil, false, err
 		}
 		if !u.Validated {
-			if err := term.Println(ansi.FG(ansi.Yellow, true) + pendingNote + ansi.Reset); err != nil {
+			if err := term.Println(ansi.FG(ansi.Yellow, true) + term.T("approval.pending") + ansi.Reset); err != nil {
 				return nil, false, err
 			}
 		}
 		if u.SecurityLevel >= user.SLSysop {
-			if err := term.Println(ansi.FG(ansi.Yellow, true) + "You are the first user and have been granted sysop access (SL 255)."); err != nil {
+			if err := term.Println(ansi.FG(ansi.Yellow, true) + term.T("register.first_sysop")); err != nil {
 				return nil, false, err
 			}
 		}
@@ -466,7 +483,7 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 // loop just above it.
 func (s *Server) promptRealName(term *Terminal) (string, error) {
 	for {
-		if err := term.Print(ansi.Reset + "Real name: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + term.T("register.real_name") + ansi.FG(ansi.Yellow, true)); err != nil {
 			return "", err
 		}
 		realName, err := term.ReadLine(false)
@@ -475,7 +492,7 @@ func (s *Server) promptRealName(term *Terminal) (string, error) {
 		}
 		realName = strings.TrimSpace(realName)
 		if err := user.ValidateRealName(realName); err != nil {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + realNameErrorText(err)); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + realNameErrorText(term, err)); err != nil {
 				return "", err
 			}
 			continue
@@ -539,7 +556,7 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 		if err := s.showNodeMessages(term); err != nil {
 			return err
 		}
-		rendered := s.renderMenuDisplay(m, u, node)
+		rendered := s.renderMenuDisplay(term, m, u, node)
 		if err := term.Print(ansi.Layout(rendered, term.Width())); err != nil {
 			return err
 		}
@@ -555,7 +572,7 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 
 		item, ok := m.Find(choice, u.SecurityLevel)
 		if !ok {
-			if err := term.Println("\nUnknown command."); err != nil {
+			if err := term.Println("\n" + term.T("menu.unknown")); err != nil {
 				return err
 			}
 			continue
@@ -596,7 +613,7 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 			}
 			fn, ok := builtins[name]
 			if !ok {
-				if err := term.Println("\nUnimplemented command: " + name); err != nil {
+				if err := term.Println("\n" + term.T("menu.unimplemented", "NAME", name)); err != nil {
 					return err
 				}
 				continue
@@ -606,7 +623,7 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 			}
 
 		default:
-			if err := term.Println("\nUnrecognized menu action: " + item.Action); err != nil {
+			if err := term.Println("\n" + term.T("menu.bad_action", "ACTION", item.Action)); err != nil {
 				return err
 			}
 		}
@@ -619,17 +636,17 @@ func (s *Server) runMenu(term *Terminal, u *user.User, node int, name string) er
 // title+item-list text otherwise -- including when the screen file
 // is missing or unreadable, so a typo'd filename degrades gracefully
 // instead of locking callers out of the menu.
-func (s *Server) renderMenuDisplay(m *menu.Menu, u *user.User, node int) string {
-	vars := s.userVars(u, node)
+func (s *Server) renderMenuDisplay(term *Terminal, m *menu.Menu, u *user.User, node int) string {
+	vars := s.userVars(term, u, node)
 	if m.Screen != "" {
-		raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, m.Screen))
+		raw, err := s.loadScreen(term.Lang, m.Screen)
 		if err != nil {
 			s.logWarn("menu %q: could not load screen %q: %v", m.Name, m.Screen, err)
 		} else {
 			return ansi.Render(raw, vars)
 		}
 	}
-	return renderMenu(m, u.SecurityLevel, vars)
+	return renderMenu(m.In(term.Lang), u.SecurityLevel, vars)
 }
 
 // logoffScreenFile is the fixed, convention-based filename for the
@@ -642,11 +659,11 @@ const logoffScreenFile = "logoff.ans"
 // printLogoffScreen shows logoff.ans (with placeholders filled in) if
 // present, falling back to a plain goodbye line otherwise.
 func (s *Server) printLogoffScreen(term *Terminal, u *user.User, node int) error {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, logoffScreenFile))
+	raw, err := s.loadScreen(term.Lang, logoffScreenFile)
 	if err != nil {
-		return term.Println("\nGoodbye, " + u.Username + "!")
+		return term.Println("\n" + term.T("logoff.goodbye", "USERNAME", u.Username))
 	}
-	rendered := ansi.Render(raw, s.userVars(u, node))
+	rendered := ansi.Render(raw, s.userVars(term, u, node))
 	return term.Print(ansi.Layout(rendered, term.Width()))
 }
 
@@ -702,7 +719,7 @@ func finishHeaderLine(rendered string) string {
 // placeholder a sensible area-header design would want; NODE/DATE/
 // TIME/VERSION/TOTALCALLS aren't available in this context.
 func (s *Server) renderAreaHeader(term *Terminal, u *user.User, screenFile, fallbackTitle string) string {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, screenFile))
+	raw, err := s.loadScreen(term.Lang, screenFile)
 	if err != nil {
 		return finishHeaderLine(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + fallbackTitle + ansi.Reset)
 	}
@@ -727,7 +744,7 @@ func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
 // informational output like a stats or who's-online listing would be
 // wiped by that redraw before a caller could ever read it.
 func (s *Server) pauseForKey(term *Terminal) error {
-	if err := term.Print("\n" + ansi.FG(ansi.White, true) + "Press Enter to continue..." + ansi.Reset); err != nil {
+	if err := term.Print("\n" + ansi.FG(ansi.White, true) + term.T("common.press_enter") + ansi.Reset); err != nil {
 		return err
 	}
 	_, err := term.ReadLine(false)
@@ -748,11 +765,11 @@ func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
 	if err != nil {
 		return err
 	}
-	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Username             SL   Calls  Last login" + ansi.Reset); err != nil {
+	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + padCP(term.T("sysop.users_col_user"), 21) + padCP(term.T("sysop.users_col_sl"), 5) + padCP(term.T("sysop.users_col_calls"), 7) + term.T("sysop.users_col_last") + ansi.Reset); err != nil {
 		return err
 	}
 	for _, listed := range users {
-		lastLogin := "never"
+		lastLogin := term.T("common.never")
 		if listed.LastLoginAt.Valid {
 			lastLogin = term.Time(listed.LastLoginAt.Time).Format("2006-01-02 15:04 MST")
 		}
@@ -768,7 +785,7 @@ func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
 // a target username and a new SL (0-255) and applies it via
 // user.Store.SetSecurityLevel.
 func (s *Server) sysopSetSecurityLevel(term *Terminal, sysop *user.User) error {
-	if err := term.Print(ansi.Reset + "\nUsername to modify: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.setsl_user") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	target, err := term.ReadLine(false)
@@ -777,36 +794,36 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, sysop *user.User) error {
 	}
 	target = strings.TrimSpace(target)
 	if target == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
 	tu, err := s.Users.ByUsername(target)
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "No such user.")
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("common.no_such_user"))
 		}
 		return err
 	}
 
-	if err := term.Println(ansi.Reset + fmt.Sprintf("Current security level for %s: %d", tu.Username, tu.SecurityLevel)); err != nil {
+	if err := term.Println(ansi.Reset + term.T("sysop.setsl_current", "USERNAME", tu.Username, "SL", tu.SecurityLevel)); err != nil {
 		return err
 	}
-	level, err := s.promptSecurityLevel(term, "New security level (0-255): ")
+	level, err := s.promptSecurityLevel(term, term.T("sysop.setsl_new"))
 	if err != nil {
 		return err
 	}
 	if level < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
 	if err := s.Users.SetSecurityLevel(tu.ID, level); err != nil {
 		if errors.Is(err, user.ErrLastSysop) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Cannot demote the last sysop-level account.")
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_last_sysop"))
 		}
 		return err
 	}
 	s.logInfo("%s set %s's security level to %d", sysop.Username, tu.Username, level)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("%s is now SL %d.", tu.Username, level))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("sysop.setsl_done", "USERNAME", tu.Username, "SL", level))
 }
 
 func (s *Server) showWho(term *Terminal, u *user.User) error {
@@ -814,7 +831,7 @@ func (s *Server) showWho(term *Terminal, u *user.User) error {
 	if err != nil {
 		return err
 	}
-	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + "Node  Handle               Terminal    Connected" + ansi.Reset); err != nil {
+	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + padCP(term.T("who.col_node"), 6) + padCP(term.T("who.col_handle"), 21) + padCP(term.T("who.col_terminal"), 12) + term.T("who.col_connected") + ansi.Reset); err != nil {
 		return err
 	}
 	for _, n := range nodes {

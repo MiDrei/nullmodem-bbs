@@ -35,10 +35,10 @@ func TestSysopItemOnlyForSysops(t *testing.T) {
 	s := testServer(t)
 	sysop, _ := s.Users.Register("maik", "password123", user.SLNewUser)
 	caller, _ := s.Users.Register("bob", "password123", user.SLNewUser)
-	if v := s.userVars(sysop, 1)["SYSOP_ITEM"]; !strings.Contains(v, "Sysop Menu") {
+	if v := s.userVars(&Terminal{}, sysop, 1)["SYSOP_ITEM"]; !strings.Contains(v, "Sysop Menu") {
 		t.Fatalf("sysop: %q", v)
 	}
-	if v := s.userVars(caller, 1)["SYSOP_ITEM"]; v != "" {
+	if v := s.userVars(&Terminal{}, caller, 1)["SYSOP_ITEM"]; v != "" {
 		t.Fatalf("caller sees %q", v)
 	}
 }

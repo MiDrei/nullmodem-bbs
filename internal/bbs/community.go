@@ -10,6 +10,7 @@ import (
 	"git.maik.ch/nullmodem/kit/ansi"
 
 	"git.maik.ch/nullmodem/bbs/internal/chat"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
@@ -89,7 +90,7 @@ func (s *Server) sendNodeMessage(term *Terminal, u *user.User) error {
 	if len(others) == 0 {
 		return nil
 	}
-	if err := term.Print(ansi.Reset + "\r\nSend a message to node (Enter = back): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + term.T("who.send_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	in, err := term.ReadLine(false)
@@ -102,9 +103,9 @@ func (s *Server) sendNodeMessage(term *Terminal, u *user.User) error {
 		found = found || n == node
 	}
 	if convErr != nil || !found {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Nobody on that node.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("who.nobody"))
 	}
-	if err := term.Print(ansi.Reset + "Message: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("who.message") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	text, err := term.ReadLine(false)
@@ -114,8 +115,8 @@ func (s *Server) sendNodeMessage(term *Terminal, u *user.User) error {
 	if text = strings.TrimSpace(fromCP437(text)); text == "" {
 		return nil
 	}
-	s.nodeMsgs.send(node, fmt.Sprintf("Message from %s (node %d): %s", u.Username, term.Node, text))
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Sent -- node %d sees it at their next prompt.", node))
+	s.nodeMsgs.send(node, i18n.T(s.boardLang(), "who.message_from", "USERNAME", u.Username, "NODE", term.Node, "TEXT", text))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("who.sent", "NODE", node))
 }
 
 // ---- One-liners ----
@@ -133,10 +134,10 @@ func (s *Server) showOneliners(term *Terminal, u *user.User) error {
 		return nil
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  One-liners" + ansi.Reset + "\r\n")
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("oneliners.title") + ansi.Reset + "\r\n")
 	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
 	if len(list) == 0 {
-		b.WriteString(ansi.FG(ansi.White, false) + "  Nobody has written one yet -- be the first." + ansi.Reset + "\r\n")
+		b.WriteString(ansi.FG(ansi.White, false) + "  " + term.T("oneliners.empty") + ansi.Reset + "\r\n")
 	}
 	for _, o := range list {
 		name := o.Username
@@ -151,17 +152,17 @@ func (s *Server) showOneliners(term *Terminal, u *user.User) error {
 	if !u.Validated {
 		return s.pauseForKey(term)
 	}
-	if err := term.Print("\r\n  Add a one-liner? (y/N) " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print("\r\n  " + term.T("oneliners.add") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	answer, err := term.ReadLine(false)
 	if err != nil {
 		return err
 	}
-	if a := strings.ToLower(strings.TrimSpace(answer)); a != "y" && a != "yes" {
+	if a := strings.ToUpper(strings.TrimSpace(answer)); !isYes(term, a) && a != "YES" {
 		return term.Print(ansi.Reset)
 	}
-	if err := term.Print(ansi.Reset + fmt.Sprintf("  Your line (%d characters at most):\r\n  ", chat.MaxOneliner) + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + term.T("oneliners.your_line", "MAX", chat.MaxOneliner) + "\r\n  " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	text, err := term.ReadLine(false)
@@ -175,7 +176,7 @@ func (s *Server) showOneliners(term *Terminal, u *user.User) error {
 		return err
 	}
 	s.logInfo("%s wrote a one-liner", u.Username)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "  On the wall." + ansi.Reset)
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "  " + term.T("oneliners.done") + ansi.Reset)
 }
 
 // ---- Teleconference and paging ----
@@ -193,16 +194,16 @@ func (s *Server) teleconference(term *Terminal, u *user.User) error {
 				continue
 			}
 			who := strings.TrimPrefix(r.Name, chat.PagePrefix)
-			if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Magenta, true) + who + " is paging you." +
-				ansi.Reset + " Join them? (Y/n) " + ansi.FG(ansi.Yellow, true)); err != nil {
+			if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Magenta, true) + term.T("chat.paging_you", "USERNAME", who) +
+				ansi.Reset + " " + term.T("chat.join_them") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 				return err
 			}
 			a, err := term.ReadLine(false)
 			if err != nil {
 				return err
 			}
-			if a = strings.ToLower(strings.TrimSpace(a)); a == "" || a == "y" || a == "yes" {
-				_, err := s.chatRoom(term, u, r.Name, "Chat with "+who, "", false)
+			if a = strings.ToUpper(strings.TrimSpace(a)); a == "" || isYes(term, a) || a == "YES" {
+				_, err := s.chatRoom(term, u, r.Name, term.T("chat.with", "USERNAME", who), "", false)
 				return err
 			}
 		}
@@ -210,7 +211,7 @@ func (s *Server) teleconference(term *Terminal, u *user.User) error {
 	// The rooms: /join switches, /q leaves.
 	room := chat.Main
 	for {
-		title, intro := "Teleconference", ""
+		title, intro := term.T("chat.title"), ""
 		if info, err := s.Chat.RoomByName(room); err == nil {
 			title = info.Title
 			var bridges []string
@@ -247,12 +248,12 @@ func (s *Server) pageSysop(term *Terminal, u *user.User) error {
 	if last, err := s.Chat.Lines(room, 0, 50); err == nil {
 		for i := len(last) - 1; i >= 0; i-- {
 			if last[i].Kind == chat.Page && time.Since(last[i].At) < pageWait {
-				_, err := s.chatRoom(term, u, room, "Waiting for the sysop", "You paged a moment ago -- the sysop has been told. Wait here, or /q to leave.", false)
+				_, err := s.chatRoom(term, u, room, term.T("chat.waiting"), term.U("chat.paged_recently"), false)
 				return err
 			}
 		}
 	}
-	if err := term.Print(ansi.Reset + "\r\nPage the sysop -- what's it about? (Enter = cancel)\r\n" + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + term.T("chat.page_prompt") + "\r\n" + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	reason, err := term.ReadLine(false)
@@ -270,9 +271,8 @@ func (s *Server) pageSysop(term *Terminal, u *user.User) error {
 	s.notifyNodes(term.Node, func(name string) bool {
 		su, err := s.Users.ByUsername(name)
 		return err == nil && su.SecurityLevel >= user.SLSysop
-	}, fmt.Sprintf("%s (node %d) is paging you: %s -- [C] Chat to answer.", u.Username, term.Node, reason))
-	_, err = s.chatRoom(term, u, room, "Waiting for the sysop",
-		"The sysop has been told. Wait here for an answer, or /q to leave.", false)
+	}, i18n.T(s.boardLang(), "chat.page_note", "USERNAME", u.Username, "NODE", term.Node, "REASON", reason))
+	_, err = s.chatRoom(term, u, room, term.T("chat.waiting"), term.U("chat.paged"), false)
 	return err
 }
 
@@ -315,11 +315,11 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		at := term.Time(l.At).Format("15:04")
 		switch l.Kind {
 		case chat.Join:
-			addRow(ansi.FG(ansi.Green, false), fmt.Sprintf("%s  %s joined (%s)", at, l.Username, l.Source))
+			addRow(ansi.FG(ansi.Green, false), at+"  "+term.U("chat.joined", "USERNAME", l.Username, "SOURCE", l.Source))
 		case chat.Leave:
-			addRow(ansi.FG(ansi.Green, false), fmt.Sprintf("%s  %s left", at, l.Username))
+			addRow(ansi.FG(ansi.Green, false), at+"  "+term.U("chat.left", "USERNAME", l.Username))
 		case chat.Page:
-			addRow(ansi.FG(ansi.Magenta, true), fmt.Sprintf("%s  %s paged the sysop: %s", at, l.Username, l.Text))
+			addRow(ansi.FG(ansi.Magenta, true), at+"  "+term.U("chat.paged_line", "USERNAME", l.Username, "TEXT", l.Text))
 		default:
 			addRow(ansi.FG(ansi.White, false), fmt.Sprintf("%s  %s: %s", at, chat.Speaker(l), l.Text))
 		}
@@ -358,9 +358,9 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		}
 		return fmt.Sprintf("\x1b[%d;1H%s%s> %s%s\x1b[K", areaTop+areaRows+1, ansi.Reset, ansi.FG(ansi.Yellow, true), ansi.Reset, visible)
 	}
-	hint := "Enter send  /q leave  /who who's here  ^L redraw"
+	hint := term.T("chat.hint")
 	if rooms {
-		hint = "Enter send  /q leave  /who  /rooms  /join <room>  ^L redraw"
+		hint = term.T("chat.hint_rooms")
 	}
 	full := func() error {
 		rule := ansi.FG(ansi.Blue, false) + strings.Repeat("\xc4", width) + ansi.Reset
@@ -383,7 +383,7 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 			}
 			names = append(names, n)
 		}
-		present = "here: " + strings.Join(names, ", ")
+		present = term.U("chat.here", "NAMES", strings.Join(names, ", "))
 	}
 	refreshPresent()
 	if err := full(); err != nil {
@@ -440,14 +440,14 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 					redraw = true
 				case "/rooms", "/list":
 					if rooms {
-						s.listChatRooms(u, room, func(line string) { addRow(ansi.FG(ansi.Cyan, false), line) })
+						s.listChatRooms(term, u, room, func(line string) { addRow(ansi.FG(ansi.Cyan, false), line) })
 						redraw = true
 						break
 					}
 					fallthrough
 				default:
 					if name, ok := strings.CutPrefix(strings.ToLower(text), "/join "); ok && rooms {
-						target, msg := s.chatJoinTarget(u, room, strings.TrimSpace(name))
+						target, msg := s.chatJoinTarget(term, u, room, strings.TrimSpace(name))
 						if target != "" {
 							joinRoom, leave = target, true
 						} else {
@@ -502,12 +502,12 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 }
 
 // listChatRooms adds a line per room u may enter, with who's there.
-func (s *Server) listChatRooms(u *user.User, current string, add func(string)) {
+func (s *Server) listChatRooms(term *Terminal, u *user.User, current string, add func(string)) {
 	list, err := s.Chat.RoomsFor(u.SecurityLevel)
 	if err != nil {
 		return
 	}
-	add("Rooms (/join <name>):")
+	add(term.U("chat.rooms"))
 	for _, r := range list {
 		mark := "  "
 		if r.Name == current {
@@ -515,7 +515,7 @@ func (s *Server) listChatRooms(u *user.User, current string, add func(string)) {
 		}
 		line := fmt.Sprintf("%s%-12s %s", mark, r.Name, r.Title)
 		if ps, err := s.Chat.Present(r.Name); err == nil && len(ps) > 0 {
-			line += fmt.Sprintf("  (%d here)", len(ps))
+			line += "  " + term.U("chat.n_here", "COUNT", len(ps))
 		}
 		if r.DiscordChannel != "" {
 			line += "  + Discord"
@@ -528,15 +528,15 @@ func (s *Server) listChatRooms(u *user.User, current string, add func(string)) {
 }
 
 // chatJoinTarget checks a /join: the room to go to, or why not.
-func (s *Server) chatJoinTarget(u *user.User, current, name string) (string, string) {
+func (s *Server) chatJoinTarget(term *Terminal, u *user.User, current, name string) (string, string) {
 	r, err := s.Chat.RoomByName(name)
 	switch {
 	case name == "":
-		return "", "Join which room? /rooms lists them."
+		return "", term.U("chat.join_which")
 	case err != nil || u.SecurityLevel < r.MinSL:
-		return "", fmt.Sprintf("There's no room %q -- /rooms lists them.", name)
+		return "", term.U("chat.no_room", "ROOM", name)
 	case r.Name == current:
-		return "", "You're in it."
+		return "", term.U("chat.in_it")
 	}
 	return r.Name, ""
 }

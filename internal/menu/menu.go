@@ -20,13 +20,18 @@ type Item struct {
 	Label  string `yaml:"label"`
 	Action string `yaml:"action"`
 	MinSL  int    `yaml:"min_sl"`
+	// Labels are the label in other languages (internal/i18n codes),
+	// where the sysop wrote them -- see Menu.In.
+	Labels map[string]string `yaml:"labels,omitempty"`
 }
 
 // Menu is one named screen of selectable items.
 type Menu struct {
 	Name  string `yaml:"name"`
 	Title string `yaml:"title"`
-	Items []Item `yaml:"items"`
+	// Titles are the title in other languages, like Item.Labels.
+	Titles map[string]string `yaml:"titles,omitempty"`
+	Items  []Item            `yaml:"items"`
 	// Screen, if set, names a fully hand-designed .ans file (in the
 	// BBS's configured screens directory) to display verbatim instead
 	// of the generated Title+item-list text -- the menu's item keys

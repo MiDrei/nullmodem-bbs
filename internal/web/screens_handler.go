@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/version"
 	"git.maik.ch/nullmodem/kit/ansi"
@@ -29,10 +30,14 @@ const (
 // screenNamePattern restricts screen file names the same way
 // areaTagPattern restricts area tags: predictable characters only,
 // since the name becomes an on-disk file name directly.
-var screenNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+\.ans$`)
+// A name may carry a language (main.de-du.ans, see i18n.ScreenNames).
+var screenNamePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+(\.[a-z]{2}(-[a-z]+)?)?\.ans$`)
 
 type screenSummaryDTO struct {
 	Name string `json:"name"`
+	// Lang is the language the screen is for ("de", from its name), ""
+	// for every language without one of its own.
+	Lang string `json:"lang"`
 }
 
 // handleListScreens lists the .ans screen files available for preview
@@ -53,7 +58,7 @@ func (s *Server) handleListScreens(w http.ResponseWriter, r *http.Request) {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".ans" {
 			continue
 		}
-		screens = append(screens, screenSummaryDTO{Name: e.Name()})
+		screens = append(screens, screenSummaryDTO{Name: e.Name(), Lang: i18n.ScreenLang(e.Name())})
 	}
 	writeJSON(w, http.StatusOK, screens)
 }
@@ -100,7 +105,12 @@ func (s *Server) handlePreviewScreen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rendered := ansi.Render(raw, previewVars(c.BBS.Name, c.BBS.Sysop))
+	// Its {T:key}s in its own language, or the one asked for.
+	lang := r.URL.Query().Get("lang")
+	if !i18n.Valid(lang) {
+		lang = i18n.ScreenLang(name)
+	}
+	rendered := ansi.Render(i18n.FillScreen(lang, raw), previewVars(c.BBS.Name, c.BBS.Sysop))
 	rendered = ansi.Layout(rendered, previewWidth)
 	writeJSON(w, http.StatusOK, screenPreviewDTO{Name: name, HTML: ansi.ToHTML(rendered)})
 }

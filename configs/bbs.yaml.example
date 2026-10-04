@@ -7,6 +7,9 @@ bbs:
     name: NullModem BBS
     sysop: sysop
     new_user_sl: 10
+    # The board's language (en, de = Deutsch (Sie), de-du = Deutsch (Du)):
+    # what callers read before login, and after if they never chose one.
+    # language: de
     menus_dir: configs/menus
     screens_dir: configs/screens
     files_dir: data/files

@@ -232,6 +232,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/screens/{name}/grid", s.requireAuth(http.HandlerFunc(s.handleGetScreenGrid)))
 	mux.Handle("PUT /api/screens/{name}/grid", s.requireAuth(http.HandlerFunc(s.handleSaveScreenGrid)))
 
+	mux.Handle("GET /api/i18n", s.requireAuth(http.HandlerFunc(s.handleGetLanguages)))
+	mux.Handle("PUT /api/i18n/board", s.requireAuth(http.HandlerFunc(s.handleSetBoardLanguage)))
+	mux.Handle("GET /api/i18n/{lang}", s.requireAuth(http.HandlerFunc(s.handleGetTexts)))
+	mux.Handle("PUT /api/i18n/{lang}", s.requireAuth(http.HandlerFunc(s.handlePutTexts)))
 	mux.Handle("GET /api/menus", s.requireAuth(http.HandlerFunc(s.handleListMenus)))
 	mux.Handle("PUT /api/menus/{name}/items/{key}", s.requireAuth(http.HandlerFunc(s.handleSetMenuItemSL)))
 	mux.Handle("GET /api/menus/{name}", s.requireAuth(http.HandlerFunc(s.handleGetMenu)))

@@ -26,18 +26,18 @@ func (s *Server) newFiles(term *Terminal, u *user.User) error {
 		return err
 	}
 	if len(files) == 0 {
-		return s.scanNote(term, "No new files.")
+		return s.scanNote(term, term.T("files.no_new"))
 	}
-	title := "New files"
+	title := term.T("files.new_title")
 	if total > len(files) {
-		title = fmt.Sprintf("New files (the newest %d of %d)", len(files), total)
+		title = term.T("files.new_title_cut", "COUNT", len(files), "TOTAL", total)
 	}
 	return s.fileList(term, u, title, files, true)
 }
 
 // searchFiles asks for words and lists what matches.
 func (s *Server) searchFiles(term *Terminal, u *user.User) error {
-	if err := term.Print(ansi.Reset + "\r\nSearch files by name or description (Enter = back): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + term.T("files.search_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	q, err := term.ReadLine(false)
@@ -52,9 +52,9 @@ func (s *Server) searchFiles(term *Terminal, u *user.User) error {
 		return err
 	}
 	if len(files) == 0 {
-		return s.scanNote(term, "Nothing found.")
+		return s.scanNote(term, term.T("common.nothing_found"))
 	}
-	return s.fileList(term, u, fmt.Sprintf("Files matching %q", q), files, false)
+	return s.fileList(term, u, term.T("files.matching", "QUERY", q), files, false)
 }
 
 // fileList pages through files, two lines each; a number opens one,
@@ -77,7 +77,7 @@ func (s *Server) fileList(term *Terminal, u *user.User, title string, files []fi
 	for {
 		end := min(start+perPage, len(files))
 		var b strings.Builder
-		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + "  " + toCP437(title) + ansi.Reset + "\r\n\r\n")
+		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + "  " + title + ansi.Reset + "\r\n\r\n")
 		for i := start; i < end; i++ {
 			f := files[i]
 			name := []rune(f.Filename)
@@ -99,15 +99,15 @@ func (s *Server) fileList(term *Terminal, u *user.User, title string, files []fi
 			}
 			fmt.Fprintf(&b, "        %s%s%s\r\n", ansi.FG(ansi.White, false), desc, ansi.Reset)
 		}
-		keys := "number = open"
+		keys := term.T("list.key_open")
 		if end < len(files) {
-			keys += ", Enter = more"
+			keys += ", " + term.T("list.key_more")
 		}
 		if offerAllSeen {
-			keys += ", A = all seen"
+			keys += ", " + term.T("files.key_all_seen")
 		}
-		keys += ", Q = back"
-		fmt.Fprintf(&b, "\r\n  %s (%d-%d of %d): %s", keys, start+1, end, len(files), ansi.FG(ansi.Yellow, true))
+		keys += ", " + term.T("list.key_back")
+		fmt.Fprintf(&b, "\r\n  %s (%s): %s", keys, term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(files)), ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func (s *Server) fileList(term *Terminal, u *user.User, title string, files []fi
 			if err != nil {
 				return err
 			}
-			return s.scanNote(term, fmt.Sprintf("%d file(s) marked as seen.", n))
+			return s.scanNote(term, term.N("files.marked_seen", int(n)))
 		default:
 			if n, err := strconv.Atoi(in); err == nil && n >= 1 && n <= len(files) {
 				f := files[n-1]

@@ -69,8 +69,8 @@ func (s *Server) showLastCallers(term *Terminal, u *user.User) error {
 		return string(r) + strings.Repeat(" ", n-len(r))
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  InterBBS Last Callers" + ansi.Reset + "\r\n\r\n")
-	b.WriteString(ansi.FG(ansi.Blue, true) + "  " + cut("Caller", 16) + cut("BBS", 26) + cut("When", 16) + "From" + ansi.Reset + "\r\n")
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("lastcallers.title") + ansi.Reset + "\r\n\r\n")
+	b.WriteString(ansi.FG(ansi.Blue, true) + "  " + padCP(term.T("lastcallers.col_caller"), 16) + padCP(term.T("lastcallers.col_bbs"), 26) + padCP(term.T("lastcallers.col_when"), 16) + term.T("lastcallers.col_from") + ansi.Reset + "\r\n")
 	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
 	for _, r := range recs {
 		b.WriteString(fmt.Sprintf("  %s%s%s%s%s%s%s%s\r\n",

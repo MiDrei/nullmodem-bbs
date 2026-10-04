@@ -38,7 +38,7 @@ func (s *Server) BackupSources(c *config.Config) backup.Sources {
 	return backup.Sources{
 		DB: s.DB, DBPath: s.DBPath, DataDir: filepath.Dir(s.DBPath),
 		ConfigFiles: []string{s.BBSConfigPath, s.WebConfigPath},
-		ConfigDirs:  []string{c.BBS.MenusDir, c.BBS.ScreensDir},
+		ConfigDirs:  []string{c.BBS.MenusDir, c.BBS.ScreensDir, c.TextsDir()},
 		BulkDirs:    []string{c.BBS.FilesDir, c.BBS.DoorsDir},
 	}
 }

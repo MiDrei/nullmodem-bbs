@@ -1,0 +1,4 @@
+[1;35m{T:msg.from:-9}[1;37m{FROM:-40}[1;35m {T:msg.date} [1;37m{DATE}
+[1;35m{T:msg.to:-9}[1;37m{TO:-40}
+[1;35m{T:msg.subject:-9}[1;37m{SUBJECT}
+[35m{FILL:-}[0m

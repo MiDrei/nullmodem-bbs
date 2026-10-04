@@ -2,7 +2,9 @@
 	// The Telnet/SSH menus: their items (key, label, what it does, the
 	// lowest level that sees it), the screen shown instead of the
 	// generated list, and a preview as a caller or the sysop sees it.
-	// Saved menus apply on the caller's next menu, no restart.
+	// Saved menus apply on the caller's next menu, no restart. Labels
+	// and the title can come in each language; a stock one is
+	// translated by the catalog unless the sysop writes their own.
 	import { onMount } from 'svelte';
 	import { goto, beforeNavigate } from '$app/navigation';
 	import { page } from '$app/state';
@@ -17,7 +19,9 @@
 		getMenuActions,
 		previewMenu,
 		listScreens,
+		getLanguages,
 		ApiError,
+		type Language,
 		type MenuDef,
 		type MenuItem,
 		type MenuBuiltin,
@@ -33,6 +37,11 @@
 	let missing = $state<MenuItem[]>([]);
 	let usedBy = $state<string[]>([]);
 	let previewSL = $state(10);
+	let previewLang = $state('en');
+	let languages = $state<Language[]>([]);
+	// The other languages' fields are shown.
+	let translating = $state(false);
+	const others = $derived(languages.filter((l) => l.code !== 'en'));
 	let preview = $state<{ grid: Grid; has_screen: boolean; not_shown: MenuItem[]; only_on_screen: string[] } | null>(null);
 	let previewError = $state('');
 	let saving = $state(false);
@@ -60,9 +69,11 @@
 			return;
 		}
 		try {
-			const [acts, scr] = await Promise.all([getMenuActions(auth.token), listScreens(auth.token), loadList()]);
+			const [acts, scr, langs] = await Promise.all([getMenuActions(auth.token), listScreens(auth.token), getLanguages(auth.token), loadList()]);
 			builtins = acts.builtins;
-			screens = scr.map((s) => s.name).filter((n) => n.endsWith('.ans'));
+			languages = langs.languages;
+			// A screen's language variants (main.de.ans) are picked by themselves.
+			screens = scr.filter((s) => !s.lang).map((s) => s.name).filter((n) => n.endsWith('.ans'));
 			await open(page.url.searchParams.get('menu') ?? 'main');
 		} catch (err) {
 			await failed(err, 'Could not load the menus.');
@@ -111,7 +122,7 @@
 		timer = setTimeout(async () => {
 			if (!auth.token || !current) return;
 			try {
-				preview = await previewMenu(auth.token, current, previewSL);
+				preview = await previewMenu(auth.token, current, previewSL, previewLang);
 				previewError = '';
 			} catch (err) {
 				previewError = err instanceof ApiError ? err.message : 'No preview.';
@@ -123,6 +134,7 @@
 	$effect(() => {
 		JSON.stringify(current);
 		previewSL;
+		previewLang;
 		refreshPreview();
 	});
 
@@ -143,7 +155,8 @@
 	function addItem(it?: MenuItem) {
 		if (!current) return;
 		const taken = new Set(current.items.map((x) => x.key.toUpperCase()));
-		const item = it ? { ...it } : { key: '', label: '', action: 'builtin:who', min_sl: 0 };
+		const item: MenuItem = it ? { ...it } : { key: '', label: '', action: 'builtin:who', min_sl: 0 };
+		item.labels ??= {};
 		if (taken.has(item.key.toUpperCase())) item.key = '';
 		// Before a trailing Quit/Back, where new things usually go.
 		const last = current.items[current.items.length - 1];
@@ -210,7 +223,8 @@
 	<p class="page-subtitle max-w-3xl leading-relaxed">
 		What callers can do on Telnet and SSH. Each item has a key, a label, what it does, and the lowest security level that
 		sees it. A menu with a screen of its own shows that instead of the generated list -- add new items there too (the
-		preview tells you which ones it lacks). Saved menus apply on the caller's next menu.
+		preview tells you which ones it lacks); a screen can come in each language (main.de.ans). Saved menus apply on the
+		caller's next menu.
 	</p>
 </div>
 
@@ -255,6 +269,22 @@
 						</div>
 					</label>
 				</div>
+
+				{#if translating}
+					<div class="mt-3 grid gap-3 sm:grid-cols-2">
+						{#each others as l (l.code)}
+							<label class="flex flex-col gap-1 text-xs text-muted">
+								Title in {l.name}
+								<input
+									class="field"
+									value={current.titles?.[l.code] ?? ''}
+									oninput={(e) => current && (current.titles = { ...(current.titles ?? {}), [l.code]: e.currentTarget.value })}
+									placeholder={current.titles_shown?.[l.code] ?? current.title}
+								/>
+							</label>
+						{/each}
+					</div>
+				{/if}
 
 				{#if missing.length}
 					<div class="mt-4 rounded-lg border border-accent/40 bg-accent/5 p-3 text-sm">
@@ -301,10 +331,31 @@
 								<button class="btn-secondary btn-xs" disabled={i === current.items.length - 1} onclick={() => move(i, 1)} aria-label="Down">↓</button>
 								<button class="btn-secondary btn-xs" onclick={() => removeItem(i)} aria-label="Remove">✕</button>
 							</div>
+							{#if translating}
+								<div class="col-span-2 grid gap-2 sm:grid-cols-2 md:col-span-5 md:mb-2 md:ml-[5rem]">
+									{#each others as l (l.code)}
+										<input
+											class="field text-sm"
+											value={it.labels?.[l.code] ?? ''}
+											oninput={(e) => (it.labels = { ...(it.labels ?? {}), [l.code]: e.currentTarget.value })}
+											placeholder={`${l.name}: ${it.shown?.[l.code] ?? it.label}`}
+											aria-label={`Label in ${l.name}`}
+										/>
+									{/each}
+								</div>
+							{/if}
 						</div>
 					{/each}
-					<div>
+					<div class="flex flex-wrap items-center gap-2">
 						<button class="btn-secondary btn-sm" onclick={() => addItem()}>+ Add an item</button>
+						{#if others.length}
+							<button class="btn-secondary btn-sm" onclick={() => (translating = !translating)}>
+								{translating ? 'Hide the other languages' : 'Other languages…'}
+							</button>
+							{#if translating}
+								<span class="text-xs text-faint">Empty: callers see the grey text -- the stock label's translation, else the English one.</span>
+							{/if}
+						{/if}
 					</div>
 				</div>
 
@@ -329,10 +380,16 @@
 			<section class="card">
 				<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
 					<h2 class="card-label">Preview</h2>
-					<div class="flex gap-1">
+					<div class="flex flex-wrap gap-1">
 						{#each [[10, 'A caller'], [255, 'The sysop']] as [sl, label] (sl)}
 							<button class="pill {previewSL === sl ? 'pill-active' : ''}" onclick={() => (previewSL = sl as number)}>{label}</button>
 						{/each}
+						{#if languages.length > 1}
+							<span class="mx-1 w-px self-stretch bg-line"></span>
+							{#each languages as l (l.code)}
+								<button class="pill {previewLang === l.code ? 'pill-active' : ''}" onclick={() => (previewLang = l.code)}>{l.name}</button>
+							{/each}
+						{/if}
 					</div>
 				</div>
 				{#if previewError}

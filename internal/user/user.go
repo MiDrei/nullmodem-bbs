@@ -98,6 +98,9 @@ type User struct {
 	// TwoFactor: the account logs into the admin (and the Telnet sysop
 	// menu) with a code from an authenticator app too (totp.go).
 	TwoFactor bool
+	// Language is the language the user reads the board in (an
+	// internal/i18n code), "" for the board's own.
+	Language string
 }
 
 // Location returns the zone to show this user's times in: their
@@ -146,14 +149,14 @@ func ValidateRealName(realName string) error {
 
 // userColumns is the column list every single-/multi-row user query
 // selects, in scanUser's order.
-const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated, line_editor, totp_secret <> ''`
+const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated, line_editor, totp_secret <> '', language`
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
 func scanUser(row rowScanner, u *User) error {
-	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated, &u.LineEditor, &u.TwoFactor)
+	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated, &u.LineEditor, &u.TwoFactor, &u.Language)
 }
 
 // Store persists User accounts in the shared SQLite database.
@@ -401,6 +404,15 @@ func (s *Store) SetTimezone(id int64, name string) error {
 
 // SetQWKRouting turns the SEEN-BY/PATH lines in a user's QWK packets
 // on or off (see User.QWKRouting).
+// SetLanguage sets the language the user reads the board in ("" for
+// the board's own).
+func (s *Store) SetLanguage(id int64, lang string) error {
+	if _, err := s.db.Exec(`UPDATE users SET language = ? WHERE id = ?`, lang, id); err != nil {
+		return fmt.Errorf("user: set language for id %d: %w", id, err)
+	}
+	return nil
+}
+
 // SetLineEditor sets whether the user writes messages with the line
 // editor instead of the full-screen one.
 func (s *Store) SetLineEditor(id int64, on bool) error {

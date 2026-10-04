@@ -12,6 +12,7 @@ import (
 
 	"git.maik.ch/nullmodem/kit/ansi"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/menu"
 )
 
@@ -25,29 +26,68 @@ type menuItemDTO struct {
 	Label  string `json:"label"`
 	Action string `json:"action"`
 	MinSL  int    `json:"min_sl"`
+	// Labels are the label in other languages, as the sysop wrote them;
+	// Shown is what callers in each language see (read only: the
+	// catalog's translation of a stock label where there's none).
+	Labels map[string]string `json:"labels"`
+	Shown  map[string]string `json:"shown,omitempty"`
 }
 
 type menuDTO struct {
-	Name   string        `json:"name"`
-	Title  string        `json:"title"`
-	Screen string        `json:"screen"`
-	Items  []menuItemDTO `json:"items"`
+	Name        string            `json:"name"`
+	Title       string            `json:"title"`
+	Titles      map[string]string `json:"titles"`
+	TitlesShown map[string]string `json:"titles_shown,omitempty"`
+	Screen      string            `json:"screen"`
+	Items       []menuItemDTO     `json:"items"`
 }
 
 func toMenuDTO(m *menu.Menu) menuDTO {
 	items := make([]menuItemDTO, len(m.Items))
 	for i, it := range m.Items {
-		items[i] = menuItemDTO{Key: it.Key, Label: it.Label, Action: it.Action, MinSL: it.MinSL}
+		items[i] = menuItemDTO{Key: it.Key, Label: it.Label, Action: it.Action, MinSL: it.MinSL, Labels: nonNilMap(it.Labels), Shown: map[string]string{}}
 	}
-	return menuDTO{Name: m.Name, Title: m.Title, Screen: m.Screen, Items: items}
+	d := menuDTO{Name: m.Name, Title: m.Title, Titles: nonNilMap(m.Titles), TitlesShown: map[string]string{}, Screen: m.Screen, Items: items}
+	for _, l := range i18n.Languages {
+		if l.Code == i18n.Fallback {
+			continue
+		}
+		in := m.In(l.Code)
+		d.TitlesShown[l.Code] = in.Title
+		for i := range in.Items {
+			d.Items[i].Shown[l.Code] = in.Items[i].Label
+		}
+	}
+	return d
+}
+
+func nonNilMap(m map[string]string) map[string]string {
+	if m == nil {
+		return map[string]string{}
+	}
+	return m
+}
+
+// cleanTexts keeps the translations into a language there is.
+func cleanTexts(m map[string]string) map[string]string {
+	var out map[string]string
+	for code, v := range m {
+		if v = strings.TrimSpace(v); v != "" && i18n.Valid(code) && code != i18n.Fallback {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[code] = v
+		}
+	}
+	return out
 }
 
 func (d menuDTO) toMenu() *menu.Menu {
-	m := &menu.Menu{Name: strings.TrimSpace(d.Name), Title: strings.TrimSpace(d.Title), Screen: strings.TrimSpace(d.Screen)}
+	m := &menu.Menu{Name: strings.TrimSpace(d.Name), Title: strings.TrimSpace(d.Title), Titles: cleanTexts(d.Titles), Screen: strings.TrimSpace(d.Screen)}
 	for _, it := range d.Items {
 		m.Items = append(m.Items, menu.Item{
 			Key: strings.ToUpper(strings.TrimSpace(it.Key)), Label: strings.TrimSpace(it.Label),
-			Action: strings.TrimSpace(it.Action), MinSL: it.MinSL,
+			Action: strings.TrimSpace(it.Action), MinSL: it.MinSL, Labels: cleanTexts(it.Labels),
 		})
 	}
 	return m
@@ -268,6 +308,8 @@ func (s *Server) handlePreviewMenu(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Menu menuDTO `json:"menu"`
 		SL   int     `json:"sl"`
+		// Lang is the language to show it in ("" English).
+		Lang string `json:"lang"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -278,25 +320,32 @@ func (s *Server) handlePreviewMenu(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load config")
 		return
 	}
-	m := in.Menu.toMenu()
+	lang := in.Lang
+	if !i18n.Valid(lang) {
+		lang = i18n.Fallback
+	}
+	m := in.Menu.toMenu().In(lang)
 	vars := previewVars(c.BBS.Name, c.BBS.Sysop)
 	vars["SL"] = strconv.Itoa(in.SL)
 	vars["USERNAME"] = "caller"
 	if in.SL >= menu.SysopMenuSL {
 		vars["USERNAME"] = c.BBS.Sysop
 	}
-	vars["SYSOP_ITEM"] = menu.SysopItem(in.SL)
+	vars["SYSOP_ITEM"] = menu.SysopItem(in.SL, string(ansi.EncodeCP437(i18n.T(lang, "menu.sysop_item"))))
 
 	out := menuPreviewDTO{NotShown: []menuItemDTO{}, OnlyOnScreen: []string{}}
 	var text string
 	if m.Screen != "" {
-		raw, err := ansi.LoadScreen(filepath.Join(c.BBS.ScreensDir, filepath.Base(m.Screen)))
-		if err == nil {
-			text = ansi.Render(raw, vars)
-			out.HasScreen = true
-		} else if !errors.Is(err, os.ErrNotExist) {
-			writeError(w, http.StatusInternalServerError, "could not read the screen")
-			return
+		for _, name := range i18n.ScreenNames(m.Screen, lang) {
+			raw, err := ansi.LoadScreen(filepath.Join(c.BBS.ScreensDir, name))
+			if err == nil {
+				text = ansi.Render(i18n.FillScreen(lang, raw), vars)
+				out.HasScreen = true
+				break
+			} else if !errors.Is(err, os.ErrNotExist) {
+				writeError(w, http.StatusInternalServerError, "could not read the screen")
+				return
+			}
 		}
 	}
 	if !out.HasScreen {

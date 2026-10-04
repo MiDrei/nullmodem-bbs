@@ -49,6 +49,13 @@ export function groupScreens(names: string[]): ScreenGroup[] {
 		byGroup.get(group)!.push(item);
 	};
 	const stems = Object.keys(KNOWN);
+	// A screen's language variants (main.de.ans, main.de-du.ans) follow it.
+	const addVariants = (group: string, base: string) => {
+		for (const n of names.filter((x) => new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.[a-z]{2}(-[a-z]+)?\\.ans$`).test(x)).sort()) {
+			add(group, { name: n, label: `↳ ${n.slice(base.length + 1, -4)}`, part: true });
+			used.add(n);
+		}
+	};
 	// Main screens first, in KNOWN's order, each followed by its parts.
 	const used = new Set<string>();
 	for (const stem of stems) {
@@ -56,12 +63,14 @@ export function groupScreens(names: string[]): ScreenGroup[] {
 		if (names.includes(`${stem}.ans`)) {
 			add(group, { name: `${stem}.ans`, label, part: false });
 			used.add(`${stem}.ans`);
+			addVariants(group, stem);
 		}
 		for (const [suffix, partLabel] of Object.entries(PARTS)) {
 			const n = `${stem}-${suffix}.ans`;
 			if (names.includes(n)) {
 				add(group, { name: n, label: partLabel, part: true });
 				used.add(n);
+				addVariants(group, `${stem}-${suffix}`);
 			}
 		}
 	}

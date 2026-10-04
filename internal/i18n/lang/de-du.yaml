@@ -1,0 +1,61 @@
+# Die Texte der BBS auf Deutsch in der Du-Form: nur die, die sich von
+# der Sie-Form unterscheiden -- alles andere kommt aus de.yaml.
+
+col.yours: "An dich"
+
+approval.pending: "Dein Konto wartet auf die Freischaltung durch den Sysop. Bis dahin kannst du\nalles lesen und dem Sysop Netmail schreiben. Posten, Doors und Uploads folgen."
+sysop.need_2fa: "Die Sysop-Funktionen brauchen die Zwei-Faktor-Anmeldung -- richte sie im Web-Admin ein (Security)."
+
+guard.blocked: "Der Zugang von deiner Adresse ist gesperrt."
+guard.locked: "Zu viele fehlgeschlagene Anmeldungen von deiner Adresse -- versuch es nach {TIME} wieder."
+guard.too_many: "Zu viele Verbindungen von deiner Adresse."
+
+login.handle: "Dein Benutzername: "
+register.password: "Wähle ein Passwort (mind. {MIN} Zeichen): "
+register.real_name: "Dein richtiger Name: "
+register.first_sysop: "Du bist der erste Benutzer und hast Sysop-Rechte erhalten (SL 255)."
+
+lang.prompt: "Deine Wahl (Enter behält die markierte):"
+
+sysop.no_file_areas: "Es gibt noch keine Dateibereiche. Leg zuerst einen an."
+
+profile.title: "Dein Profil"
+
+polls.not_approved: "Du kannst abstimmen, sobald der Sysop dein Konto freigeschaltet hat."
+polls.your_vote: "Deine Stimme"
+
+files.download_start: "Zmodem-Download von {FILE} ({SIZE}) beginnt -- dein Terminal sollte den Empfang selbst starten."
+files.no_upload: "Du darfst hier nichts hochladen."
+files.upload_ready: "Bereit, deine Datei(en) per Zmodem zu empfangen -- starte jetzt den Upload in deinem Terminal."
+
+qwk.download_start: "Zmodem-Download deines QWK-Pakets ({FILE}, {SIZE}) beginnt -- dein Terminal sollte den Empfang selbst starten."
+qwk.upload_ready: "Bereit, dein QWK-Antwortpaket per Zmodem zu empfangen -- starte jetzt den Upload in deinem Terminal."
+
+editor.intro: "Schreib deine Nachricht, Zeile für Zeile."
+
+msgs.no_post: "Du darfst hier nicht schreiben."
+
+bbslist.empty: "Noch leer -- trag die Boards ein, die du anrufst."
+
+scan.no_new_tome: "Keine neuen Nachrichten an dich."
+summary.title: "Neu seit deinem letzten Anruf"
+summary.to_you: "An dich"
+summary.key_tome: "[T] An dich"
+
+oneliners.empty: "Noch hat niemand einen geschrieben -- mach den Anfang."
+oneliners.your_line: "Deine Zeile (höchstens {MAX} Zeichen):"
+
+chat.paging_you: "{USERNAME} ruft dich."
+chat.paged_recently: "Du hast gerade erst gerufen -- der Sysop weiss Bescheid. Warte hier, oder /q zum Gehen."
+chat.page_note: "{USERNAME} (Node {NODE}) ruft dich: {REASON} -- [C] Chat zum Antworten."
+chat.paged: "Der Sysop weiss Bescheid. Warte hier auf eine Antwort, oder /q zum Gehen."
+chat.in_it: "Da bist du schon."
+
+netmail.not_in_nodelist: "Nicht in den Nodelisten hier -- prüf die Adresse."
+
+menu.item.tome: "Nachrichten an dich"
+menu.item.profile: "Dein Profil"
+
+screen.main.tome: "Nachrichten an dich"
+screen.main.profile: "Dein Profil"
+screen.logoff.thanks: "Danke für deinen Anruf!"

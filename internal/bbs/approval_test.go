@@ -59,7 +59,7 @@ func TestNewAccountWaitsForApprovalAndMayOnlyWriteToTheSysop(t *testing.T) {
 		t.Fatalf("first account %+v", sysop)
 	}
 
-	conn := newFakeConn("Y\r\npassword123\r\npassword123\r\nBob Example\r\n")
+	conn := newFakeConn("Y\r\n\r\npassword123\r\npassword123\r\nBob Example\r\n")
 	bob, ok, err := s.registerNew(NewTerminal(conn), "bob")
 	if err != nil || !ok {
 		t.Fatalf("registerNew: %v %v", ok, err)

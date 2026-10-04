@@ -32,11 +32,11 @@ func doorBulletinList(available []doors.Door) []doorBulletin {
 func (s *Server) showDoorBulletins(term *Terminal, list []doorBulletin) error {
 	for {
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "Bulletins" + ansi.Reset + "\r\n")
+		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + term.T("doors.bulletins") + ansi.Reset + "\r\n")
 		for i, x := range list {
 			fmt.Fprintf(&b, "%2d) %s\r\n", i+1, toCP437(x.title))
 		}
-		b.WriteString(" Q) Back\r\n\r\nWhich? " + ansi.FG(ansi.Yellow, true))
+		b.WriteString(" Q) " + term.T("common.back") + "\r\n\r\n" + term.T("doors.which_bulletin") + " " + ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
@@ -66,7 +66,7 @@ func (s *Server) showDoorBulletin(term *Terminal, x doorBulletin) error {
 	}
 	data, at, err := doors.ReadBulletin(dir, x.file)
 	if err != nil {
-		if err := term.Println(ansi.Reset + "\r\n" + x.door.Name + " hasn't written it yet -- it does on its next game day."); err != nil {
+		if err := term.Println(ansi.Reset + "\r\n" + term.T("doors.bulletin_not_yet", "DOOR", x.door.Name)); err != nil {
 			return err
 		}
 		return s.pauseForKey(term)
@@ -91,9 +91,9 @@ func (s *Server) showDoorBulletin(term *Terminal, x doorBulletin) error {
 		more := end < rows
 		prompt := fmt.Sprintf("\r\n%s-- %s, %s -- %s", ansi.FG(ansi.White, false), toCP437(x.title), term.Time(at).Format("2006-01-02 15:04"), ansi.Reset)
 		if more {
-			prompt += "Enter = more, Q = back "
+			prompt += term.T("common.more_back") + " "
 		} else {
-			prompt += "Enter = back "
+			prompt += term.T("common.enter_back") + " "
 		}
 		if err := term.Print(prompt); err != nil {
 			return err

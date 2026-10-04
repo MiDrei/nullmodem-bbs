@@ -54,7 +54,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 		return fmt.Errorf("qwk download: %w", err)
 	}
 	if count == 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "No new mail to download.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + term.T("qwk.no_mail"))
 	}
 
 	info, err := os.Stat(packetPath)
@@ -63,7 +63,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 	}
 
 	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
-		fmt.Sprintf("Starting Zmodem download of your QWK packet (%s, %s) -- your terminal should start receiving automatically.", filepath.Base(packetPath), humanize.Bytes(uint64(info.Size()))) +
+		term.T("qwk.download_start", "FILE", filepath.Base(packetPath), "SIZE", humanize.Bytes(uint64(info.Size()))) +
 		ansi.Reset + "\r\n"); err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 	}
 	if sendErr != nil {
 		s.logWarn("zmodem QWK download by %s: %v", u.Username, sendErr)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Download failed or was cancelled.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("transfer.download_failed"))
 	}
 
 	if err := s.commitQWKRead(u.ID, unreadNetmailIDs, markRead); err != nil {
@@ -82,7 +82,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 	}
 
 	s.logInfo("%s downloaded a QWK packet: %d message(s)", u.Username, count)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Download complete: %d new message(s).", count))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.N("qwk.download_done", count))
 }
 
 // uploadQWKReply is the "builtin:qwkrep" command: it receives a .REP
@@ -100,7 +100,7 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	defer os.RemoveAll(tmpDir)
 
 	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
-		"Ready to receive your QWK reply packet via Zmodem -- start the upload in your terminal now." +
+		term.T("qwk.upload_ready") +
 		ansi.Reset + "\r\n"); err != nil {
 		return err
 	}
@@ -120,16 +120,16 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	if repName == "" {
 		if recvErr != nil {
 			s.logWarn("zmodem QWK reply upload by %s: %v", u.Username, recvErr)
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Upload failed or was cancelled.")
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("transfer.upload_failed"))
 		}
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "No .REP file was received.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("qwk.no_rep"))
 	}
 
 	bbsID := qwkdoor.BBSID(s.BBSName)
 	replies, err := qwk.ParseReplyPacket(filepath.Join(tmpDir, repName), bbsID)
 	if err != nil {
 		s.logWarn("parsing QWK reply packet from %s: %v", u.Username, err)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Could not read that reply packet.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("qwk.bad_rep"))
 	}
 
 	res, err := s.routeQWKReplies(u, replies)
@@ -140,9 +140,9 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	s.logInfo("%s uploaded a QWK reply packet: %d posted, %d netmail sent, %d skipped", u.Username, res.Posted, res.Sent, len(res.Rejected))
 
 	msg := ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) +
-		fmt.Sprintf("Replies processed: %d posted, %d netmail sent", res.Posted, res.Sent)
+		term.T("qwk.processed", "POSTED", res.Posted, "SENT", res.Sent)
 	if len(res.Rejected) > 0 {
-		msg += fmt.Sprintf(", %d skipped", len(res.Rejected))
+		msg += term.T("qwk.skipped", "COUNT", len(res.Rejected))
 	}
 	if err := term.Println(msg); err != nil {
 		return err
@@ -151,7 +151,7 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	// caller hears about it, and the offline reader has already
 	// dropped them from its queue.
 	for _, r := range res.Rejected {
-		line := fmt.Sprintf("  Not delivered: %q to %s -- %s", r.Subject, r.To, r.Reason)
+		line := "  " + term.T("qwk.not_delivered", "SUBJECT", r.Subject, "TO", r.To, "REASON", r.Reason)
 		if err := term.Println(ansi.FG(ansi.Red, true) + line + ansi.Reset); err != nil {
 			return err
 		}

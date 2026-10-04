@@ -38,9 +38,9 @@ const (
 // scanRead shows msgs one after another, marking each read as it's
 // shown; areaOf is each message's area. withAreaKeys offers S and M.
 func (s *Server) scanRead(term *Terminal, u *user.User, msgs []message.Message, start int, areaOf func(*message.Message) *message.Area, withAreaKeys bool) (scanExit, error) {
-	hint := "[N] Next  [P] Prev  [Up/Dn] Scroll  [R] Reply  [Q] Stop"
+	hint := term.T("scan.hint")
 	if withAreaKeys {
-		hint = "[N] Next  [P] Prev  [R] Reply  [S] Skip area  [M] Area read  [Q] Stop"
+		hint = term.T("scan.hint_areas")
 	}
 	idx, scrollOffset := start, 0
 	for {
@@ -122,7 +122,7 @@ func (s *Server) newScan(term *Terminal, u *user.User) error {
 		return err
 	}
 	if len(areas) == 0 {
-		return s.scanNote(term, "No new messages.")
+		return s.scanNote(term, term.T("scan.no_new"))
 	}
 	for _, st := range areas {
 		area := st.Area
@@ -146,7 +146,7 @@ func (s *Server) newScan(term *Terminal, u *user.User) error {
 			return nil
 		}
 	}
-	return s.scanNote(term, "End of the new messages.")
+	return s.scanNote(term, term.T("scan.end"))
 }
 
 // toMeNames are the names a message to u may be addressed to.
@@ -161,7 +161,7 @@ func (s *Server) toMe(term *Terminal, u *user.User) error {
 		return err
 	}
 	if len(msgs) == 0 {
-		return s.scanNote(term, "No new messages to you.")
+		return s.scanNote(term, term.T("scan.no_new_tome"))
 	}
 	if _, err := s.scanRead(term, u, msgs, 0, s.areaLookup(), false); err != nil {
 		return err
@@ -211,7 +211,7 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 		return nil
 	}
 
-	label := func(text string) string { return ansi.FG(ansi.White, false) + fmt.Sprintf("  %-14s", text) }
+	label := func(key string) string { return ansi.FG(ansi.White, false) + "  " + padCP(term.T(key), 14) }
 	value := func(n int, what string) string {
 		color := ansi.FG(ansi.White, false)
 		if n > 0 {
@@ -220,28 +220,28 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 		return color + what + ansi.Reset + "\r\n"
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  New since your last call" + ansi.Reset + "\r\n")
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("summary.title") + ansi.Reset + "\r\n")
 	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 40) + ansi.Reset + "\r\n")
-	b.WriteString(label("Netmail") + value(netmail, plural(netmail, "unread netmail", "unread netmails")))
-	b.WriteString(label("To you") + value(len(toMe), plural(len(toMe), "message", "messages")))
-	b.WriteString(label("New") + value(newTotal, fmt.Sprintf("%s in %s",
-		plural(newTotal, "message", "messages"), plural(len(areas), "area", "areas"))))
-	b.WriteString(label("Files") + value(newFiles, plural(newFiles, "new file", "new files")))
+	b.WriteString(label("summary.netmail") + value(netmail, term.N("summary.netmail_count", netmail)))
+	b.WriteString(label("summary.to_you") + value(len(toMe), term.N("summary.messages", len(toMe))))
+	b.WriteString(label("summary.new") + value(newTotal, term.T("summary.in_areas",
+		"MESSAGES", term.N("summary.messages", newTotal), "AREAS", term.N("summary.areas", len(areas)))))
+	b.WriteString(label("summary.files") + value(newFiles, term.N("summary.files_count", newFiles)))
 
 	var keys []string
 	if newTotal > 0 {
-		keys = append(keys, "[R] Read new")
+		keys = append(keys, term.T("summary.key_read"))
 	}
 	if len(toMe) > 0 {
-		keys = append(keys, "[T] To you")
+		keys = append(keys, term.T("summary.key_tome"))
 	}
 	if netmail > 0 {
-		keys = append(keys, "[N] Netmail")
+		keys = append(keys, term.T("summary.key_netmail"))
 	}
 	if newFiles > 0 {
-		keys = append(keys, "[F] Files")
+		keys = append(keys, term.T("summary.key_files"))
 	}
-	keys = append(keys, "[Enter] Main menu")
+	keys = append(keys, term.T("summary.key_menu"))
 	b.WriteString("\r\n  " + ansi.FG(ansi.Yellow, true) + strings.Join(keys, "  ") + ansi.Reset + " ")
 	if err := term.Print(b.String()); err != nil {
 		return err
@@ -266,14 +266,6 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 	}
 }
 
-// plural is "1 message" or "3 messages".
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return fmt.Sprintf("%d %s", n, many)
-}
-
 // areaLookup returns each message's area, looked up once.
 func (s *Server) areaLookup() func(*message.Message) *message.Area {
 	areas := map[int64]*message.Area{}
@@ -294,7 +286,7 @@ func (s *Server) areaLookup() func(*message.Message) *message.Area {
 // (subject, text, from, to) in the areas the caller may read; a number
 // reads from there, N/P stepping through the results.
 func (s *Server) searchMessages(term *Terminal, u *user.User) error {
-	if err := term.Print(ansi.Reset + "\r\nSearch messages (subject, text, from, to; Enter = back): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + term.T("search.prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	q, err := term.ReadLine(false)
@@ -310,7 +302,7 @@ func (s *Server) searchMessages(term *Terminal, u *user.User) error {
 		return err
 	}
 	if len(msgs) == 0 {
-		return s.scanNote(term, "Nothing found.")
+		return s.scanNote(term, term.T("common.nothing_found"))
 	}
 	areaOf := s.areaLookup()
 	perPage := max(5, term.Height()-6)
@@ -318,7 +310,7 @@ func (s *Server) searchMessages(term *Terminal, u *user.User) error {
 	for {
 		end := min(start+perPage, len(msgs))
 		var b strings.Builder
-		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + "  Messages matching \"" + q + "\"" + ansi.Reset + "\r\n\r\n")
+		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + "  " + term.T("search.title", "QUERY", q) + ansi.Reset + "\r\n\r\n")
 		cut := func(v string, n int) string {
 			r := []rune(v)
 			if len(r) > n {
@@ -335,11 +327,11 @@ func (s *Server) searchMessages(term *Terminal, u *user.User) error {
 				ansi.FG(ansi.Cyan, false), cut(areaOf(m).Tag, 14),
 				ansi.FG(ansi.White, false)+term.Time(m.PostedAt).Format("2006-01-02"), ansi.Reset)
 		}
-		keys := "number = read (N/P to step on)"
+		keys := term.T("search.key_read")
 		if end < len(msgs) {
-			keys += ", Enter = more"
+			keys += ", " + term.T("list.key_more")
 		}
-		fmt.Fprintf(&b, "\r\n  %s, Q = back (%d-%d of %d): %s", keys, start+1, end, len(msgs), ansi.FG(ansi.Yellow, true))
+		fmt.Fprintf(&b, "\r\n  %s, %s (%s): %s", keys, term.T("list.key_back"), term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(msgs)), ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}

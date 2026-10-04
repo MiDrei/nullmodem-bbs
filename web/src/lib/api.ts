@@ -228,11 +228,17 @@ export interface MenuItem {
 	label: string;
 	action: string;
 	min_sl: number;
+	/** The label in other languages, as the sysop wrote them. */
+	labels?: Record<string, string>;
+	/** What callers in each language see (read only). */
+	shown?: Record<string, string>;
 }
 
 export interface MenuDef {
 	name: string;
 	title: string;
+	titles?: Record<string, string>;
+	titles_shown?: Record<string, string>;
 	/** A hand-designed screen shown instead of the generated list. */
 	screen?: string;
 	items: MenuItem[];
@@ -240,6 +246,8 @@ export interface MenuDef {
 
 export interface ScreenSummary {
 	name: string;
+	/** The language it's for ("de", from its name); "" for every language without its own. */
+	lang: string;
 }
 
 export interface ScreenPreview {
@@ -958,8 +966,57 @@ export function getMenuActions(token: string): Promise<{ builtins: MenuBuiltin[]
 }
 
 /** A menu as a caller at sl sees it; not_shown: items its screen doesn't seem to mention; only_on_screen: keys it shows that nothing answers to. */
-export function previewMenu(token: string, m: MenuDef, sl: number): Promise<{ grid: Grid; has_screen: boolean; not_shown: MenuItem[]; only_on_screen: string[] }> {
-	return request('/api/menu-preview', { method: 'POST', body: JSON.stringify({ menu: m, sl }) }, token);
+export function previewMenu(
+	token: string,
+	m: MenuDef,
+	sl: number,
+	lang = 'en'
+): Promise<{ grid: Grid; has_screen: boolean; not_shown: MenuItem[]; only_on_screen: string[] }> {
+	return request('/api/menu-preview', { method: 'POST', body: JSON.stringify({ menu: m, sl, lang }) }, token);
+}
+
+/** A language the board speaks (internal/i18n). */
+export interface Language {
+	code: string;
+	name: string;
+}
+
+export interface Languages {
+	languages: Language[];
+	/** What callers read before logging in, and after if they never chose one. */
+	board: string;
+	fallback: string;
+	/** How many texts the sysop changed, per language. */
+	changed: Record<string, number>;
+}
+
+/** One text of the catalog in a language. */
+export interface CatalogText {
+	key: string;
+	english: string;
+	/** The built-in text in this language, or what it falls back to (from). */
+	builtin: string;
+	from?: string;
+	/** The sysop's own text; "" keeps the built-in one. */
+	text: string;
+	placeholders: string[];
+}
+
+export function getLanguages(token: string): Promise<Languages> {
+	return request('/api/i18n', { method: 'GET' }, token);
+}
+
+export function setBoardLanguage(token: string, language: string): Promise<void> {
+	return request('/api/i18n/board', { method: 'PUT', body: JSON.stringify({ language }) }, token);
+}
+
+export function getCatalog(token: string, lang: string): Promise<CatalogText[]> {
+	return request(`/api/i18n/${encodeURIComponent(lang)}`, { method: 'GET' }, token);
+}
+
+/** All of the sysop's own texts for lang (one left out goes back to the built-in text). */
+export function saveCatalog(token: string, lang: string, texts: Record<string, string>): Promise<void> {
+	return request(`/api/i18n/${encodeURIComponent(lang)}`, { method: 'PUT', body: JSON.stringify({ texts }) }, token);
 }
 
 /** The Logs page's tabs (internal/applog categories); "" is everything. */

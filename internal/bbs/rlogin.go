@@ -1,7 +1,6 @@
 package bbs
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -58,13 +57,13 @@ func (s *Server) playRemoteDoor(term *Terminal, u *user.User, door doors.Door) e
 	}
 	addr := net.JoinHostPort(r.Host, strconv.Itoa(port))
 	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
-		fmt.Sprintf("Connecting to %s...", door.Name) + ansi.Reset + "\r\n"); err != nil {
+		term.T("doors.connecting", "DOOR", door.Name) + ansi.Reset + "\r\n"); err != nil {
 		return err
 	}
 	remote, err := net.DialTimeout("tcp", addr, 15*time.Second)
 	if err != nil {
 		s.logWarn("door %s: connecting to %s: %v", door.Name, addr, err)
-		if err := term.Println(ansi.FG(ansi.Red, true) + door.Name + " can't be reached right now." + ansi.Reset); err != nil {
+		if err := term.Println(ansi.FG(ansi.Red, true) + term.T("doors.unreachable", "DOOR", door.Name) + ansi.Reset); err != nil {
 			return err
 		}
 		return s.pauseForKey(term)
@@ -79,7 +78,7 @@ func (s *Server) playRemoteDoor(term *Terminal, u *user.User, door doors.Door) e
 	ack := make([]byte, 1)
 	if _, err := remote.Read(ack); err != nil || ack[0] != 0 {
 		s.logWarn("door %s: %s didn't accept the login", door.Name, addr)
-		if err := term.Println(ansi.FG(ansi.Red, true) + door.Name + " didn't let us in." + ansi.Reset); err != nil {
+		if err := term.Println(ansi.FG(ansi.Red, true) + term.T("doors.refused", "DOOR", door.Name) + ansi.Reset); err != nil {
 			return err
 		}
 		return s.pauseForKey(term)
@@ -127,14 +126,13 @@ func (s *Server) playRemoteDoor(term *Terminal, u *user.User, door doors.Door) e
 			}
 			if _, err := remote.Write(ev.data); err != nil {
 				next <- false
-				return term.Println(ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) + "Back from " + door.Name + ".")
+				return term.Println(ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) + term.T("doors.back_from", "DOOR", door.Name))
 			}
 			next <- true
 		case <-closed:
 			// The door hung up: the next key, already being waited for,
 			// is the caller's way back.
-			if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) + "Back from " + door.Name +
-				" -- press a key." + ansi.Reset); err != nil {
+			if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) + term.T("doors.back_from_key", "DOOR", door.Name) + ansi.Reset); err != nil {
 				return err
 			}
 			ev := <-events

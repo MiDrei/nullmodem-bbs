@@ -17,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 )
 
 // Settings are the lockout limits (config.SecurityConfig).
@@ -74,11 +76,14 @@ type Verdict struct {
 }
 
 // Message is what a refused caller is told.
-func (v Verdict) Message() string {
+func (v Verdict) Message() string { return v.MessageIn(i18n.Fallback) }
+
+// MessageIn is Message in lang (an internal/i18n code).
+func (v Verdict) MessageIn(lang string) string {
 	if v.Until.IsZero() {
-		return "Access from your address is blocked."
+		return i18n.T(lang, "guard.blocked")
 	}
-	return fmt.Sprintf("Too many failed logins from your address -- try again after %s.", v.Until.Format("15:04"))
+	return i18n.T(lang, "guard.locked", "TIME", v.Until.Format("15:04"))
 }
 
 // Check says whether ip may log in now.

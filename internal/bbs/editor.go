@@ -46,18 +46,18 @@ func parseEditorCommand(line string) (cmd editorCommand, arg string) {
 func (s *Server) printEditorHelp(term *Terminal) error {
 	cmd := ansi.FG(ansi.Cyan, true)
 	reset := ansi.Reset
-	return term.Println(reset + "\nEnter your message, one line at a time." +
-		"\r\n" + cmd + "/S" + reset + " save & post   " +
-		cmd + "/A" + reset + " abort   " +
-		cmd + "/L" + reset + " list what you've written   " +
-		cmd + "/D <n>" + reset + " delete line n")
+	return term.Println(reset + "\n" + term.T("editor.intro") +
+		"\r\n" + cmd + "/S" + reset + " " + term.T("editor.save") + "   " +
+		cmd + "/A" + reset + " " + term.T("editor.abort") + "   " +
+		cmd + "/L" + reset + " " + term.T("editor.list") + "   " +
+		cmd + "/D <n>" + reset + " " + term.T("editor.delete"))
 }
 
 // printEditorListing shows the message composed so far, numbered the
 // same way as the line prompts, for the /L command.
 func (s *Server) printEditorListing(term *Terminal, lines []string) error {
 	if len(lines) == 0 {
-		return term.Println(ansi.Reset + "\n(no lines yet)")
+		return term.Println(ansi.Reset + "\n" + term.T("editor.no_lines"))
 	}
 	var b strings.Builder
 	b.WriteString(ansi.Reset + "\r\n")
@@ -112,7 +112,7 @@ func (s *Server) runLineEditor(term *Terminal, initial []string) (lines []string
 		switch cmd {
 		case editorSave:
 			if len(lines) == 0 {
-				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message is empty; nothing to save."); err != nil {
+				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("editor.empty")); err != nil {
 					return nil, false, err
 				}
 				continue
@@ -130,13 +130,13 @@ func (s *Server) runLineEditor(term *Terminal, initial []string) (lines []string
 		case editorDelete:
 			idx, convErr := strconv.Atoi(arg)
 			if convErr != nil || idx < 1 || idx > len(lines) {
-				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "No such line."); err != nil {
+				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("editor.no_such_line")); err != nil {
 					return nil, false, err
 				}
 				continue
 			}
 			lines = append(lines[:idx-1], lines[idx:]...)
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Line %d deleted.", idx)); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("editor.line_deleted", "LINE", idx)); err != nil {
 				return nil, false, err
 			}
 

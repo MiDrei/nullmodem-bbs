@@ -387,7 +387,7 @@ func TestHandleLogsConnectLoginAndDisconnect(t *testing.T) {
 		Logger: applog.NewLogger(logStore, "bbs"),
 	}
 
-	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
+	conn := newFakeConn("alice\r\nY\r\n\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
 	s.Handle(conn)
 
 	entries, err := logStore.Recent(50)
@@ -435,7 +435,7 @@ func TestRegisterNewRequiresRealName(t *testing.T) {
 
 	// Blank, then a reserved name, then a real one -- both rejections
 	// must simply re-prompt.
-	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\n\r\nSysop\r\nAlice Example\r\nQ\r\n")
+	conn := newFakeConn("alice\r\nY\r\n\r\npassword123\r\npassword123\r\n\r\nSysop\r\nAlice Example\r\nQ\r\n")
 	s.Handle(conn)
 
 	alice, err := users.ByUsername("alice")
@@ -471,7 +471,7 @@ func TestLoginRejectsReservedHandleForNewRegistration(t *testing.T) {
 		Logger: applog.NewLogger(applog.NewStore(sqlDB), "bbs"),
 	}
 
-	conn := newFakeConn("admin\r\nalice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
+	conn := newFakeConn("admin\r\nalice\r\nY\r\n\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
 	s.Handle(conn)
 
 	if _, err := users.ByUsername("admin"); !errors.Is(err, user.ErrNotFound) {
@@ -522,7 +522,7 @@ func TestHandleLogsMenuErrors(t *testing.T) {
 		Logger: applog.NewLogger(logStore, "bbs"),
 	}
 
-	conn := newFakeConn("alice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nB\r\n")
+	conn := newFakeConn("alice\r\nY\r\n\r\npassword123\r\npassword123\r\nAlice Example\r\nB\r\n")
 	s.Handle(conn)
 
 	entries, err := logStore.Recent(50)

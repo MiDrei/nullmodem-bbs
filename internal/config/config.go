@@ -23,10 +23,17 @@ type Config struct {
 		// read, without login (the front page lists them).
 		PublicFeeds bool `yaml:"public_feeds,omitempty"`
 		// MonthlyRecapOff stops the monthly recap netmail to the sysops.
-		MonthlyRecapOff bool   `yaml:"monthly_recap_off,omitempty"`
-		MenusDir        string `yaml:"menus_dir"`
-		ScreensDir      string `yaml:"screens_dir"`
-		FilesDir        string `yaml:"files_dir"`
+		MonthlyRecapOff bool `yaml:"monthly_recap_off,omitempty"`
+		// Language is the board's language (an internal/i18n code):
+		// what callers read before they log in, and after if they never
+		// chose one. "" is English.
+		Language string `yaml:"language,omitempty"`
+		// LangDir holds the sysop's changes to the texts (the language
+		// editor); "" is data/lang.
+		LangDir    string `yaml:"lang_dir,omitempty"`
+		MenusDir   string `yaml:"menus_dir"`
+		ScreensDir string `yaml:"screens_dir"`
+		FilesDir   string `yaml:"files_dir"`
 		// DoorsDir is where doors installed from the web admin's
 		// templates go, one directory each.
 		DoorsDir string `yaml:"doors_dir"`
@@ -316,6 +323,14 @@ func (c *Config) PrimaryFTNAddress() string {
 		return ""
 	}
 	return c.BBS.FTNAddresses[0]
+}
+
+// TextsDir is where the sysop's changes to the texts are kept.
+func (c *Config) TextsDir() string {
+	if c.BBS.LangDir != "" {
+		return c.BBS.LangDir
+	}
+	return "data/lang"
 }
 
 // Default returns the built-in configuration used when no config file

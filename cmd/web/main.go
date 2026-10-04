@@ -7,6 +7,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
 	"git.maik.ch/nullmodem/bbs/internal/health"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	"net"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
@@ -84,6 +85,9 @@ func main() {
 		bbsCfg = config.Default()
 	}
 	maintenance.ApplyLimits(bbsCfg.Maintenance)
+	// The texts in every language; the language editor writes the
+	// sysop's changes there.
+	i18n.Use(i18n.New(bbsCfg.TextsDir()))
 
 	if err := migrateNetworks(cfg.BBSConfigPath, filepath.Dir(cfg.DatabasePath), bbsCfg, sqlDB, logger); err != nil {
 		log.Fatalf("migrating networks: %v", err)

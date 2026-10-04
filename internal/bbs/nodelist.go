@@ -20,22 +20,22 @@ func (s *Server) browseNodelist(term *Terminal, _ *user.User) error {
 		return err
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  Nodelists" + ansi.Reset + "\r\n")
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("nodelist.title") + ansi.Reset + "\r\n")
 	if len(imps) == 0 {
-		b.WriteString("  None yet -- they arrive with the networks' file echoes.\r\n")
+		b.WriteString("  " + term.T("nodelist.none") + "\r\n")
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
 		return s.pauseForKey(term)
 	}
 	for _, i := range imps {
-		fmt.Fprintf(&b, "  %s%-12s%s %4d systems  (%s)\r\n", ansi.FG(ansi.Yellow, true), i.Network, ansi.Reset, i.Entries, i.Filename)
+		fmt.Fprintf(&b, "  %s%-12s%s %s  (%s)\r\n", ansi.FG(ansi.Yellow, true), i.Network, ansi.Reset, term.T("nodelist.systems", "COUNT", fmt.Sprintf("%4d", i.Entries)), i.Filename)
 	}
 	if err := term.Print(b.String()); err != nil {
 		return err
 	}
 	for {
-		if err := term.Print(ansi.Reset + "\r\nSearch (name, sysop, place or address like 21:1/; Enter = back): " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + "\r\n" + term.T("nodelist.search_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		q, err := term.ReadLine(false)
@@ -52,7 +52,7 @@ func (s *Server) browseNodelist(term *Terminal, _ *user.User) error {
 		b.Reset()
 		b.WriteString(ansi.Reset)
 		if len(found) == 0 {
-			b.WriteString("  Nothing found.\r\n")
+			b.WriteString("  " + term.T("common.nothing_found") + "\r\n")
 		}
 		cut := func(v string, n int) string {
 			r := []rune(v)
@@ -73,7 +73,7 @@ func (s *Server) browseNodelist(term *Terminal, _ *user.User) error {
 				ansi.FG(ansi.Cyan, false), toCP437(cut(e.Location, 14))+ansi.FG(ansi.Red, false)+state+ansi.Reset)
 		}
 		if len(found) == 40 {
-			b.WriteString("  (the first 40 -- search more precisely)\r\n")
+			b.WriteString("  " + term.T("common.first_n", "COUNT", 40) + "\r\n")
 		}
 		if err := term.Print(b.String()); err != nil {
 			return err

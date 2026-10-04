@@ -188,6 +188,30 @@ antworten, über die ganze Area hinweg.
 
 Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
 
+**Sprachen:** Die BBS spricht Englisch, Deutsch (Sie) und Deutsch (Du).
+Neue Anrufer wählen ihre Sprache gleich bei der Registrierung, später im
+Profil (`Y`, dann `A`). Vor dem Login — und für alle, die nie gewählt haben —
+gilt die Sprache des Boards (Content → Languages, „The board's language“).
+Was einer Sprache fehlt, kommt auf Englisch; Deutsch (Du) nimmt zuerst von
+Deutsch (Sie), was gleich lautet.
+
+- **Texte ändern:** Content → Languages. Jeder Text lässt sich pro Sprache
+  überschreiben; leer heißt „wie mitgeliefert“. `{NAME}` sind Platzhalter, die
+  die BBS füllt — ein Text darf einen weglassen, aber keinen erfinden (der
+  Editor zeigt, welche gehen). Gespeichert wird nur, was du geändert hast,
+  in `data/lang/<sprache>.yaml`; es gilt sofort und übersteht Updates.
+- **Screens:** Zu jedem Screen kann es eine Fassung pro Sprache geben:
+  `main.de-du.ans`, dann `main.de.ans`, dann `main.ans`. Mitgeliefert sind
+  deutsche Fassungen der Standard-Screens; sie holen ihre Texte mit
+  `{T:schlüssel}` aus dem Katalog (`{T:col.subject:-40}` linksbündig auf 40
+  Zeichen, `{T:col.total:5}` rechtsbündig) — eine Datei für Sie und Du, und
+  die Beschriftungen ändert man im Spracheditor. `{T:…}` geht in jedem Screen,
+  auch in eigenen. Den eigenen `welcome.ans` übersetzt man als
+  `welcome.de.ans` im Designer.
+- **Menüs:** Ein mitgelieferter Menüpunkt erscheint von selbst übersetzt. Eigene
+  Beschriftungen bekommen ihre Übersetzung im Menü-Editor („Other
+  languages…“); die Vorschau zeigt jede Sprache.
+
 **Startseite (`/`):** öffentlich, ohne Login — Begrüßungsbildschirm, alle
 Zugänge (Web-Terminal, Telnet/SSH, Portal, Reader-App, QWK), wer online ist,
 letzte Anrufer, One-Liner, Doors und die FTN-Adressen für andere Sysops. Die
@@ -310,7 +334,8 @@ Wer Shell-Zugang hat: `docker compose logs -f mailer` (bzw. `bbs`, `web`).
 |---|---|
 | `configs/bbs.yaml` | Konfiguration (inkl. Passwörter) |
 | `configs/web.yaml` | Web-Dienst |
-| `configs/menus/`, `configs/screens/` | Menüs und ANSI-Bildschirme |
+| `configs/menus/`, `configs/screens/` | Menüs und ANSI-Bildschirme (`name.de.ans` = deutsche Fassung) |
+| `data/lang/` | deine geänderten Texte pro Sprache (Spracheditor) |
 | `data/nullmodem.sqlite` | die Datenbank |
 | `data/files/`, `data/doors/` | Dateien der File-Areas, installierte Doors |
 | `data/backups/` | nächtliche Backups ([backup.md](backup.md)) |

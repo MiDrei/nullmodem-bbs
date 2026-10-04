@@ -1,0 +1,4 @@
+[1;32m{T:files.filename:-11}[1;37m{FILENAME:-40}[1;32m {T:files.size} [1;37m{SIZE}
+[1;32m{T:files.uploaded:-11}[1;37m{DATE}[1;32m {T:files.by} [1;37m{BY}
+[1;32m{T:files.downloads:-11}[1;37m{DOWNLOADS}
+[32m{FILL:-}[0m

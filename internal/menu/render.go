@@ -55,11 +55,12 @@ const SysopMenuSL = 200
 
 // SysopItem is the {SYSOP_ITEM} placeholder: the sysop menu's entry on
 // the main menu screen, for those who may use it only.
-func SysopItem(securityLevel int) string {
+// label is the entry's text ("Sysop Menu") in the caller's language.
+func SysopItem(securityLevel int, label string) string {
 	if securityLevel < SysopMenuSL {
 		return ""
 	}
-	return ansi.FG(ansi.Yellow, true) + "[S]" + ansi.FG(ansi.Green, true) + " Sysop Menu"
+	return ansi.FG(ansi.Yellow, true) + "[S]" + ansi.FG(ansi.Green, true) + " " + label
 }
 
 var bracketKey = regexp.MustCompile(`\[([A-Za-z0-9?!#*+-])\]`)

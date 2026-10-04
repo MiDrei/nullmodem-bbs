@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 	"git.maik.ch/nullmodem/kit/ansi"
 )
@@ -40,12 +41,12 @@ var commonTimezones = []string{
 
 // realNameErrorText is the caller-facing wording for
 // user.ValidateRealName's errors.
-func realNameErrorText(err error) string {
+func realNameErrorText(term *Terminal, err error) string {
 	switch {
 	case errors.Is(err, user.ErrRealNameRequired):
-		return "Real name is required."
+		return term.T("profile.real_name_required")
 	case errors.Is(err, user.ErrRealNameReserved):
-		return "That name is reserved."
+		return term.T("profile.real_name_reserved")
 	default:
 		return err.Error()
 	}
@@ -64,9 +65,9 @@ func utcOffsetLabel(loc *time.Location) string {
 }
 
 // timezoneLabel describes u's profile time zone for display.
-func timezoneLabel(u *user.User) string {
+func timezoneLabel(term *Terminal, u *user.User) string {
 	if u.Timezone == "" {
-		return "not set (times shown in UTC)"
+		return term.T("profile.timezone_unset")
 	}
 	return fmt.Sprintf("%s (%s)", u.Timezone, utcOffsetLabel(u.Location()))
 }
@@ -81,32 +82,34 @@ func timezoneLabel(u *user.User) string {
 func (s *Server) showProfile(term *Terminal, u *user.User) error {
 	for {
 		lines := []string{
-			ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "Your profile" + ansi.Reset,
-			fmt.Sprintf("Handle:         %s", u.Username),
-			fmt.Sprintf("Real name:      %s", u.RealName),
-			fmt.Sprintf("Security level: %d", u.SecurityLevel),
-			fmt.Sprintf("Total calls:    %d", u.TotalCalls),
-			fmt.Sprintf("Member since:   %s", term.Time(u.CreatedAt).Format("2006-01-02")),
-			fmt.Sprintf("Time zone:      %s", timezoneLabel(u)),
-			fmt.Sprintf("Location:       %s", placeLabel(u)),
-			fmt.Sprintf("QWK SEEN-BY:    %s", onOff(u.QWKRouting)),
-			fmt.Sprintf("Editor:         %s", editorLabel(u)),
+			ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("profile.title") + ansi.Reset,
+			profileField(term, "profile.handle", u.Username),
+			profileField(term, "profile.real_name", u.RealName),
+			profileField(term, "profile.sl", strconv.Itoa(u.SecurityLevel)),
+			profileField(term, "profile.calls", strconv.Itoa(u.TotalCalls)),
+			profileField(term, "profile.since", term.Time(u.CreatedAt).Format("2006-01-02")),
+			profileField(term, "profile.timezone", timezoneLabel(term, u)),
+			profileField(term, "profile.location", placeLabel(term, u)),
+			profileField(term, "profile.language", toCP437(i18n.NameOf(term.Lang))),
+			profileField(term, "profile.qwk_seenby", onOffText(term, u.QWKRouting)),
+			profileField(term, "profile.editor", editorText(term, u)),
 			"",
-			profileOption("R", "Change real name"),
-			profileOption("T", "Change time zone"),
-			profileOption("L", "Change location (shown on the InterBBS last callers list)"),
-			profileOption("P", "Change password"),
-			profileOption("K", "QWK area selection"),
-			profileOption("S", "Switch SEEN-BY/PATH lines in QWK packets on or off"),
-			profileOption("E", "Switch between the full-screen and the line editor"),
-			profileOption("Q", "Back"),
+			profileOption("R", term.T("profile.opt_real_name")),
+			profileOption("T", term.T("profile.opt_timezone")),
+			profileOption("L", term.T("profile.opt_location")),
+			profileOption("A", term.T("profile.opt_language")),
+			profileOption("P", term.T("profile.opt_password")),
+			profileOption("K", term.T("profile.opt_areas")),
+			profileOption("S", term.T("profile.opt_seenby")),
+			profileOption("E", term.T("profile.opt_editor")),
+			profileOption("Q", term.T("common.back")),
 		}
 		for _, line := range lines {
 			if err := term.Println(line); err != nil {
 				return err
 			}
 		}
-		if err := term.Print("\nChoice: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print("\n" + term.T("common.choice") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		choice, err := term.ReadLine(false)
@@ -124,6 +127,8 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			err = s.changeTimezone(term, u)
 		case "L":
 			err = s.changePlace(term, u)
+		case "A":
+			err = s.changeLanguage(term, u)
 		case "P":
 			err = s.changePassword(term, u)
 		case "K":
@@ -135,12 +140,26 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 		case "Q", "":
 			return nil
 		default:
-			err = term.Println(ansi.FG(ansi.Red, true) + "Unknown choice." + ansi.Reset)
+			err = term.Println(ansi.FG(ansi.Red, true) + term.T("common.unknown_choice") + ansi.Reset)
 		}
 		if err != nil {
 			return err
 		}
 	}
+}
+
+// profileField is a "Label:   value" line of the overview, the values
+// lined up.
+func profileField(term *Terminal, key, value string) string {
+	return padCP(term.T(key)+":", 16) + value
+}
+
+// onOffText is on/off in the caller's language.
+func onOffText(term *Terminal, b bool) string {
+	if b {
+		return term.T("common.on")
+	}
+	return term.T("common.off")
 }
 
 func onOff(b bool) string {
@@ -158,11 +177,19 @@ func (s *Server) toggleQWKRouting(term *Terminal, u *user.User) error {
 	}
 	u.QWKRouting = !u.QWKRouting
 	s.logInfo("%s turned QWK SEEN-BY/PATH lines %s", u.Username, onOff(u.QWKRouting))
-	msg := "QWK packets now leave SEEN-BY/PATH out."
+	msg := term.T("profile.seenby_off")
 	if u.QWKRouting {
-		msg = "QWK packets now carry SEEN-BY/PATH -- for a reader that hides them, like NullModem Reader."
+		msg = term.T("profile.seenby_on")
 	}
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + msg)
+}
+
+// editorText is editorLabel in the caller's language.
+func editorText(term *Terminal, u *user.User) string {
+	if u.LineEditor {
+		return term.T("profile.editor_line")
+	}
+	return term.T("profile.editor_full")
 }
 
 func editorLabel(u *user.User) string {
@@ -180,7 +207,7 @@ func (s *Server) toggleLineEditor(term *Terminal, u *user.User) error {
 	}
 	u.LineEditor = !u.LineEditor
 	s.logInfo("%s now writes %s", u.Username, editorLabel(u))
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Messages are now written " + editorLabel(u) + ".")
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.editor_now", "EDITOR", editorText(term, u)))
 }
 
 func profileOption(key, label string) string {
@@ -191,7 +218,7 @@ func profileOption(key, label string) string {
 // as at registration (user.ValidateRealName); an empty line cancels.
 func (s *Server) changeRealName(term *Terminal, u *user.User) error {
 	for {
-		if err := term.Print(ansi.Reset + "New real name (Enter to cancel): " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + term.T("profile.new_real_name") + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		line, err := term.ReadLine(false)
@@ -200,10 +227,10 @@ func (s *Server) changeRealName(term *Terminal, u *user.User) error {
 		}
 		realName := strings.TrimSpace(line)
 		if realName == "" {
-			return term.Println(ansi.Reset + "Cancelled.")
+			return term.Println(ansi.Reset + term.T("common.cancelled"))
 		}
 		if err := user.ValidateRealName(realName); err != nil {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + realNameErrorText(err)); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + realNameErrorText(term, err)); err != nil {
 				return err
 			}
 			continue
@@ -213,7 +240,7 @@ func (s *Server) changeRealName(term *Terminal, u *user.User) error {
 		}
 		u.RealName = realName
 		s.logInfo("%s changed their real name", u.Username)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Real name saved.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.real_name_saved"))
 	}
 }
 
@@ -222,7 +249,7 @@ func (s *Server) changeRealName(term *Terminal, u *user.User) error {
 func (s *Server) changeTimezone(term *Terminal, u *user.User) error {
 	for {
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "Time zone" + ansi.Reset + " -- currently " + timezoneLabel(u) + "\n")
+		b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("profile.tz_title") + ansi.Reset + " -- " + term.T("profile.tz_current", "ZONE", timezoneLabel(term, u)) + "\n")
 		half := (len(commonTimezones) + 1) / 2
 		for row := 0; row < half; row++ {
 			b.WriteString(timezoneCell(row))
@@ -231,8 +258,8 @@ func (s *Server) changeTimezone(term *Terminal, u *user.User) error {
 			}
 			b.WriteString("\n")
 		}
-		b.WriteString(" O) Other (any IANA name)   N) Not set   Q) Cancel\n")
-		b.WriteString("\nChoice: " + ansi.FG(ansi.Yellow, true))
+		b.WriteString(" " + term.T("profile.tz_options") + "\n")
+		b.WriteString("\n" + term.T("common.choice") + " " + ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
@@ -245,11 +272,11 @@ func (s *Server) changeTimezone(term *Terminal, u *user.User) error {
 		var name string
 		switch strings.ToUpper(choice) {
 		case "", "Q":
-			return term.Println(ansi.Reset + "Cancelled.")
+			return term.Println(ansi.Reset + term.T("common.cancelled"))
 		case "N":
 			name = ""
 		case "O":
-			if err := term.Print(ansi.Reset + "IANA zone name, e.g. Asia/Tokyo (case matters): " + ansi.FG(ansi.Yellow, true)); err != nil {
+			if err := term.Print(ansi.Reset + term.T("profile.tz_other") + ansi.FG(ansi.Yellow, true)); err != nil {
 				return err
 			}
 			typed, err := term.ReadLine(false)
@@ -263,7 +290,7 @@ func (s *Server) changeTimezone(term *Terminal, u *user.User) error {
 		default:
 			n, convErr := strconv.Atoi(choice)
 			if convErr != nil || n < 1 || n > len(commonTimezones) {
-				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid selection."); err != nil {
+				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("common.invalid_selection")); err != nil {
 					return err
 				}
 				continue
@@ -273,7 +300,7 @@ func (s *Server) changeTimezone(term *Terminal, u *user.User) error {
 
 		if err := s.Users.SetTimezone(u.ID, name); err != nil {
 			if errors.Is(err, user.ErrInvalidTimezone) {
-				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Unknown time zone: " + name); err != nil {
+				if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("profile.tz_unknown", "ZONE", name)); err != nil {
 					return err
 				}
 				continue
@@ -283,7 +310,7 @@ func (s *Server) changeTimezone(term *Terminal, u *user.User) error {
 		u.Timezone = name
 		term.SetLocation(u.Location())
 		s.logInfo("%s set their time zone to %q", u.Username, name)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Time zone saved: " + timezoneLabel(u))
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.tz_saved", "ZONE", timezoneLabel(term, u)))
 	}
 }
 
@@ -302,7 +329,7 @@ func timezoneCell(i int) string {
 // changePassword verifies the current password, then asks for the new
 // one twice -- the same rules as registration (user.MinPasswordLength).
 func (s *Server) changePassword(term *Terminal, u *user.User) error {
-	if err := term.Print(ansi.Reset + "Current password: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("profile.pw_current") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	current, err := term.ReadLine(true)
@@ -310,16 +337,16 @@ func (s *Server) changePassword(term *Terminal, u *user.User) error {
 		return err
 	}
 	if current == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
-	if err := term.Print(ansi.Reset + fmt.Sprintf("New password (min %d chars): ", user.MinPasswordLength) + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("profile.pw_new", "MIN", user.MinPasswordLength) + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	next, err := term.ReadLine(true)
 	if err != nil {
 		return err
 	}
-	if err := term.Print(ansi.Reset + "Confirm new password: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("profile.pw_confirm") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	confirm, err := term.ReadLine(true)
@@ -327,25 +354,25 @@ func (s *Server) changePassword(term *Terminal, u *user.User) error {
 		return err
 	}
 	if next != confirm {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Passwords did not match -- nothing changed.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("profile.pw_mismatch"))
 	}
 
 	switch err := s.Users.ChangePassword(u.ID, current, next); {
 	case errors.Is(err, user.ErrInvalidCredentials):
 		s.logWarn("%s: failed password change (wrong current password)", u.Username)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Current password is incorrect -- nothing changed.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("profile.pw_wrong"))
 	case errors.Is(err, user.ErrPasswordTooShort):
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + fmt.Sprintf("Password too short (min %d chars) -- nothing changed.", user.MinPasswordLength))
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("profile.pw_short", "MIN", user.MinPasswordLength))
 	case err != nil:
 		return err
 	}
 	s.logInfo("%s changed their password", u.Username)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Password changed.")
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.pw_changed"))
 }
 
-func placeLabel(u *user.User) string {
+func placeLabel(term *Terminal, u *user.User) string {
 	if u.Place == "" {
-		return "not set"
+		return term.T("common.not_set")
 	}
 	return u.Place
 }
@@ -354,7 +381,7 @@ func placeLabel(u *user.User) string {
 // it, an empty line cancels.
 func (s *Server) changePlace(term *Terminal, u *user.User) error {
 	for {
-		if err := term.Print(ansi.Reset + fmt.Sprintf("Location, e.g. \"Neunkirch, Switzerland\" (- to clear, Enter to cancel, max %d): ", user.MaxPlaceLen) + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + term.T("profile.location_prompt", "MAX", user.MaxPlaceLen) + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		line, err := term.ReadLine(false)
@@ -363,14 +390,14 @@ func (s *Server) changePlace(term *Terminal, u *user.User) error {
 		}
 		line = strings.TrimSpace(line)
 		if line == "" {
-			return term.Println(ansi.Reset + "Cancelled.")
+			return term.Println(ansi.Reset + term.T("common.cancelled"))
 		}
 		if line == "-" {
 			line = ""
 		}
 		place, ok := user.CleanPlace(line)
 		if !ok {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + fmt.Sprintf("At most %d characters.", user.MaxPlaceLen)); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("common.at_most_chars", "MAX", user.MaxPlaceLen)); err != nil {
 				return err
 			}
 			continue
@@ -380,6 +407,6 @@ func (s *Server) changePlace(term *Terminal, u *user.User) error {
 		}
 		u.Place = place
 		s.logInfo("%s set their location", u.Username)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Location saved.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.location_saved"))
 	}
 }

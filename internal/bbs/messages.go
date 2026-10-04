@@ -3,10 +3,10 @@ package bbs
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/message"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 	"git.maik.ch/nullmodem/kit/ansi"
@@ -27,8 +27,8 @@ outer:
 			return err
 		}
 		if len(stats) == 0 {
-			header := s.renderAreaHeader(term, u, "msgareas.ans", "Message Areas")
-			return term.Print(header + ansi.Reset + "No message areas available." + ansi.CRLF)
+			header := s.renderAreaHeader(term, u, "msgareas.ans", term.T("areas.title"))
+			return term.Print(header + ansi.Reset + term.T("areas.none") + ansi.CRLF)
 		}
 		if selected >= len(stats) {
 			selected = len(stats) - 1
@@ -92,7 +92,7 @@ const (
 	fallbackAreaNetwork     = "\x1b[1;35m-- {NETWORK} {FILL:-}\x1b[0m"
 )
 
-var fallbackAreaColumns = "Area                                                           Total    New  Yours\r\n" + strings.Repeat("-", 79)
+var fallbackAreaColumns = "{T:col.area:-63}{T:col.total:5}{T:col.new:7}{T:col.yours:7}\r\n" + strings.Repeat("-", 79)
 
 // loadOptionalScreen returns screenFile's raw content from ScreensDir,
 // or fallback if it doesn't exist / can't be read. Every caller uses
@@ -103,10 +103,10 @@ var fallbackAreaColumns = "Area                                                 
 // in the web ANSI designer, which defaults to one -- is stripped (see
 // ansi.StripLeadingScreenClear): otherwise it would wipe out the
 // header banner drawn just before it.
-func (s *Server) loadOptionalScreen(screenFile, fallback string) string {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, screenFile))
+func (s *Server) loadOptionalScreen(term *Terminal, screenFile, fallback string) string {
+	raw, err := s.loadScreen(term.Lang, screenFile)
 	if err != nil {
-		return fallback
+		return i18n.FillScreen(term.Lang, fallback)
 	}
 	return ansi.StripLeadingScreenClear(raw)
 }
@@ -170,12 +170,12 @@ func buildAreaDisplayRows(stats []message.AreaWithStats, selected int, networkTe
 // edge, like a normal pager. The returned value is what the caller
 // should pass back in on the next call.
 func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.AreaWithStats, selected, scrollOffset int) (int, error) {
-	header := s.renderAreaHeader(term, u, "msgareas.ans", "Message Areas")
+	header := s.renderAreaHeader(term, u, "msgareas.ans", term.T("areas.title"))
 
-	rowTemplate := s.loadOptionalScreen(msgAreaRowScreen, fallbackAreaRow)
-	rowSelectedTemplate := s.loadOptionalScreen(msgAreaRowSelectedScreen, fallbackAreaRowSelected)
-	networkTemplate := s.loadOptionalScreen(msgAreaNetworkScreen, fallbackAreaNetwork)
-	columns := s.loadOptionalScreen(msgAreaColumnsScreen, fallbackAreaColumns)
+	rowTemplate := s.loadOptionalScreen(term, msgAreaRowScreen, fallbackAreaRow)
+	rowSelectedTemplate := s.loadOptionalScreen(term, msgAreaRowSelectedScreen, fallbackAreaRowSelected)
+	networkTemplate := s.loadOptionalScreen(term, msgAreaNetworkScreen, fallbackAreaNetwork)
+	columns := s.loadOptionalScreen(term, msgAreaColumnsScreen, fallbackAreaColumns)
 
 	rows, selectedRow := buildAreaDisplayRows(stats, selected, networkTemplate, term.Width())
 
@@ -229,7 +229,7 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 		}
 		newFlag := ""
 		if st.New > 0 {
-			newFlag = "NEW"
+			newFlag = term.T("list.new_flag")
 		}
 		vars := ansi.Vars{
 			"AREANAME": st.Area.Name,
@@ -247,10 +247,10 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 
 	scrollStatus := ""
 	if len(rows) > available {
-		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(rows))
+		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(rows)) + " --"
 	}
 	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [S] Search   [Q] Back" + ansi.Reset)
+	b.WriteString(ansi.FG(ansi.White, true) + term.T("areas.keys") + ansi.Reset)
 	return scrollOffset, term.Print(b.String())
 }
 
@@ -269,7 +269,7 @@ const msgListScreen = "msglist.ans"
 // the list's scroll viewport budget -- mirrors
 // renderMessageReaderHeader for the same reason.
 func (s *Server) renderMessageListHeader(term *Terminal, area *message.Area) string {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, msgListScreen))
+	raw, err := s.loadScreen(term.Lang, msgListScreen)
 	if err != nil {
 		return ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset + "\n"
 	}
@@ -296,7 +296,7 @@ const (
 	fallbackMsgListRowSelected = "\x1b[47m\x1b[30m{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}\x1b[0m"
 )
 
-var fallbackMsgListColumns = "    Subject                                 From                           Date\r\n" + strings.Repeat("-", 79)
+var fallbackMsgListColumns = "    {T:col.subject:-40}{T:col.from:-30}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
 
 // firstUnreadIndex returns the index of the first message (in msgs'
 // own, chronological order) not present in readIDs -- where
@@ -492,11 +492,11 @@ func (s *Server) threadMessages(u *user.User, rootID int64) ([]message.Message, 
 // for an area with no messages yet -- there's nothing to put in a
 // lightbar, so this skips straight to a P/Q prompt.
 func (s *Server) drawEmptyMessageList(term *Terminal, area *message.Area, canWrite bool) error {
-	hint := "[Q] Back"
+	hint := term.T("msgs.key_back")
 	if canWrite {
-		hint = "[P] Post   " + hint
+		hint = term.T("msgs.key_post") + "   " + hint
 	}
-	return term.Print(s.renderMessageListHeader(term, area) + ansi.Reset + "(no messages yet)\r\n\r\n" + ansi.FG(ansi.White, true) + hint + ansi.Reset)
+	return term.Print(s.renderMessageListHeader(term, area) + ansi.Reset + term.T("msgs.empty") + "\r\n\r\n" + ansi.FG(ansi.White, true) + hint + ansi.Reset)
 }
 
 // drawMessageList redraws the header banner plus the Subject/From/
@@ -532,17 +532,17 @@ func (s *Server) drawEmptyMessageList(term *Terminal, area *message.Area, canWri
 func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, selected, scrollOffset int, canWrite bool, readIDs map[int64]bool) (int, error) {
 	header := s.renderMessageListHeader(term, area)
 
-	rowTemplate := s.loadOptionalScreen(msgListRowScreen, fallbackMsgListRow)
-	rowSelectedTemplate := s.loadOptionalScreen(msgListRowSelectedScreen, fallbackMsgListRowSelected)
-	columns := s.loadOptionalScreen(msgListColumnsScreen, fallbackMsgListColumns)
+	rowTemplate := s.loadOptionalScreen(term, msgListRowScreen, fallbackMsgListRow)
+	rowSelectedTemplate := s.loadOptionalScreen(term, msgListRowSelectedScreen, fallbackMsgListRowSelected)
+	columns := s.loadOptionalScreen(term, msgListColumnsScreen, fallbackMsgListColumns)
 
-	view := "[T] Threads"
+	view := term.T("msgs.key_threads")
 	if term.threadView {
-		view = "[T] All messages"
+		view = term.T("msgs.key_all")
 	}
-	hint := "[Up/Down] Move   [Enter] Read   " + view + "   [Q] Back"
+	hint := term.T("msgs.list_keys", "VIEW", view)
 	if canWrite {
-		hint = "[Up/Down] Move   [Enter] Read   [P] Post   " + view + "   [Q] Back"
+		hint = term.T("msgs.list_keys_post", "VIEW", view)
 	}
 
 	var b strings.Builder
@@ -591,7 +591,7 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 		}
 		newFlag := ""
 		if !readIDs[m.ID] {
-			newFlag = "NEW"
+			newFlag = term.T("list.new_flag")
 		}
 		vars := ansi.Vars{
 			"SUBJECT": m.Subject,
@@ -608,7 +608,7 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 
 	scrollStatus := ""
 	if len(msgs) > available {
-		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(msgs))
+		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(msgs)) + " --"
 	}
 	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
 	b.WriteString(ansi.FG(ansi.White, true) + hint + ansi.Reset)
@@ -627,9 +627,9 @@ const (
 	msgReadFooterScreen = "msgread-footer.ans"
 )
 
-var fallbackMsgReadMeta = "\x1b[1;36mFrom:    \x1b[1;37m{FROM:-40}\x1b[1;36m Date: \x1b[1;37m{DATE}\r\n" +
-	"\x1b[1;36mTo:      \x1b[1;37m{TO:-40}\r\n" +
-	"\x1b[1;36mSubject: \x1b[1;37m{SUBJECT}\r\n" +
+var fallbackMsgReadMeta = "\x1b[1;36m{T:msg.from:-9}\x1b[1;37m{FROM:-40}\x1b[1;36m {T:msg.date} \x1b[1;37m{DATE}\r\n" +
+	"\x1b[1;36m{T:msg.to:-9}\x1b[1;37m{TO:-40}\r\n" +
+	"\x1b[1;36m{T:msg.subject:-9}\x1b[1;37m{SUBJECT}\r\n" +
 	"\x1b[36m" + strings.Repeat("-", 79) + ansi.Reset
 
 var fallbackMsgReadFooter = ansi.FG(ansi.White, true) + "{SCROLLSTATUS}" + ansi.Reset + "\r\n" +
@@ -736,7 +736,7 @@ func (s *Server) threadStep(msgs []message.Message, idx, dir int) (int, bool) {
 // deployment, so not something to hardcode) toward the body's scroll
 // viewport budget.
 func (s *Server) renderMessageReaderHeader(term *Terminal, area *message.Area, idx, total int) string {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, msgReadScreen))
+	raw, err := s.loadScreen(term.Lang, msgReadScreen)
 	if err != nil {
 		return ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset + "\n"
 	}
@@ -786,9 +786,9 @@ var stripSeenByAndPathForDisplay = message.StripSeenByAndPathForDisplay
 // them no longer misaligns anything, and scrolling works the same way
 // it does for plain text.
 func (s *Server) drawMessageReader(term *Terminal, u *user.User, area *message.Area, msgs []message.Message, idx, scrollOffset int) (maxOffset int, err error) {
-	hint := "[N] Next  [P] Prev  [ [ ] ] Thread  [Up/Dn] Scroll  [Q] Back"
+	hint := term.T("msgs.read_keys")
 	if area.CanWrite(u.SecurityLevel) {
-		hint = "[N] Next  [P] Prev  [ [ ] ] Thread  [Up/Dn] Scroll  [R] Reply  [Q] Back"
+		hint = term.T("msgs.read_keys_reply")
 	}
 	return s.drawReader(term, area, msgs, idx, scrollOffset, hint)
 }
@@ -801,7 +801,7 @@ func (s *Server) drawReader(term *Terminal, area *message.Area, msgs []message.M
 
 	header := s.renderMessageReaderHeader(term, area, idx, len(msgs))
 
-	metaTemplate := s.loadOptionalScreen(msgReadMetaScreen, fallbackMsgReadMeta)
+	metaTemplate := s.loadOptionalScreen(term, msgReadMetaScreen, fallbackMsgReadMeta)
 	vars := ansi.Vars{
 		"FROM":    m.FromName,
 		"TO":      m.ToName,
@@ -809,7 +809,7 @@ func (s *Server) drawReader(term *Terminal, area *message.Area, msgs []message.M
 		"DATE":    term.Time(m.PostedAt).Format("2006-01-02 15:04 MST"),
 	}
 	meta := ansi.Layout(ansi.Render(metaTemplate, vars), term.Width())
-	footerTemplate := s.loadOptionalScreen(msgReadFooterScreen, fallbackMsgReadFooter)
+	footerTemplate := s.loadOptionalScreen(term, msgReadFooterScreen, fallbackMsgReadFooter)
 
 	var b strings.Builder
 	b.WriteString(header)
@@ -878,7 +878,7 @@ func (s *Server) drawReader(term *Terminal, area *message.Area, msgs []message.M
 
 	scrollStatus := ""
 	if maxOffset > 0 {
-		scrollStatus = fmt.Sprintf("-- line %d-%d of %d --", scrollOffset+1, end, totalLines)
+		scrollStatus = "-- " + term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines) + " --"
 	}
 	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
 	b.WriteString(ansi.Reset + "\r\n")
@@ -896,7 +896,7 @@ func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area
 		return err
 	}
 	if !area.CanWrite(u.SecurityLevel) {
-		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Red, true) + "You don't have permission to post here."); err != nil {
+		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Red, true) + term.T("msgs.no_post")); err != nil {
 			return err
 		}
 		return s.pauseForKey(term)
@@ -906,20 +906,20 @@ func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area
 	if err := s.printPostMessageHeader(term, area); err != nil {
 		return err
 	}
-	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "To: " + ansi.Reset + original.FromName); err != nil {
+	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("msg.to") + " " + ansi.Reset + original.FromName); err != nil {
 		return err
 	}
-	if err := term.Println(ansi.FG(ansi.Cyan, true) + "Subject: " + ansi.Reset + subject); err != nil {
+	if err := term.Println(ansi.FG(ansi.Cyan, true) + term.T("msg.subject") + " " + ansi.Reset + subject); err != nil {
 		return err
 	}
 
-	lines, saved, err := s.runEditor(term, editorHeader(area.Name, original.FromName, subject),
+	lines, saved, err := s.runEditor(term, editorHeader(term, area.Name, original.FromName, subject),
 		quoteForReply(original.Body, original.FromName, original.ToName), u.LineEditor)
 	if err != nil {
 		return err
 	}
 	if !saved {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Reply aborted.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("msg.reply_aborted"))
 	}
 	m, err := s.Messages.PostMessage(area.ID, u.ID, original.FromName, subject, strings.Join(lines, "\n"))
 	if err != nil {
@@ -928,7 +928,7 @@ func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area
 	if err := s.Messages.SetReplyTo(m.ID, original.ID); err != nil {
 		return err
 	}
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Reply posted.")
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("msgs.reply_posted"))
 }
 
 // attemptPostMessage is the lightbar's P handler: it rejects the
@@ -941,7 +941,7 @@ func (s *Server) attemptPostMessage(term *Terminal, u *user.User, area *message.
 		return err
 	}
 	if !canWrite {
-		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Red, true) + "You don't have permission to post here."); err != nil {
+		if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Red, true) + term.T("msgs.no_post")); err != nil {
 			return err
 		}
 		return s.pauseForKey(term)
@@ -957,9 +957,9 @@ const msgPostScreen = "msgpost.ans"
 // printPostMessageHeader shows msgpost.ans (with AREANAME filled in),
 // falling back to a plain colored title line on a cleared screen.
 func (s *Server) printPostMessageHeader(term *Terminal, area *message.Area) error {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, msgPostScreen))
+	raw, err := s.loadScreen(term.Lang, msgPostScreen)
 	if err != nil {
-		return term.Println(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "Post to " + area.Name + ansi.Reset)
+		return term.Println(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("msgs.post_to", "AREA", area.Name) + ansi.Reset)
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
@@ -977,7 +977,7 @@ func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) e
 	if err := s.printPostMessageHeader(term, area); err != nil {
 		return err
 	}
-	if err := term.Print(ansi.Reset + "\nSubject: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\n" + term.T("msg.subject") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	subject, err := term.ReadLine(false)
@@ -986,26 +986,26 @@ func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) e
 	}
 	subject = strings.TrimSpace(subject)
 	if subject == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
-	lines, saved, err := s.runEditor(term, editorHeader(area.Name, "All", subject), nil, u.LineEditor)
+	lines, saved, err := s.runEditor(term, editorHeader(term, area.Name, "All", subject), nil, u.LineEditor)
 	if err != nil {
 		return err
 	}
 	if !saved {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message aborted.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("msg.aborted"))
 	}
 	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", subject, strings.Join(lines, "\n")); err != nil {
 		return err
 	}
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Message posted.")
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("msgs.posted"))
 }
 
 // sysopCreateArea is the "builtin:createarea" command: it prompts for
 // a new area's tag, name, description, and SL gates.
 func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
-	if err := term.Print(ansi.Reset + "\nArea tag (short, no spaces): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.area_tag") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	tag, err := term.ReadLine(false)
@@ -1014,10 +1014,10 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 	}
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + "Area name: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("sysop.area_name") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	name, err := term.ReadLine(false)
@@ -1026,10 +1026,10 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + "Description: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	description, err := term.ReadLine(false)
@@ -1037,7 +1037,7 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 
-	if err := term.Print(ansi.Reset + "Network (optional, e.g. fsxNet, FidoNet; blank for local-only): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("sysop.area_network") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	network, err := term.ReadLine(false)
@@ -1046,31 +1046,31 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 	}
 	network = strings.TrimSpace(network)
 
-	minRead, err := s.promptSecurityLevel(term, "Minimum SL to read (0-255): ")
+	minRead, err := s.promptSecurityLevel(term, term.T("sysop.min_read"))
 	if err != nil {
 		return err
 	}
 	if minRead < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
-	minWrite, err := s.promptSecurityLevel(term, "Minimum SL to post (0-255): ")
+	minWrite, err := s.promptSecurityLevel(term, term.T("sysop.min_post"))
 	if err != nil {
 		return err
 	}
 	if minWrite < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
 	area, err := s.Messages.CreateArea(tag, name, description, network, minRead, minWrite)
 	if err != nil {
 		if errors.Is(err, message.ErrTagTaken) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That tag is already in use.")
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.tag_used"))
 		}
 		return err
 	}
 	s.logInfo("%s created message area %q (%s)", sysop.Username, area.Name, area.Tag)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Area %q created.", area.Name))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("sysop.area_created", "NAME", area.Name))
 }
 
 // promptSecurityLevel reads a 0-255 security level, returning -1 for

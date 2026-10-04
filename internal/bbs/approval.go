@@ -12,16 +12,13 @@ import (
 // ApproveNewUsers, user.RegisterNew): until then they read, and write
 // netmail to the sysop -- nothing else that reaches other people.
 
-const pendingNote = "Your account is waiting for the sysop's approval. Until then you can read\r\n" +
-	"everything and write netmail to the sysop; posting, doors and uploads follow."
-
 // mayPost says whether u may post, use a door or upload, telling them
 // why not if they may not.
 func (s *Server) mayPost(term *Terminal, u *user.User) (bool, error) {
 	if u.Validated {
 		return true, nil
 	}
-	if err := term.Println(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) + pendingNote + ansi.Reset); err != nil {
+	if err := term.Println(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) + term.T("approval.pending") + ansi.Reset); err != nil {
 		return false, err
 	}
 	return false, s.pauseForKey(term)

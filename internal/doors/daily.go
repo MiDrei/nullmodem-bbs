@@ -240,7 +240,7 @@ func (s *Scheduler) Tick(ctx context.Context, now time.Time) {
 		if _, dbErr := s.DB.Exec(`INSERT INTO door_daily (door, last_day, last_at, ok, detail) VALUES (?, ?, ?, ?, ?)
 			ON CONFLICT(door) DO UPDATE SET last_day = excluded.last_day, last_at = excluded.last_at, ok = excluded.ok, detail = excluded.detail,
 				requested_at = CASE WHEN requested_at <= ? THEN 0 ELSE requested_at END`,
-			d.Name, now.Format("2006-01-02"), time.Now().UnixMilli(), err == nil, detail, started.UnixMilli()); dbErr != nil {
+			d.Name, now.Format("2006-01-02"), now.Add(time.Since(started)).UnixMilli(), err == nil, detail, started.UnixMilli()); dbErr != nil {
 			s.Logger.Warn("%v", dbErr)
 		}
 	}

@@ -19,8 +19,6 @@ import (
 // caller types. A reply starts with the quoted original (see
 // quoteForReply) with the cursor below it.
 
-const fseHint = "^Z Save  ^X Abort  ^Y Del line  ^W Del word  ^L Redraw"
-
 // editBuffer is the text being edited and the cursor in it.
 type editBuffer struct {
 	lines    [][]byte
@@ -204,7 +202,7 @@ func (s *Server) runFullScreenEditor(term *Terminal, header []string, initial []
 	}
 	drawStatus := func() string {
 		right := fmt.Sprintf("L%d C%d", b.row+1, b.col+1)
-		text := fseHint
+		text := term.T("fse.hint")
 		if status != "" {
 			text = status
 		}
@@ -303,13 +301,13 @@ func (s *Server) runFullScreenEditor(term *Terminal, header []string, initial []
 			case 'z': // save
 				text := b.text()
 				if len(text) == 0 {
-					status = "The message is empty -- nothing to save."
+					status = term.T("fse.empty")
 					break
 				}
 				term.Print(ansi.ClearScreen() + ansi.Reset)
 				return text, true, nil
 			case 'x': // abort
-				status = "Abort this message? (y/N)"
+				status = term.T("fse.abort")
 				if err := term.Print(drawStatus() + cursor()); err != nil {
 					return nil, false, err
 				}
@@ -317,7 +315,7 @@ func (s *Server) runFullScreenEditor(term *Terminal, header []string, initial []
 				if err != nil {
 					return nil, false, err
 				}
-				if k.Type == KeyChar && (k.Rune == 'y' || k.Rune == 'Y') {
+				if k.Type == KeyChar && isYes(term, strings.ToUpper(string(k.Rune))) {
 					term.Print(ansi.ClearScreen() + ansi.Reset)
 					return nil, false, nil
 				}
@@ -367,11 +365,11 @@ func (s *Server) runFullScreenEditor(term *Terminal, header []string, initial []
 
 // editorHeader is the full-screen editor's head: where the message
 // goes, to whom, and its subject.
-func editorHeader(where, to, subject string) []string {
+func editorHeader(term *Terminal, where, to, subject string) []string {
 	c, r := ansi.FG(ansi.Cyan, true), ansi.Reset
 	return []string{
 		c + where + r,
-		c + "To: " + r + to + "   " + c + "Subject: " + r + subject,
+		c + term.T("msg.to") + " " + r + to + "   " + c + term.T("msg.subject") + " " + r + subject,
 	}
 }
 

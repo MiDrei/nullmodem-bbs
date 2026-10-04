@@ -1,8 +1,10 @@
 package bbs
 
 import (
+	"strings"
 	"time"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/kit/ansi"
 )
 
@@ -26,6 +28,9 @@ type Terminal struct {
 	// recording failed logins (internal/guard).
 	RemoteIP string
 	Protocol string
+	// Lang is the language the caller reads the board in (internal/
+	// i18n): the board's own until they log in, then theirs.
+	Lang string
 	// sysopOK is set once the caller passed the two-factor check for
 	// the sysop functions (sysopGate) this session.
 	sysopOK bool
@@ -375,3 +380,37 @@ func (t *Terminal) ReadLine(mask bool) (string, error) {
 		}
 	}
 }
+
+// T is key's text in the caller's language, as CP437 like everything
+// a terminal is sent, args filling its placeholders ("COUNT", 3) --
+// see i18n.T. The arguments go in as they are: what the board stores
+// (subjects, names) is CP437 already.
+func (t *Terminal) T(key string, args ...any) string {
+	text, ok := i18n.Global().Text(t.Lang, key)
+	if !ok {
+		return key
+	}
+	return i18n.Fill(toCP437(text), args...)
+}
+
+// padCP cuts or pads a CP437 text (a byte a character) to n columns.
+func padCP(s string, n int) string {
+	if len(s) >= n {
+		return s[:n]
+	}
+	return s + strings.Repeat(" ", n-len(s))
+}
+
+// N is the singular (key.one) or plural (key.other) text for n, with
+// {COUNT} set to n: "1 vote", "3 votes".
+func (t *Terminal) N(key string, n int, args ...any) string {
+	form := key + ".other"
+	if n == 1 {
+		form = key + ".one"
+	}
+	return t.T(form, append([]any{"COUNT", n}, args...)...)
+}
+
+// U is T as UTF-8, for text that's turned into CP437 on its way out
+// (the chat screen's lines).
+func (t *Terminal) U(key string, args ...any) string { return i18n.T(t.Lang, key, args...) }

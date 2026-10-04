@@ -64,6 +64,7 @@
 				{ href: '/admin/doors', label: 'Doors', icon: 'doors' },
 				{ href: '/admin/menus', label: 'Menus', icon: 'menu' },
 				{ href: '/admin/screens', label: 'Screens', icon: 'screens' },
+				{ href: '/admin/languages', label: 'Languages', icon: 'language' },
 				{ href: '/admin/designer', label: 'ANSI Designer', icon: 'designer' }
 			]
 		},

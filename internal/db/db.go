@@ -77,6 +77,12 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	// The language the user reads the board in (internal/i18n code),
+	// '' for the board's own.
+	if err := ensureColumn(sqlDB, "users", "language", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	// Two-factor login (user/totp.go): the secret ('' off), one set up
 	// but not confirmed yet, and the last time step used (no replays).
 	for _, col := range [][2]string{

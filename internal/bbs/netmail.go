@@ -3,7 +3,6 @@ package bbs
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -143,15 +142,15 @@ outer:
 // a caller mid-reader-navigation knows whether to return to the list
 // (msgs no longer includes m) or keep going.
 func (s *Server) confirmDeleteNetmail(term *Terminal, m *netmail.Message) (bool, error) {
-	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Red, true) + fmt.Sprintf("Delete %q? [y/N]: ", m.Subject) + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Red, true) + term.T("netmail.delete_confirm", "SUBJECT", m.Subject) + ansi.FG(ansi.Yellow, true)); err != nil {
 		return false, err
 	}
 	answer, err := term.ReadLine(false)
 	if err != nil {
 		return false, err
 	}
-	answer = strings.ToLower(strings.TrimSpace(answer))
-	if answer != "y" && answer != "yes" {
+	answer = strings.ToUpper(strings.TrimSpace(answer))
+	if !isYes(term, answer) && answer != "YES" {
 		return false, nil
 	}
 	if err := s.Netmail.Delete(m.ID); err != nil {
@@ -172,9 +171,9 @@ const netmailListScreen = "netmail.ans"
 // drawNetmailList can count its line count toward the list's scroll
 // viewport budget.
 func (s *Server) renderNetmailListHeader(term *Terminal, u *user.User) string {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, netmailListScreen))
+	raw, err := s.loadScreen(term.Lang, netmailListScreen)
 	if err != nil {
-		return ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Netmail" + ansi.Reset + "\n"
+		return ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.title") + ansi.Reset + "\n"
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
@@ -187,7 +186,7 @@ func (s *Server) renderNetmailListHeader(term *Terminal, u *user.User) string {
 // drawEmptyNetmailList shows just the header banner and a hint bar
 // for an empty inbox -- see messages.go's drawEmptyMessageList.
 func (s *Server) drawEmptyNetmailList(term *Terminal, u *user.User) error {
-	return term.Print(s.renderNetmailListHeader(term, u) + ansi.Reset + "(no netmail yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[C] Compose   [Q] Back" + ansi.Reset)
+	return term.Print(s.renderNetmailListHeader(term, u) + ansi.Reset + term.T("netmail.empty") + "\r\n\r\n" + ansi.FG(ansi.White, true) + term.T("netmail.empty_keys") + ansi.Reset)
 }
 
 // Fixed filenames for the hand-designed pieces of the netmail inbox
@@ -205,7 +204,7 @@ const (
 	fallbackNetmailListRowSelected = "\x1b[47m\x1b[30m{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}\x1b[0m"
 )
 
-var fallbackNetmailListColumns = "    Subject                                 From                           Date\r\n" + strings.Repeat("-", 79)
+var fallbackNetmailListColumns = "    {T:col.subject:-40}{T:col.from:-30}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
 
 // drawNetmailList redraws the header banner plus the Subject/From/
 // Date table, with the row at selected highlighted and any unread
@@ -220,9 +219,9 @@ var fallbackNetmailListColumns = "    Subject                                 Fr
 func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Message, selected int) error {
 	header := s.renderNetmailListHeader(term, u)
 
-	rowTemplate := s.loadOptionalScreen(netmailListRowScreen, fallbackNetmailListRow)
-	rowSelectedTemplate := s.loadOptionalScreen(netmailListRowSelectedScreen, fallbackNetmailListRowSelected)
-	columns := s.loadOptionalScreen(netmailListColumnsScreen, fallbackNetmailListColumns)
+	rowTemplate := s.loadOptionalScreen(term, netmailListRowScreen, fallbackNetmailListRow)
+	rowSelectedTemplate := s.loadOptionalScreen(term, netmailListRowSelectedScreen, fallbackNetmailListRowSelected)
+	columns := s.loadOptionalScreen(term, netmailListColumnsScreen, fallbackNetmailListColumns)
 
 	var b strings.Builder
 	b.WriteString(header)
@@ -264,7 +263,7 @@ func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Me
 		}
 		newFlag := ""
 		if !m.IsRead() {
-			newFlag = "NEW"
+			newFlag = term.T("list.new_flag")
 		}
 		vars := ansi.Vars{
 			"SUBJECT": m.Subject,
@@ -281,10 +280,10 @@ func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Me
 
 	scrollStatus := ""
 	if len(msgs) > available {
-		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(msgs))
+		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(msgs)) + " --"
 	}
 	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Read   [C] Compose   [D] Delete   [Q] Back" + ansi.Reset)
+	b.WriteString(ansi.FG(ansi.White, true) + term.T("netmail.list_keys") + ansi.Reset)
 	return term.Print(b.String())
 }
 
@@ -297,9 +296,9 @@ const (
 	netmailReadFooterScreen = "netread-footer.ans"
 )
 
-var fallbackNetmailReadMeta = "\x1b[1;35mFrom:    \x1b[1;37m{FROM:-40}\x1b[1;35m Date: \x1b[1;37m{DATE}\r\n" +
-	"\x1b[1;35mTo:      \x1b[1;37m{TO:-40}\r\n" +
-	"\x1b[1;35mSubject: \x1b[1;37m{SUBJECT}\r\n" +
+var fallbackNetmailReadMeta = "\x1b[1;35m{T:msg.from:-9}\x1b[1;37m{FROM:-40}\x1b[1;35m {T:msg.date} \x1b[1;37m{DATE}\r\n" +
+	"\x1b[1;35m{T:msg.to:-9}\x1b[1;37m{TO:-40}\r\n" +
+	"\x1b[1;35m{T:msg.subject:-9}\x1b[1;37m{SUBJECT}\r\n" +
 	"\x1b[35m" + strings.Repeat("-", 79) + ansi.Reset
 
 var fallbackNetmailReadFooter = ansi.FG(ansi.White, true) + "{SCROLLSTATUS}" + ansi.Reset + "\r\n" +
@@ -379,23 +378,23 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 		}
 	}
 	subject := replySubject(original.Subject)
-	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Reply to Netmail" + ansi.Reset); err != nil {
+	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.reply_title") + ansi.Reset); err != nil {
 		return err
 	}
-	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "To: " + ansi.Reset + original.FromName); err != nil {
+	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("msg.to") + " " + ansi.Reset + original.FromName); err != nil {
 		return err
 	}
-	if err := term.Println(ansi.FG(ansi.Cyan, true) + "Subject: " + ansi.Reset + subject); err != nil {
+	if err := term.Println(ansi.FG(ansi.Cyan, true) + term.T("msg.subject") + " " + ansi.Reset + subject); err != nil {
 		return err
 	}
 
-	lines, saved, err := s.runEditor(term, editorHeader("Netmail", original.FromName, subject),
+	lines, saved, err := s.runEditor(term, editorHeader(term, term.T("netmail.title"), original.FromName, subject),
 		quoteForReply(original.Body, original.FromName, original.ToName), u.LineEditor)
 	if err != nil {
 		return err
 	}
 	if !saved {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Reply aborted.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("msg.reply_aborted"))
 	}
 
 	var toUserID int64
@@ -408,7 +407,7 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 	if _, err := s.Netmail.Send(u.ID, s.FTNAddress, toUserID, original.FromName, toAddress, subject, strings.Join(lines, "\n"), false); err != nil {
 		return err
 	}
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Reply sent.")
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("msg.reply_sent"))
 }
 
 // renderNetmailReaderHeader returns netread.ans (with MSGNUM/MSGCOUNT
@@ -418,9 +417,9 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 // drawNetmailReader can count its line count toward the body's
 // scroll viewport budget.
 func (s *Server) renderNetmailReaderHeader(term *Terminal, idx, total int) string {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, netmailReadScreen))
+	raw, err := s.loadScreen(term.Lang, netmailReadScreen)
 	if err != nil {
-		return ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Netmail" + ansi.Reset + "\n"
+		return ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.title") + ansi.Reset + "\n"
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
@@ -447,7 +446,7 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 	m := &msgs[idx]
 	body := m.Body
 
-	hint := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [D] Delete  [Q] Back to list"
+	hint := term.T("netmail.read_keys")
 
 	header := s.renderNetmailReaderHeader(term, idx, len(msgs))
 
@@ -455,7 +454,7 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 	if m.ToAddress != "" {
 		to = fmt.Sprintf("%s (%s)", m.ToName, m.ToAddress)
 	}
-	metaTemplate := s.loadOptionalScreen(netmailReadMetaScreen, fallbackNetmailReadMeta)
+	metaTemplate := s.loadOptionalScreen(term, netmailReadMetaScreen, fallbackNetmailReadMeta)
 	vars := ansi.Vars{
 		"FROM":    m.FromName,
 		"TO":      to,
@@ -463,7 +462,7 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 		"DATE":    term.Time(m.PostedAt).Format("2006-01-02 15:04 MST"),
 	}
 	meta := ansi.Layout(ansi.Render(metaTemplate, vars), term.Width())
-	footerTemplate := s.loadOptionalScreen(netmailReadFooterScreen, fallbackNetmailReadFooter)
+	footerTemplate := s.loadOptionalScreen(term, netmailReadFooterScreen, fallbackNetmailReadFooter)
 
 	var b strings.Builder
 	b.WriteString(header)
@@ -515,7 +514,7 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 
 	scrollStatus := ""
 	if maxOffset > 0 {
-		scrollStatus = fmt.Sprintf("-- line %d-%d of %d --", scrollOffset+1, end, totalLines)
+		scrollStatus = "-- " + term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines) + " --"
 	}
 	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
 	b.WriteString(ansi.Reset + "\r\n")
@@ -531,10 +530,10 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 // hand the message to), then a Subject, then hands off to the shared
 // runLineEditor for the body.
 func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
-	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + "Compose Netmail" + ansi.Reset); err != nil {
+	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.compose_title") + ansi.Reset); err != nil {
 		return err
 	}
-	if err := term.Print(ansi.Reset + "\nTo (username or FTN address zone:net/node.point): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\n" + term.T("netmail.to_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	to, err := term.ReadLine(false)
@@ -543,7 +542,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 	}
 	to = strings.TrimSpace(to)
 	if to == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
 	var toUserID int64
@@ -568,15 +567,15 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		if s.Nodelist != nil {
 			if e, ok, _ := s.Nodelist.LookupAddress(to); ok {
 				if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "  -> " + toCP437(e.Name) + ", " +
-					toCP437(e.Location) + " (sysop " + toCP437(e.Sysop) + ")" + ansi.Reset); err != nil {
+					toCP437(e.Location) + " (" + term.T("netmail.sysop_of", "SYSOP", toCP437(e.Sysop)) + ")" + ansi.Reset); err != nil {
 					return err
 				}
 				defaultName = toCP437(e.Sysop)
-			} else if err := term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "  Not in the nodelists here -- check the address." + ansi.Reset); err != nil {
+			} else if err := term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "  " + term.T("netmail.not_in_nodelist") + ansi.Reset); err != nil {
 				return err
 			}
 		}
-		if err := term.Print(ansi.Reset + "Recipient name [" + defaultName + "]: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + term.T("netmail.recipient", "DEFAULT", defaultName) + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		name, err := term.ReadLine(false)
@@ -587,21 +586,21 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		if toName == "" {
 			toName = defaultName
 		}
-		if err := term.Print(ansi.Reset + "Crash priority (immediate delivery)? [y/N]: " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + term.T("netmail.crash") + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		crashAnswer, err := term.ReadLine(false)
 		if err != nil {
 			return err
 		}
-		crashAnswer = strings.ToLower(strings.TrimSpace(crashAnswer))
-		crash = crashAnswer == "y" || crashAnswer == "yes"
+		crashAnswer = strings.ToUpper(strings.TrimSpace(crashAnswer))
+		crash = isYes(term, crashAnswer) || crashAnswer == "YES"
 	} else {
 		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) +
-			fmt.Sprintf("No such local user, and %q doesn't look like an FTN address (zone:net/node.point).", to))
+			term.T("netmail.bad_recipient", "TO", to))
 	}
 
-	if err := term.Print(ansi.Reset + "Subject: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("msg.subject") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	subject, err := term.ReadLine(false)
@@ -610,27 +609,27 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 	}
 	subject = strings.TrimSpace(subject)
 	if subject == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
 	label := toName
 	if toAddress != "" {
 		label += " (" + toAddress + ")"
 	}
-	lines, saved, err := s.runEditor(term, editorHeader("Netmail", label, subject), nil, u.LineEditor)
+	lines, saved, err := s.runEditor(term, editorHeader(term, term.T("netmail.title"), label, subject), nil, u.LineEditor)
 	if err != nil {
 		return err
 	}
 	if !saved {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Message aborted.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("msg.aborted"))
 	}
 
 	if _, err := s.Netmail.Send(u.ID, s.FTNAddress, toUserID, toName, toAddress, subject, strings.Join(lines, "\n"), crash); err != nil {
 		return err
 	}
 	if toUserID > 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Netmail sent.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("netmail.sent"))
 	}
 	return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) +
-		fmt.Sprintf("Netmail queued for %s at %s -- no BinkP mailer is configured yet, so it will be delivered once one is set up.", toName, toAddress))
+		term.T("netmail.queued_no_mailer", "NAME", toName, "ADDRESS", toAddress))
 }

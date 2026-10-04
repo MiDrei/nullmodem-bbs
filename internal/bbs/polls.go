@@ -25,23 +25,23 @@ func (s *Server) votingBooth(term *Terminal, u *user.User) error {
 			return err
 		}
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  Voting booth" + ansi.Reset + "\r\n")
+		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("polls.title") + ansi.Reset + "\r\n")
 		if len(polls) == 0 {
-			b.WriteString("  No polls open right now.\r\n")
+			b.WriteString("  " + term.T("polls.none") + "\r\n")
 			if err := term.Print(b.String()); err != nil {
 				return err
 			}
 			return s.pauseForKey(term)
 		}
 		for i, p := range polls {
-			mark := ansi.FG(ansi.Yellow, true) + " new" + ansi.Reset
+			mark := ansi.FG(ansi.Yellow, true) + " " + term.T("polls.new") + ansi.Reset
 			if p.MyVote != 0 {
-				mark = ansi.FG(ansi.Green, false) + " voted" + ansi.Reset
+				mark = ansi.FG(ansi.Green, false) + " " + term.T("polls.voted") + ansi.Reset
 			}
 			fmt.Fprintf(&b, "  %s%2d%s  %s%s  %s(%s)%s\r\n", ansi.FG(ansi.Yellow, true), i+1, ansi.Reset,
-				toCP437(p.Question), mark, ansi.FG(ansi.White, false), plural(p.Total, "vote", "votes"), ansi.Reset)
+				toCP437(p.Question), mark, ansi.FG(ansi.White, false), term.N("polls.votes", p.Total), ansi.Reset)
 		}
-		b.WriteString("\r\n  Poll number (Enter = back): " + ansi.FG(ansi.Yellow, true))
+		b.WriteString("\r\n  " + term.T("polls.which") + " " + ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
@@ -75,17 +75,17 @@ func (s *Server) showPoll(term *Terminal, u *user.User, p community.Poll) error 
 		fmt.Fprintf(&b, "  %s%s%2d%s  %s\r\n", chosen, ansi.FG(ansi.Yellow, true), i+1, ansi.Reset, toCP437(o.Text))
 	}
 	if !u.Validated {
-		b.WriteString("\r\n  " + ansi.FG(ansi.Yellow, false) + "You can vote once the sysop has approved your account." + ansi.Reset + "\r\n")
+		b.WriteString("\r\n  " + ansi.FG(ansi.Yellow, false) + term.T("polls.not_approved") + ansi.Reset + "\r\n")
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
 		return s.showResults(term, p)
 	}
-	prompt := "Your vote"
+	prompt := term.T("polls.your_vote")
 	if p.MyVote != 0 {
-		prompt = "Change your vote"
+		prompt = term.T("polls.change_vote")
 	}
-	b.WriteString("\r\n  " + prompt + " (number; Enter = just the results): " + ansi.FG(ansi.Yellow, true))
+	b.WriteString("\r\n  " + prompt + " " + term.T("polls.vote_hint") + " " + ansi.FG(ansi.Yellow, true))
 	if err := term.Print(b.String()); err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func (s *Server) showPoll(term *Terminal, u *user.User, p community.Poll) error 
 // showResults draws the votes as bars.
 func (s *Server) showResults(term *Terminal, p community.Poll) error {
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n  " + ansi.FG(ansi.Cyan, true) + "Results" + ansi.Reset + " (" + plural(p.Total, "vote", "votes") + ")\r\n")
+	b.WriteString(ansi.Reset + "\r\n  " + ansi.FG(ansi.Cyan, true) + term.T("polls.results") + ansi.Reset + " (" + term.N("polls.votes", p.Total) + ")\r\n")
 	const width = 30
 	for _, o := range p.Options {
 		pct := 0

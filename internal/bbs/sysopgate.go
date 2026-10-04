@@ -28,12 +28,12 @@ func (s *Server) sysopGate(term *Terminal, u *user.User) (bool, error) {
 	if !u.TwoFactor {
 		if s.Security != nil && s.Security().RequireAdminTOTP {
 			return false, term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Red, true) +
-				"The sysop functions need two-factor login -- set it up in the web admin (Security)." + ansi.Reset)
+				term.T("sysop.need_2fa") + ansi.Reset)
 		}
 		term.sysopOK = true
 		return true, nil
 	}
-	if err := term.Print(ansi.Reset + "\nTwo-factor code (or a recovery code): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.code_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return false, err
 	}
 	code, err := term.ReadLine(false)
@@ -45,11 +45,11 @@ func (s *Server) sysopGate(term *Terminal, u *user.User) (bool, error) {
 		s.logWarn("[%s] wrong two-factor code for %s's sysop functions", term.Protocol, u.Username)
 		if s.Guard != nil {
 			if v, err := s.Guard.Fail(term.RemoteIP, u.Username, term.Protocol+" 2fa"); err == nil && v.Blocked {
-				term.Println(ansi.FG(ansi.Red, true) + v.Message() + ansi.Reset)
+				term.Println(ansi.FG(ansi.Red, true) + toCP437(v.MessageIn(term.Lang)) + ansi.Reset)
 				return false, errLogoff
 			}
 		}
-		return false, term.Println(ansi.FG(ansi.Red, true) + "Wrong code." + ansi.Reset)
+		return false, term.Println(ansi.FG(ansi.Red, true) + term.T("sysop.wrong_code") + ansi.Reset)
 	}
 	term.sysopOK = true
 	return true, nil

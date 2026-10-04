@@ -5,6 +5,7 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/chat"
 	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/guard"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/nodelist"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
 	// image has a zoneinfo database or not.
@@ -78,6 +79,10 @@ func main() {
 		logger.Fatal("initializing session tracking: %v", err)
 	}
 
+	// The texts in every language, with the sysop's changes (the web
+	// admin's language editor; read again when they change).
+	i18n.Use(i18n.New(cfg.TextsDir()))
+
 	// Read again when a file changes (the web admin's menu editor).
 	menus, err := menu.NewWatcher(cfg.BBS.MenusDir)
 	if err != nil {
@@ -137,6 +142,7 @@ func main() {
 		Community:        community.NewStore(sqlDB),
 		Stats:            stats.NewStore(sqlDB),
 		Security:         security,
+		Language:         func() string { return current().BBS.Language },
 	})
 
 	// File and QWK transfers over Telnet/SSH run Synchronet's sexyz.

@@ -32,8 +32,8 @@ outer:
 			return err
 		}
 		if len(stats) == 0 {
-			header := s.renderAreaHeader(term, u, "filareas.ans", "File Areas")
-			return term.Print(header + ansi.Reset + "No file areas available." + ansi.CRLF)
+			header := s.renderAreaHeader(term, u, "filareas.ans", term.T("files.areas_title"))
+			return term.Print(header + ansi.Reset + term.T("files.no_areas") + ansi.CRLF)
 		}
 		if selected >= len(stats) {
 			selected = len(stats) - 1
@@ -102,7 +102,7 @@ const (
 	fallbackFileAreaNetwork     = "\x1b[1;35m-- {NETWORK} {FILL:-}\x1b[0m"
 )
 
-var fallbackFileAreaColumns = "Area                                                           Total    New  Yours\r\n" + strings.Repeat("-", 79)
+var fallbackFileAreaColumns = "{T:col.area:-63}{T:col.total:5}{T:col.new:7}{T:col.yours:7}\r\n" + strings.Repeat("-", 79)
 
 // fileAreaDisplayRow mirrors messages.go's areaDisplayRow exactly,
 // against file.AreaWithStats instead of message.AreaWithStats -- see
@@ -139,12 +139,12 @@ func buildFileAreaDisplayRows(stats []file.AreaWithStats, selected int, networkT
 // column/row screen files and file.AreaWithStats instead of
 // message.AreaWithStats.
 func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file.AreaWithStats, selected, scrollOffset int) (int, error) {
-	header := s.renderAreaHeader(term, u, "filareas.ans", "File Areas")
+	header := s.renderAreaHeader(term, u, "filareas.ans", term.T("files.areas_title"))
 
-	rowTemplate := s.loadOptionalScreen(fileAreaRowScreen, fallbackFileAreaRow)
-	rowSelectedTemplate := s.loadOptionalScreen(fileAreaRowSelectedScreen, fallbackFileAreaRowSelected)
-	networkTemplate := s.loadOptionalScreen(fileAreaNetworkScreen, fallbackFileAreaNetwork)
-	columns := s.loadOptionalScreen(fileAreaColumnsScreen, fallbackFileAreaColumns)
+	rowTemplate := s.loadOptionalScreen(term, fileAreaRowScreen, fallbackFileAreaRow)
+	rowSelectedTemplate := s.loadOptionalScreen(term, fileAreaRowSelectedScreen, fallbackFileAreaRowSelected)
+	networkTemplate := s.loadOptionalScreen(term, fileAreaNetworkScreen, fallbackFileAreaNetwork)
+	columns := s.loadOptionalScreen(term, fileAreaColumnsScreen, fallbackFileAreaColumns)
 
 	rows, selectedRow := buildFileAreaDisplayRows(stats, selected, networkTemplate, term.Width())
 
@@ -191,7 +191,7 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 		}
 		newFlag := ""
 		if st.New > 0 {
-			newFlag = "NEW"
+			newFlag = term.T("list.new_flag")
 		}
 		vars := ansi.Vars{
 			"AREANAME": st.Area.Name,
@@ -209,10 +209,10 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 
 	scrollStatus := ""
 	if len(rows) > available {
-		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(rows))
+		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(rows)) + " --"
 	}
 	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] Select   [N] New files   [S] Search   [Q] Back" + ansi.Reset)
+	b.WriteString(ansi.FG(ansi.White, true) + term.T("files.areas_keys") + ansi.Reset)
 	return scrollOffset, term.Print(b.String())
 }
 
@@ -230,7 +230,7 @@ const fileListScreen = "fillist.ans"
 // directly so drawFileList can count its line count toward the list's
 // scroll viewport budget.
 func (s *Server) renderFileListHeader(term *Terminal, area *file.Area) string {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, fileListScreen))
+	raw, err := s.loadScreen(term.Lang, fileListScreen)
 	if err != nil {
 		return ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset + "\n"
 	}
@@ -257,7 +257,7 @@ const (
 	fallbackFileListRowSelected = "\x1b[47m\x1b[30m{NEWFLAG:-3} {FILENAME:-30} {BY:-16} {SIZE:10} {DATE:16}\x1b[0m"
 )
 
-var fallbackFileListColumns = "    Filename                       By                     Size             Date\r\n" + strings.Repeat("-", 79)
+var fallbackFileListColumns = "    {T:col.filename:-31}{T:col.by:-23}{T:col.size:-16}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
 
 // firstUnreadFileIndex mirrors messages.go's firstUnreadIndex exactly,
 // against a file area's per-file read state instead of a message
@@ -371,7 +371,7 @@ outer:
 // drawEmptyFileList shows just the header banner and a hint bar for
 // an area with no files yet -- see messages.go's drawEmptyMessageList.
 func (s *Server) drawEmptyFileList(term *Terminal, area *file.Area) error {
-	return term.Print(s.renderFileListHeader(term, area) + ansi.Reset + "(no files yet)\r\n\r\n" + ansi.FG(ansi.White, true) + "[U] Upload   [Q] Back" + ansi.Reset)
+	return term.Print(s.renderFileListHeader(term, area) + ansi.Reset + term.T("files.empty") + "\r\n\r\n" + ansi.FG(ansi.White, true) + term.T("files.empty_keys") + ansi.Reset)
 }
 
 // drawFileList redraws the header banner plus the Filename/By/Size/
@@ -396,9 +396,9 @@ func (s *Server) drawEmptyFileList(term *Terminal, area *file.Area) error {
 func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File, selected, scrollOffset int, readIDs map[int64]bool) (int, error) {
 	header := s.renderFileListHeader(term, area)
 
-	rowTemplate := s.loadOptionalScreen(fileListRowScreen, fallbackFileListRow)
-	rowSelectedTemplate := s.loadOptionalScreen(fileListRowSelectedScreen, fallbackFileListRowSelected)
-	columns := s.loadOptionalScreen(fileListColumnsScreen, fallbackFileListColumns)
+	rowTemplate := s.loadOptionalScreen(term, fileListRowScreen, fallbackFileListRow)
+	rowSelectedTemplate := s.loadOptionalScreen(term, fileListRowSelectedScreen, fallbackFileListRowSelected)
+	columns := s.loadOptionalScreen(term, fileListColumnsScreen, fallbackFileListColumns)
 
 	var b strings.Builder
 	b.WriteString(header)
@@ -444,7 +444,7 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 		}
 		newFlag := ""
 		if !readIDs[f.ID] {
-			newFlag = "NEW"
+			newFlag = term.T("list.new_flag")
 		}
 		vars := ansi.Vars{
 			"FILENAME": f.Filename,
@@ -462,10 +462,10 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 
 	scrollStatus := ""
 	if len(files) > available {
-		scrollStatus = fmt.Sprintf("-- %d-%d of %d --", scrollOffset+1, end, len(files))
+		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(files)) + " --"
 	}
 	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back" + ansi.Reset)
+	b.WriteString(ansi.FG(ansi.White, true) + term.T("files.list_keys") + ansi.Reset)
 	return scrollOffset, term.Print(b.String())
 }
 
@@ -481,9 +481,9 @@ const (
 	fileReadFooterScreen = "filread-footer.ans"
 )
 
-var fallbackFileReadMeta = "\x1b[1;32mFilename:  \x1b[1;37m{FILENAME:-40}\x1b[1;32m Size: \x1b[1;37m{SIZE}\r\n" +
-	"\x1b[1;32mUploaded:  \x1b[1;37m{DATE}\x1b[1;32m by \x1b[1;37m{BY}\r\n" +
-	"\x1b[1;32mDownloads: \x1b[1;37m{DOWNLOADS}\r\n" +
+var fallbackFileReadMeta = "\x1b[1;32m{T:files.filename:-11}\x1b[1;37m{FILENAME:-40}\x1b[1;32m {T:files.size} \x1b[1;37m{SIZE}\r\n" +
+	"\x1b[1;32m{T:files.uploaded:-11}\x1b[1;37m{DATE}\x1b[1;32m {T:files.by} \x1b[1;37m{BY}\r\n" +
+	"\x1b[1;32m{T:files.downloads:-11}\x1b[1;37m{DOWNLOADS}\r\n" +
 	"\x1b[32m" + strings.Repeat("-", 79) + ansi.Reset
 
 var fallbackFileReadFooter = ansi.FG(ansi.White, true) + "{SCROLLSTATUS}" + ansi.Reset + "\r\n" +
@@ -553,7 +553,7 @@ func (s *Server) readFile(term *Terminal, u *user.User, area *file.Area, files [
 // printing directly so drawFileReader can count its line count toward
 // the description's scroll viewport budget.
 func (s *Server) renderFileReaderHeader(term *Terminal, area *file.Area, idx, total int) string {
-	raw, err := ansi.LoadScreen(filepath.Join(s.ScreensDir, fileReadScreen))
+	raw, err := s.loadScreen(term.Lang, fileReadScreen)
 	if err != nil {
 		return ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + area.Name + ansi.Reset + "\n"
 	}
@@ -585,11 +585,11 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 	f := &files[idx]
 	body := f.Description
 
-	hint := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list"
+	hint := term.T("files.read_keys")
 
 	header := s.renderFileReaderHeader(term, area, idx, len(files))
 
-	metaTemplate := s.loadOptionalScreen(fileReadMetaScreen, fallbackFileReadMeta)
+	metaTemplate := s.loadOptionalScreen(term, fileReadMetaScreen, fallbackFileReadMeta)
 	vars := ansi.Vars{
 		"FILENAME":  f.Filename,
 		"SIZE":      humanize.Bytes(uint64(f.SizeBytes)),
@@ -598,7 +598,7 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 		"DOWNLOADS": strconv.Itoa(f.DownloadCount),
 	}
 	meta := ansi.Layout(ansi.Render(metaTemplate, vars), term.Width())
-	footerTemplate := s.loadOptionalScreen(fileReadFooterScreen, fallbackFileReadFooter)
+	footerTemplate := s.loadOptionalScreen(term, fileReadFooterScreen, fallbackFileReadFooter)
 
 	var b strings.Builder
 	b.WriteString(header)
@@ -660,7 +660,7 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 
 	scrollStatus := ""
 	if maxOffset > 0 {
-		scrollStatus = fmt.Sprintf("-- line %d-%d of %d --", scrollOffset+1, end, totalLines)
+		scrollStatus = "-- " + term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines) + " --"
 	}
 	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
 	b.WriteString(ansi.Reset + "\r\n")
@@ -682,11 +682,11 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 func (s *Server) downloadFile(term *Terminal, u *user.User, f *file.File) error {
 	if _, err := os.Stat(f.StoragePath); err != nil {
 		s.logWarn("stat %s for download by %s: %v", f.StoragePath, u.Username, err)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Could not open that file.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("files.cant_open"))
 	}
 
 	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
-		fmt.Sprintf("Starting Zmodem download of %s (%s) -- your terminal should start receiving automatically.", f.Filename, humanize.Bytes(uint64(f.SizeBytes))) +
+		term.T("files.download_start", "FILE", f.Filename, "SIZE", humanize.Bytes(uint64(f.SizeBytes))) +
 		ansi.Reset + "\r\n"); err != nil {
 		return err
 	}
@@ -700,10 +700,10 @@ func (s *Server) downloadFile(term *Terminal, u *user.User, f *file.File) error 
 		if err := s.Files.RecordDownload(f.ID); err != nil {
 			return err
 		}
-		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "Download complete.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("files.download_done"))
 	default:
 		s.logWarn("zmodem download of %s by %s: %v", f.Filename, u.Username, sendErr)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Download failed or was cancelled.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("transfer.download_failed"))
 	}
 }
 
@@ -730,7 +730,7 @@ func (s *Server) uploadFile(term *Terminal, u *user.User, area *file.Area) error
 		return err
 	}
 	if !area.CanUpload(u.SecurityLevel) {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "You don't have access to upload here.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("files.no_upload"))
 	}
 
 	tmpDir, err := os.MkdirTemp("", "nullmodem-upload-*")
@@ -740,7 +740,7 @@ func (s *Server) uploadFile(term *Terminal, u *user.User, area *file.Area) error
 	defer os.RemoveAll(tmpDir)
 
 	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
-		"Ready to receive your file(s) via Zmodem -- start the upload in your terminal now." +
+		term.T("files.upload_ready") +
 		ansi.Reset + "\r\n"); err != nil {
 		return err
 	}
@@ -779,23 +779,23 @@ func (s *Server) uploadFile(term *Terminal, u *user.User, area *file.Area) error
 	b.WriteString(ansi.Reset + "\r\n")
 	switch {
 	case len(imported) > 0:
-		b.WriteString(ansi.FG(ansi.Green, true) + "Received: " + strings.Join(imported, ", ") + ansi.Reset + "\r\n")
+		b.WriteString(ansi.FG(ansi.Green, true) + term.T("files.received", "FILES", strings.Join(imported, ", ")) + ansi.Reset + "\r\n")
 	case recvErr == nil:
-		b.WriteString(ansi.FG(ansi.Red, true) + "No files were received." + ansi.Reset + "\r\n")
+		b.WriteString(ansi.FG(ansi.Red, true) + term.T("files.none_received") + ansi.Reset + "\r\n")
 	}
 	if len(duplicates) > 0 {
-		b.WriteString(ansi.FG(ansi.Yellow, true) + "Skipped (already exists): " + strings.Join(duplicates, ", ") + ansi.Reset + "\r\n")
+		b.WriteString(ansi.FG(ansi.Yellow, true) + term.T("files.skipped_dupes", "FILES", strings.Join(duplicates, ", ")) + ansi.Reset + "\r\n")
 	}
 	if len(failed) > 0 {
-		b.WriteString(ansi.FG(ansi.Red, true) + "Failed to store: " + strings.Join(failed, ", ") + ansi.Reset + "\r\n")
+		b.WriteString(ansi.FG(ansi.Red, true) + term.T("files.store_failed", "FILES", strings.Join(failed, ", ")) + ansi.Reset + "\r\n")
 	}
 	if recvErr != nil {
 		if len(imported) == 0 && len(duplicates) == 0 {
 			s.logWarn("zmodem upload into file area %d by %s: %v", area.ID, u.Username, recvErr)
-			b.WriteString(ansi.FG(ansi.Red, true) + "Upload failed or was cancelled." + ansi.Reset + "\r\n")
+			b.WriteString(ansi.FG(ansi.Red, true) + term.T("transfer.upload_failed") + ansi.Reset + "\r\n")
 		} else {
 			s.logWarn("zmodem upload into file area %d by %s ended early: %v", area.ID, u.Username, recvErr)
-			b.WriteString(ansi.FG(ansi.Yellow, true) + "Transfer ended early; the files above did make it through." + ansi.Reset + "\r\n")
+			b.WriteString(ansi.FG(ansi.Yellow, true) + term.T("files.ended_early") + ansi.Reset + "\r\n")
 		}
 	}
 	return term.Print(b.String())
@@ -804,7 +804,7 @@ func (s *Server) uploadFile(term *Terminal, u *user.User, area *file.Area) error
 // sysopCreateFileArea is the "builtin:createfilearea" command: it
 // prompts for a new area's tag, name, description, and SL gates.
 func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
-	if err := term.Print(ansi.Reset + "\nArea tag (short, no spaces): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.area_tag") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	tag, err := term.ReadLine(false)
@@ -813,10 +813,10 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 	}
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + "Area name: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("sysop.area_name") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	name, err := term.ReadLine(false)
@@ -825,10 +825,10 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + "Description: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	description, err := term.ReadLine(false)
@@ -836,7 +836,7 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 
-	if err := term.Print(ansi.Reset + "Network (optional, e.g. fsxNet, FidoNet; blank for local-only): " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("sysop.area_network") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	network, err := term.ReadLine(false)
@@ -845,31 +845,31 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 	}
 	network = strings.TrimSpace(network)
 
-	minDownload, err := s.promptSecurityLevel(term, "Minimum SL to download (0-255): ")
+	minDownload, err := s.promptSecurityLevel(term, term.T("sysop.min_download"))
 	if err != nil {
 		return err
 	}
 	if minDownload < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
-	minUpload, err := s.promptSecurityLevel(term, "Minimum SL to upload (0-255): ")
+	minUpload, err := s.promptSecurityLevel(term, term.T("sysop.min_upload"))
 	if err != nil {
 		return err
 	}
 	if minUpload < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid security level.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
 	area, err := s.Files.CreateArea(tag, name, description, network, minDownload, minUpload)
 	if err != nil {
 		if errors.Is(err, file.ErrTagTaken) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "That tag is already in use.")
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.tag_used"))
 		}
 		return err
 	}
 	s.logInfo("%s created file area %q (%s)", sysop.Username, area.Name, area.Tag)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Area %q created.", area.Name))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("sysop.area_created", "NAME", area.Name))
 }
 
 // sysopImportFile is the "builtin:importfile" command: an alternative
@@ -883,10 +883,10 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 		return err
 	}
 	if len(areas) == 0 {
-		return term.Println(ansi.Reset + "\nNo file areas exist yet. Create one first.")
+		return term.Println(ansi.Reset + "\n" + term.T("sysop.no_file_areas"))
 	}
 
-	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + "File Areas" + ansi.Reset); err != nil {
+	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("files.areas_title") + ansi.Reset); err != nil {
 		return err
 	}
 	for i, a := range areas {
@@ -894,7 +894,7 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 			return err
 		}
 	}
-	if err := term.Print(ansi.Reset + "\nImport into which area? " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.import_area") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	choice, err := term.ReadLine(false)
@@ -903,11 +903,11 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 	}
 	idx, convErr := strconv.Atoi(strings.TrimSpace(choice))
 	if convErr != nil || idx < 1 || idx > len(areas) {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid selection.")
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("common.invalid_selection"))
 	}
 	area := areas[idx-1]
 
-	if err := term.Print(ansi.Reset + "Server-side file path: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("sysop.import_path") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	path, err := term.ReadLine(false)
@@ -916,10 +916,10 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 	}
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return term.Println(ansi.Reset + "Cancelled.")
+		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + "Description: " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	description, err := term.ReadLine(false)
@@ -930,11 +930,11 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 	f, err := s.Files.ImportFile(area.ID, u.ID, path, description)
 	if err != nil {
 		if errors.Is(err, file.ErrDuplicateFilename) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "A file with that name already exists in this area.")
+			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.import_exists"))
 		}
 		s.logWarn("%s: import into file area %d failed: %v", u.Username, area.ID, err)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + fmt.Sprintf("Import failed: %v", err))
+		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.import_failed", "ERROR", err))
 	}
 	s.logInfo("%s imported %s (%s) into file area %d", u.Username, f.Filename, humanize.Bytes(uint64(f.SizeBytes)), f.AreaID)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + fmt.Sprintf("Imported %s (%s).", f.Filename, humanize.Bytes(uint64(f.SizeBytes))))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("sysop.imported", "FILE", f.Filename, "SIZE", humanize.Bytes(uint64(f.SizeBytes))))
 }

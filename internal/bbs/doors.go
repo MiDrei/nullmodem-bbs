@@ -35,20 +35,20 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 		}
 	}
 	if len(available) == 0 {
-		return term.Println(ansi.Reset + "\nNo doors available.")
+		return term.Println(ansi.Reset + "\n" + term.T("doors.none"))
 	}
 
 	for {
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "Doors" + ansi.Reset + "\r\n")
+		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + term.T("doors.title") + ansi.Reset + "\r\n")
 		for i, d := range available {
 			b.WriteString(fmt.Sprintf("%2d) %s\r\n", i+1, d.Name))
 		}
 		bulletins := doorBulletinList(available)
 		if len(bulletins) > 0 {
-			b.WriteString(" B) Bulletins (scores, news)\r\n")
+			b.WriteString(" B) " + term.T("doors.bulletins_item") + "\r\n")
 		}
-		b.WriteString(" Q) Back to menu\r\n\r\nPlay which? " + ansi.FG(ansi.Yellow, true))
+		b.WriteString(" Q) " + term.T("doors.back") + "\r\n\r\n" + term.T("doors.which") + " " + ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 		}
 		idx, convErr := strconv.Atoi(choice)
 		if convErr != nil || idx < 1 || idx > len(available) {
-			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + "Invalid selection."); err != nil {
+			if err := term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("common.invalid_selection")); err != nil {
 				return err
 			}
 			continue
@@ -100,7 +100,7 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 		return s.playRemoteDoor(term, u, door)
 	}
 	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
-		fmt.Sprintf("Launching %s...", door.Name) + ansi.Reset + "\r\n"); err != nil {
+		term.T("doors.launching", "DOOR", door.Name) + ansi.Reset + "\r\n"); err != nil {
 		return err
 	}
 
@@ -129,7 +129,7 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 	if err := doors.Run(term.Raw(), door, sess); err != nil {
 		s.logWarn("door %s ended abnormally for %s: %v", door.Name, u.Username, err)
 	}
-	return term.Println(ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) + fmt.Sprintf("Returned from %s.", door.Name))
+	return term.Println(ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) + term.T("doors.returned", "DOOR", door.Name))
 }
 
 // remoteIP is addr's IP address, or "" if it has none.
