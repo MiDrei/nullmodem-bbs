@@ -67,8 +67,28 @@ func TestNotifierAnnouncesNewMailToTheRecipientsDevices(t *testing.T) {
 	}
 	// Mail from before the first check isn't announced.
 	nm.Receive("Old", "1:2/3", maik.ID, "SwissMaik", "", "old", "b", time.Now(), false)
-	n := &Notifier{DB: sqlDB, Sender: sender}
-	if err := n.Check(context.Background()); err != nil {
+	// The language comes from the database, as in cmd/web -- which has
+	// one connection: looking it up while reading the new mail froze
+	// the whole web service (v0.65).
+	users.SetLanguage(other.ID, "de")
+	n := &Notifier{DB: sqlDB, Sender: sender, Lang: func(id int64) string {
+		if u, err := users.ByID(id); err == nil && u.Language != "" {
+			return u.Language
+		}
+		return "en"
+	}}
+	check := func() error {
+		done := make(chan error, 1)
+		go func() { done <- n.Check(context.Background()) }()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(10 * time.Second):
+			t.Fatal("Check hangs (the database's one connection is held)")
+			return nil
+		}
+	}
+	if err := check(); err != nil {
 		t.Fatal(err)
 	}
 	if len(sent) != 0 {
@@ -84,12 +104,12 @@ func TestNotifierAnnouncesNewMailToTheRecipientsDevices(t *testing.T) {
 	recv(sysop, "other", "can't read it")
 	own, _ := messages.PostMessage(gen.ID, maik.ID, "SwissMaik", "own post", "b")
 	_ = own
-	if err := n.Check(context.Background()); err != nil {
+	if err := check(); err != nil {
 		t.Fatal(err)
 	}
 	sort.Strings(sent)
 	want := []string{
-		"gone Netmail from Dean: for other",
+		"gone Netmail von Dean: for other",
 		"ipad Netmail from Dean: hello",
 		"phone Netmail from Dean: hello",
 		"phone Someone in FSX_GEN: real name",

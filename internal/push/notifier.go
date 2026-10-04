@@ -64,6 +64,11 @@ type pending struct {
 	userID int64
 	n      Notification
 	kind   string // "netmail" or "echomail"
+	// key and args make n.Title in the user's language -- only once the
+	// rows are read: looking the language up needs the database's one
+	// connection, which an open result set holds.
+	key  string
+	args []any
 }
 
 // Check notifies about the mail that arrived since the last check.
@@ -102,9 +107,8 @@ func (n *Notifier) Check(ctx context.Context) error {
 			return fmt.Errorf("push: looking for new netmail: %w", err)
 		}
 		out = append(out, pending{to, Notification{
-			Title: n.t(to, "push.netmail", "FROM", from), Body: subject,
-			URL: fmt.Sprintf("/reader/netmail/%d", id), Tag: fmt.Sprintf("netmail-%d", id),
-		}, "netmail"})
+			Body: subject, URL: fmt.Sprintf("/reader/netmail/%d", id), Tag: fmt.Sprintf("netmail-%d", id),
+		}, "netmail", "push.netmail", []any{"FROM", from}})
 	}
 	rows.Close()
 
@@ -129,9 +133,8 @@ func (n *Notifier) Check(ctx context.Context) error {
 			return fmt.Errorf("push: looking for new echomail: %w", err)
 		}
 		out = append(out, pending{to, Notification{
-			Title: n.t(to, "push.echomail", "FROM", from, "AREA", tag), Body: subject,
-			URL: fmt.Sprintf("/reader/m/%d", id), Tag: fmt.Sprintf("echo-%d", id),
-		}, "echomail"})
+			Body: subject, URL: fmt.Sprintf("/reader/m/%d", id), Tag: fmt.Sprintf("echo-%d", id),
+		}, "echomail", "push.echomail", []any{"FROM", from, "AREA", tag}})
 	}
 	rows.Close()
 
@@ -162,9 +165,8 @@ func (n *Notifier) Check(ctx context.Context) error {
 			}
 			for _, id := range sysops {
 				out = append(out, pending{id, Notification{
-					Title: n.t(id, "push.new_user"), Body: body,
-					URL: "/admin/users", Tag: "user-" + name,
-				}, "users"})
+					Body: body, URL: "/admin/users", Tag: "user-" + name,
+				}, "users", "push.new_user", nil})
 			}
 		}
 		rows.Close()
@@ -205,7 +207,7 @@ func (n *Notifier) Check(ctx context.Context) error {
 					out = append(out, pending{id, Notification{
 						Title: n.t(id, "push.paging", "USERNAME", p.who), Body: p.why,
 						URL: "/admin/chat?room=" + p.room, Tag: "page-" + p.who,
-					}, "page"})
+					}, "page", "", nil})
 				}
 			}
 		}
@@ -232,6 +234,9 @@ func (n *Notifier) Check(ctx context.Context) error {
 				return err
 			}
 			subs[p.userID] = list
+		}
+		if p.key != "" && len(list) > 0 {
+			p.n.Title = n.t(p.userID, p.key, p.args...)
 		}
 		for _, s := range list {
 			if (p.kind == "netmail" && !s.Netmail) || (p.kind == "echomail" && !s.Echomail) {
