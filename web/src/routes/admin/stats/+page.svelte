@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	// Statistics: calls, messages, doors, downloads and network traffic
 	// over a chosen span -- the front page shows the last 30 days of
 	// the public part.
@@ -24,7 +25,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load the statistics.';
+			loadError = err instanceof ApiError ? err.message : t('admin.stats.could_not_load_the_statistics');
 		}
 	}
 
@@ -42,9 +43,9 @@
 		sending = true;
 		try {
 			const r = await sendRecap(auth.token);
-			toast.push(`Recap sent to ${r.sent} sysop(s) -- it's in the netmail.`, 'success');
+			toast.push(t('admin.stats.recap_sent_to_sent_sysop', { SENT: r.sent }), 'success');
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not send it.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.stats.could_not_send_it'), 'error');
 		} finally {
 			sending = false;
 		}
@@ -58,12 +59,12 @@
 
 <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
 	<div>
-		<h1 class="page-title">Statistics</h1>
-		<p class="page-subtitle">Calls, messages, doors and traffic. The front page shows the last 30 days, without the sysop's part.</p>
+		<h1 class="page-title">{t('admin.stats.statistics')}</h1>
+		<p class="page-subtitle">{t('admin.stats.calls_messages_doors_and_traffic')}</p>
 	</div>
 	<div class="flex gap-1">
 		{#each [7, 30, 90, 365] as d (d)}
-			<button class="pill {days === d ? 'pill-active' : ''}" onclick={() => pick(d)}>{d === 365 ? '1 year' : `${d} days`}</button>
+			<button class="pill {days === d ? 'pill-active' : ''}" onclick={() => pick(d)}>{d === 365 ? '1 year' : t('admin.stats.d_days', { D: d })}</button>
 		{/each}
 	</div>
 </div>
@@ -71,14 +72,14 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !report}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
 {:else}
 	<StatsBoard r={report} full />
 	<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-		<p class="text-xs text-faint">On the 1st, a recap of the month goes to your netmail (Settings → Monthly recap).</p>
-		<button class="btn-secondary btn-sm" disabled={sending} onclick={recapNow}>{sending ? 'Sending…' : 'Send a recap now'}</button>
+		<p class="text-xs text-faint">{t('admin.stats.on_the_1st_a_recap')}</p>
+		<button class="btn-secondary btn-sm" disabled={sending} onclick={recapNow}>{sending ? t('admin.stats.sending') : t('admin.stats.send_a_recap_now')}</button>
 	</div>
 	<p class="mt-2 text-xs text-faint">
-		Calls are counted since this version (and from the login lines still in the log); a web or reader login counts once per half hour.
+		{t('admin.stats.calls_are_counted_since_this')}
 	</p>
 {/if}

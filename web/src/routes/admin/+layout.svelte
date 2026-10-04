@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, ensureAdminTexts } from '$lib/i18n.svelte';
 	// The sysop side wears the same design D chrome as the portal: the
 	// board's name (tagged ADMIN), Dashboard and the grouped menus
 	// (Areas, Screens, FTN, Users, System), the operator and "Log out"
@@ -11,8 +12,12 @@
 	import { site } from '$lib/site.svelte';
 	import { adminTheme } from '$lib/theme.svelte';
 	import { servicesState, serviceInfo } from '$lib/services.svelte';
+	import LanguagePicker from '$lib/LanguagePicker.svelte';
 	import Icon from '$lib/Icon.svelte';
 	import Toaster from '$lib/Toaster.svelte';
+
+	// Reached from the portal without a reload: fetch the admin's texts.
+	ensureAdminTexts();
 
 	let { children } = $props();
 
@@ -51,65 +56,66 @@
 	type NavLink = { href: string; label: string; icon: IconName; exact?: boolean };
 	type NavGroup = { label: string; icon: IconName; links: NavLink[] };
 
-	const dashboard: NavLink = { href: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' };
+	// Derived: they follow a change of language.
+	const dashboard: NavLink = $derived({ href: '/admin/dashboard', label: t('admin.nav.dashboard'), icon: 'dashboard' });
 
-	const groups: NavGroup[] = [
+	const groups: NavGroup[] = $derived([
 		{
-			label: 'Content',
+			label: t('admin.nav.content'),
 			icon: 'content',
 			links: [
-				{ href: '/admin/message-areas', label: 'Message Areas', icon: 'areas' },
-				{ href: '/admin/file-areas', label: 'File Areas', icon: 'files' },
-				{ href: '/admin/pending-areas', label: 'Pending Areas', icon: 'pending' },
-				{ href: '/admin/doors', label: 'Doors', icon: 'doors' },
-				{ href: '/admin/menus', label: 'Menus', icon: 'menu' },
-				{ href: '/admin/screens', label: 'Screens', icon: 'screens' },
-				{ href: '/admin/languages', label: 'Languages', icon: 'language' },
-				{ href: '/admin/designer', label: 'ANSI Designer', icon: 'designer' }
+				{ href: '/admin/message-areas', label: t('admin.nav.message_areas'), icon: 'areas' },
+				{ href: '/admin/file-areas', label: t('admin.nav.file_areas'), icon: 'files' },
+				{ href: '/admin/pending-areas', label: t('admin.nav.pending_areas'), icon: 'pending' },
+				{ href: '/admin/doors', label: t('admin.nav.doors'), icon: 'doors' },
+				{ href: '/admin/menus', label: t('admin.nav.menus'), icon: 'menu' },
+				{ href: '/admin/screens', label: t('admin.nav.screens'), icon: 'screens' },
+				{ href: '/admin/languages', label: t('admin.nav.languages'), icon: 'language' },
+				{ href: '/admin/designer', label: t('admin.nav.ansi_designer'), icon: 'designer' }
 			]
 		},
 		{
-			label: 'Community',
+			label: t('admin.nav.community'),
 			icon: 'chat',
 			links: [
-				{ href: '/admin/chat', label: 'Chat & One-liners', icon: 'chat' },
-				{ href: '/admin/polls', label: 'Polls & BBS List', icon: 'poll' }
+				{ href: '/admin/chat', label: t('admin.nav.chat_one_liners'), icon: 'chat' },
+				{ href: '/admin/polls', label: t('admin.nav.polls_bbs_list'), icon: 'poll' }
 			]
 		},
 		{
 			label: 'FTN',
 			icon: 'binkp',
 			links: [
-				{ href: '/admin/binkp', label: 'Networks & Addresses', icon: 'binkp', exact: true },
-				{ href: '/admin/binkp/uplinks', label: 'Uplinks (Nodes/Points)', icon: 'uplink' },
-				{ href: '/admin/areafix', label: 'Areafix / Filefix', icon: 'areafix' },
-				{ href: '/admin/nodelists', label: 'Nodelists', icon: 'nodelist' },
-				{ href: '/admin/netmail', label: 'Undeliverable Netmail', icon: 'undeliverable' },
-				{ href: '/admin/archive', label: 'Packet Analyzer', icon: 'archive' }
+				{ href: '/admin/binkp', label: t('admin.nav.networks_addresses'), icon: 'binkp', exact: true },
+				{ href: '/admin/binkp/uplinks', label: t('admin.nav.uplinks_nodes_points'), icon: 'uplink' },
+				{ href: '/admin/areafix', label: t('admin.nav.areafix_filefix'), icon: 'areafix' },
+				{ href: '/admin/nodelists', label: t('admin.nav.nodelists'), icon: 'nodelist' },
+				{ href: '/admin/netmail', label: t('admin.nav.undeliverable_netmail'), icon: 'undeliverable' },
+				{ href: '/admin/archive', label: t('admin.nav.packet_analyzer'), icon: 'archive' }
 			]
 		},
 		{
-			label: 'Users',
+			label: t('admin.nav.users'),
 			icon: 'users',
 			links: [
-				{ href: '/admin/users', label: 'Users', icon: 'users' },
-				{ href: '/admin/security', label: 'Security', icon: 'lock' },
-				{ href: '/admin/sl-matrix', label: 'SL Matrix', icon: 'matrix' }
+				{ href: '/admin/users', label: t('admin.nav.users'), icon: 'users' },
+				{ href: '/admin/security', label: t('admin.nav.security'), icon: 'lock' },
+				{ href: '/admin/sl-matrix', label: t('admin.nav.sl_matrix'), icon: 'matrix' }
 			]
 		},
 		{
-			label: 'System',
+			label: t('admin.nav.system'),
 			icon: 'system',
 			links: [
-				{ href: '/admin/stats', label: 'Statistics', icon: 'chart' },
-				{ href: '/admin/settings', label: 'Settings', icon: 'system' },
-				{ href: '/admin/services', label: 'Services', icon: 'server' },
-				{ href: '/admin/maintenance', label: 'Maintenance', icon: 'wrench' },
-				{ href: '/admin/backups', label: 'Backups', icon: 'backup' },
-				{ href: '/admin/logs', label: 'Logs', icon: 'logs' }
+				{ href: '/admin/stats', label: t('admin.nav.statistics'), icon: 'chart' },
+				{ href: '/admin/settings', label: t('admin.nav.settings'), icon: 'system' },
+				{ href: '/admin/services', label: t('admin.nav.services_2'), icon: 'server' },
+				{ href: '/admin/maintenance', label: t('admin.nav.maintenance'), icon: 'wrench' },
+				{ href: '/admin/backups', label: t('admin.nav.backups'), icon: 'backup' },
+				{ href: '/admin/logs', label: t('admin.nav.logs'), icon: 'logs' }
 			]
 		}
-	];
+	]);
 
 	function active(l: NavLink): boolean {
 		const path = page.url.pathname;
@@ -150,7 +156,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>{site.info.name} Admin</title>
+	<title>{t('admin.nav.name_admin', { NAME: site.info.name })}</title>
 </svelte:head>
 
 <div class="flex min-h-screen flex-col bg-ground text-ink">
@@ -225,17 +231,19 @@
 					type="button"
 					class="flex items-center transition-colors hover:text-accent"
 					onclick={() => adminTheme.toggle()}
-					title={adminTheme.mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-					aria-label={adminTheme.mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+					title={adminTheme.mode === 'light' ? t('admin.nav.switch_to_dark_mode') : t('admin.nav.switch_to_light_mode')}
+					aria-label={adminTheme.mode === 'light' ? t('admin.nav.switch_to_dark_mode') : t('admin.nav.switch_to_light_mode')}
 				>
 					<Icon name={adminTheme.mode === 'light' ? 'moon' : 'sun'} />
 				</button>
 				<span class="text-line-strong" aria-hidden="true">·</span>
-				<a href="/message-areas" class="transition-colors hover:text-accent">Portal</a>
+				<LanguagePicker compact />
+				<span class="text-line-strong" aria-hidden="true">·</span>
+				<a href="/message-areas" class="transition-colors hover:text-accent">{t('admin.nav.portal')}</a>
 				<span class="text-line-strong" aria-hidden="true">·</span>
 				<span>{auth.username}</span>
 				<span class="text-line-strong" aria-hidden="true">·</span>
-				<button class="transition-colors hover:text-accent" onclick={logout}>Log out</button>
+				<button class="transition-colors hover:text-accent" onclick={logout}>{t('admin.nav.log_out')}</button>
 			</div>
 		{/if}
 	</header>
@@ -243,7 +251,7 @@
 	{#if auth.username && servicesState.needingRestart.length > 0}
 		<div class="border-b border-amber-500/30 bg-amber-950 px-6 py-2.5 text-[13px] md:px-10">
 			<div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-2">
-				<span class="text-amber-300">Saved changes wait for a restart:</span>
+				<span class="text-amber-300">{t('admin.nav.saved_changes_wait_for_a')}</span>
 				{#each servicesState.needingRestart as svc (svc.name)}
 					<span class="flex items-center gap-2">
 						<span class="text-ink" title={svc.restart_needed.join('; ')}>
@@ -254,13 +262,13 @@
 							class="btn-primary btn-xs"
 							disabled={restarting}
 							onclick={() => restartFromBanner(svc.name)}
-							title={svc.name === 'bbs' ? 'Restarts as soon as no caller is online' : ''}
+							title={svc.name === 'bbs' ? t('admin.nav.restarts_as_soon_as_no') : ''}
 						>
-							{svc.name === 'bbs' ? 'Restart when idle' : 'Restart'}
+							{svc.name === 'bbs' ? t('admin.nav.restart_when_idle') : t('admin.common.restart')}
 						</button>
 					</span>
 				{/each}
-				<a href="/admin/services" class="ml-auto text-xs text-muted hover:text-accent">Services →</a>
+				<a href="/admin/services" class="ml-auto text-xs text-muted hover:text-accent">{t('admin.nav.services')}</a>
 			</div>
 		</div>
 	{/if}
@@ -272,9 +280,9 @@
 	<footer
 		class="flex justify-between gap-4 border-t border-line px-6 py-4 font-mono text-[10.5px] text-dim md:px-10"
 	>
-		<span>NullModem BBS{site.info.version ? ` v${site.info.version}` : ''} · sysop</span>
+		<span>{t('admin.nav.nullmodem_bbs_v_sysop', { V: site.info.version ? ` v${site.info.version}` : '' })}</span>
 		{#if site.telnetAddress}
-			<span>telnet · {site.telnetAddress}</span>
+			<span>{t('admin.nav.telnet_telnetaddress', { TELNETADDRESS: site.telnetAddress })}</span>
 		{/if}
 	</footer>
 </div>

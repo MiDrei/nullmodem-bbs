@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -30,23 +31,23 @@
 	function statusOf(s: ServiceStatus): { label: string; tone: string } {
 		if (s.restart_pending) {
 			return s.restart_mode === 'idle' && s.running
-				? { label: 'Restart when idle', tone: 'amber' }
-				: { label: 'Restarting…', tone: 'amber' };
+				? { label: t('admin.services.restart_when_idle'), tone: 'amber' }
+				: { label: t('admin.services.restarting'), tone: 'amber' };
 		}
-		if (s.running) return { label: 'Running', tone: 'green' };
-		if (!s.started_at) return { label: 'Never started', tone: 'grey' };
-		return { label: 'Not responding', tone: 'red' };
+		if (s.running) return { label: t('admin.services.running'), tone: 'green' };
+		if (!s.started_at) return { label: t('admin.services.never_started'), tone: 'grey' };
+		return { label: t('admin.services.not_responding'), tone: 'red' };
 	}
 
 	async function restart(s: ServiceStatus, mode: 'now' | 'idle') {
 		if (s.name === 'bbs' && mode === 'now' && s.online > 0) {
-			if (!confirm(`Restart the BBS now? ${s.online} caller(s) online will be disconnected.`)) return;
+			if (!confirm(t('admin.services.restart_the_bbs_now_online', { ONLINE: s.online }))) return;
 		}
 		busy = s.name;
 		try {
 			await servicesState.restart(s.name, mode);
 			toast.push(
-				mode === 'idle' ? 'The BBS restarts as soon as nobody is online.' : `Restarting ${serviceInfo(s.name).title}…`,
+				mode === 'idle' ? t('admin.services.the_bbs_restarts_as_soon') : t('admin.services.restarting_title', { TITLE: serviceInfo(s.name).title }),
 				'success'
 			);
 		} catch (err) {
@@ -55,7 +56,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			toast.push(err instanceof ApiError ? err.message : 'Could not request the restart.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.services.could_not_request_the_restart'), 'error');
 		} finally {
 			busy = null;
 		}
@@ -63,16 +64,14 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">Services</h1>
+	<h1 class="page-title">{t('admin.services.services')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
-		The three daemons behind the BBS, and the background programs of doors that need one. Some settings are only read when a daemon starts -- after
-		saving those, the daemon is marked here and a banner offers the restart. A restarted daemon is
-		back within a few seconds.
+		{t('admin.services.the_three_daemons_behind_the')}
 	</p>
 </div>
 
 {#if !servicesState.loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
 {:else}
 	<div class="flex flex-col gap-3">
 		{#each servicesState.list as s (s.name)}
@@ -95,17 +94,17 @@
 					</div>
 					<p class="mt-1 text-[13px] text-muted">{serviceInfo(s.name).description}</p>
 					<div class="mt-2 font-mono text-[11px] text-faint">
-						{s.version ? (s.name.startsWith('door:') ? s.version : `v${s.version}`) : '—'} · up {since(s.started_at)} · pid {s.pid || '—'}{s.name ===
+						{t('admin.services.v_up_v2_pid_v3', { V: s.version ? (s.name.startsWith('door:') ? s.version : `v${s.version}`) : '—', V2: since(s.started_at), V3: s.pid || '—', V4: s.name ===
 						'bbs'
-							? ` · ${s.online} online`
-							: ''}
+							? t('admin.services.online_online', { ONLINE: s.online })
+							: '' })}
 					</div>
 					{#if s.restart_needed.length > 0 && !s.restart_pending}
 						<div class="mt-3 flex flex-wrap gap-1.5">
 							{#each s.restart_needed as reason (reason)}
 								<span
 									class="rounded-md border border-amber-500/40 px-2 py-0.5 text-xs text-amber-400"
-									>Needs restart: {reason}</span
+									>{t('admin.services.needs_restart_reason', { REASON: reason })}</span
 								>
 							{/each}
 						</div>
@@ -117,9 +116,9 @@
 							class="btn-secondary btn-sm"
 							disabled={busy !== null || s.restart_pending}
 							onclick={() => restart(s, 'idle')}
-							title="Restart as soon as no caller is online"
+							title={t('admin.services.restart_as_soon_as_no')}
 						>
-							Restart when idle
+							{t('admin.services.restart_when_idle')}
 						</button>
 					{/if}
 					<button
@@ -127,16 +126,13 @@
 						disabled={busy !== null || (s.restart_pending && s.restart_mode !== 'idle')}
 						onclick={() => restart(s, 'now')}
 					>
-						Restart now
+						{t('admin.services.restart_now')}
 					</button>
 				</div>
 			</div>
 		{/each}
 	</div>
 	<p class="mt-5 text-xs leading-relaxed text-faint">
-		A daemon restarts by ending itself; Docker (restart policy "unless-stopped") starts it again. A
-		door's background program is restarted by the BBS daemon, which runs it. The
-		mailer finishes a poll round and inbound sessions in progress first. Without Docker, a daemon
-		stopped this way has to be started again by hand.
+		{t('admin.services.a_daemon_restarts_by_ending')}
 	</p>
 {/if}

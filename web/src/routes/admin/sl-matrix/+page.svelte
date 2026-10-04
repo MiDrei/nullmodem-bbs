@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -52,7 +53,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load the SL matrix.';
+			loadError = err instanceof ApiError ? err.message : t('admin.sl_matrix.could_not_load_the_sl');
 		} finally {
 			loaded = true;
 		}
@@ -85,14 +86,14 @@
 				sl: a.min_sl_read,
 				kind: 'msg-read',
 				resource: `${a.name} (${a.tag})`,
-				detail: 'Message area — read',
+				detail: t('admin.sl_matrix.message_area_read'),
 				linkHref: '/admin/message-areas'
 			});
 			rows.push({
 				sl: a.min_sl_write,
 				kind: 'msg-write',
 				resource: `${a.name} (${a.tag})`,
-				detail: 'Message area — write',
+				detail: t('admin.sl_matrix.message_area_write'),
 				linkHref: '/admin/message-areas'
 			});
 		}
@@ -101,14 +102,14 @@
 				sl: a.min_sl_download,
 				kind: 'file-download',
 				resource: `${a.name} (${a.tag})`,
-				detail: 'File area — download',
+				detail: t('admin.sl_matrix.file_area_download'),
 				linkHref: '/admin/file-areas'
 			});
 			rows.push({
 				sl: a.min_sl_upload,
 				kind: 'file-upload',
 				resource: `${a.name} (${a.tag})`,
-				detail: 'File area — upload',
+				detail: t('admin.sl_matrix.file_area_upload'),
 				linkHref: '/admin/file-areas'
 			});
 		}
@@ -118,11 +119,11 @@
 	let rows = $derived(rowsFor());
 
 	const kindLabels: Record<Row['kind'], string> = {
-		menu: 'Menu item',
-		'msg-read': 'Message read',
-		'msg-write': 'Message write',
-		'file-download': 'File download',
-		'file-upload': 'File upload'
+		menu: t('admin.sl_matrix.menu_item'),
+		'msg-read': t('admin.sl_matrix.message_read'),
+		'msg-write': t('admin.sl_matrix.message_write'),
+		'file-download': t('admin.sl_matrix.file_download'),
+		'file-upload': t('admin.sl_matrix.file_upload')
 	};
 
 	const kindClasses: Record<Row['kind'], string> = {
@@ -144,14 +145,14 @@
 			menus = menus.map((m) => (m.name === menuName ? result.menu : m));
 			delete edits[editKey];
 			edits = { ...edits };
-			toast.push(`Saved ${menuName}/${itemKey} -- callers see it on their next menu.`, 'success');
+			toast.push(t('admin.sl_matrix.saved_menuname_itemkey_callers_see', { MENUNAME: menuName, ITEMKEY: itemKey }), 'success');
 		} catch (err) {
 			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
 				auth.clear();
 				await goto('/admin/login');
 				return;
 			}
-			toast.push(err instanceof ApiError ? err.message : 'Could not save.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.sl_matrix.could_not_save'), 'error');
 		} finally {
 			const rest = { ...saving };
 			delete rest[editKey];
@@ -161,28 +162,27 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">SL Matrix</h1>
+	<h1 class="page-title">{t('admin.sl_matrix.sl_matrix')}</h1>
 	<p class="mt-1 text-sm text-slate-500">
-		Every SL-gated resource in one place, sorted by required security level. New-user SL is
-		<span class="font-mono text-slate-300">{SL_NEW_USER}</span>, sysop SL is
-		<span class="font-mono text-amber-400">{SL_SYSOP}</span>. Menu items are editable here; areas link
-		to their own pages.
+		{t('admin.sl_matrix.every_sl_gated_resource_in')}
+		<span class="font-mono text-slate-300">{SL_NEW_USER}</span>{t('admin.sl_matrix.sysop_sl_is')}
+		<span class="font-mono text-amber-400">{SL_SYSOP}</span>{t('admin.sl_matrix.menu_items_are_editable_here')}
 	</p>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else}
 	<div class="overflow-x-auto rounded-xl border border-line">
 		<table class="w-full text-left text-sm">
 			<thead class="card-label">
 				<tr class="border-b border-slate-800">
-					<th class="p-3">Min SL</th>
-					<th class="p-3">Type</th>
-					<th class="p-3">Resource</th>
-					<th class="p-3">Detail</th>
+					<th class="p-3">{t('admin.sl_matrix.min_sl')}</th>
+					<th class="p-3">{t('admin.common.type')}</th>
+					<th class="p-3">{t('admin.sl_matrix.resource')}</th>
+					<th class="p-3">{t('admin.sl_matrix.detail')}</th>
 					<th class="p-3"></th>
 				</tr>
 			</thead>
@@ -226,7 +226,7 @@
 									disabled={saving[row.editKey] || edits[row.editKey] === undefined}
 									onclick={() => saveMenuItem(row.editKey!)}
 								>
-									{saving[row.editKey] ? 'Saving…' : 'Save'}
+									{saving[row.editKey] ? t('admin.common.saving') : t('admin.common.save')}
 								</button>
 							{/if}
 						</td>

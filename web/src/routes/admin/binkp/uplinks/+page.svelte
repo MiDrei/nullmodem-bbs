@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, tn } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -152,11 +153,11 @@
 		modalSaving = true;
 		try {
 			if (await saveUplinks(list)) {
-				toast.push(`Saved ${edited.address || 'the uplink'}.`, 'success');
+				toast.push(t('admin.binkp_uplinks.saved_v', { V: edited.address || t('admin.binkp_uplinks.the_uplink') }), 'success');
 				closeModal();
 			}
 		} catch (err) {
-			modalError = err instanceof ApiError ? err.message : 'Could not save.';
+			modalError = err instanceof ApiError ? err.message : t('admin.binkp_uplinks.could_not_save');
 		} finally {
 			modalSaving = false;
 		}
@@ -165,36 +166,36 @@
 	async function removeUplink(index: number) {
 		if (!config) return;
 		const u = config.binkp_uplinks[index];
-		if (!confirm(`Remove ${u.address || u.host}?`)) return;
+		if (!confirm(t('admin.binkp_uplinks.remove_host', { HOST: u.address || u.host }))) return;
 		const list = ($state.snapshot(config.binkp_uplinks) as BinkpUplink[]).filter((_, i) => i !== index);
 		try {
-			if (await saveUplinks(list)) toast.push(`Removed ${u.address || u.host}.`, 'success');
+			if (await saveUplinks(list)) toast.push(t('admin.binkp_uplinks.removed_host', { HOST: u.address || u.host }), 'success');
 		} catch (err) {
-			saveError = err instanceof ApiError ? err.message : 'Could not save.';
+			saveError = err instanceof ApiError ? err.message : t('admin.binkp_uplinks.could_not_save');
 		}
 	}
 
 	async function testUplink() {
 		if (!config || !auth.token || !editingUplink) return;
 		if (!editingUplink.host.trim()) {
-			toast.push('Enter a host:port first.', 'error');
+			toast.push(t('admin.binkp_uplinks.enter_a_host_port_first'), 'error');
 			return;
 		}
 		if (config.ftn_addresses.length === 0) {
-			toast.push('Set this system’s own FTN address under FTN → Networks & Addresses first.', 'error');
+			toast.push(t('admin.binkp_uplinks.set_this_system_s_own'), 'error');
 			return;
 		}
 		testing = true;
 		try {
 			const res = await testBinkpConnection(auth.token, editingUplink);
-			toast.push(`Connected. Uplink claims: ${res.remote_addresses.join(', ')}`, 'success');
+			toast.push(t('admin.binkp_uplinks.connected_uplink_claims_v', { V: res.remote_addresses.join(', ') }), 'success');
 		} catch (err) {
 			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
 				auth.clear();
 				await goto('/admin/login');
 				return;
 			}
-			toast.push(err instanceof ApiError ? err.message : 'Connection test failed.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.binkp_uplinks.connection_test_failed'), 'error');
 		} finally {
 			testing = false;
 		}
@@ -203,18 +204,18 @@
 	async function sendNowUplink() {
 		if (!config || !auth.token || !editingUplink) return;
 		if (!editingUplink.host.trim()) {
-			toast.push('Enter a host:port first.', 'error');
+			toast.push(t('admin.binkp_uplinks.enter_a_host_port_first'), 'error');
 			return;
 		}
 		if (config.ftn_addresses.length === 0) {
-			toast.push('Set this system’s own FTN address under FTN → Networks & Addresses first.', 'error');
+			toast.push(t('admin.binkp_uplinks.set_this_system_s_own'), 'error');
 			return;
 		}
 		sending = true;
 		try {
 			const res = await sendNowBinkp(auth.token, editingUplink);
 			toast.push(
-				`Polled uplink: sent ${res.sent} netmail, ${res.sent_echo} echomail, forwarded ${res.forwarded_echo} echomail, ${res.forwarded_files} file(s), received ${res.received} netmail, ${res.received_echo} echomail, ${res.received_files} file(s).`,
+				t('admin.binkp_uplinks.polled', { SENT: res.sent, SENT_ECHO: res.sent_echo, FWD_ECHO: res.forwarded_echo, FWD_FILES: res.forwarded_files, RECEIVED: res.received, RECEIVED_ECHO: res.received_echo, RECEIVED_FILES: res.received_files }),
 				'success'
 			);
 		} catch (err) {
@@ -223,7 +224,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			toast.push(err instanceof ApiError ? err.message : 'Sending failed.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.binkp_uplinks.sending_failed'), 'error');
 		} finally {
 			sending = false;
 		}
@@ -242,7 +243,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load configuration.';
+			loadError = err instanceof ApiError ? err.message : t('admin.binkp_uplinks.could_not_load_configuration');
 		}
 		try {
 			groups = await listGroups(auth.token);
@@ -267,7 +268,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			saveError = err instanceof ApiError ? err.message : 'Could not save configuration.';
+			saveError = err instanceof ApiError ? err.message : t('admin.binkp_uplinks.could_not_save_configuration');
 		} finally {
 			saving = false;
 		}
@@ -287,27 +288,24 @@
 </datalist>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="page-title">Uplinks (Nodes/Points)</h1>
+	<h1 class="page-title">{t('admin.binkp_uplinks.uplinks_nodes_points')}</h1>
 	<a href="/admin/binkp" class="btn-secondary btn-sm">
-		&larr; Networks &amp; Addresses
+		{t('admin.binkp_uplinks.networks_addresses')}
 	</a>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !config}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
 			<p class="text-xs text-slate-500">
-				Nodes/hubs/points this system exchanges netmail, echomail, and files with. The mailer
-				daemon polls each uplink automatically on its own schedule; "Test" connects and
-				authenticates now without sending or requesting any mail, and "Send Now" polls
-				immediately -- sending anything queued and picking up anything waiting for us.
+				{t('admin.binkp_uplinks.nodes_hubs_points_this_system')}
 			</p>
 			<label class="flex max-w-xs flex-col gap-1 text-sm">
-				<span class="text-slate-400">Default poll interval (seconds)</span>
+				<span class="text-slate-400">{t('admin.binkp_uplinks.default_poll_interval_seconds')}</span>
 				<input
 					type="number"
 					min="1"
@@ -316,7 +314,7 @@
 					placeholder="900"
 				/>
 				<span class="text-xs text-slate-500">
-					Used by any uplink below that doesn't set its own interval.
+					{t('admin.binkp_uplinks.used_by_any_uplink_below')}
 				</span>
 			</label>
 
@@ -328,7 +326,7 @@
 						: 'border-transparent text-slate-500 hover:text-slate-300'}"
 					onclick={() => (activeTab = 'hubs')}
 				>
-					Hubs ({hubRows.length})
+					{t('admin.binkp_uplinks.hubs_length', { LENGTH: hubRows.length })}
 				</button>
 				<button
 					type="button"
@@ -337,32 +335,31 @@
 						: 'border-transparent text-slate-500 hover:text-slate-300'}"
 					onclick={() => (activeTab = 'downlinks')}
 				>
-					Nodes / Points ({downlinkRows.length})
+					{t('admin.binkp_uplinks.nodes_points_length', { LENGTH: downlinkRows.length })}
 				</button>
 			</div>
 
 			{#if activeTab === 'hubs'}
 				<p class="text-xs text-slate-500">
-					Upstream networks/hubs this system itself is fed by (fsxNet, HobbyNet, ...).
+					{t('admin.binkp_uplinks.upstream_networks_hubs_this_system')}
 				</p>
 			{:else}
 				<p class="text-xs text-slate-500">
-					This system's own downstream points/nodes -- entries where we are the hub.
+					{t('admin.binkp_uplinks.this_system_s_own_downstream')}
 				</p>
 			{/if}
 
 			<div class="flex items-center justify-between">
 				<span class="text-sm text-slate-400">
 					{(activeTab === 'hubs' ? hubRows : downlinkRows).length === 0
-						? 'None configured yet.'
-						: ''}
+						? t('admin.binkp_uplinks.none_configured_yet') : ''}
 				</span>
 				<button
 					type="button"
 					class="btn-secondary btn-xs"
 					onclick={openNew}
 				>
-					+ Add {activeTab === 'hubs' ? 'Hub' : 'Node / Point'}
+					{t('admin.binkp_uplinks.add_v', { V: activeTab === 'hubs' ? t('admin.binkp_uplinks.hub') : t('admin.binkp_uplinks.node_point') })}
 				</button>
 			</div>
 
@@ -372,7 +369,7 @@
 						<div class="min-w-0 flex-1">
 							<div class="flex flex-wrap items-center gap-2">
 								<span class="truncate font-mono text-sm text-slate-100">
-									{u.address || '(no address set)'}
+									{u.address || t('admin.binkp_uplinks.no_address_set')}
 								</span>
 								{#if u.network}
 									<span class="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
@@ -381,7 +378,7 @@
 								{/if}
 								{#if u.hold}
 									<span class="rounded-full bg-red-950 px-2 py-0.5 text-[10px] text-red-400">
-										Hold
+										{t('admin.binkp_uplinks.hold')}
 									</span>
 								{/if}
 								{#if u.post_as}
@@ -389,25 +386,25 @@
 										class="rounded-full bg-sky-950 px-2 py-0.5 text-[10px] text-sky-300"
 										title="Its mail goes out as if {u.post_as} wrote it on the BBS"
 									>
-										Posts as {u.post_as}
+										{t('admin.binkp_uplinks.posts_as_post_as', { POST_AS: u.post_as })}
 									</span>
 								{/if}
 								{#if u.no_cram}
 									<span
 										class="rounded-full bg-red-950 px-2 py-0.5 text-[10px] text-red-400"
-										title="Session password sent in the clear"
+										title={t('admin.binkp_uplinks.session_password_sent_in_the')}
 									>
-										No CRAM
+										{t('admin.binkp_uplinks.no_cram')}
 									</span>
 								{/if}
 								{#if u.poll_disabled}
 									<span class="rounded-full bg-amber-950 px-2 py-0.5 text-[10px] text-amber-400">
-										Crash-only
+										{t('admin.binkp_uplinks.crash_only')}
 									</span>
 								{/if}
 							</div>
 							<div class="truncate font-mono text-xs text-slate-500">
-								{u.host || '(no host set)'}
+								{u.host || t('admin.binkp_uplinks.no_host_set')}
 							</div>
 						</div>
 						<div class="flex shrink-0 gap-2">
@@ -416,14 +413,14 @@
 								class="btn-secondary btn-xs"
 								onclick={() => openEdit(i)}
 							>
-								Edit
+								{t('admin.common.edit')}
 							</button>
 							<button
 								type="button"
 								class="btn-danger btn-xs"
 								onclick={() => removeUplink(i)}
 							>
-								Remove
+								{t('admin.common.remove')}
 							</button>
 						</div>
 					</div>
@@ -443,7 +440,7 @@
 			disabled={saving}
 			class="btn-primary"
 		>
-			{saving ? 'Saving…' : 'Save poll interval'}
+			{saving ? t('admin.common.saving') : t('admin.binkp_uplinks.save_poll_interval')}
 		</button>
 	</form>
 
@@ -465,21 +462,21 @@
 			>
 				<div class="mb-4 flex items-center justify-between gap-4">
 					<h2 class="card-label">
-						{editingIndex === null ? 'Add' : 'Edit'}
-						{editingUplink.downlink ? 'Node / Point' : 'Hub'}
+						{editingIndex === null ? t('admin.common.add') : t('admin.common.edit')}
+						{editingUplink.downlink ? t('admin.binkp_uplinks.node_point') : t('admin.binkp_uplinks.hub')}
 					</h2>
 					<button
 						type="button"
 						class="shrink-0 rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800"
 						onclick={closeModal}
 					>
-						Close
+						{t('admin.common.close')}
 					</button>
 				</div>
 
 				<div class="grid grid-cols-2 gap-3">
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Their FTN address</span>
+						<span class="text-slate-400">{t('admin.binkp_uplinks.their_ftn_address')}</span>
 						<input
 							class="field field-sm font-mono"
 							bind:value={editingUplink.address}
@@ -487,7 +484,7 @@
 						/>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Host:Port</span>
+						<span class="text-slate-400">{t('admin.binkp_uplinks.host_port')}</span>
 						<input
 							class="field field-sm font-mono"
 							bind:value={editingUplink.host}
@@ -495,168 +492,142 @@
 						/>
 					</label>
 					<label class="col-span-2 flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Session Password</span>
+						<span class="text-slate-400">{t('admin.binkp_uplinks.session_password')}</span>
 						<input
 							type="password"
 							class="field field-sm font-mono"
 							bind:value={editingUplink.password}
-							placeholder="(optional -- blank for an open/no-auth node)"
+							placeholder={t('admin.binkp_uplinks.optional_blank_for_an_open')}
 						/>
-						<span class="text-xs text-slate-500">Authenticates the BinkP session itself.</span>
+						<span class="text-xs text-slate-500">{t('admin.binkp_uplinks.authenticates_the_binkp_session_itself')}</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Packet Password</span>
+						<span class="text-slate-400">{t('admin.binkp_uplinks.packet_password')}</span>
 						<input
 							type="password"
 							maxlength="8"
 							class="field field-sm font-mono"
 							bind:value={editingUplink.packet_password}
-							placeholder="(optional, max 8 chars)"
+							placeholder={t('admin.binkp_uplinks.optional_max_8_chars')}
 						/>
 						<span class="text-xs text-slate-500">
-							Authenticates the FTS-0001 .pkt file itself (FTS-0001's 8-character packet header
-							field) -- distinct from the session password above.
+							{t('admin.binkp_uplinks.authenticates_the_fts_0001_pkt')}
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">TIC Password</span>
+						<span class="text-slate-400">{t('admin.binkp_uplinks.tic_password')}</span>
 						<input
 							type="password"
 							class="field field-sm font-mono"
 							bind:value={editingUplink.tic_password}
-							placeholder="(optional)"
+							placeholder={t('admin.binkp_uplinks.optional')}
 						/>
 						<span class="text-xs text-slate-500">
-							Authenticates inbound TIC file-echo announcements from this uplink -- leave blank if
-							it doesn't set one.
+							{t('admin.binkp_uplinks.authenticates_inbound_tic_file_echo')}
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Areafix Password</span>
+						<span class="text-slate-400">{t('admin.binkp_uplinks.areafix_password')}</span>
 						<input
 							type="password"
 							class="field field-sm font-mono"
 							bind:value={editingUplink.areafix_password}
-							placeholder="(optional)"
+							placeholder={t('admin.binkp_uplinks.optional')}
 						/>
 						<span class="text-xs text-slate-500">
-							Sent as the first line of every echomail area (un)subscribe request to this uplink's
-							"Areafix" robot -- see the Areafix / Filefix page under System to manage
-							subscriptions.
+							{t('admin.binkp_uplinks.sent_as_the_first_line')}
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Filefix Password</span>
+						<span class="text-slate-400">{t('admin.binkp_uplinks.filefix_password')}</span>
 						<input
 							type="password"
 							class="field field-sm font-mono"
 							bind:value={editingUplink.filefix_password}
-							placeholder="(optional)"
+							placeholder={t('admin.binkp_uplinks.optional')}
 						/>
 						<span class="text-xs text-slate-500">
-							Sent as the first line of every file-echo area (un)subscribe request to this uplink's
-							"Filefix" robot -- commonly a different password from Areafix's.
+							{t('admin.binkp_uplinks.sent_as_the_first_line_2')}
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Network</span>
+						<span class="text-slate-400">{t('admin.common.network')}</span>
 						<select
 							class="field field-sm"
 							bind:value={editingUplink.network}
 							onchange={() => networkChanged(editingUplink!)}
 						>
-							<option value="">— none (never carries outgoing echomail) —</option>
+							<option value="">{t('admin.binkp_uplinks.none_never_carries_outgoing_echomail')}</option>
 							{#each config.networks as n (n.name)}
 								<option value={n.name}>{n.name} (@{n.domain})</option>
 							{/each}
 							{#if editingUplink.network && !config.networks.some((n) => n.name.toLowerCase() === editingUplink!.network.toLowerCase())}
-								<option value={editingUplink.network}>{editingUplink.network} (not defined)</option>
+								<option value={editingUplink.network}>{t('admin.binkp_uplinks.network_not_defined', { NETWORK: editingUplink.network })}</option>
 							{/if}
 						</select>
 						<span class="text-xs text-slate-500">
-							Locally posted echomail in this network's areas goes out through this uplink. Networks
-							are defined under FTN → Networks & Addresses.
+							{t('admin.binkp_uplinks.locally_posted_echomail_in_this')}
 						</span>
 					</label>
 					<label class="flex flex-col gap-1 text-sm">
-						<span class="text-slate-400">Poll interval override (seconds)</span>
+						<span class="text-slate-400">{t('admin.binkp_uplinks.poll_interval_override_seconds')}</span>
 						<input
 							type="number"
 							min="0"
 							class="field field-sm font-mono"
 							bind:value={editingUplink.poll_interval_seconds}
-							placeholder={`0 = use default (${config.binkp_default_poll_interval_seconds || 900}s)`}
+							placeholder={t('admin.binkp_uplinks.0_use_default_v_s', { V: config.binkp_default_poll_interval_seconds || 900 })}
 						/>
 						<span class="text-xs text-slate-500">
-							Still meaningful when Crash-only is checked below: a slow fallback poll, since a
-							crash-only uplink otherwise only gets dialed when there's actually mail to send.
+							{t('admin.binkp_uplinks.still_meaningful_when_crash_only')}
 						</span>
 					</label>
 					<label class="col-span-2 flex items-center gap-2 text-sm">
 						<input type="checkbox" class="check" bind:checked={editingUplink.downlink} />
 						<span class="text-slate-400">
-							This is one of our own nodes/points (we're their hub) -- lists it under "Nodes /
-							Points" instead of "Hubs". With a point address (21:3/194.1) it is treated as a point:
-							it only gets netmail addressed to it and the areas it subscribed to.
+							{t('admin.binkp_uplinks.this_is_one_of_our')}
 						</span>
 					</label>
 					{#if isPoint(editingUplink)}
 						<label class="col-span-2 flex flex-col gap-1 text-sm">
-							<span class="text-slate-400">Post as BBS user (for your own reader app)</span>
+							<span class="text-slate-400">{t('admin.binkp_uplinks.post_as_bbs_user_for')}</span>
 							<input
 								class="field field-sm"
 								bind:value={editingUplink.post_as}
-								placeholder="(empty: an ordinary point)"
+								placeholder={t('admin.binkp_uplinks.empty_an_ordinary_point')}
 								autocomplete="off"
 							/>
 							<span class="text-xs text-slate-500">
-								For a reader like FidoMail that you use as this point: its echomail and netmail go out
-								as if this user wrote them on the BBS -- this system's address, MSGID and origin line --
-								and netmail to this user is copied to the point too (the last two weeks when first
-								set up). Give each network's point address its own entry, all with the same host
-								label, password and user.
+								{t('admin.binkp_uplinks.for_a_reader_like_fidomail')}
 							</span>
 						</label>
 					{/if}
 					<label class="flex items-center gap-2 text-sm">
 						<input type="checkbox" class="check" bind:checked={editingUplink.poll_disabled} />
 						<span class="text-slate-400">
-							Crash-only: exclude from the mailer's regular, interval-based scheduled poll --
-							still dialed immediately whenever there's netmail or echomail actually pending for
-							it (see the mailer's crash-style triggering), plus the poll interval above as a slow
-							fallback if set, or manually via "Send Now"
+							{t('admin.binkp_uplinks.crash_only_exclude_from_the')}
 						</span>
 					</label>
 					<label class="flex items-center gap-2 text-sm">
 						<input type="checkbox" class="check" bind:checked={editingUplink.hold} />
 						<span class="text-slate-400">
-							Hold: never dialed automatically for any reason at all, not even pending/Crash mail
-							-- only via "Send Now", or by this uplink polling us itself. Use this for a peer
-							that can't be reached back either way (e.g. a point behind NAT with no port
-							forwarding), where Crash-only above still isn't enough to stop a doomed dial attempt
-							every time there's mail pending for it.
+							{t('admin.binkp_uplinks.hold_never_dialed_automatically_for')}
 						</span>
 					</label>
 					<label class="flex items-center gap-2 text-sm">
 						<input type="checkbox" class="check" bind:checked={editingUplink.no_cram} />
 						<span class="text-slate-400">
-							No CRAM-MD5: send the session password in the clear even when this uplink offers
-							CRAM-MD5. Only for diagnosing a hub -- anyone on the path can read the password.
-							Leave off otherwise.
+							{t('admin.binkp_uplinks.no_cram_md5_send_the')}
 						</span>
 					</label>
 					<div class="col-span-2 flex flex-col gap-2 rounded-xl border border-line p-3">
-						<span class="text-sm text-slate-400">Restrict to these of your own addresses</span>
+						<span class="text-sm text-slate-400">{t('admin.binkp_uplinks.restrict_to_these_of_your')}</span>
 						<span class="text-xs text-slate-500">
-							Only checked addresses are presented to this uplink (M_ADR) and count as its own for
-							Crash-mail routing -- keeps an AKA that belongs to a different network from leaking
-							into a hub that has nothing to do with it (a hub's own software can auto-register a
-							new node entry for every address it sees in M_ADR). Leave all unchecked to keep the
-							old behavior: every address applies to every uplink.
+							{t('admin.binkp_uplinks.only_checked_addresses_are_presented')}
 						</span>
 						{#if config.ftn_addresses.filter((a) => a.trim()).length === 0}
 							<p class="text-sm text-slate-500">
-								No addresses configured yet -- add one under FTN → Networks & Addresses.
+								{t('admin.binkp_uplinks.no_addresses_configured_yet_add')}
 							</p>
 						{/if}
 						{#each config.ftn_addresses.filter((a) => a.trim()) as addr (addr)}
@@ -680,7 +651,7 @@
 								class="btn-secondary btn-xs self-start"
 								onclick={() => (editingUplink!.aka_addresses = networkAddresses(editingUplink!))}
 							>
-								Only {editingUplink.network}'s address{networkAddresses(editingUplink).length > 1 ? 'es' : ''}
+								{tn('admin.binkp_uplinks.only_network', networkAddresses(editingUplink).length, { NETWORK: editingUplink.network })}
 							</button>
 						{/if}
 					</div>
@@ -693,7 +664,7 @@
 						disabled={testing}
 						onclick={testUplink}
 					>
-						{testing ? 'Testing…' : 'Test Connection'}
+						{testing ? t('admin.binkp_uplinks.testing') : t('admin.binkp_uplinks.test_connection')}
 					</button>
 					<button
 						type="button"
@@ -701,7 +672,7 @@
 						disabled={sending}
 						onclick={sendNowUplink}
 					>
-						{sending ? 'Sending…' : 'Send Now'}
+						{sending ? t('admin.binkp_uplinks.sending') : t('admin.binkp_uplinks.send_now')}
 					</button>
 					<div class="flex-1"></div>
 					<button
@@ -709,7 +680,7 @@
 						class="btn-secondary btn-sm"
 						onclick={closeModal}
 					>
-						Cancel
+						{t('admin.common.cancel')}
 					</button>
 					<button
 						type="button"
@@ -717,7 +688,7 @@
 						disabled={modalSaving}
 						onclick={saveModal}
 					>
-						{modalSaving ? 'Saving…' : editingIndex === null ? 'Add' : 'Save'}
+						{modalSaving ? t('admin.common.saving') : editingIndex === null ? t('admin.common.add') : t('admin.common.save')}
 					</button>
 				</div>
 				{#if modalError}

@@ -48,12 +48,12 @@ func (s *Server) requestLang(r *http.Request) string {
 }
 
 // webTexts are the web's texts in lang, fallbacks and the sysop's
-// changes applied.
-func webTexts(lang string) map[string]string {
+// changes applied -- with the admin's (admin.*) too for its pages.
+func webTexts(lang string, admin bool) map[string]string {
 	cat := i18n.Global()
 	out := map[string]string{}
 	for _, k := range cat.Keys() {
-		if strings.HasPrefix(k, "web.") {
+		if strings.HasPrefix(k, "web.") || admin && strings.HasPrefix(k, "admin.") {
 			out[k], _ = cat.Text(lang, k)
 		}
 	}
@@ -67,8 +67,8 @@ type webTextsDTO struct {
 	Languages []i18n.Language `json:"languages"`
 }
 
-func webTextsFor(lang string) webTextsDTO {
-	return webTextsDTO{Lang: lang, Texts: webTexts(lang), Languages: i18n.Languages}
+func webTextsFor(lang string, admin bool) webTextsDTO {
+	return webTextsDTO{Lang: lang, Texts: webTexts(lang, admin), Languages: i18n.Languages}
 }
 
 // handlePublicTexts: GET /api/i18n-texts/{lang} -- the web's texts,
@@ -79,12 +79,12 @@ func (s *Server) handlePublicTexts(w http.ResponseWriter, r *http.Request) {
 		lang = s.requestLang(r)
 	}
 	w.Header().Set("Cache-Control", "no-cache")
-	writeJSON(w, http.StatusOK, webTextsFor(lang))
+	writeJSON(w, http.StatusOK, webTextsFor(lang, r.URL.Query().Get("admin") != ""))
 }
 
 // textsScript is the <script> that hands the page its texts.
 func (s *Server) textsScript(r *http.Request) string {
-	data, err := json.Marshal(webTextsFor(s.requestLang(r)))
+	data, err := json.Marshal(webTextsFor(s.requestLang(r), strings.HasPrefix(r.URL.Path, "/admin")))
 	if err != nil {
 		return ""
 	}
@@ -107,12 +107,12 @@ func apiErrorKeys() map[string]string {
 	return out
 }
 
-// localizeErrors translates the {"error": "..."} of the callers' API
-// (/api/bbs/, /api/public/) into the request's language, where the
-// catalog has the message.
+// localizeErrors translates the {"error": "..."} of the API into the
+// request's language, where the catalog has the message.
 func (s *Server) localizeErrors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/bbs/") && !strings.HasPrefix(r.URL.Path, "/api/public/") {
+		// A WebSocket (the browser terminal) takes the connection over.
+		if !strings.HasPrefix(r.URL.Path, "/api/") || r.Header.Get("Upgrade") != "" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -150,6 +150,9 @@ func (e *errorWriter) Write(b []byte) (int, error) {
 	}
 	return e.held.Write(b)
 }
+
+// Unwrap lets http.ResponseController reach the connection.
+func (e *errorWriter) Unwrap() http.ResponseWriter { return e.ResponseWriter }
 
 // Flush lets a streamed answer through.
 func (e *errorWriter) Flush() {

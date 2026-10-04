@@ -276,7 +276,15 @@ func (s *Server) handleMenuActions(w http.ResponseWriter, r *http.Request) {
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	writeJSON(w, http.StatusOK, map[string]any{"builtins": menu.Builtins, "menus": names})
+	// In the admin's language, where the catalog has them.
+	lang := s.requestLang(r)
+	builtins := make([]menu.Builtin, len(menu.Builtins))
+	for i, b := range menu.Builtins {
+		b.Label = i18n.ByEnglish(lang, "builtin.", b.Label)
+		b.Description = i18n.ByEnglish(lang, "builtin.", b.Description)
+		builtins[i] = b
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"builtins": builtins, "menus": names})
 }
 
 type menuPreviewDTO struct {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -89,7 +90,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await authFailed(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load doors.';
+			loadError = err instanceof ApiError ? err.message : t('admin.doors.could_not_load_doors');
 		} finally {
 			loaded = true;
 		}
@@ -125,7 +126,7 @@
 			return true;
 		} catch (err) {
 			if (await authFailed(err)) return false;
-			toast.push(err instanceof ApiError ? err.message : 'Could not save doors.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_save_doors'), 'error');
 			return false;
 		} finally {
 			saving = false;
@@ -145,9 +146,9 @@
 				draft.bulletins = d.bulletins ?? [];
 				if (!draft.daily) draft.daily = d.daily;
 			}
-			toast.push(`${name} writes its bulletins from its next game day on.`, 'success');
+			toast.push(t('admin.doors.name_writes_its_bulletins_from', { NAME: name }), 'success');
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not do that.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_do_that'), 'error');
 		}
 	}
 
@@ -162,14 +163,14 @@
 		const list = $state.snapshot(doors) as Door[];
 		if (editing >= 0) list[editing] = door;
 		else list.push(door);
-		if (await save(list, `Saved ${door.name}.`)) editing = null;
+		if (await save(list, t('admin.doors.saved_name', { NAME: door.name }))) editing = null;
 	}
 
 	async function remove(i: number) {
 		const d = doors[i];
-		if (!confirm(`Remove "${d.name}" from the doors menu? Its files stay where they are.`)) return;
+		if (!confirm(t('admin.doors.remove_name_from_the_doors', { NAME: d.name }))) return;
 		const list = ($state.snapshot(doors) as Door[]).filter((_, j) => j !== i);
-		await save(list, `Removed ${d.name}.`);
+		await save(list, t('admin.doors.removed_name', { NAME: d.name }));
 		if (editing === i) editing = null;
 	}
 
@@ -179,10 +180,10 @@
 	let mrcTemplate = $state<DoorTemplate | null>(null);
 	let mrcSaving = $state(false);
 
-	async function openMRC(t: DoorTemplate | null) {
+	async function openMRC(tpl: DoorTemplate | null) {
 		if (!auth.token) return;
 		try {
-			if (t) {
+			if (tpl) {
 				// Suggest this board's own addresses, as callers reach it.
 				const [info, cfg] = await Promise.all([getBBSInfo(), getConfig(auth.token)]);
 				const host = location.hostname;
@@ -201,10 +202,10 @@
 			} else {
 				mrc = await getMRCConfig(auth.token);
 			}
-			mrcTemplate = t;
+			mrcTemplate = tpl;
 		} catch (err) {
 			if (await authFailed(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not load the MRC settings.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_load_the_mrc'), 'error');
 		}
 	}
 
@@ -212,43 +213,43 @@
 		if (!auth.token || !mrc) return;
 		const settings = $state.snapshot(mrc) as MRCConfig;
 		if (mrcTemplate) {
-			const t = mrcTemplate;
+			const tpl = mrcTemplate;
 			mrc = null;
 			mrcTemplate = null;
-			await addTemplate(t, settings);
+			await addTemplate(tpl, settings);
 			return;
 		}
 		mrcSaving = true;
 		try {
 			await putMRCConfig(auth.token, settings);
 			mrc = null;
-			toast.push('Saved. The chat connection restarts with the new settings.', 'success');
+			toast.push(t('admin.doors.saved_the_chat_connection_restarts'), 'success');
 		} catch (err) {
 			if (await authFailed(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not save the MRC settings.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_save_the_mrc'), 'error');
 		} finally {
 			mrcSaving = false;
 		}
 	}
 
-	async function addTemplate(t: DoorTemplate, mrcSettings?: MRCConfig) {
+	async function addTemplate(tpl: DoorTemplate, mrcSettings?: MRCConfig) {
 		if (!auth.token) return;
-		if (t.mrc && !mrcSettings && !t.installed) {
-			await openMRC(t);
+		if (tpl.mrc && !mrcSettings && !tpl.installed) {
+			await openMRC(tpl);
 			return;
 		}
-		installing = t.id;
+		installing = tpl.id;
 		try {
-			const res = await addDoorFromTemplate(auth.token, t.id, mrcSettings);
+			const res = await addDoorFromTemplate(auth.token, tpl.id, mrcSettings);
 			doors = res.doors;
 			templates = await listDoorTemplates(auth.token);
 			toast.push(
-				t.downloadable && !t.installed ? `${t.name} installed and added.` : `${t.name} added.`,
+				tpl.downloadable && !tpl.installed ? t('admin.doors.name_installed_and_added', { NAME: tpl.name }) : t('admin.doors.name_added', { NAME: tpl.name }),
 				'success'
 			);
 		} catch (err) {
 			if (await authFailed(err)) return;
-			toast.push(err instanceof ApiError ? err.message : `Could not add ${t.name}.`, 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_add_name', { NAME: tpl.name }), 'error');
 		} finally {
 			installing = null;
 		}
@@ -258,10 +259,10 @@
 		if (!auth.token) return;
 		try {
 			await runDoorDaily(auth.token, d.name);
-			toast.push(`${d.name}'s daily maintenance starts within half a minute -- reload to see how it went.`, 'success');
+			toast.push(t('admin.doors.name_s_daily_maintenance_starts', { NAME: d.name }), 'success');
 		} catch (err) {
 			if (await authFailed(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not start it.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_start_it'), 'error');
 		}
 	}
 
@@ -278,14 +279,13 @@
 
 <div class="mb-6 flex items-start justify-between gap-4">
 	<div>
-		<h1 class="page-title">Doors</h1>
+		<h1 class="page-title">{t('admin.doors.doors')}</h1>
 		<p class="page-subtitle max-w-2xl leading-relaxed">
-			Games and programs callers start from the doors menu. Changes apply the next time someone
-			opens that menu — no restart needed.
+			{t('admin.doors.games_and_programs_callers_start')}
 		</p>
 	</div>
 	{#if editing === null}
-		<button class="btn-primary shrink-0" onclick={() => startEdit(-1)}>+ New Door</button>
+		<button class="btn-primary shrink-0" onclick={() => startEdit(-1)}>{t('admin.doors.new_door')}</button>
 	{/if}
 </div>
 
@@ -297,29 +297,29 @@
 			saveDraft();
 		}}
 	>
-		<h2 class="card-label">{editing === -1 ? 'New door' : `Edit ${doors[editing ?? 0]?.name}`}</h2>
+		<h2 class="card-label">{editing === -1 ? t('admin.doors.new_door_2') : t('admin.doors.edit_editing', { EDITING: doors[editing ?? 0]?.name })}</h2>
 		<div class="grid gap-3 sm:grid-cols-[1fr_10rem_7rem]">
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Name (as shown in the menu)</span>
+				<span class="text-xs text-muted">{t('admin.doors.name_as_shown_in_the')}</span>
 				<input class="field field-sm" bind:value={draft.name} required />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Kind</span>
+				<span class="text-xs text-muted">{t('admin.doors.kind')}</span>
 				<select class="field field-sm" bind:value={draft.kind}>
-					<option value="dosbox">DOS (DOSBox-X)</option>
-					<option value="native">Native Linux</option>
-					<option value="rlogin">Remote (RLogin)</option>
+					<option value="dosbox">{t('admin.doors.dos_dosbox_x')}</option>
+					<option value="native">{t('admin.doors.native_linux')}</option>
+					<option value="rlogin">{t('admin.doors.remote_rlogin')}</option>
 				</select>
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Min. SL</span>
+				<span class="text-xs text-muted">{t('admin.doors.min_sl')}</span>
 				<input class="field field-sm" type="number" min="0" max="255" bind:value={draft.min_sl} />
 			</label>
 		</div>
 
 		{#if draft.kind === 'dosbox'}
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Door directory (mounted as C:)</span>
+				<span class="text-xs text-muted">{t('admin.doors.door_directory_mounted_as_c')}</span>
 				<input
 					class="field field-sm font-mono"
 					bind:value={draft.dosbox_dir}
@@ -328,7 +328,7 @@
 				/>
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Launch command (one DOS command per line)</span>
+				<span class="text-xs text-muted">{t('admin.doors.launch_command_one_dos_command')}</span>
 				<textarea
 					class="field field-sm h-20 resize-y font-mono"
 					bind:value={draft.dosbox_launch_cmd}
@@ -336,44 +336,41 @@
 					required
 				></textarea>
 				<span class="text-xs leading-relaxed text-faint">
-					Placeholders: <code class="font-mono text-muted">{'{dropfile_dir}'}</code> (D:\),
-					<code class="font-mono text-muted">{'{dropfile}'}</code> (e.g. D:\DOOR.SYS),
-					<code class="font-mono text-muted">{'{node}'}</code> (node number). FOSSIL is built in — no BNU/X00
-					needed.
+					{t('admin.doors.placeholders')} <code class="font-mono text-muted">{'{dropfile_dir}'}</code> (D:\),
+					<code class="font-mono text-muted">{'{dropfile}'}</code> {t('admin.doors.e_g_d_door_sys')}
+					<code class="font-mono text-muted">{'{node}'}</code> {t('admin.doors.node_number_fossil_is_built')}
 				</span>
 			</label>
 		{:else if draft.kind === 'rlogin'}
 			<p class="text-xs leading-relaxed text-faint">
-				The door runs on another system -- a door network like DoorParty, or another BBS -- and is
-				reached over RLogin. The network tells you its host and what to send as the two user names
-				(often a system tag before the caller's handle, and your system's password).
+				{t('admin.doors.the_door_runs_on_another')}
 			</p>
 			<div class="grid gap-3 sm:grid-cols-[1fr_7rem]">
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Host</span>
+					<span class="text-xs text-muted">{t('admin.doors.host')}</span>
 					<input class="field field-sm font-mono" bind:value={draft.remote.host} placeholder="doors.example.net" required />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Port</span>
+					<span class="text-xs text-muted">{t('admin.doors.port')}</span>
 					<input class="field field-sm" type="number" min="1" max="65535" bind:value={draft.remote.port} />
 				</label>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-3">
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Client user name</span>
+					<span class="text-xs text-muted">{t('admin.doors.client_user_name')}</span>
 					<input class="field field-sm font-mono" bind:value={draft.remote.client_user} placeholder={'[TAG]{handle}'} required />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Server user name</span>
-					<input class="field field-sm font-mono" bind:value={draft.remote.server_user} placeholder="system password" />
+					<span class="text-xs text-muted">{t('admin.doors.server_user_name')}</span>
+					<input class="field field-sm font-mono" bind:value={draft.remote.server_user} placeholder={t('admin.doors.system_password')} />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Terminal type</span>
+					<span class="text-xs text-muted">{t('admin.doors.terminal_type')}</span>
 					<input class="field field-sm font-mono" bind:value={draft.remote.term_type} placeholder="ansi-bbs/115200" />
 				</label>
 			</div>
 			<span class="text-xs leading-relaxed text-faint">
-				Placeholders: <code class="font-mono text-muted">{'{handle}'}</code>,
+				{t('admin.doors.placeholders')} <code class="font-mono text-muted">{'{handle}'}</code>,
 				<code class="font-mono text-muted">{'{realname}'}</code>,
 				<code class="font-mono text-muted">{'{node}'}</code>,
 				<code class="font-mono text-muted">{'{userid}'}</code>.
@@ -381,42 +378,39 @@
 		{:else}
 			<div class="grid gap-3 sm:grid-cols-2">
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Executable</span>
+					<span class="text-xs text-muted">{t('admin.doors.executable')}</span>
 					<input class="field field-sm font-mono" bind:value={draft.exe} required />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Working directory</span>
+					<span class="text-xs text-muted">{t('admin.doors.working_directory')}</span>
 					<input class="field field-sm font-mono" bind:value={draft.dir} required />
 				</label>
 			</div>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Arguments</span>
+				<span class="text-xs text-muted">{t('admin.doors.arguments')}</span>
 				<input class="field field-sm font-mono" bind:value={argsText} placeholder="-dropfile {'{dropfile}'}" />
 				<span class="text-xs leading-relaxed text-faint">
-					Placeholders: <code class="font-mono text-muted">{'{dropfile}'}</code> (path of DOOR32.SYS),
+					{t('admin.doors.placeholders')} <code class="font-mono text-muted">{'{dropfile}'}</code> {t('admin.doors.path_of_door32_sys')}
 					<code class="font-mono text-muted">{'{dropfile_dir}'}</code>,
 					<code class="font-mono text-muted">{'{node}'}</code>,
-					<code class="font-mono text-muted">{'{ip}'}</code> (the caller's IP). Without any, Usurper's
-					<code class="font-mono text-muted">/P&lt;dir&gt;/</code> is appended.
+					<code class="font-mono text-muted">{'{ip}'}</code> {t('admin.doors.the_caller_s_ip_without')}
+					<code class="font-mono text-muted">/P&lt;dir&gt;/</code> {t('admin.doors.is_appended')}
 				</span>
 			</label>
 			<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
 				<input type="checkbox" class="check mt-0.5" bind:checked={draft.stdio} />
 				<span>
-					<span class="text-ink">Talk over standard I/O</span>
+					<span class="text-ink">{t('admin.doors.talk_over_standard_i_o')}</span>
 					<span class="block text-xs text-faint">
-						For doors that use stdin/stdout like under Synchronet (Usurper Reborn) instead of the
-						DOOR32.SYS socket.
+						{t('admin.doors.for_doors_that_use_stdin')}
 					</span>
 				</span>
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Background program (optional)</span>
+				<span class="text-xs text-muted">{t('admin.doors.background_program_optional')}</span>
 				<input class="field field-sm font-mono" bind:value={programText} placeholder="umrc-bridge" />
 				<span class="text-xs leading-relaxed text-faint">
-					Kept running in the working directory as long as the door is set up, restarted if it
-					exits — for doors that need a connection of their own (MRC Chat's umrc-bridge). Shown
-					under Services.
+					{t('admin.doors.kept_running_in_the_working')}
 				</span>
 			</label>
 		{/if}
@@ -424,55 +418,53 @@
 		{#if draft.kind !== 'rlogin'}
 		<div class="grid gap-3 sm:grid-cols-[1fr_7rem]">
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Daily maintenance (optional)</span>
+				<span class="text-xs text-muted">{t('admin.doors.daily_maintenance_optional')}</span>
 				{#if draft.kind === 'dosbox'}
 					<textarea class="field field-sm h-[2.35rem] resize-y font-mono" bind:value={draft.daily} placeholder="TWMAINT.EXE"></textarea>
 				{:else}
-					<input class="field field-sm font-mono" bind:value={draft.daily} placeholder="./maint --daily" />
+					<input class="field field-sm font-mono" bind:value={draft.daily} placeholder={t('admin.doors.maint_daily')} />
 				{/if}
 				<span class="text-xs leading-relaxed text-faint">
-					Run once a day without a caller -- new turns, the day's events. {draft.kind === 'dosbox' ? 'DOS commands from C:, one per line.' : 'A command line in the door directory.'}
-					Never while someone plays; then it waits.
+					{t('admin.doors.run_once_a_day_without', { V: draft.kind === 'dosbox' ? t('admin.doors.dos_commands_from_c_one') : t('admin.doors.a_command_line_in_the') })}
 				</span>
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">at</span>
+				<span class="text-xs text-muted">{t('admin.doors.at')}</span>
 				<input class="field field-sm font-mono" bind:value={draft.daily_at} placeholder="00:05" />
 			</label>
 		</div>
 		<div class="flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Bulletins (optional)</span>
+			<span class="text-xs text-muted">{t('admin.doors.bulletins_optional')}</span>
 			{#each draft.bulletins ?? [] as b, i (i)}
 				<div class="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
-					<input class="field field-sm" bind:value={b.title} placeholder="Title (Scoreboard)" />
+					<input class="field field-sm" bind:value={b.title} placeholder={t('admin.doors.title_scoreboard')} />
 					<input class="field field-sm font-mono" bind:value={b.file} placeholder="data/bull/scores.ans" />
-					<label class="flex items-center gap-1 text-xs text-muted" title="Also on the public front page"><input type="checkbox" bind:checked={b.public} /> public</label>
+					<label class="flex items-center gap-1 text-xs text-muted" title={t('admin.doors.also_on_the_public_front')}><input type="checkbox" bind:checked={b.public} /> {t('admin.doors.public')}</label>
 					<button type="button" class="btn-secondary btn-xs" onclick={() => draft && (draft.bulletins = (draft.bulletins ?? []).filter((_, k) => k !== i))}>✕</button>
 				</div>
 			{/each}
 			<div class="flex flex-wrap items-center gap-2">
-				<button type="button" class="btn-secondary btn-xs" onclick={() => draft && (draft.bulletins = [...(draft.bulletins ?? []), { title: '', file: '', public: false }])}>+ Bulletin</button>
+				<button type="button" class="btn-secondary btn-xs" onclick={() => draft && (draft.bulletins = [...(draft.bulletins ?? []), { title: '', file: '', public: false }])}>{t('admin.doors.bulletin')}</button>
 				{#if !(draft.bulletins ?? []).length && draft.template_bulletins?.length && editing !== null && editing >= 0}
-					<button type="button" class="btn-primary btn-xs" onclick={applyTemplateBulletins}>Use the template's ({draft.template_bulletins.map((b) => b.title).join(', ')})</button>
+					<button type="button" class="btn-primary btn-xs" onclick={applyTemplateBulletins}>{t('admin.doors.use_the_template_s_v', { V: draft.template_bulletins.map((b) => b.title).join(', ') })}</button>
 				{/if}
 			</div>
 			<span class="text-xs leading-relaxed text-faint">
-				Files the door writes for the board -- its scoreboard, its news -- relative to its directory. Callers read them in the
-				doors menu (B) and the portal's Community; public ones are on the front page too.
+				{t('admin.doors.files_the_door_writes_for')}
 			</span>
 		</div>
 		<div class="grid gap-3 sm:grid-cols-2">
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Drop file</span>
+				<span class="text-xs text-muted">{t('admin.doors.drop_file')}</span>
 				<select class="field field-sm" bind:value={draft.dropfile}>
-					<option value="">Default ({draft.kind === 'dosbox' ? 'DOOR.SYS' : 'DOOR32.SYS'})</option>
+					<option value="">{t('admin.doors.default_v', { V: draft.kind === 'dosbox' ? 'DOOR.SYS' : 'DOOR32.SYS' })}</option>
 					{#each formats as f (f)}
 						<option value={f}>{DROPFILE_LABELS[f] ?? f}</option>
 					{/each}
 				</select>
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Lock files to clear (one per line, relative)</span>
+				<span class="text-xs text-muted">{t('admin.doors.lock_files_to_clear_one')}</span>
 				<textarea
 					class="field field-sm h-[2.35rem] resize-y font-mono"
 					bind:value={lockText}
@@ -483,28 +475,27 @@
 		<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
 			<input type="checkbox" class="check mt-0.5" bind:checked={draft.ansi16} />
 			<span>
-				<span class="text-ink">Reduce colours to the 16 ANSI colours</span>
+				<span class="text-ink">{t('admin.doors.reduce_colours_to_the_16')}</span>
 				<span class="block text-xs text-faint">
-					For doors drawn in 256 or true colours (Immortal Barons): classic BBS terminals like
-					SyncTERM or MuffinTerm show those as stripes.
+					{t('admin.doors.for_doors_drawn_in_256')}
 				</span>
 			</span>
 		</label>
 		<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
 			<input type="checkbox" class="check mt-0.5" bind:checked={draft.dropfile_in_door_dir} />
 			<span>
-				<span class="text-ink">Also write the drop file into the door's directory</span>
+				<span class="text-ink">{t('admin.doors.also_write_the_drop_file')}</span>
 				<span class="block text-xs text-faint">
-					For doors that look for it there instead of taking a path (LORD, TradeWars).
+					{t('admin.doors.for_doors_that_look_for')}
 				</span>
 			</span>
 		</label>
 		{/if}
 
 		<div class="flex justify-end gap-2.5">
-			<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>Cancel</button>
+			<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>{t('admin.common.cancel')}</button>
 			<button type="submit" class="btn-primary btn-sm" disabled={saving}>
-				{saving ? 'Saving…' : 'Save door'}
+				{saving ? t('admin.common.saving') : t('admin.doors.save_door')}
 			</button>
 		</div>
 	</form>
@@ -513,15 +504,15 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
 {:else}
 	{#if editing === -1}
 		{@render editor()}
 	{/if}
 
-	<h2 class="card-label mb-2 px-1">Configured · {doors.length}</h2>
+	<h2 class="card-label mb-2 px-1">{t('admin.doors.configured_length', { LENGTH: doors.length })}</h2>
 	{#if doors.length === 0}
-		<p class="mb-8 px-1 text-sm text-muted">No doors yet — add one below from a template.</p>
+		<p class="mb-8 px-1 text-sm text-muted">{t('admin.doors.no_doors_yet_add_one')}</p>
 	{:else}
 		<div class="mb-10 flex flex-col">
 			{#each doors as d, i (d.name + i)}
@@ -535,37 +526,37 @@
 								<span
 									class="rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[10px] text-muted"
 								>
-									{d.kind === 'dosbox' ? 'DOS' : d.kind === 'rlogin' ? 'REMOTE' : 'NATIVE'}
+									{d.kind === 'dosbox' ? 'DOS' : d.kind === 'rlogin' ? t('admin.doors.remote') : t('admin.doors.native')}
 								</span>
 								{#if !d.installed && d.kind !== 'rlogin'}
 									<span
 										class="rounded-md border border-amber-500/40 px-1.5 py-0.5 font-mono text-[10px] text-amber-400"
-										title="The door's directory is missing or empty"
+										title={t('admin.doors.the_door_s_directory_is')}
 									>
-										NOT INSTALLED
+										{t('admin.doors.not_installed')}
 									</span>
 								{/if}
 							</div>
 							<div class="mt-1 truncate font-mono text-[11px] text-faint">
-								{doorDir(d) || '—'}{d.kind === 'rlogin' ? '' : ` · ${dropfileLabel(d)}`}{d.daily ? ` · daily ${d.daily_at || '00:05'}` : ''}{d.dropfile_in_door_dir ? ' (+door dir)' : ''}{d.stdio ? ' · stdio' : ''}{d.ansi16 ? ' · 16 colours' : ''}{d.program.length ? ` · runs ${d.program[0]}` : ''} · SL {d.min_sl}+
+								{t('admin.doors.v_v2_v3_v4_v5', { V: doorDir(d) || '—', V2: d.kind === 'rlogin' ? '' : ` · ${dropfileLabel(d)}`, V3: d.daily ? t('admin.doors.daily_v', { V: d.daily_at || '00:05' }) : '', V4: d.dropfile_in_door_dir ? t('admin.doors.door_dir') : '', V5: d.stdio ? t('admin.doors.stdio') : '', V6: d.ansi16 ? t('admin.doors.16_colours') : '', V7: d.program.length ? t('admin.doors.runs_v', { V: d.program[0] }) : '', MIN_SL: d.min_sl })}
 							</div>
 							{#if d.daily_state}
 								<div class="mt-0.5 truncate text-[11px] {d.daily_state.ok ? 'text-emerald-500' : 'text-red-400'}" title={d.daily_state.detail}>
-									Daily maintenance {d.daily_state.ok ? 'ran' : 'failed'} {new Date(d.daily_state.last_at).toLocaleString()}{d.daily_state.ok ? '' : ` -- ${d.daily_state.detail.split('\n')[0]}`}
+									{t('admin.doors.daily_maintenance_v_tolocalestring_v2', { V: d.daily_state.ok ? t('admin.doors.daily_ran') : t('admin.doors.daily_failed'), TOLOCALESTRING: new Date(d.daily_state.last_at).toLocaleString(i18n.locale), V2: d.daily_state.ok ? '' : ` -- ${d.daily_state.detail.split('\n')[0]}` })}
 								</div>
 							{/if}
 						</div>
 						<div class="flex shrink-0 gap-1.5">
 							{#if d.template === 'umrc'}
-								<button class="btn-secondary btn-xs" onclick={() => openMRC(null)}>Chat settings</button>
+								<button class="btn-secondary btn-xs" onclick={() => openMRC(null)}>{t('admin.doors.chat_settings')}</button>
 							{/if}
 							{#if d.daily && d.kind !== 'rlogin'}
-								<button class="btn-secondary btn-xs" onclick={() => runDaily(d)}>Run maintenance</button>
+								<button class="btn-secondary btn-xs" onclick={() => runDaily(d)}>{t('admin.doors.run_maintenance')}</button>
 							{/if}
 							<button class="btn-secondary btn-xs" onclick={() => startEdit(i)} disabled={editing !== null}>
-								Edit
+								{t('admin.common.edit')}
 							</button>
-							<button class="btn-danger btn-xs" onclick={() => remove(i)} disabled={saving}>Remove</button>
+							<button class="btn-danger btn-xs" onclick={() => remove(i)} disabled={saving}>{t('admin.common.remove')}</button>
 						</div>
 					</div>
 				{/if}
@@ -573,52 +564,52 @@
 		</div>
 	{/if}
 
-	<h2 class="card-label mb-1 px-1">Templates</h2>
+	<h2 class="card-label mb-1 px-1">{t('admin.doors.templates')}</h2>
 	<p class="mb-3 px-1 text-[13px] text-muted">
-		Ready-made setups for well-known doors. Open-source ones are downloaded, set up and installed into
-		<span class="font-mono text-ink-soft">{doorsDir}</span>; the others you unpack there yourself.
+		{t('admin.doors.ready_made_setups_for_well')}
+		<span class="font-mono text-ink-soft">{doorsDir}</span>{t('admin.doors.the_others_you_unpack_there')}
 	</p>
 	<div class="grid gap-3 md:grid-cols-2">
-		{#each templates as t (t.id)}
+		{#each templates as tpl (tpl.id)}
 			<div class="card flex flex-col gap-2.5 p-5">
 				<div class="flex items-start justify-between gap-3">
 					<div class="min-w-0">
-						<div class="text-[14px] font-semibold text-ink-strong">{t.name}</div>
+						<div class="text-[14px] font-semibold text-ink-strong">{tpl.name}</div>
 						<div class="mt-0.5 font-mono text-[10.5px] text-faint">
-							{t.license} · {t.kind === 'native' ? 'Linux' : 'DOS'} · {t.dir}/
+							{tpl.license} · {tpl.kind === 'native' ? t('admin.doors.linux') : 'DOS'} · {tpl.dir}/
 						</div>
 					</div>
-					{#if t.configured}
-						<span class="shrink-0 font-mono text-[10.5px] text-accent">✓ SET UP</span>
+					{#if tpl.configured}
+						<span class="shrink-0 font-mono text-[10.5px] text-accent">{t('admin.doors.set_up')}</span>
 					{:else}
 						<button
-							class="{t.downloadable && !t.installed ? 'btn-primary' : 'btn-secondary'} btn-xs shrink-0"
+							class="{tpl.downloadable && !tpl.installed ? 'btn-primary' : 'btn-secondary'} btn-xs shrink-0"
 							disabled={installing !== null}
-							onclick={() => addTemplate(t)}
+							onclick={() => addTemplate(tpl)}
 						>
-							{#if installing === t.id}
-								{t.downloadable && !t.installed ? 'Installing…' : 'Adding…'}
+							{#if installing === tpl.id}
+								{tpl.downloadable && !tpl.installed ? t('admin.doors.installing') : t('admin.doors.adding')}
 							{:else}
-								{t.downloadable && !t.installed ? 'Install' : 'Add'}
+								{tpl.downloadable && !tpl.installed ? t('admin.doors.install') : t('admin.common.add')}
 							{/if}
 						</button>
 					{/if}
 				</div>
-				<p class="text-[12.5px] leading-relaxed text-muted">{t.description}</p>
+				<p class="text-[12.5px] leading-relaxed text-muted">{tpl.description}</p>
 				<div class="font-mono text-[11px] text-faint">
-					{#if t.kind === 'native'}
-						{[t.exe, ...(t.args ?? [])].join(' ')} · {t.stdio ? 'stdio' : 'DOOR32.SYS'}{t.ansi16 ? ' · 16 colours' : ''}
+					{#if tpl.kind === 'native'}
+						{[tpl.exe, ...(tpl.args ?? [])].join(' ')} · {tpl.stdio ? 'stdio' : 'DOOR32.SYS'}{tpl.ansi16 ? t('admin.doors.16_colours') : ''}
 					{:else}
-						{(t.dosbox_launch_cmd ?? '').split('\n').join(' ⏎ ')} ·
-						{DROPFILE_LABELS[t.dropfile] ?? t.dropfile}
+						{(tpl.dosbox_launch_cmd ?? '').split('\n').join(' ⏎ ')} ·
+						{DROPFILE_LABELS[tpl.dropfile] ?? tpl.dropfile}
 					{/if}
 				</div>
-				{#if t.setup}
-					<p class="border-l-2 border-line-strong pl-2.5 text-xs leading-relaxed text-faint">{t.setup}</p>
+				{#if tpl.setup}
+					<p class="border-l-2 border-line-strong pl-2.5 text-xs leading-relaxed text-faint">{tpl.setup}</p>
 				{/if}
-				{#if t.source_url}
-					<a href={t.source_url} target="_blank" rel="noopener" class="text-xs text-muted hover:text-accent">
-						{t.source_url.replace('https://', '')} ↗
+				{#if tpl.source_url}
+					<a href={tpl.source_url} target="_blank" rel="noopener" class="text-xs text-muted hover:text-accent">
+						{tpl.source_url.replace('https://', '')} ↗
 					</a>
 				{/if}
 			</div>
@@ -628,7 +619,7 @@
 
 {#if mrc}
 	<Modal
-		title={mrcTemplate ? 'Install MRC Chat' : 'MRC Chat settings'}
+		title={mrcTemplate ? t('admin.doors.install_mrc_chat') : t('admin.doors.mrc_chat_settings')}
 		onclose={() => {
 			mrc = null;
 			mrcTemplate = null;
@@ -642,61 +633,60 @@
 			}}
 		>
 			<p class="text-[13px] leading-relaxed text-muted">
-				What the Multi-Relay Chat network shows about your board. Pipe colour codes (<code
+				{t('admin.doors.what_the_multi_relay_chat')}<code
 					class="font-mono">|01</code
-				>–<code class="font-mono">|23</code>) are allowed.
+				>–<code class="font-mono">|23</code>{t('admin.doors.are_allowed')}
 			</p>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">BBS name</span>
+					<span class="text-xs text-muted">{t('admin.doors.bbs_name')}</span>
 					<input class="field field-sm" bind:value={mrc.bbs_name} maxlength="139" required />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Sysop</span>
+					<span class="text-xs text-muted">{t('admin.doors.sysop')}</span>
 					<input class="field field-sm" bind:value={mrc.sysop} maxlength="139" required />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Website</span>
+					<span class="text-xs text-muted">{t('admin.doors.website')}</span>
 					<input class="field field-sm font-mono" bind:value={mrc.website} maxlength="139" placeholder="https://" />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Software</span>
+					<span class="text-xs text-muted">{t('admin.doors.software')}</span>
 					<input class="field field-sm" bind:value={mrc.software} maxlength="139" />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">Telnet address</span>
+					<span class="text-xs text-muted">{t('admin.doors.telnet_address')}</span>
 					<input class="field field-sm font-mono" bind:value={mrc.telnet} maxlength="139" placeholder="host:port" />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">SSH address</span>
+					<span class="text-xs text-muted">{t('admin.doors.ssh_address')}</span>
 					<input class="field field-sm font-mono" bind:value={mrc.ssh} maxlength="139" placeholder="host:port" />
 				</label>
 			</div>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Short description</span>
+				<span class="text-xs text-muted">{t('admin.doors.short_description')}</span>
 				<input class="field field-sm" bind:value={mrc.description} maxlength="139" />
 			</label>
 			<details class="text-[13px]">
-				<summary class="cursor-pointer text-xs text-muted">Chat host</summary>
+				<summary class="cursor-pointer text-xs text-muted">{t('admin.doors.chat_host')}</summary>
 				<div class="mt-3 grid gap-3 sm:grid-cols-[1fr_6rem]">
 					<label class="flex flex-col gap-1.5">
-						<span class="text-xs text-muted">MRC host</span>
+						<span class="text-xs text-muted">{t('admin.doors.mrc_host')}</span>
 						<input class="field field-sm font-mono" bind:value={mrc.host} maxlength="79" required />
 					</label>
 					<label class="flex flex-col gap-1.5">
-						<span class="text-xs text-muted">Port</span>
+						<span class="text-xs text-muted">{t('admin.doors.port')}</span>
 						<input class="field field-sm font-mono" bind:value={mrc.port} maxlength="5" required />
 					</label>
 				</div>
 				<label class="mt-3 flex cursor-pointer items-center gap-2.5">
 					<input type="checkbox" class="check" bind:checked={mrc.ssl} />
-					<span class="text-ink">SSL (port 5001; plain is 5000)</span>
+					<span class="text-ink">{t('admin.doors.ssl_port_5001_plain_is')}</span>
 				</label>
 			</details>
 			{#if mrcTemplate}
 				<p class="text-xs leading-relaxed text-faint">
-					Installing starts the chat connection (umrc-bridge) right away. Only one connection per
-					board is allowed, so don't run MRC for this board anywhere else.
+					{t('admin.doors.installing_starts_the_chat_connection')}
 				</p>
 			{/if}
 			<div class="flex justify-end gap-2.5">
@@ -706,10 +696,10 @@
 					onclick={() => {
 						mrc = null;
 						mrcTemplate = null;
-					}}>Cancel</button
+					}}>{t('admin.common.cancel')}</button
 				>
 				<button type="submit" class="btn-primary btn-sm" disabled={mrcSaving}>
-					{mrcTemplate ? 'Install' : mrcSaving ? 'Saving…' : 'Save'}
+					{mrcTemplate ? t('admin.doors.install') : mrcSaving ? t('admin.common.saving') : t('admin.common.save')}
 				</button>
 			</div>
 		</form>

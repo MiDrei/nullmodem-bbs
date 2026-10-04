@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -22,21 +23,21 @@
 	// session records.
 	type Tab = 'all' | Exclude<LogCategory, ''> | 'binkp';
 	const tabs: [Tab, string][] = [
-		['all', 'All'],
-		['mailer', 'Mailer'],
-		['system', 'System'],
+		['all', t('admin.common.all')],
+		['mailer', t('admin.logs.tab_mailer')],
+		['system', t('admin.logs.system')],
 		['telnet', 'Telnet'],
 		['ssh', 'SSH'],
-		['web', 'Web'],
-		['binkp', 'BinkP sessions']
+		['web', t('admin.logs.tab_web')],
+		['binkp', t('admin.logs.tab_binkp')]
 	];
 	const tabHints: Partial<Record<Tab, string>> = {
-		all: 'Every daemon at once -- with "Warnings & errors", a quick health check.',
-		mailer: 'BinkP polls and calls, tossing, Areafix/Filefix, TIC, maintenance, InterBBS Last Callers.',
-		system: 'The BBS daemon itself, doors and their background programs.',
-		telnet: 'Telnet callers.',
-		ssh: 'SSH callers.',
-		web: 'The web daemon: logins, admin changes, notifications.'
+		all: t('admin.logs.every_daemon_at_once_with'),
+		mailer: t('admin.logs.binkp_polls_and_calls_tossing'),
+		system: t('admin.logs.the_bbs_daemon_itself_doors'),
+		telnet: t('admin.logs.telnet_callers'),
+		ssh: t('admin.logs.ssh_callers'),
+		web: t('admin.logs.the_web_daemon_logins_admin')
 	};
 	let activeTab = $state<Tab>('all');
 
@@ -94,7 +95,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuth(err)) return;
-			if (gen === generation) loadError = err instanceof ApiError ? err.message : 'Could not load logs.';
+			if (gen === generation) loadError = err instanceof ApiError ? err.message : t('admin.logs.could_not_load_logs');
 		} finally {
 			if (gen === generation) loaded = true;
 		}
@@ -145,10 +146,10 @@
 		searchTimer = setTimeout(() => (appliedSearch = v), 350);
 	});
 
-	function selectTab(t: Tab) {
-		activeTab = t;
+	function selectTab(tb: Tab) {
+		activeTab = tb;
 		try {
-			localStorage.setItem(TAB_KEY, t);
+			localStorage.setItem(TAB_KEY, tb);
 		} catch {
 			// Not remembered; fine.
 		}
@@ -157,7 +158,7 @@
 	function formatTime(iso: string): string {
 		const d = new Date(iso);
 		const today = d.toDateString() === new Date().toDateString();
-		return today ? d.toLocaleTimeString() : d.toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+		return today ? d.toLocaleTimeString(i18n.locale) : d.toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 	}
 
 	const levelBadgeClasses: Record<LogEntry['level'], string> = {
@@ -169,11 +170,11 @@
 	/** Which tab an entry belongs to, for the All tab's source column. */
 	function categoryOf(e: LogEntry): string {
 		if (e.source === 'bbs') {
-			if (e.message.startsWith('[telnet]')) return 'Telnet';
-			if (e.message.startsWith('[ssh]')) return 'SSH';
-			return 'System';
+			if (e.message.startsWith('[telnet]')) return t('admin.logs.telnet');
+			if (e.message.startsWith('[ssh]')) return t('admin.logs.ssh');
+			return t('admin.logs.system');
 		}
-		return e.source === 'mailer' ? 'Mailer' : e.source === 'web' ? 'Web' : e.source;
+		return e.source === 'mailer' ? t('admin.logs.tab_mailer') : e.source === 'web' ? t('admin.logs.tab_web') : e.source;
 	}
 
 	function shownMessage(e: LogEntry): string {
@@ -196,7 +197,7 @@
 			sessionsError = null;
 		} catch (err) {
 			if (await handleAuth(err)) return;
-			sessionsError = err instanceof ApiError ? err.message : 'Could not load BinkP sessions.';
+			sessionsError = err instanceof ApiError ? err.message : t('admin.logs.could_not_load_binkp_sessions');
 		} finally {
 			sessionsLoaded = true;
 			sessionsLoading = false;
@@ -204,7 +205,7 @@
 	}
 
 	function formatDateTime(iso: string): string {
-		return new Date(iso).toLocaleString();
+		return new Date(iso).toLocaleString(i18n.locale);
 	}
 
 	// ---- Detail popup: log entries and BinkP sessions ----
@@ -227,7 +228,7 @@
 		try {
 			transcript = await getBinkpSessionTranscript(auth.token, e.id);
 		} catch (err) {
-			transcriptError = err instanceof ApiError ? err.message : 'Could not load transcript.';
+			transcriptError = err instanceof ApiError ? err.message : t('admin.logs.could_not_load_transcript');
 		} finally {
 			transcriptLoading = false;
 		}
@@ -256,8 +257,8 @@
 			return;
 		}
 		try {
-			const t = localStorage.getItem(TAB_KEY) as Tab | null;
-			if (t && tabs.some(([k]) => k === t)) activeTab = t;
+			const tb = localStorage.getItem(TAB_KEY) as Tab | null;
+			if (tb && tabs.some(([k]) => k === tb)) activeTab = tb;
 		} catch {
 			// Default tab then.
 		}
@@ -276,10 +277,10 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-	<h1 class="page-title">Logs</h1>
+	<h1 class="page-title">{t('admin.logs.logs')}</h1>
 	{#if activeTab === 'binkp'}
 		<button type="button" class="btn-secondary btn-sm" disabled={sessionsLoading} onclick={loadSessions}>
-			{sessionsLoading ? 'Refreshing…' : 'Refresh'}
+			{sessionsLoading ? t('admin.logs.refreshing') : t('admin.common.refresh')}
 		</button>
 	{/if}
 </div>
@@ -301,40 +302,40 @@
 {#if activeTab !== 'binkp'}
 	<div class="mb-4 flex flex-wrap items-center gap-2">
 		<select bind:value={levelChoice} class="field field-sm">
-			<option value="all">All levels</option>
-			<option value="problems">Warnings &amp; errors</option>
-			<option value="info">Info</option>
-			<option value="warn">Warn</option>
-			<option value="error">Error</option>
+			<option value="all">{t('admin.logs.all_levels')}</option>
+			<option value="problems">{t('admin.logs.warnings_errors')}</option>
+			<option value="info">{t('admin.logs.info')}</option>
+			<option value="warn">{t('admin.logs.warn')}</option>
+			<option value="error">{t('admin.logs.error')}</option>
 		</select>
 		{#if activeTab === 'system'}
 			<select bind:value={door} class="field field-sm">
-				<option value="">Daemon and doors</option>
-				<option value="-">Daemon only</option>
+				<option value="">{t('admin.logs.daemon_and_doors')}</option>
+				<option value="-">{t('admin.logs.daemon_only')}</option>
 				{#each doorNames as d (d)}
 					<option value={d}>{d}</option>
 				{/each}
 			</select>
 		{/if}
-		<input type="search" class="field field-sm w-56" placeholder="Search…" bind:value={search} />
+		<input type="search" class="field field-sm w-56" placeholder={t('admin.logs.search')} bind:value={search} />
 		{#if tabHints[activeTab]}<span class="text-xs text-faint">{tabHints[activeTab]}</span>{/if}
 	</div>
 
 	{#if loadError}
 		<p class="text-sm text-red-400">{loadError}</p>
 	{:else if !loaded && entries.length === 0}
-		<p class="text-sm text-slate-400">Loading…</p>
+		<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 	{:else if entries.length === 0}
-		<p class="text-sm text-slate-500">No log entries{levelChoice !== 'all' || appliedSearch || door ? ' matching the filter' : ' yet'}.</p>
+		<p class="text-sm text-slate-500">{t('admin.logs.no_log_entries_v', { V: levelChoice !== 'all' || appliedSearch || door ? t('admin.logs.matching_the_filter') : t('admin.logs.yet') })}</p>
 	{:else}
 		<div class="overflow-hidden rounded-xl border border-line">
 			<table class="w-full text-left text-sm">
 				<thead class="bg-slate-900 card-label">
 					<tr>
-						<th class="px-3 py-2 font-medium">Time</th>
-						<th class="px-3 py-2 font-medium">Level</th>
-						{#if activeTab === 'all'}<th class="px-3 py-2 font-medium">Source</th>{/if}
-						<th class="px-3 py-2 font-medium">Message</th>
+						<th class="px-3 py-2 font-medium">{t('admin.logs.time')}</th>
+						<th class="px-3 py-2 font-medium">{t('admin.common.level')}</th>
+						{#if activeTab === 'all'}<th class="px-3 py-2 font-medium">{t('admin.logs.source')}</th>{/if}
+						<th class="px-3 py-2 font-medium">{t('admin.logs.message')}</th>
 						<th class="px-3 py-2"></th>
 					</tr>
 				</thead>
@@ -350,7 +351,7 @@
 							{#if activeTab === 'all'}<td class="px-3 py-2 text-xs text-muted">{categoryOf(entry)}</td>{/if}
 							<td class="max-w-xl truncate px-3 py-2 font-mono text-xs text-slate-300">{shownMessage(entry)}</td>
 							<td class="px-3 py-2 text-right">
-								<button type="button" class="btn-secondary btn-xs" onclick={() => openLogDetail(entry)}>Detail</button>
+								<button type="button" class="btn-secondary btn-xs" onclick={() => openLogDetail(entry)}>{t('admin.logs.detail')}</button>
 							</td>
 						</tr>
 					{/each}
@@ -360,7 +361,7 @@
 		{#if moreOlder}
 			<div class="mt-3 flex justify-center">
 				<button type="button" class="btn-secondary btn-sm" disabled={loadingOlder} onclick={loadOlder}>
-					{loadingOlder ? 'Loading…' : 'Load older entries'}
+					{loadingOlder ? t('admin.common.loading') : t('admin.logs.load_older_entries')}
 				</button>
 			</div>
 		{/if}
@@ -368,19 +369,19 @@
 {:else if sessionsError}
 	<p class="text-sm text-red-400">{sessionsError}</p>
 {:else if !sessionsLoaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else if sessions.length === 0}
-	<p class="text-sm text-slate-500">No BinkP sessions recorded yet.</p>
+	<p class="text-sm text-slate-500">{t('admin.logs.no_binkp_sessions_recorded_yet')}</p>
 {:else}
 	<div class="overflow-hidden rounded-xl border border-line">
 		<table class="w-full text-left text-sm">
 			<thead class="bg-slate-900 card-label">
 				<tr>
-					<th class="px-3 py-2 font-medium">Time</th>
-					<th class="px-3 py-2 font-medium">Direction</th>
-					<th class="px-3 py-2 font-medium">Peer Address</th>
-					<th class="px-3 py-2 font-medium">Peer Host</th>
-					<th class="px-3 py-2 font-medium">Outcome</th>
+					<th class="px-3 py-2 font-medium">{t('admin.logs.time')}</th>
+					<th class="px-3 py-2 font-medium">{t('admin.logs.direction')}</th>
+					<th class="px-3 py-2 font-medium">{t('admin.logs.peer_address')}</th>
+					<th class="px-3 py-2 font-medium">{t('admin.logs.peer_host')}</th>
+					<th class="px-3 py-2 font-medium">{t('admin.logs.outcome')}</th>
 					<th class="px-3 py-2"></th>
 				</tr>
 			</thead>
@@ -389,7 +390,7 @@
 					<tr class="hover:bg-slate-900/60">
 						<td class="px-3 py-2 font-mono text-xs text-slate-500">{formatDateTime(s.started_at)}</td>
 						<td class="px-3 py-2 text-xs text-slate-300">
-							{s.direction === 'outbound' ? '→ out' : '← in'}
+							{s.direction === 'outbound' ? t('admin.logs.out') : t('admin.logs.in')}
 						</td>
 						<td class="px-3 py-2 font-mono text-xs text-slate-300">{s.peer_address || '—'}</td>
 						<td class="px-3 py-2 font-mono text-xs text-slate-500">{s.peer_host || '—'}</td>
@@ -406,7 +407,7 @@
 								class="btn-secondary btn-xs"
 								onclick={() => openSessionDetail(s)}
 							>
-								Detail
+								{t('admin.logs.detail')}
 							</button>
 						</td>
 					</tr>
@@ -431,48 +432,48 @@
 		>
 			<div class="mb-4 flex items-center justify-between gap-4">
 				<h2 class="card-label">
-					{detailSession ? 'BinkP Session' : 'Log Entry'}
+					{detailSession ? t('admin.logs.binkp_session') : t('admin.logs.log_entry')}
 				</h2>
 				<button
 					type="button"
 					class="shrink-0 rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800"
 					onclick={closeDetail}
 				>
-					Close
+					{t('admin.common.close')}
 				</button>
 			</div>
 
 			{#if detailLog}
 				<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-					<dt class="text-slate-500">Time</dt>
+					<dt class="text-slate-500">{t('admin.logs.time')}</dt>
 					<dd class="font-mono text-slate-300">{formatDateTime(detailLog.logged_at)}</dd>
-					<dt class="text-slate-500">Level</dt>
+					<dt class="text-slate-500">{t('admin.common.level')}</dt>
 					<dd>
 						<span class="rounded px-1.5 py-0.5 text-[10px] tracking-wide uppercase {levelBadgeClasses[detailLog.level]}"
 							>{detailLog.level}</span
 						>
 					</dd>
-					<dt class="text-slate-500">Source</dt>
+					<dt class="text-slate-500">{t('admin.logs.source')}</dt>
 					<dd class="font-mono text-slate-300">{detailLog.source}</dd>
 				</dl>
 				<pre class="mt-3 overflow-x-auto rounded-xl border border-line bg-sunken p-3 font-mono text-xs whitespace-pre-wrap text-ink-soft">{detailLog.message}</pre>
 			{:else if detailSession}
 				<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-					<dt class="text-slate-500">Time</dt>
+					<dt class="text-slate-500">{t('admin.logs.time')}</dt>
 					<dd class="font-mono text-slate-300">{formatDateTime(detailSession.started_at)}</dd>
-					<dt class="text-slate-500">Direction</dt>
+					<dt class="text-slate-500">{t('admin.logs.direction')}</dt>
 					<dd class="text-slate-300">{detailSession.direction}</dd>
-					<dt class="text-slate-500">Peer Address</dt>
+					<dt class="text-slate-500">{t('admin.logs.peer_address')}</dt>
 					<dd class="font-mono text-slate-300">{detailSession.peer_address || '—'}</dd>
-					<dt class="text-slate-500">Peer Host</dt>
+					<dt class="text-slate-500">{t('admin.logs.peer_host')}</dt>
 					<dd class="font-mono text-slate-300">{detailSession.peer_host || '—'}</dd>
-					<dt class="text-slate-500">Outcome</dt>
+					<dt class="text-slate-500">{t('admin.logs.outcome')}</dt>
 					<dd class="text-slate-300">
 						{detailSession.outcome}{detailSession.detail ? ` — ${detailSession.detail}` : ''}
 					</dd>
 				</dl>
 				{#if transcriptLoading}
-					<p class="mt-3 text-sm text-slate-400">Loading transcript…</p>
+					<p class="mt-3 text-sm text-slate-400">{t('admin.logs.loading_transcript')}</p>
 				{:else if transcriptError}
 					<p class="mt-3 text-sm text-red-400">{transcriptError}</p>
 				{:else if transcript}

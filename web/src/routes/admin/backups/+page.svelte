@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, i18n } from '$lib/i18n.svelte';
 	// The nightly backup: when and how many are kept, the backups on
 	// disk, writing one now, downloading and deleting.
 	import { onMount } from 'svelte';
@@ -48,7 +49,7 @@
 		try {
 			apply(await getBackups(auth.token));
 		} catch (err) {
-			loadError = err instanceof ApiError ? err.message : 'Could not load the backups.';
+			loadError = err instanceof ApiError ? err.message : t('admin.backups.could_not_load_the_backups');
 		}
 	});
 
@@ -58,9 +59,9 @@
 		saving = true;
 		try {
 			apply(await putBackupSettings(auth.token, $state.snapshot(settings) as BackupSettings));
-			toast.push('Saved.', 'success');
+			toast.push(t('admin.backups.saved'), 'success');
 		} catch (err) {
-			await failed(err, 'Could not save.');
+			await failed(err, t('admin.backups.could_not_save'));
 		} finally {
 			saving = false;
 		}
@@ -71,9 +72,9 @@
 		running = true;
 		try {
 			apply(await runBackup(auth.token));
-			toast.push('Backup written.', 'success');
+			toast.push(t('admin.backups.backup_written'), 'success');
 		} catch (err) {
-			await failed(err, 'The backup failed.');
+			await failed(err, t('admin.backups.the_backup_failed'));
 		} finally {
 			running = false;
 		}
@@ -91,105 +92,101 @@
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(url), 10000);
 		} catch (err) {
-			await failed(err, 'Could not download the backup.');
+			await failed(err, t('admin.backups.could_not_download_the_backup'));
 		} finally {
 			downloading = null;
 		}
 	}
 
 	async function remove(b: BackupInfo) {
-		if (!auth.token || !confirm(`Delete the backup of ${when(b.time)}?`)) return;
+		if (!auth.token || !confirm(t('admin.backups.delete_the_backup_of_v', { V: when(b.time) }))) return;
 		try {
 			await deleteBackup(auth.token, b.name);
 			backups = backups.filter((x) => x.name !== b.name);
 		} catch (err) {
-			await failed(err, 'Could not delete the backup.');
+			await failed(err, t('admin.backups.could_not_delete_the_backup'));
 		}
 	}
 
 	const mb = (n: number) => (n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${(n / 1048576).toFixed(1)} MB`);
-	const when = (iso: string) => new Date(iso).toLocaleString();
+	const when = (iso: string) => new Date(iso).toLocaleString(i18n.locale);
 	let total = $derived(backups.reduce((n, b) => n + b.size, 0));
 	let newestAge = $derived(backups.length ? (Date.now() - new Date(backups[0].time).getTime()) / 3600000 : Infinity);
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">Backups</h1>
+	<h1 class="page-title">{t('admin.backups.backups')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
-		Every night a copy of the database, the configuration (bbs.yaml, web.yaml, menus and screens) and
-		the keys (login secret, SSH host key, push key) -- taken while the BBS keeps running. Restoring is
-		unpacking one into the BBS's directory; see docs/backup.md.
+		{t('admin.backups.every_night_a_copy_of')}
 	</p>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !settings}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
 {:else}
 	<div class="flex flex-col gap-4">
 		{#if settings.enabled && newestAge > 26 && backups.length}
 			<p class="rounded-xl border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-300">
-				The newest backup is {Math.round(newestAge / 24)} day(s) old -- see the log (Web tab) for why.
+				{t('admin.backups.the_newest_backup_is_v', { V: Math.round(newestAge / 24) })}
 			</p>
 		{/if}
 		<p class="rounded-xl border border-line bg-sunken px-4 py-3 text-sm text-muted">
-			The backups are on the same disk as the BBS: they help against mistakes and a broken database,
-			not a broken disk or a lost server. For that, turn on the off-site copy below -- encrypted, to
-			S3, OpenStack Swift, SFTP or WebDAV.
+			{t('admin.backups.the_backups_are_on_the')}
 		</p>
 
 		<form class="card flex flex-col gap-4" onsubmit={save}>
 			<div class="flex flex-wrap items-center gap-4">
 				<label class="flex items-center gap-2 text-sm">
 					<input type="checkbox" class="check" bind:checked={settings.enabled} />
-					<span class="text-ink">Back up every night at</span>
+					<span class="text-ink">{t('admin.backups.back_up_every_night_at')}</span>
 				</label>
 				<select class="field field-sm w-24" bind:value={settings.hour} disabled={!settings.enabled}>
 					{#each Array.from({ length: 24 }, (_, h) => h) as h (h)}
 						<option value={h}>{String(h).padStart(2, '0')}:00</option>
 					{/each}
 				</select>
-				<span class="text-xs text-faint">server time</span>
+				<span class="text-xs text-faint">{t('admin.backups.server_time')}</span>
 			</div>
 			<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 				<label class="flex flex-col gap-1">
-					<span class="text-xs text-muted">Keep daily</span>
+					<span class="text-xs text-muted">{t('admin.backups.keep_daily')}</span>
 					<input type="number" min="1" class="field field-sm" bind:value={settings.keep_daily} />
-					<span class="text-[11px] text-faint">The newest ones.</span>
+					<span class="text-[11px] text-faint">{t('admin.backups.the_newest_ones')}</span>
 				</label>
 				<label class="flex flex-col gap-1">
-					<span class="text-xs text-muted">Keep weekly</span>
+					<span class="text-xs text-muted">{t('admin.backups.keep_weekly')}</span>
 					<input type="number" min="0" class="field field-sm" bind:value={settings.keep_weekly} />
-					<span class="text-[11px] text-faint">Plus the newest of each of the last weeks.</span>
+					<span class="text-[11px] text-faint">{t('admin.backups.plus_the_newest_of_each')}</span>
 				</label>
 				<label class="flex flex-col gap-1">
-					<span class="text-xs text-muted">Directory</span>
+					<span class="text-xs text-muted">{t('admin.backups.directory')}</span>
 					<input class="field field-sm font-mono" bind:value={settings.dir} />
-					<span class="text-[11px] text-faint">Inside the container; data/backups is in data/ on the host.</span>
+					<span class="text-[11px] text-faint">{t('admin.backups.inside_the_container_data_backups')}</span>
 				</label>
 			</div>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={settings.include_files} />
-				<span class="text-muted">Include the file areas and doors <span class="text-xs text-faint">(much bigger)</span></span>
+				<span class="text-muted">{t('admin.backups.include_the_file_areas_and')} <span class="text-xs text-faint">{t('admin.backups.much_bigger')}</span></span>
 			</label>
 			<div class="flex flex-wrap justify-end gap-2.5">
 				<button type="button" class="btn-secondary btn-sm" disabled={running} onclick={runNow}>
-					{running ? 'Backing up…' : 'Back up now'}
+					{running ? t('admin.backups.backing_up') : t('admin.backups.back_up_now')}
 				</button>
-				<button type="submit" class="btn-primary btn-sm" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+				<button type="submit" class="btn-primary btn-sm" disabled={saving}>{saving ? t('admin.common.saving') : t('admin.common.save')}</button>
 			</div>
 		</form>
 
 		<section class="card">
 			<div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-				<h2 class="card-label">Backups</h2>
+				<h2 class="card-label">{t('admin.backups.backups')}</h2>
 				<span class="text-xs text-faint">
-					{backups.length} · {mb(total)}{freeBytes ? ` · ${mb(freeBytes)} free` : ''}
+					{backups.length} · {mb(total)}{freeBytes ? t('admin.backups.v_free', { V: mb(freeBytes) }) : ''}
 				</span>
 			</div>
 			{#if backups.length === 0}
-				<p class="text-sm text-muted">None yet{settings.enabled ? ` -- the first one is written at ${String(settings.hour).padStart(2, '0')}:00` : ''}.</p>
+				<p class="text-sm text-muted">{t('admin.backups.none_yet_v', { V: settings.enabled ? t('admin.backups.the_first_one_is_written', { V: String(settings.hour).padStart(2, '0') }) : '' })}</p>
 			{:else}
 				<table class="w-full text-left text-sm">
 					<tbody class="divide-y divide-slate-800">
@@ -199,9 +196,9 @@
 								<td class="py-2 text-right font-mono text-xs text-muted">{mb(b.size)}</td>
 								<td class="py-2 text-right whitespace-nowrap">
 									<button type="button" class="btn-secondary btn-xs" disabled={downloading !== null} onclick={() => download(b)}>
-										{downloading === b.name ? 'Loading…' : 'Download'}
+										{downloading === b.name ? t('admin.common.loading') : t('admin.common.download')}
 									</button>
-									<button type="button" class="btn-secondary btn-xs" onclick={() => remove(b)}>Delete</button>
+									<button type="button" class="btn-secondary btn-xs" onclick={() => remove(b)}>{t('admin.common.delete')}</button>
 								</td>
 							</tr>
 						{/each}

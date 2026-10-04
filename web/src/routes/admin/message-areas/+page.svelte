@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -89,7 +90,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load message areas.';
+			loadError = err instanceof ApiError ? err.message : t('admin.message_areas.could_not_load_message_areas');
 		} finally {
 			loaded = true;
 		}
@@ -131,10 +132,10 @@
 			const updated = await updateMessageArea(auth.token, id, draft);
 			areas = areas.map((a) => (a.id === id ? updated : a));
 			editingId = null;
-			toast.push(`Saved "${updated.name}".`, 'success');
+			toast.push(t('admin.message_areas.saved_name', { NAME: updated.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not save.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.message_areas.could_not_save'), 'error');
 		} finally {
 			saving = false;
 		}
@@ -148,10 +149,10 @@
 			areas = [...areas, created];
 			creating = false;
 			newDraft = emptyDraft();
-			toast.push(`Created "${created.name}".`, 'success');
+			toast.push(t('admin.message_areas.created_name', { NAME: created.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not create area.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.message_areas.could_not_create_area'), 'error');
 		} finally {
 			saving = false;
 		}
@@ -159,14 +160,14 @@
 
 	async function remove(area: MessageArea) {
 		if (!auth.token) return;
-		if (!confirm(`Delete area "${area.name}"? This also deletes all its messages.`)) return;
+		if (!confirm(t('admin.message_areas.delete_area_name_this_also', { NAME: area.name }))) return;
 		try {
 			await deleteMessageArea(auth.token, area.id);
 			areas = areas.filter((a) => a.id !== area.id);
-			toast.push(`Deleted "${area.name}".`, 'success');
+			toast.push(t('admin.message_areas.deleted_name', { NAME: area.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete area.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.message_areas.could_not_delete_area'), 'error');
 		}
 	}
 
@@ -190,77 +191,75 @@
 
 <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
 	<div>
-		<h1 class="page-title">Message Areas</h1>
-		<p class="page-subtitle">{areas.length} areas</p>
+		<h1 class="page-title">{t('admin.message_areas.message_areas')}</h1>
+		<p class="page-subtitle">{t('admin.message_areas.length_areas', { LENGTH: areas.length })}</p>
 	</div>
 	<div class="flex items-center gap-2.5">
-		<input class="field field-sm w-56" type="search" placeholder="Search tag, name…" bind:value={search} />
-		<button class="btn-primary btn-sm shrink-0" onclick={startCreate}>+ New Area</button>
+		<input class="field field-sm w-56" type="search" placeholder={t('admin.message_areas.search_tag_name')} bind:value={search} />
+		<button class="btn-primary btn-sm shrink-0" onclick={startCreate}>{t('admin.message_areas.new_area')}</button>
 	</div>
 </div>
 
 {#snippet fields(d: MessageAreaInput, isNew: boolean)}
 	<div class="grid grid-cols-2 gap-3.5">
 		<label class="flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Tag</span>
+			<span class="text-xs text-muted">{t('admin.common.tag')}</span>
 			{#if isNew}
 				<input class="field field-sm font-mono" bind:value={d.tag} placeholder="general" />
 			{:else}
-				<input class="field field-sm font-mono" value={d.tag} disabled title="The tag can't be changed" />
+				<input class="field field-sm font-mono" value={d.tag} disabled title={t('admin.message_areas.the_tag_can_t_be')} />
 			{/if}
 		</label>
 		<label class="flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Name</span>
+			<span class="text-xs text-muted">{t('admin.common.name')}</span>
 			<input class="field field-sm" bind:value={d.name} />
 		</label>
 		<label class="col-span-2 flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Description</span>
+			<span class="text-xs text-muted">{t('admin.common.description')}</span>
 			<input class="field field-sm" bind:value={d.description} />
 		</label>
 		<label class="col-span-2 flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Group</span>
+			<span class="text-xs text-muted">{t('admin.message_areas.group')}</span>
 			<input
 				class="field field-sm"
 				bind:value={d.network}
 				list="groups-list"
-				placeholder="fsxNet, FidoNet… (blank for ungrouped)"
+				placeholder={t('admin.message_areas.fsxnet_fidonet_blank_for_ungrouped')}
 			/>
 		</label>
 		<div class="col-span-2 grid grid-cols-3 gap-3.5">
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Min SL to read</span>
+				<span class="text-xs text-muted">{t('admin.message_areas.min_sl_to_read')}</span>
 				<input type="number" min="0" max="255" class="field field-sm" bind:value={d.min_sl_read} />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Min SL to post</span>
+				<span class="text-xs text-muted">{t('admin.message_areas.min_sl_to_post')}</span>
 				<input type="number" min="0" max="255" class="field field-sm" bind:value={d.min_sl_write} />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Sort order</span>
+				<span class="text-xs text-muted">{t('admin.message_areas.sort_order')}</span>
 				<input type="number" class="field field-sm" bind:value={d.sort_order} />
 			</label>
 		</div>
 		<div class="col-span-2 grid grid-cols-2 gap-3.5">
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Keep days</span>
+				<span class="text-xs text-muted">{t('admin.message_areas.keep_days')}</span>
 				<input type="number" min="-1" class="field field-sm" bind:value={d.keep_days} />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Keep at most (messages)</span>
+				<span class="text-xs text-muted">{t('admin.message_areas.keep_at_most_messages')}</span>
 				<input type="number" min="-1" class="field field-sm" bind:value={d.keep_max} />
 			</label>
 			<span class="col-span-2 -mt-1.5 text-xs text-faint"
-				>Cleanup limits (Maintenance): 0 = the default, -1 = keep everything.</span
+				>{t('admin.message_areas.cleanup_limits_maintenance_0_the')}</span
 			>
 		</div>
 		<label class="col-span-2 flex cursor-pointer items-start gap-2.5 text-[13px]">
 			<input type="checkbox" class="check mt-0.5" bind:checked={d.hidden} />
 			<span>
-				<span class="text-ink">Data area</span>
+				<span class="text-ink">{t('admin.message_areas.data_area')}</span>
 				<span class="block text-xs text-faint">
-					For an echo programs write to, not people (FSX_DAT: InterBBS last callers, oneliners).
-					Still tossed and forwarded, but left out of callers' area lists, so it never shows as
-					unread.
+					{t('admin.message_areas.for_an_echo_programs_write')}
 				</span>
 			</span>
 		</label>
@@ -268,7 +267,7 @@
 {/snippet}
 
 {#if creating}
-	<Modal title="New message area" onclose={closeDialog}>
+	<Modal title={t('admin.message_areas.new_message_area')} onclose={closeDialog}>
 		<form
 			onsubmit={(e) => {
 				e.preventDefault();
@@ -277,9 +276,9 @@
 		>
 			{@render fields(newDraft, true)}
 			<div class="mt-5 flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>Cancel</button>
+				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>{t('admin.common.cancel')}</button>
 				<button type="submit" class="btn-primary btn-sm" disabled={saving}>
-					{saving ? 'Creating…' : 'Create area'}
+					{saving ? t('admin.message_areas.creating') : t('admin.message_areas.create_area')}
 				</button>
 			</div>
 		</form>
@@ -295,9 +294,9 @@
 		>
 			{@render fields(draft, false)}
 			<div class="mt-5 flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>Cancel</button>
+				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>{t('admin.common.cancel')}</button>
 				<button type="submit" class="btn-primary btn-sm" disabled={saving}>
-					{saving ? 'Saving…' : 'Save'}
+					{saving ? t('admin.common.saving') : t('admin.common.save')}
 				</button>
 			</div>
 		</form>
@@ -307,7 +306,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
 {:else}
 	{#if networkTabs.length > 1}
 		<div class="mb-3 flex flex-wrap gap-x-6 gap-y-1 border-b border-line" role="tablist">
@@ -317,7 +316,7 @@
 				class="tab {activeNetwork === ALL_TAB ? 'tab-active' : ''}"
 				onclick={() => (activeNetwork = ALL_TAB)}
 			>
-				All <span class="font-mono text-[11px] text-faint">{areas.length}</span>
+				{t('admin.message_areas.all')} <span class="font-mono text-[11px] text-faint">{areas.length}</span>
 			</button>
 			{#each networkTabs as [name, count] (name)}
 				<button
@@ -333,17 +332,17 @@
 	{/if}
 
 	{#if visibleAreas.length === 0}
-		<p class="py-4 text-sm text-muted">{search ? 'No area matches.' : 'No areas in this group.'}</p>
+		<p class="py-4 text-sm text-muted">{search ? t('admin.message_areas.no_area_matches') : t('admin.message_areas.no_areas_in_this_group')}</p>
 	{:else}
 		<div class="overflow-x-auto">
 			<table class="w-full min-w-[44rem] table-fixed text-left text-[13px]">
 				<thead class="card-label">
 					<tr class="border-b border-line">
-						<th class="w-52 py-2 pr-3 pl-2 font-normal">Tag</th>
-						<th class="py-2 pr-3 font-normal">Name</th>
-						{#if activeNetwork === ALL_TAB}<th class="w-28 py-2 pr-3 font-normal">Group</th>{/if}
-						<th class="w-14 py-2 pr-3 text-right font-normal" title="Minimum security level to read">Read</th>
-						<th class="w-14 py-2 pr-3 text-right font-normal" title="Minimum security level to post">Post</th>
+						<th class="w-52 py-2 pr-3 pl-2 font-normal">{t('admin.common.tag')}</th>
+						<th class="py-2 pr-3 font-normal">{t('admin.common.name')}</th>
+						{#if activeNetwork === ALL_TAB}<th class="w-28 py-2 pr-3 font-normal">{t('admin.message_areas.group')}</th>{/if}
+						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.message_areas.minimum_security_level_to_read')}>{t('admin.message_areas.read')}</th>
+						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.message_areas.minimum_security_level_to_post')}>{t('admin.message_areas.post')}</th>
 						<th class="w-[8.5rem] py-2"></th>
 					</tr>
 				</thead>
@@ -384,14 +383,14 @@
 									onclick={(e) => {
 										e.stopPropagation();
 										startEdit(area);
-									}}>Edit</button
+									}}>{t('admin.common.edit')}</button
 								>
 								<button
 									class="btn-danger btn-xs ml-1"
 									onclick={(e) => {
 										e.stopPropagation();
 										remove(area);
-									}}>Delete</button
+									}}>{t('admin.common.delete')}</button
 								>
 							</td>
 						</tr>

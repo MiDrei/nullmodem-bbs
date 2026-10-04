@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, tn, i18n } from '$lib/i18n.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -24,7 +25,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load the dashboard.';
+			loadError = err instanceof ApiError ? err.message : t('admin.dashboard.could_not_load_the_dashboard');
 		}
 	}
 
@@ -57,7 +58,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !dashboard}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else}
 	<div class="mb-6">
 		<h1 class="page-title">{dashboard.bbs_name}</h1>
@@ -67,51 +68,43 @@
 	{#if dashboard.pending_message_area_count > 0 || dashboard.pending_file_area_count > 0 || dashboard.unresolved_netmail_count > 0 || dashboard.pending_user_count > 0 || dashboard.locked_out_count > 0 || dashboard.paging.length > 0 || dashboard.problems.length > 0}
 		<section class="mb-8 rounded border border-amber-800/60 bg-amber-950/20 p-4">
 			<h2 class="mb-3 text-sm font-semibold tracking-wide text-amber-400 uppercase">
-				Needs Attention
+				{t('admin.dashboard.needs_attention')}
 			</h2>
 			<div class="flex flex-col gap-2 text-sm">
 				{#each dashboard.problems as p (p.key)}
 					<div class="text-red-300">
 						<span class="font-semibold">⚠ {p.title}</span>{#if p.detail}<span class="text-red-300/70"> -- {p.detail}</span>{/if}
-						<span class="text-xs text-faint"> · since {new Date(p.since).toLocaleString()}</span>
+						<span class="text-xs text-faint"> {t('admin.dashboard.since_tolocalestring', { TOLOCALESTRING: new Date(p.since).toLocaleString(i18n.locale) })}</span>
 					</div>
 				{/each}
 				{#each dashboard.paging as room (room)}
 					<a href="/admin/chat?room={room}" class="font-semibold text-fuchsia-300 hover:text-fuchsia-200">
-						{room.replace(/^page-/, '')} is paging you -- answer in the chat &rarr;
+						{t('admin.dashboard.v_is_paging_you_answer', { V: room.replace(/^page-/, '') })}
 					</a>
 				{/each}
 				{#if dashboard.pending_user_count > 0}
 					<a href="/admin/users" class="text-amber-300 hover:text-amber-200">
-						{dashboard.pending_user_count} new user{dashboard.pending_user_count === 1 ? '' : 's'} awaiting approval &rarr;
+						{tn('admin.dashboard.pending_users', dashboard.pending_user_count)}
 					</a>
 				{/if}
 				{#if dashboard.locked_out_count > 0}
 					<a href="/admin/security" class="text-amber-300 hover:text-amber-200">
-						{dashboard.locked_out_count} address{dashboard.locked_out_count === 1 ? '' : 'es'} locked out for failed logins &rarr;
+						{tn('admin.dashboard.locked_out', dashboard.locked_out_count)}
 					</a>
 				{/if}
 				{#if dashboard.pending_message_area_count > 0}
 					<a href="/admin/pending-areas" class="text-amber-300 hover:text-amber-200">
-						{dashboard.pending_message_area_count} new message area{dashboard.pending_message_area_count ===
-						1
-							? ''
-							: 's'} awaiting approval &rarr;
+						{tn('admin.dashboard.pending_msg_areas', dashboard.pending_message_area_count)}
 					</a>
 				{/if}
 				{#if dashboard.pending_file_area_count > 0}
 					<a href="/admin/pending-areas" class="text-amber-300 hover:text-amber-200">
-						{dashboard.pending_file_area_count} new file area{dashboard.pending_file_area_count === 1
-							? ''
-							: 's'} awaiting approval &rarr;
+						{tn('admin.dashboard.pending_file_areas', dashboard.pending_file_area_count)}
 					</a>
 				{/if}
 				{#if dashboard.unresolved_netmail_count > 0}
 					<a href="/admin/netmail" class="text-amber-300 hover:text-amber-200">
-						{dashboard.unresolved_netmail_count} undeliverable netmail message{dashboard.unresolved_netmail_count ===
-						1
-							? ''
-							: 's'} &rarr;
+						{tn('admin.dashboard.undeliverable', dashboard.unresolved_netmail_count)}
 					</a>
 				{/if}
 			</div>
@@ -121,34 +114,34 @@
 	<div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
 		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-cyan-400">{dashboard.nodes.length}</div>
-			<div class="card-label">Nodes Online</div>
+			<div class="card-label">{t('admin.dashboard.nodes_online')}</div>
 		</div>
 		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.user_count}</div>
-			<div class="card-label">Users</div>
+			<div class="card-label">{t('admin.dashboard.users')}</div>
 		</div>
 		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.message_area_count}</div>
-			<div class="card-label">Message Areas</div>
+			<div class="card-label">{t('admin.dashboard.message_areas')}</div>
 		</div>
 		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.file_area_count}</div>
-			<div class="card-label">File Areas</div>
+			<div class="card-label">{t('admin.dashboard.file_areas')}</div>
 		</div>
 	</div>
 
 	<section class="mb-8 rounded-xl border border-line p-4">
 		<div class="mb-4 flex items-center justify-between">
-			<h2 class="card-label">BinkP</h2>
+			<h2 class="card-label">{t('admin.dashboard.binkp')}</h2>
 			<a href="/admin/binkp/uplinks" class="text-xs text-cyan-500 hover:text-cyan-300"
-				>Configure &rarr;</a
+				>{t('admin.dashboard.configure')}</a
 			>
 		</div>
 		{#if dashboard.binkp.own_ftn_addresses.length === 0}
-			<p class="text-sm text-slate-500">No FTN address configured yet.</p>
+			<p class="text-sm text-slate-500">{t('admin.dashboard.no_ftn_address_configured_yet')}</p>
 		{:else}
 			<p class="mb-4 text-sm text-slate-400">
-				This system: <span class="font-mono text-slate-200"
+				{t('admin.dashboard.this_system')} <span class="font-mono text-slate-200"
 					>{dashboard.binkp.own_ftn_addresses.join(', ')}</span
 				>
 			</p>
@@ -156,21 +149,21 @@
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-5">
 			<div class="rounded-xl border border-line p-3">
 				<div class="text-lg font-semibold text-ink-strong">{dashboard.binkp.uplink_count}</div>
-				<div class="card-label">Uplinks</div>
+				<div class="card-label">{t('admin.dashboard.uplinks')}</div>
 			</div>
 			<div class="rounded-xl border border-line p-3">
 				<div class="text-lg font-semibold text-ink-strong">
 					{dashboard.binkp.crash_only_uplink_count}
 				</div>
-				<div class="card-label">Crash-Only</div>
+				<div class="card-label">{t('admin.dashboard.crash_only')}</div>
 			</div>
 			<div class="rounded-xl border border-line p-3">
 				<div class="text-lg font-semibold text-ink-strong">{dashboard.binkp.hold_uplink_count}</div>
-				<div class="card-label">Hold</div>
+				<div class="card-label">{t('admin.dashboard.hold')}</div>
 			</div>
 			<div class="rounded-xl border border-line p-3">
 				<div class="text-lg font-semibold text-ink-strong">{dashboard.binkp.pending_outbound}</div>
-				<div class="card-label">Pending Netmail</div>
+				<div class="card-label">{t('admin.dashboard.pending_netmail')}</div>
 			</div>
 			<div class="rounded-xl border border-line p-3">
 				<div
@@ -180,25 +173,25 @@
 				>
 					{dashboard.binkp.pending_crash}
 				</div>
-				<div class="card-label">Pending Crash</div>
+				<div class="card-label">{t('admin.dashboard.pending_crash')}</div>
 			</div>
 		</div>
 	</section>
 
 	<section class="rounded-xl border border-line p-4">
-		<h2 class="mb-4 card-label">Who's Online</h2>
+		<h2 class="mb-4 card-label">{t('admin.dashboard.who_s_online')}</h2>
 		{#if dashboard.nodes.length === 0}
-			<p class="text-sm text-slate-500">No active sessions.</p>
+			<p class="text-sm text-slate-500">{t('admin.dashboard.no_active_sessions')}</p>
 		{:else}
 			<div class="overflow-x-auto">
 				<table class="w-full text-left text-sm">
 					<thead class="card-label">
 						<tr class="border-b border-slate-800">
-							<th class="py-2 pr-4">Node</th>
-							<th class="py-2 pr-4">Handle</th>
-							<th class="py-2 pr-4">Terminal</th>
-							<th class="py-2 pr-4">Remote</th>
-							<th class="py-2">Connected</th>
+							<th class="py-2 pr-4">{t('admin.dashboard.node')}</th>
+							<th class="py-2 pr-4">{t('admin.dashboard.handle')}</th>
+							<th class="py-2 pr-4">{t('admin.dashboard.terminal')}</th>
+							<th class="py-2 pr-4">{t('admin.dashboard.remote')}</th>
+							<th class="py-2">{t('admin.dashboard.connected')}</th>
 						</tr>
 					</thead>
 					<tbody>

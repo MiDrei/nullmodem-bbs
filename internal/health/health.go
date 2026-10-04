@@ -16,6 +16,7 @@ import (
 
 	"git.maik.ch/nullmodem/bbs/internal/backup"
 	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/offsite"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 )
@@ -81,11 +82,11 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 			continue
 		}
 		if age := now.Sub(st.HeartbeatAt); age > ServiceStale {
-			what := "The " + st.Name + " service"
+			title := i18n.Ref("health.service_down", "NAME", st.Name)
 			if d, ok := strings.CutPrefix(st.Name, services.DoorPrefix); ok {
-				what = d + "'s background program"
+				title = i18n.Ref("health.door_program_down", "DOOR", d)
 			}
-			add("service:"+st.Name, what+" is not running", fmt.Sprintf("no sign of life for %s", age.Round(time.Minute)))
+			add("service:"+st.Name, title, i18n.Ref("health.no_sign", "AGE", age.Round(time.Minute)))
 		}
 	}
 
@@ -116,14 +117,14 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 		var detail string
 		e.DB.QueryRowContext(ctx, `SELECT detail FROM binkp_sessions WHERE peer_address = ? AND outcome <> 'ok' ORDER BY id DESC LIMIT 1`,
 			u.Address).Scan(&detail)
-		since := "for over two days"
+		title := i18n.Ref("health.uplink_silent", "ADDRESS", u.Address, "HOST", u.Host)
 		if !last.Valid {
-			since = "in the sessions kept"
+			title = i18n.Ref("health.uplink_never", "ADDRESS", u.Address, "HOST", u.Host)
 		}
 		if detail != "" {
-			detail = "last error: " + detail
+			detail = i18n.Ref("health.last_error", "ERROR", detail)
 		}
-		add("uplink:"+u.Address, fmt.Sprintf("No contact with %s (%s) %s", u.Address, u.Host, since), detail)
+		add("uplink:"+u.Address, title, detail)
 	}
 
 	// The nightly backup.
@@ -132,14 +133,14 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 		if err == nil {
 			switch {
 			case len(list) > 0 && now.Sub(list[0].Time) > BackupAge:
-				add("backup", "The nightly backup is overdue", fmt.Sprintf("the newest is from %s", list[0].Time.Format("02.01. 15:04")))
+				add("backup", i18n.Ref("health.backup_overdue"), i18n.Ref("health.backup_newest", "WHEN", list[0].Time.Format("02.01. 15:04")))
 			case len(list) == 0 && now.Sub(e.StartedAt) > BackupAge:
-				add("backup", "There is no backup", "the nightly backup hasn't written one")
+				add("backup", i18n.Ref("health.no_backup"), i18n.Ref("health.no_backup_detail"))
 			}
 		}
 		if e.Disk != nil {
 			if free, total := e.Disk(b.Directory()); total > 0 && (free < DiskMinFree || float64(free) < DiskMinShare*float64(total)) {
-				add("disk", "The disk is nearly full", fmt.Sprintf("%.1f GB free of %.0f GB", float64(free)/(1<<30), float64(total)/(1<<30)))
+				add("disk", i18n.Ref("health.disk_full"), i18n.Ref("health.disk_free", "FREE", fmt.Sprintf("%.1f", float64(free)/(1<<30)), "TOTAL", fmt.Sprintf("%.0f", float64(total)/(1<<30))))
 			}
 		}
 	}
@@ -149,9 +150,9 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 		st := offsite.LoadStatus(e.DB)
 		switch {
 		case st.LastError != "":
-			add("offsite", "The off-site backup copy failed", st.LastError)
+			add("offsite", i18n.Ref("health.offsite_failed"), st.LastError)
 		case !st.LastOK.IsZero() && now.Sub(st.LastOK) > 2*BackupAge:
-			add("offsite", "The off-site backup copy is overdue", fmt.Sprintf("the last went out %s", st.LastOK.Format("02.01. 15:04")))
+			add("offsite", i18n.Ref("health.offsite_overdue"), i18n.Ref("health.offsite_last", "WHEN", st.LastOK.Format("02.01. 15:04")))
 		}
 	}
 
@@ -164,7 +165,7 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 			if i := strings.IndexByte(detail, '\n'); i > 0 {
 				detail = detail[:i]
 			}
-			add("door-daily:"+door, door+"'s daily maintenance failed", detail)
+			add("door-daily:"+door, i18n.Ref("health.door_daily_failed", "DOOR", door), detail)
 		}
 		rows.Close()
 	}
@@ -177,7 +178,7 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 		return nil, err
 	}
 	if stuck > 0 {
-		add("netmail", fmt.Sprintf("%d netmail waiting to go out for over two days", stuck), "see Admin -> FTN for the uplinks")
+		add("netmail", i18n.Ref("health.netmail_stuck", "COUNT", stuck), i18n.Ref("health.netmail_stuck_detail"))
 	}
 	if e.Extra != nil {
 		out = append(out, e.Extra()...)

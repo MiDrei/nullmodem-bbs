@@ -356,3 +356,22 @@ func Global() *Catalog {
 
 // T is key's text in lang from the global catalog (see Catalog.T).
 func T(lang, key string, args ...any) string { return Global().T(lang, key, args...) }
+
+// ByEnglish is text in lang, when a key under prefix has text as its
+// English built-in text (data shipped in English, like the menus'
+// labels or the door templates); otherwise text as it is.
+func ByEnglish(lang, prefix, text string) string {
+	if lang == Fallback || text == "" {
+		return text
+	}
+	c := Global()
+	for _, k := range c.Keys() {
+		if !strings.HasPrefix(k, prefix) {
+			continue
+		}
+		if en, ok := c.Default(Fallback, k); ok && en == text {
+			return c.T(lang, k)
+		}
+	}
+	return text
+}

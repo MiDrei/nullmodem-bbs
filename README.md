@@ -42,8 +42,8 @@ Teil der NullModem-Familie:
 - Remote-Doors über RLogin (Door-Netzwerke wie DoorParty, andere BBS):
   Host und die beiden Benutzernamen mit Platzhaltern im Web-Admin
 - Doors: native Linux-Doors per `DOOR32.SYS` und DOS-Doors unter DOSBox-X (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), verwaltet im Web-Admin mit Vorlagen (per Klick installierbar: MRC Chat (uMRC), Immortal Barons, Usurper, Usurper Reborn, Judge Dredd; vorbereitet: LORD, TradeWars, OO2, DoorMUD); tägliche Wartung pro Door (zur eingestellten Zeit, nie während jemand spielt)
-- Mehrsprachig: Englisch, Deutsch (Sie) und Deutsch (Du) — gewählt bei der
-  Registrierung und im Profil; jeder Text im Web-Admin änderbar (Spracheditor),
+- Mehrsprachig: Englisch, Deutsch (Sie) und Deutsch (Du) — Telnet/SSH, Portal,
+  Reader-App, Startseite und Admin; gewählt bei der Registrierung und im Profil; jeder Text im Web-Admin änderbar (Spracheditor),
   Screens pro Sprache (`main.de.ans`) oder mit Katalogtexten (`{T:schlüssel}`),
   Menüpunkte mit Übersetzungen; Englisch springt ein, wo etwas fehlt
 - Profil: Realname, Zeitzone, Sprache, Passwort, QWK-Einstellungen

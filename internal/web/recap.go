@@ -9,6 +9,7 @@ import (
 
 	"git.maik.ch/nullmodem/bbs/internal/backup"
 	"git.maik.ch/nullmodem/bbs/internal/health"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/stats"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 	"git.maik.ch/nullmodem/bbs/internal/version"
@@ -36,9 +37,10 @@ func (s *Server) sendRecap(title string, days int) (int, error) {
 	x := stats.RecapExtra{BBSName: c.BBS.Name, Version: version.Short()}
 	if problems, err := health.Current(s.DB); err == nil {
 		for _, p := range problems {
-			text := p.Title
+			// The recap is in English.
+			text := i18n.Resolve(i18n.Fallback, p.Title)
 			if p.Detail != "" {
-				text += " -- " + p.Detail
+				text += " -- " + i18n.Resolve(i18n.Fallback, p.Detail)
 			}
 			x.Problems = append(x.Problems, text)
 		}

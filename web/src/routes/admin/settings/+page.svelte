@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -23,7 +24,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load configuration.';
+			loadError = err instanceof ApiError ? err.message : t('admin.settings.could_not_load_configuration');
 		}
 	});
 
@@ -43,25 +44,25 @@
 				await goto('/admin/login');
 				return;
 			}
-			saveError = err instanceof ApiError ? err.message : 'Could not save configuration.';
+			saveError = err instanceof ApiError ? err.message : t('admin.settings.could_not_save_configuration');
 		} finally {
 			saving = false;
 		}
 	}
 </script>
 
-<h1 class="mb-6 page-title">BBS Settings</h1>
+<h1 class="mb-6 page-title">{t('admin.settings.bbs_settings')}</h1>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !config}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
-			<h2 class="card-label">General</h2>
+			<h2 class="card-label">{t('admin.settings.general')}</h2>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">BBS Name</span>
+				<span class="text-slate-400">{t('admin.settings.bbs_name')}</span>
 				<input
 					class="field"
 					bind:value={config.name}
@@ -69,7 +70,7 @@
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">Sysop Name</span>
+				<span class="text-slate-400">{t('admin.settings.sysop_name')}</span>
 				<input
 					class="field"
 					bind:value={config.sysop}
@@ -77,14 +78,14 @@
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">Location</span>
-				<input class="field" bind:value={config.location} placeholder="Neunkirch, Switzerland" />
+				<span class="text-slate-400">{t('admin.settings.location')}</span>
+				<input class="field" bind:value={config.location} placeholder={t('admin.settings.neunkirch_switzerland')} />
 				<span class="text-xs text-slate-500">
-					Sent to other systems in the BinkP handshake, next to the BBS and sysop name.
+					{t('admin.settings.sent_to_other_systems_in')}
 				</span>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">New User Security Level (0-255)</span>
+				<span class="text-slate-400">{t('admin.settings.new_user_security_level_0')}</span>
 				<input
 					type="number"
 					min="0"
@@ -97,33 +98,31 @@
 			<label class="flex items-start gap-2 text-sm">
 				<input type="checkbox" class="check mt-0.5" bind:checked={config.public_feeds} />
 				<span>
-					<span class="text-slate-400">Public RSS feeds</span>
+					<span class="text-slate-400">{t('admin.settings.public_rss_feeds')}</span>
 					<span class="block text-xs text-slate-500">
-						A feed of the newest messages of every area a new caller may read -- no login needed, listed on the
-						front page. Echomail is public in its networks anyway; sysop and local areas above that level stay out.
+						{t('admin.settings.a_feed_of_the_newest')}
 					</span>
 				</span>
 			</label>
 			<label class="flex items-start gap-2 text-sm">
 				<input type="checkbox" class="check mt-0.5" bind:checked={config.monthly_recap} />
 				<span>
-					<span class="text-slate-400">Monthly recap</span>
+					<span class="text-slate-400">{t('admin.settings.monthly_recap')}</span>
 					<span class="block text-xs text-slate-500">
-						On the 1st, a netmail to every sysop: calls, messages, networks, doors, downloads, BinkP sessions and what
-						needs attention. Statistics → "Send a recap now" shows one right away.
+						{t('admin.settings.on_the_1st_a_netmail')}
 					</span>
 				</span>
 			</label>
 		</section>
 
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
-			<h2 class="card-label">Telnet</h2>
+			<h2 class="card-label">{t('admin.settings.telnet')}</h2>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={config.telnet_enabled} />
-				<span class="text-slate-400">Enabled</span>
+				<span class="text-slate-400">{t('admin.common.enabled')}</span>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">Listen address</span>
+				<span class="text-slate-400">{t('admin.settings.listen_address')}</span>
 				<input
 					class="field font-mono"
 					bind:value={config.telnet_addr}
@@ -136,10 +135,10 @@
 			<h2 class="card-label">SSH</h2>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={config.ssh_enabled} />
-				<span class="text-slate-400">Enabled</span>
+				<span class="text-slate-400">{t('admin.common.enabled')}</span>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">Listen address</span>
+				<span class="text-slate-400">{t('admin.settings.listen_address')}</span>
 				<input
 					class="field font-mono"
 					bind:value={config.ssh_addr}
@@ -149,36 +148,34 @@
 		</section>
 
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
-			<h2 class="card-label">InterBBS Last Callers</h2>
+			<h2 class="card-label">{t('admin.settings.interbbs_last_callers')}</h2>
 			<p class="text-xs leading-relaxed text-slate-500">
-				Boards of a network post a record to a data echo whenever a caller logs off, and show who was
-				on where lately. Mark that echo as a data area (Areas → Message Areas) so it doesn't show as unread.
+				{t('admin.settings.boards_of_a_network_post')}
 			</p>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={config.last_callers.enabled} />
-				<span class="text-slate-400">Take part: post a record for each caller logging off over Telnet/SSH</span>
+				<span class="text-slate-400">{t('admin.settings.take_part_post_a_record')}</span>
 			</label>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={config.last_callers.show_at_login} />
-				<span class="text-slate-400">Show the list to callers after they log in</span>
+				<span class="text-slate-400">{t('admin.settings.show_the_list_to_callers')}</span>
 			</label>
 			<div class="grid gap-3 sm:grid-cols-3">
 				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">Data echo</span>
+					<span class="text-slate-400">{t('admin.settings.data_echo')}</span>
 					<input class="field font-mono" bind:value={config.last_callers.area} placeholder="FSX_DAT" />
 				</label>
 				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">Your address, as shown</span>
+					<span class="text-slate-400">{t('admin.settings.your_address_as_shown')}</span>
 					<input class="field font-mono" bind:value={config.last_callers.address} placeholder="bbs.example.org:2323" />
 				</label>
 				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">System</span>
-					<input class="field" bind:value={config.last_callers.system} placeholder="Linux" />
+					<span class="text-slate-400">{t('admin.settings.system')}</span>
+					<input class="field" bind:value={config.last_callers.system} placeholder={t('admin.settings.linux')} />
 				</label>
 			</div>
 			<p class="text-xs leading-relaxed text-slate-500">
-				A caller's place in the record is the location from their profile, else the city of their
-				time zone (Europe/Zurich → Zurich), else blank. Records go out under the first sysop account, as "ibbslastcall".
+				{t('admin.settings.a_caller_s_place_in')}
 			</p>
 		</section>
 
@@ -194,7 +191,7 @@
 			disabled={saving}
 			class="btn-primary"
 		>
-			{saving ? 'Saving…' : 'Save changes'}
+			{saving ? t('admin.common.saving') : t('admin.settings.save_changes')}
 		</button>
 	</form>
 {/if}

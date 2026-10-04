@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -41,7 +42,7 @@
 			selected = new Set([...selected].filter((id) => ids.has(id)));
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load unresolved netmail.';
+			loadError = err instanceof ApiError ? err.message : t('admin.netmail.could_not_load_unresolved_netmail');
 		} finally {
 			loaded = true;
 		}
@@ -80,13 +81,13 @@
 			expanded = await getUnresolvedNetmail(auth.token, m.id);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			expandError = err instanceof ApiError ? err.message : 'Could not load message.';
+			expandError = err instanceof ApiError ? err.message : t('admin.netmail.could_not_load_message');
 		}
 	}
 
 	async function remove(m: UnresolvedNetmailSummary) {
 		if (!auth.token) return;
-		if (!confirm(`Delete this undeliverable message ("${m.subject}")? There's nowhere else it can go.`))
+		if (!confirm(t('admin.netmail.delete_this_undeliverable_message_subjec', { SUBJECT: m.subject })))
 			return;
 		deletingID = m.id;
 		try {
@@ -96,10 +97,10 @@
 				expandedID = null;
 				expanded = null;
 			}
-			toast.push('Message deleted.', 'success');
+			toast.push(t('admin.netmail.message_deleted'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete message.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.netmail.could_not_delete_message'), 'error');
 		} finally {
 			deletingID = null;
 		}
@@ -107,7 +108,7 @@
 
 	async function removeSelected() {
 		if (!auth.token || selected.size === 0) return;
-		if (!confirm(`Delete ${selected.size} selected undeliverable message(s)? There's nowhere else they can go.`))
+		if (!confirm(t('admin.netmail.delete_size_selected_undeliverable_messa', { SIZE: selected.size })))
 			return;
 		batchDeleting = true;
 		try {
@@ -120,30 +121,27 @@
 				expanded = null;
 			}
 			selected = new Set();
-			toast.push('Selected messages deleted.', 'success');
+			toast.push(t('admin.netmail.selected_messages_deleted'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete selected messages.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.netmail.could_not_delete_selected_messages'), 'error');
 		} finally {
 			batchDeleting = false;
 		}
 	}
 </script>
 
-<h1 class="mb-2 page-title">Undeliverable Netmail</h1>
+<h1 class="mb-2 page-title">{t('admin.netmail.undeliverable_netmail')}</h1>
 <p class="mb-6 text-sm text-slate-400">
-	Netmail addressed to a name that never resolved to a real local user, and with no remote FTN
-	address either -- a mistyped recipient, or a reply from an automated robot (Areafix/Filefix,
-	...) addressed back to whatever name this system used as its own request's From. Stored, never
-	silently discarded, but otherwise invisible anywhere in the BBS.
+	{t('admin.netmail.netmail_addressed_to_a_name')}
 </p>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else if messages.length === 0}
-	<p class="text-sm text-slate-500">Nothing undeliverable right now.</p>
+	<p class="text-sm text-slate-500">{t('admin.netmail.nothing_undeliverable_right_now')}</p>
 {:else}
 	<div class="mb-3 flex items-center gap-3">
 		<label class="flex items-center gap-2 text-sm text-slate-400">
@@ -152,14 +150,14 @@
 				checked={selected.size > 0 && selected.size === messages.length}
 				onchange={toggleSelectAll}
 			/>
-			Select all
+			{t('admin.netmail.select_all')}
 		</label>
 		<button
 			class="btn-danger btn-sm"
 			disabled={selected.size === 0 || batchDeleting}
 			onclick={removeSelected}
 		>
-			{batchDeleting ? 'Deleting…' : `Delete selected (${selected.size})`}
+			{batchDeleting ? t('admin.netmail.deleting') : t('admin.netmail.delete_selected_size', { SIZE: selected.size })}
 		</button>
 	</div>
 
@@ -181,10 +179,10 @@
 						<div class="min-w-0">
 							<div class="truncate text-sm font-medium text-slate-100">{m.subject}</div>
 							<div class="mt-0.5 text-xs text-slate-500">
-								From <span class="text-slate-300">{m.from_name}</span>
+								{t('admin.netmail.from')} <span class="text-slate-300">{m.from_name}</span>
 								{#if m.from_address}<span class="font-mono">({m.from_address})</span>{/if}
-								to <span class="font-mono text-slate-300">{m.to_name}</span>
-								&middot; {new Date(m.posted_at).toLocaleString()}
+								{t('admin.netmail.to')} <span class="font-mono text-slate-300">{m.to_name}</span>
+								{t('admin.netmail.tolocalestring', { TOLOCALESTRING: new Date(m.posted_at).toLocaleString(i18n.locale) })}
 							</div>
 						</div>
 						<span class="shrink-0 text-xs text-slate-500">{expandedID === m.id ? '▲' : '▼'}</span>
@@ -196,7 +194,7 @@
 						{#if expandError}
 							<p class="text-sm text-red-400">{expandError}</p>
 						{:else if !expanded}
-							<p class="text-sm text-slate-400">Loading…</p>
+							<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 						{:else}
 							<div class="inline-block font-mono text-sm leading-tight whitespace-pre text-slate-200">
 								{@html expanded.body_html}
@@ -208,7 +206,7 @@
 								disabled={deletingID === m.id}
 								onclick={() => remove(m)}
 							>
-								{deletingID === m.id ? 'Deleting…' : 'Delete'}
+								{deletingID === m.id ? t('admin.netmail.deleting') : t('admin.common.delete')}
 							</button>
 						</div>
 					</div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -28,7 +29,7 @@
 	let selectedLabel = $derived.by(() => {
 		for (const g of groupScreens(screens.map((s) => s.name))) {
 			const i = g.items.find((x) => x.name === selected);
-			if (i) return `${g.title} · ${i.part ? `${i.label} (part)` : i.label}`;
+			if (i) return `${g.title} · ${i.part ? t('admin.screens.label_part', { LABEL: i.label }) : i.label}`;
 		}
 		return '';
 	});
@@ -47,7 +48,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load screens.';
+			loadError = err instanceof ApiError ? err.message : t('admin.screens.could_not_load_screens');
 		} finally {
 			loaded = true;
 		}
@@ -68,7 +69,7 @@
 				return;
 			}
 			html = null;
-			previewError = err instanceof ApiError ? err.message : 'Could not render this screen.';
+			previewError = err instanceof ApiError ? err.message : t('admin.screens.could_not_render_this_screen');
 		} finally {
 			previewLoading = false;
 		}
@@ -84,24 +85,22 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">Screens</h1>
+	<h1 class="page-title">{t('admin.screens.screens')}</h1>
 	<p class="mt-1 text-sm text-slate-500">
-		Live preview of the ANSI/CP437 screen files under the configured screens directory, rendered
-		as a browser would see a real terminal client display them. Placeholders like {'{BBSNAME}'} are
-		filled in with sample values.
+		{t('admin.screens.live_preview_of_the_ansi', { V: '{BBSNAME}' })}
 	</p>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else if screens.length === 0}
-	<p class="text-sm text-slate-500">No .ans screens found.</p>
+	<p class="text-sm text-slate-500">{t('admin.screens.no_ans_screens_found')}</p>
 {:else}
 	<div class="flex flex-col gap-6 md:flex-row">
 		<nav class="flex shrink-0 flex-col gap-1 md:w-64">
-			<input class="field field-sm mb-2" bind:value={filter} placeholder="Filter screens…" aria-label="Filter screens" />
+			<input class="field field-sm mb-2" bind:value={filter} placeholder={t('admin.screens.filter_screens')} aria-label={t('admin.screens.filter_screens_2')} />
 			<div class="flex max-h-[70vh] flex-col gap-3 overflow-y-auto pr-1">
 				{#each groups as g (g.title)}
 					<div>
@@ -126,7 +125,7 @@
 						{/each}
 					</div>
 				{:else}
-					<p class="px-2 text-sm text-muted">No screen matches.</p>
+					<p class="px-2 text-sm text-muted">{t('admin.screens.no_screen_matches')}</p>
 				{/each}
 			</div>
 		</nav>
@@ -139,7 +138,7 @@
 				</div>
 			{/if}
 			{#if previewLoading}
-				<p class="text-sm text-slate-400">Rendering…</p>
+				<p class="text-sm text-slate-400">{t('admin.screens.rendering')}</p>
 			{:else if previewError}
 				<p class="text-sm text-red-400">{previewError}</p>
 			{:else if html}

@@ -37,7 +37,8 @@ function rememberLang(lang: string) {
 }
 
 async function load(lang: string): Promise<void> {
-	const res = await fetch(`/api/i18n-texts/${encodeURIComponent(lang)}`);
+	const admin = typeof location !== 'undefined' && location.pathname.startsWith('/admin');
+	const res = await fetch(`/api/i18n-texts/${encodeURIComponent(lang)}${admin ? '?admin=1' : ''}`);
 	if (!res.ok) return;
 	const data = (await res.json()) as Boot;
 	state.lang = data.lang;
@@ -54,18 +55,18 @@ if (typeof window !== 'undefined') {
 	else if (chosen && chosen !== boot.lang && navigator.onLine) load(chosen).catch(() => {});
 }
 
-function fill(text: string, args?: Record<string, string | number>): string {
+function fill(text: string, args?: Record<string, unknown>): string {
 	if (!args) return text;
-	return text.replace(/\{([A-Z][A-Z0-9_]*)\}/g, (m, name: string) => (name in args ? String(args[name]) : m));
+	return text.replace(/\{([A-Z][A-Z0-9_]*)\}/g, (m, name: string) => (name in args ? String(args[name] ?? '') : m));
 }
 
 /** key's text in the current language, its {NAME}s filled from args. */
-export function t(key: string, args?: Record<string, string | number>): string {
+export function t(key: string, args?: Record<string, unknown>): string {
 	return fill(state.texts[key] ?? key, args);
 }
 
 /** The singular (key.one) or plural (key.other) text for n, {COUNT} = n. */
-export function tn(key: string, n: number, args?: Record<string, string | number>): string {
+export function tn(key: string, n: number, args?: Record<string, unknown>): string {
 	return t(`${key}.${n === 1 ? 'one' : 'other'}`, { COUNT: n, ...args });
 }
 
@@ -92,4 +93,10 @@ export async function setLang(lang: string): Promise<void> {
 export async function useAccountLang(lang: string | undefined | null): Promise<void> {
 	if (lang && lang !== state.lang) await setLang(lang);
 	else if (lang) rememberLang(lang);
+}
+
+/** The admin's texts, when its pages were reached from the portal
+ * without a reload (the page came with the portal's only). */
+export async function ensureAdminTexts(): Promise<void> {
+	if (!('admin.nav.dashboard' in state.texts)) await load(state.lang);
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -51,7 +52,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load the archive.';
+			loadError = err instanceof ApiError ? err.message : t('admin.archive.could_not_load_the_archive');
 		} finally {
 			loaded = true;
 		}
@@ -88,7 +89,7 @@
 			inspection = await inspectArchiveEntry(auth.token, entry.id);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			inspectError = err instanceof ApiError ? err.message : 'Could not inspect entry.';
+			inspectError = err instanceof ApiError ? err.message : t('admin.archive.could_not_inspect_entry');
 		}
 	}
 
@@ -99,7 +100,7 @@
 			previewText = await previewArchiveEntry(auth.token, entry.id);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			previewError = err instanceof ApiError ? err.message : 'Could not load preview.';
+			previewError = err instanceof ApiError ? err.message : t('admin.archive.could_not_load_preview');
 		}
 	}
 
@@ -109,13 +110,13 @@
 			await downloadArchiveEntry(auth.token, entry.id, entry.filename);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Download failed.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.archive.download_failed'), 'error');
 		}
 	}
 
 	async function remove(entry: ArchiveEntry) {
 		if (!auth.token) return;
-		if (!confirm(`Delete archived "${entry.filename}"? This can't be undone.`)) return;
+		if (!confirm(t('admin.archive.delete_archived_filename_this_can', { FILENAME: entry.filename }))) return;
 		busyID = entry.id;
 		try {
 			await deleteArchiveEntry(auth.token, entry.id);
@@ -125,10 +126,10 @@
 			next.delete(entry.id);
 			selected = next;
 			if (expandedID === entry.id) expandedID = null;
-			toast.push('Entry deleted.', 'success');
+			toast.push(t('admin.archive.entry_deleted'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete entry.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.archive.could_not_delete_entry'), 'error');
 		} finally {
 			busyID = null;
 		}
@@ -140,16 +141,16 @@
 		try {
 			const res = await retossArchiveEntries(auth.token, [...selected]);
 			const skipped = res.skipped_files?.length
-				? `, skipped: ${res.skipped_files.join(', ')}`
+				? t('admin.archive.skipped_v', { V: res.skipped_files.join(', ') })
 				: '';
 			toast.push(
-				`Re-toss done: ${res.received} netmail, ${res.received_echo} echomail, ${res.received_files} file(s)${skipped}`,
+				t('admin.archive.retoss_done', { NETMAIL: res.received, ECHOMAIL: res.received_echo, FILES: res.received_files }) + skipped,
 				'success'
 			);
 			selected = new Set();
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Re-toss failed.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.archive.re_toss_failed'), 'error');
 		} finally {
 			retossing = false;
 		}
@@ -171,19 +172,15 @@
 	}
 </script>
 
-<h1 class="mb-2 page-title">Packet Analyzer</h1>
+<h1 class="mb-2 page-title">{t('admin.archive.packet_analyzer')}</h1>
 <p class="mb-6 text-sm text-slate-400">
-	Every inbound BinkP file (a packet, a TIC descriptor, a file-echo payload, or anything
-	unsupported) this system has received recently, kept for a few days regardless of whether it
-	tossed successfully -- for inspecting something unclear, and re-tossing it if needed. Select a
-	TIC descriptor together with its payload to re-toss them as a correlated pair, the same as their
-	original session would have.
+	{t('admin.archive.every_inbound_binkp_file_a')}
 </p>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else}
 	<div class="mb-4 flex items-center justify-between">
 		<button
@@ -191,29 +188,29 @@
 			disabled={selected.size === 0 || retossing}
 			onclick={retossSelected}
 		>
-			{retossing ? 'Re-tossing…' : `Re-toss selected (${selected.size})`}
+			{retossing ? t('admin.archive.re_tossing') : t('admin.archive.re_toss_selected_size', { SIZE: selected.size })}
 		</button>
 		<div class="flex items-center gap-2 text-sm text-slate-400">
-			<span>{total === 0 ? 0 : offset + 1}-{Math.min(offset + PAGE_SIZE, total)} of {total}</span>
+			<span>{t('admin.archive.v_v2_of_total', { V: total === 0 ? 0 : offset + 1, V2: Math.min(offset + PAGE_SIZE, total), TOTAL: total })}</span>
 			<button
 				class="btn-secondary btn-sm disabled:opacity-40"
 				disabled={offset === 0}
 				onclick={prevPage}
 			>
-				&larr; Prev
+				{t('admin.archive.prev')}
 			</button>
 			<button
 				class="btn-secondary btn-sm disabled:opacity-40"
 				disabled={offset + PAGE_SIZE >= total}
 				onclick={nextPage}
 			>
-				Next &rarr;
+				{t('admin.archive.next')}
 			</button>
 		</div>
 	</div>
 
 	{#if entries.length === 0}
-		<p class="text-sm text-slate-500">Nothing captured yet.</p>
+		<p class="text-sm text-slate-500">{t('admin.archive.nothing_captured_yet')}</p>
 	{:else}
 		<div class="flex flex-col gap-2">
 			{#each entries as entry (entry.id)}
@@ -245,7 +242,7 @@
 								{#if entry.uplink_host}
 									<span class="font-mono">({entry.uplink_host})</span>
 								{/if}
-								&middot; {entry.size_human} &middot; {new Date(entry.received_at).toLocaleString()}
+								{t('admin.archive.size_human_tolocalestring', { SIZE_HUMAN: entry.size_human, TOLOCALESTRING: new Date(entry.received_at).toLocaleString(i18n.locale) })}
 								{#if entry.detail}
 									&middot; <span class="text-red-400">{entry.detail}</span>
 								{/if}
@@ -256,14 +253,14 @@
 								class="btn-secondary btn-xs"
 								onclick={() => download(entry)}
 							>
-								Download
+								{t('admin.common.download')}
 							</button>
 							<button
 								class="btn-danger btn-xs"
 								disabled={busyID === entry.id}
 								onclick={() => remove(entry)}
 							>
-								Delete
+								{t('admin.common.delete')}
 							</button>
 						</div>
 					</div>
@@ -273,33 +270,33 @@
 							{#if inspectError}
 								<p class="text-sm text-red-400">{inspectError}</p>
 							{:else if inspection === null}
-								<p class="text-sm text-slate-400">Loading…</p>
+								<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 							{:else if inspection.kind === 'packet' || inspection.kind === 'bundle'}
 								<div class="flex flex-col gap-3">
 									{#if inspection.kind === 'bundle'}
 										<p class="text-xs text-slate-500">
-											Packet bundle containing {inspection.packets?.length ?? 0} packet(s).
+											{t('admin.archive.packet_bundle_containing_length_packet', { LENGTH: inspection.packets?.length ?? 0 })}
 										</p>
 									{/if}
 									{#each inspection.packets ?? [] as p}
 										<div class="rounded-xl border border-line/70 bg-slate-900/40 p-2">
 											<div class="font-mono text-xs text-slate-400">
-												{p.name} &middot; {p.orig_addr} &rarr; {p.dest_addr} &middot; {new Date(
+												{t('admin.archive.name_orig_addr_dest_addr', { NAME: p.name, ORIG_ADDR: p.orig_addr, DEST_ADDR: p.dest_addr, TOLOCALESTRING: new Date(
 													p.created
-												).toLocaleString()}
+												).toLocaleString(i18n.locale) })}
 											</div>
 											{#if p.messages.length === 0}
-												<p class="mt-1 text-xs text-slate-500">No messages.</p>
+												<p class="mt-1 text-xs text-slate-500">{t('admin.archive.no_messages')}</p>
 											{:else}
 												<table class="mt-2 w-full text-xs">
 													<thead class="text-slate-500">
 														<tr class="text-left">
-															<th class="py-1 pr-2 font-normal">From</th>
-															<th class="py-1 pr-2 font-normal">To</th>
-															<th class="py-1 pr-2 font-normal">Subject</th>
-															<th class="py-1 pr-2 font-normal">Area</th>
-															<th class="py-1 pr-2 font-normal">Written</th>
-															<th class="py-1 font-normal">Size</th>
+															<th class="py-1 pr-2 font-normal">{t('admin.archive.from')}</th>
+															<th class="py-1 pr-2 font-normal">{t('admin.archive.to')}</th>
+															<th class="py-1 pr-2 font-normal">{t('admin.archive.subject')}</th>
+															<th class="py-1 pr-2 font-normal">{t('admin.archive.area')}</th>
+															<th class="py-1 pr-2 font-normal">{t('admin.archive.written')}</th>
+															<th class="py-1 font-normal">{t('admin.archive.size')}</th>
 														</tr>
 													</thead>
 													<tbody>
@@ -311,7 +308,7 @@
 																<td class="py-1 pr-2 font-mono">
 																	{m.area_tag || (m.private ? 'netmail' : '')}
 																</td>
-																<td class="py-1 pr-2">{new Date(m.written).toLocaleString()}</td>
+																<td class="py-1 pr-2">{new Date(m.written).toLocaleString(i18n.locale)}</td>
 																<td class="py-1">{m.body_size} B</td>
 															</tr>
 														{/each}
@@ -323,21 +320,21 @@
 								</div>
 							{:else if inspection.kind === 'tic'}
 								<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-									<dt class="text-slate-500">Area</dt>
+									<dt class="text-slate-500">{t('admin.archive.area')}</dt>
 									<dd class="font-mono text-slate-300">{inspection.tic?.area}</dd>
-									<dt class="text-slate-500">File</dt>
+									<dt class="text-slate-500">{t('admin.archive.file')}</dt>
 									<dd class="font-mono text-slate-300">{inspection.tic?.file}</dd>
-									<dt class="text-slate-500">Description</dt>
+									<dt class="text-slate-500">{t('admin.common.description')}</dt>
 									<dd class="whitespace-pre-wrap text-slate-300">
-										{inspection.tic?.description || '(none -- this is the missing-Desc case)'}
+										{inspection.tic?.description || t('admin.archive.none_this_is_the_missing')}
 									</dd>
-									<dt class="text-slate-500">Size</dt>
+									<dt class="text-slate-500">{t('admin.archive.size')}</dt>
 									<dd class="text-slate-300">{inspection.tic?.size_bytes} B</dd>
 									{#if inspection.tic?.has_crc32}
 										<dt class="text-slate-500">CRC-32</dt>
 										<dd class="font-mono text-slate-300">{inspection.tic?.crc32}</dd>
 									{/if}
-									<dt class="text-slate-500">Origin</dt>
+									<dt class="text-slate-500">{t('admin.archive.origin')}</dt>
 									<dd class="font-mono text-slate-300">{inspection.tic?.origin}</dd>
 								</dl>
 							{:else}
@@ -353,12 +350,12 @@
 										class="text-xs text-cyan-400 hover:underline"
 										onclick={() => loadRaw(entry)}
 									>
-										Show raw bytes
+										{t('admin.archive.show_raw_bytes')}
 									</button>
 								{:else if previewError}
 									<p class="text-sm text-red-400">{previewError}</p>
 								{:else if previewText === null}
-									<p class="text-sm text-slate-400">Loading…</p>
+									<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 								{:else}
 									<pre class="max-h-96 overflow-auto rounded bg-slate-950 p-3 font-mono text-xs break-all whitespace-pre-wrap text-slate-300">{previewText}</pre>
 								{/if}

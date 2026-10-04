@@ -368,6 +368,6 @@ func (s *Server) handleDeleteScreen(w http.ResponseWriter, r *http.Request) {
 // is read fresh each time it's shown.
 func (s *Server) screenChanged(name string) {
 	if strings.EqualFold(name, welcomeScreenFile) {
-		s.markRestartNeeded("welcome.ans changed", services.BBS)
+		s.markRestartNeeded(i18n.Ref("restart.welcome"), services.BBS)
 	}
 }

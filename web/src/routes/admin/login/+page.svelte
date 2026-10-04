@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { goto } from '$app/navigation';
 	import { login, ApiError, TwoFactorRequired } from '$lib/api';
 	import { auth } from '$lib/auth.svelte';
@@ -29,7 +30,7 @@
 				setTimeout(() => codeField?.focus(), 0);
 				return;
 			}
-			error = err instanceof ApiError ? err.message : 'Login failed.';
+			error = err instanceof ApiError ? err.message : t('admin.login.login_failed');
 		} finally {
 			submitting = false;
 		}
@@ -38,32 +39,32 @@
 
 <div class="flex flex-col items-center gap-7 py-14">
 	<div class="text-center">
-		<h1 class="text-3xl font-semibold tracking-tight text-ink-strong">Sysop Login</h1>
-		<p class="mt-1.5 text-[13.5px] text-muted">Administer {site.info.name}</p>
+		<h1 class="text-3xl font-semibold tracking-tight text-ink-strong">{t('admin.login.sysop_login')}</h1>
+		<p class="mt-1.5 text-[13.5px] text-muted">{t('admin.login.administer_name', { NAME: site.info.name })}</p>
 	</div>
 
 	<form class="flex w-full max-w-[340px] flex-col gap-2.5" onsubmit={handleSubmit}>
-		<label class="sr-only" for="admin-user">Username</label>
+		<label class="sr-only" for="admin-user">{t('admin.login.username')}</label>
 		<input
 			id="admin-user"
 			class="field py-3 text-sm"
 			bind:value={username}
-			placeholder="Username"
+			placeholder={t('admin.login.username')}
 			autocomplete="username"
 			required
 		/>
-		<label class="sr-only" for="admin-pass">Password</label>
+		<label class="sr-only" for="admin-pass">{t('admin.login.password')}</label>
 		<input
 			id="admin-pass"
 			type="password"
 			class="field py-3 text-sm"
 			bind:value={password}
-			placeholder="Password"
+			placeholder={t('admin.login.password')}
 			autocomplete="current-password"
 			required
 		/>
 		{#if needCode}
-			<label class="sr-only" for="admin-code">Code</label>
+			<label class="sr-only" for="admin-code">{t('admin.login.code')}</label>
 			<input
 				id="admin-code"
 				bind:this={codeField}
@@ -74,17 +75,17 @@
 				autocomplete="one-time-code"
 				required
 			/>
-			<p class="text-xs text-faint">The code from your authenticator app -- or one of your recovery codes.</p>
+			<p class="text-xs text-faint">{t('admin.login.the_code_from_your_authenticator')}</p>
 		{/if}
 		{#if error}
 			<p class="text-sm text-red-400">{error}</p>
 		{/if}
 		<button type="submit" disabled={submitting} class="btn-primary mt-1.5 w-full py-3 text-sm">
-			{submitting ? 'Signing in…' : 'Sign in'}
+			{submitting ? t('admin.login.signing_in') : t('admin.login.sign_in')}
 		</button>
 	</form>
 
 	<p class="max-w-[340px] text-center text-xs leading-relaxed text-faint">
-		Only accounts with sysop-level security may sign in here.
+		{t('admin.login.only_accounts_with_sysop_level')}
 	</p>
 </div>

@@ -13,6 +13,7 @@ import (
 
 	"git.maik.ch/nullmodem/bbs/internal/binkp"
 	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/mail"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/tosser"
@@ -506,27 +507,27 @@ func (s *Server) markConfigRestarts(before, after configDTO) {
 		return string(x) == string(y)
 	}
 	if before.Name != after.Name || before.Sysop != after.Sysop {
-		s.markRestartNeeded("BBS name or sysop changed", services.BBS, services.Mailer)
+		s.markRestartNeeded(i18n.Ref("restart.bbs_name"), services.BBS, services.Mailer)
 	}
 	if before.Location != after.Location {
-		s.markRestartNeeded("Location changed", services.Mailer)
+		s.markRestartNeeded(i18n.Ref("restart.location"), services.Mailer)
 	}
 	if before.LastCallers != after.LastCallers {
-		s.markRestartNeeded("InterBBS Last Callers changed", services.BBS)
+		s.markRestartNeeded(i18n.Ref("restart.lastcallers"), services.BBS)
 	}
 	if before.NewUserSL != after.NewUserSL {
-		s.markRestartNeeded("New-user security level changed", services.BBS)
+		s.markRestartNeeded(i18n.Ref("restart.new_user_sl"), services.BBS)
 	}
 	if before.TelnetEnabled != after.TelnetEnabled || before.TelnetAddr != after.TelnetAddr ||
 		before.SSHEnabled != after.SSHEnabled || before.SSHAddr != after.SSHAddr {
-		s.markRestartNeeded("Telnet/SSH settings changed", services.BBS)
+		s.markRestartNeeded(i18n.Ref("restart.telnet_ssh"), services.BBS)
 	}
 	if !same(before.FTNAddresses, after.FTNAddresses) {
-		s.markRestartNeeded("FTN addresses changed", services.BBS, services.Mailer, services.Web)
+		s.markRestartNeeded(i18n.Ref("restart.ftn_addresses"), services.BBS, services.Mailer, services.Web)
 	}
 	if !same(before.BinkpUplinks, after.BinkpUplinks) || !same(before.Networks, after.Networks) ||
 		before.BinkpDefaultPollIntervalSeconds != after.BinkpDefaultPollIntervalSeconds {
-		s.markRestartNeeded("BinkP settings changed", services.Mailer)
+		s.markRestartNeeded(i18n.Ref("restart.binkp"), services.Mailer)
 	}
 }
 

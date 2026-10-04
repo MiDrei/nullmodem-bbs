@@ -2,6 +2,7 @@ package web
 
 import (
 	"git.maik.ch/nullmodem/bbs/internal/health"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"net/http"
 	"time"
 
@@ -167,6 +168,10 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	problems := []health.Problem{}
 	if s.DB != nil {
 		if p, err := health.Current(s.DB); err == nil {
+			lang := s.requestLang(r)
+			for i := range p {
+				p[i].Title, p[i].Detail = i18n.Resolve(lang, p[i].Title), i18n.Resolve(lang, p[i].Detail)
+			}
 			problems = p
 		}
 	}

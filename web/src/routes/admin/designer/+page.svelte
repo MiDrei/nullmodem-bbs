@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -198,7 +199,7 @@
 	// *where* to insert).
 	function insertMacroBytes(bytes: number[]) {
 		if (!grid || tool !== 'text' || !textCursor) {
-			toast.push('Select the Text tool and click a cell first.', 'error');
+			toast.push(t('admin.designer.select_the_text_tool_and'), 'error');
 			return;
 		}
 		pushHistory();
@@ -246,7 +247,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load screens.';
+			loadError = err instanceof ApiError ? err.message : t('admin.designer.could_not_load_screens');
 			loaded = true;
 			return;
 		}
@@ -279,7 +280,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			toast.push(err instanceof ApiError ? err.message : 'Could not open screen.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.designer.could_not_open_screen'), 'error');
 		}
 	}
 
@@ -288,27 +289,27 @@
 		const name = newName.trim().endsWith('.ans') ? newName.trim() : `${newName.trim()}.ans`;
 		try {
 			await createScreen(auth.token, name, newWidth, newHeight);
-			toast.push(`Created ${name}.`, 'success');
+			toast.push(t('admin.designer.created_name', { NAME: name }), 'success');
 			showNewForm = false;
 			newName = '';
 			await loadScreens();
 			await openScreen(name);
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not create screen.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.designer.could_not_create_screen'), 'error');
 		}
 	}
 
 	async function handleDelete() {
 		if (!auth.token || !selectedName) return;
-		if (!confirm(`Delete ${selectedName}? This cannot be undone.`)) return;
+		if (!confirm(t('admin.designer.delete_selectedname_this_cannot_be', { SELECTEDNAME: selectedName }))) return;
 		try {
 			await deleteScreen(auth.token, selectedName);
-			toast.push(`Deleted ${selectedName}.`, 'success');
+			toast.push(t('admin.designer.deleted_selectedname', { SELECTEDNAME: selectedName }), 'success');
 			selectedName = null;
 			grid = null;
 			await loadScreens();
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete screen.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.designer.could_not_delete_screen'), 'error');
 		}
 	}
 
@@ -319,11 +320,11 @@
 		if (!file) return;
 		try {
 			const result = await importScreen(auth.token, file);
-			toast.push(`Imported ${result.name}.`, 'success');
+			toast.push(t('admin.designer.imported_name', { NAME: result.name }), 'success');
 			await loadScreens();
 			await openScreen(result.name);
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not import screen.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.designer.could_not_import_screen'), 'error');
 		} finally {
 			input.value = '';
 		}
@@ -334,9 +335,9 @@
 		saving = true;
 		try {
 			await saveScreenGrid(auth.token, selectedName, grid);
-			toast.push(`Saved ${selectedName} -- callers see it the next time it's shown.`, 'success');
+			toast.push(t('admin.designer.saved_selectedname_callers_see_it', { SELECTEDNAME: selectedName }), 'success');
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not save screen.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.designer.could_not_save_screen'), 'error');
 		} finally {
 			saving = false;
 		}
@@ -452,9 +453,9 @@
 		cursorBlinkTimer = undefined;
 	}
 
-	function selectTool(t: Tool) {
-		tool = t;
-		if (t !== 'text') {
+	function selectTool(tl: Tool) {
+		tool = tl;
+		if (tl !== 'text') {
 			textCursor = null;
 			stopCursorBlink();
 			clearOverlay();
@@ -510,7 +511,7 @@
 		}
 		if (tool === 'paste') {
 			if (!clipboard) {
-				toast.push('Clipboard is empty. Select a region and Copy first.', 'error');
+				toast.push(t('admin.designer.clipboard_is_empty_select_a'), 'error');
 				return;
 			}
 			pushHistory();
@@ -626,7 +627,7 @@
 			}
 		}
 		clipboard = { width: w, height: h, cells };
-		toast.push(`Copied ${w}x${h} block. Switch to Paste and click to stamp it.`, 'success');
+		toast.push(t('admin.designer.copied_w_x_h_block', { W: w, H: h }), 'success');
 	}
 
 	// --- Keyboard (undo/redo + text tool typing) ---
@@ -723,21 +724,19 @@
 -->
 <div class="mx-[calc(50%-50vw)] px-4 lg:px-8">
 	<div class="mb-4">
-		<h1 class="text-xl font-semibold text-slate-100">ANSI Designer</h1>
+		<h1 class="text-xl font-semibold text-slate-100">{t('admin.designer.ansi_designer')}</h1>
 	<p class="mt-1 text-sm text-slate-500">
-		Draw and edit .ans screen files directly in the browser. Changes are saved back to the
-		screens directory and show up the next time a caller sees the screen (welcome.ans after a BBS restart -- see Services).
+		{t('admin.designer.draw_and_edit_ans_screen')}
 	</p>
 	<p class="mt-1 text-sm text-slate-500">
-		Pick a tool, a foreground/background color and a character on the left, then click or drag on
-		the canvas to draw with them.
+		{t('admin.designer.pick_a_tool_a_foreground')}
 	</p>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else}
 	<div class="mb-4 flex flex-wrap items-center gap-2 rounded border border-slate-800 p-3">
 		<select
@@ -754,19 +753,19 @@
 			disabled={!selectedName || saving}
 			onclick={handleSave}
 		>
-			{saving ? 'Saving…' : 'Save'}
+			{saving ? t('admin.common.saving') : t('admin.common.save')}
 		</button>
 		<button
 			class="rounded border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800"
 			onclick={() => (showNewForm = !showNewForm)}
 		>
-			New…
+			{t('admin.designer.new')}
 		</button>
 		<button
 			class="rounded border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800"
 			onclick={() => importInput?.click()}
 		>
-			Import…
+			{t('admin.designer.import')}
 		</button>
 		<input
 			bind:this={importInput}
@@ -780,10 +779,10 @@
 			disabled={!selectedName}
 			onclick={handleDelete}
 		>
-			Delete
+			{t('admin.common.delete')}
 		</button>
 		<div class="ml-auto flex items-center gap-2 text-sm text-slate-400">
-			<span>Zoom</span>
+			<span>{t('admin.designer.zoom')}</span>
 			<select
 				bind:value={zoom}
 				onchange={() => redrawAll()}
@@ -799,7 +798,7 @@
 	{#if showNewForm}
 		<div class="mb-4 flex flex-wrap items-end gap-2 rounded border border-slate-800 p-3">
 			<label class="text-sm text-slate-400">
-				Name
+				{t('admin.common.name')}
 				<input
 					bind:value={newName}
 					placeholder="myscreen.ans"
@@ -807,7 +806,7 @@
 				/>
 			</label>
 			<label class="text-sm text-slate-400">
-				Width
+				{t('admin.designer.width')}
 				<input
 					type="number"
 					min="1"
@@ -817,7 +816,7 @@
 				/>
 			</label>
 			<label class="text-sm text-slate-400">
-				Height
+				{t('admin.designer.height')}
 				<input
 					type="number"
 					min="1"
@@ -830,7 +829,7 @@
 				class="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500"
 				onclick={handleCreate}
 			>
-				Create
+				{t('admin.common.create')}
 			</button>
 		</div>
 	{/if}
@@ -839,15 +838,15 @@
 		<div class="flex flex-col gap-4 lg:flex-row">
 			<div class="flex shrink-0 flex-col gap-4 lg:w-80">
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 card-label">Tools</h2>
+					<h2 class="mb-2 card-label">{t('admin.designer.tools')}</h2>
 					<div class="grid grid-cols-4 gap-1">
-						{#each [['pencil', '✎'], ['eraser', '⌫'], ['text', 'T'], ['rect', '▭'], ['line', '╱'], ['box', '▢'], ['select', '⛶'], ['paste', '📋']] as [t, icon]}
+						{#each [['pencil', '✎'], ['eraser', '⌫'], ['text', 'T'], ['rect', '▭'], ['line', '╱'], ['box', '▢'], ['select', '⛶'], ['paste', '📋']] as [tl, icon]}
 							<button
-								class="rounded border px-2 py-1.5 text-sm {tool === t
+								class="rounded border px-2 py-1.5 text-sm {tool === tl
 									? 'border-cyan-600 bg-cyan-950 text-cyan-300'
 									: 'border-slate-800 text-slate-400 hover:border-slate-700'}"
-								onclick={() => selectTool(t as Tool)}
-								title={t}
+								onclick={() => selectTool(tl as Tool)}
+								title={tl}
 							>
 								{icon}
 							</button>
@@ -856,12 +855,12 @@
 					{#if tool === 'box'}
 						<div class="mt-2 flex items-center gap-2 text-xs text-slate-400">
 							<select bind:value={boxStyle} class="rounded border border-slate-700 bg-slate-900 px-1 py-0.5">
-								<option value="single">Single</option>
-								<option value="double">Double</option>
+								<option value="single">{t('admin.designer.single')}</option>
+								<option value="double">{t('admin.designer.double')}</option>
 							</select>
 							<label class="flex items-center gap-1">
 								<input type="checkbox" bind:checked={fillInterior} class="check" />
-								Fill
+								{t('admin.designer.fill')}
 							</label>
 						</div>
 					{/if}
@@ -871,13 +870,13 @@
 							disabled={!selection}
 							onclick={copySelection}
 						>
-							Copy selection
+							{t('admin.designer.copy_selection')}
 						</button>
 					{/if}
 					{#if tool === 'text'}
 						<label class="mt-2 flex items-center gap-1 text-xs text-slate-400">
 							<input type="checkbox" bind:checked={insertMode} class="check" />
-							Insert mode (shift rest of the row)
+							{t('admin.designer.insert_mode_shift_rest_of')}
 						</label>
 					{/if}
 					<div class="mt-2 flex gap-1">
@@ -886,22 +885,22 @@
 							disabled={history.length === 0}
 							onclick={undo}
 						>
-							Undo
+							{t('admin.designer.undo')}
 						</button>
 						<button
 							class="flex-1 rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
 							disabled={future.length === 0}
 							onclick={redo}
 						>
-							Redo
+							{t('admin.designer.redo')}
 						</button>
 					</div>
 				</section>
 
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 card-label">Rows</h2>
+					<h2 class="mb-2 card-label">{t('admin.designer.rows')}</h2>
 					<label class="mb-2 flex items-center gap-2 text-xs text-slate-400">
-						Row #
+						{t('admin.designer.row')}
 						<input
 							type="number"
 							min="1"
@@ -909,36 +908,35 @@
 							bind:value={rowOpIndex}
 							class="w-16 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
 						/>
-						of {grid.height}
+						{t('admin.designer.of_height', { HEIGHT: grid.height })}
 					</label>
 					<div class="grid grid-cols-2 gap-1">
 						<button
 							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
 							onclick={() => insertRow(true)}
 						>
-							Insert above
+							{t('admin.designer.insert_above')}
 						</button>
 						<button
 							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
 							onclick={() => insertRow(false)}
 						>
-							Insert below
+							{t('admin.designer.insert_below')}
 						</button>
 						<button
 							class="col-span-2 rounded border border-red-900 px-2 py-1 text-xs text-red-400 hover:bg-red-950 disabled:opacity-50"
 							disabled={grid.height <= 1}
 							onclick={deleteRow}
 						>
-							Delete row
+							{t('admin.designer.delete_row')}
 						</button>
 					</div>
 				</section>
 
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 card-label">Insert Field</h2>
+					<h2 class="mb-2 card-label">{t('admin.designer.insert_field')}</h2>
 					<p class="mb-2 text-xs text-slate-500">
-						Text tool + click a cell, then insert a placeholder or fill token there instead of
-						typing braces by hand.
+						{t('admin.designer.text_tool_click_a_cell')}
 					</p>
 					<div class="flex gap-1">
 						<select
@@ -953,18 +951,18 @@
 							class="shrink-0 rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-500"
 							onclick={() => insertPlaceholder(selectedPlaceholder)}
 						>
-							Insert
+							{t('admin.designer.insert')}
 						</button>
 					</div>
 					<label class="mt-2 flex items-center gap-2 text-xs text-slate-400">
-						Count
+						{t('admin.designer.count')}
 						<input
 							type="number"
 							min="1"
 							class="w-20 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100 focus:border-cyan-500 focus:outline-none"
 							bind:value={fillCount}
-							placeholder="auto"
-							title="Repeat exactly this many times instead of auto-filling remaining width"
+							placeholder={t('admin.designer.auto')}
+							title={t('admin.designer.repeat_exactly_this_many_times')}
 						/>
 					</label>
 					<div class="mt-2 flex flex-wrap gap-1">
@@ -972,38 +970,38 @@
 							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
 							onclick={() => insertFill(0x20)}
 						>
-							Fill: space
+							{t('admin.designer.fill_space')}
 						</button>
 						<button
 							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
 							onclick={() => insertFill(0xcd)}
 						>
-							Fill: ═
+							{t('admin.designer.fill_2')}
 						</button>
 						<button
 							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
 							onclick={() => insertFill(0xc4)}
 						>
-							Fill: ─
+							{t('admin.designer.fill_3')}
 						</button>
 						<button
 							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
 							onclick={() => insertFill(0x2e)}
 						>
-							Fill: .
+							{t('admin.designer.fill_4')}
 						</button>
 						<button
 							class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
 							onclick={() => insertFill(currentChar)}
-							title="Uses the character currently selected below"
+							title={t('admin.designer.uses_the_character_currently_selected')}
 						>
-							Fill: selected char
+							{t('admin.designer.fill_selected_char')}
 						</button>
 					</div>
 				</section>
 
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 card-label">Foreground</h2>
+					<h2 class="mb-2 card-label">{t('admin.designer.foreground')}</h2>
 					<div class="grid grid-cols-8 gap-1">
 						{#each DOS_PALETTE as color, i}
 							<button
@@ -1014,7 +1012,7 @@
 							></button>
 						{/each}
 					</div>
-					<h2 class="mt-3 mb-2 card-label">Background</h2>
+					<h2 class="mt-3 mb-2 card-label">{t('admin.designer.background')}</h2>
 					<div class="grid grid-cols-8 gap-1">
 						{#each DOS_PALETTE.slice(0, 8) as color, i}
 							<button
@@ -1028,7 +1026,7 @@
 				</section>
 
 				<section class="rounded border border-slate-800 p-3">
-					<h2 class="mb-2 card-label">Character</h2>
+					<h2 class="mb-2 card-label">{t('admin.designer.character')}</h2>
 					<div class="mb-2 flex items-center gap-3 rounded border border-slate-800 bg-slate-950 p-2">
 						<span
 							class="flex h-16 w-12 shrink-0 items-center justify-center rounded"
@@ -1040,8 +1038,7 @@
 							></canvas>
 						</span>
 						<span class="text-xs text-slate-500">
-							Selected: code {currentChar}. Click a glyph below to change it, then draw with
-							Pencil, Text, Line, Rect or Box.
+							{t('admin.designer.selected_code_currentchar_click_a', { CURRENTCHAR: currentChar })}
 						</span>
 					</div>
 					<div

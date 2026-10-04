@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	// The FTN networks this system belongs to, each with its own
 	// address(es) in it. Stored as before: config.networks (name and
 	// domain) and config.ftn_addresses (full 5D addresses, primary
@@ -84,7 +85,7 @@
 	function removeNetwork(i: number) {
 		const r = rows[i];
 		const used = r.addresses.some((a) => a.trim());
-		if (used && !confirm(`Remove ${r.name || 'this network'} and your address(es) in it?`)) return;
+		if (used && !confirm(t('admin.binkp.remove_v_and_your_address', { V: r.name || t('admin.binkp.this_network') }))) return;
 		if (primary.startsWith(`n:${i}:`)) primary = '';
 		rows = rows.filter((_, j) => j !== i);
 		// Keys of later rows shift down by one.
@@ -121,7 +122,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load configuration.';
+			loadError = err instanceof ApiError ? err.message : t('admin.binkp.could_not_load_configuration');
 		}
 	});
 
@@ -150,7 +151,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			saveError = err instanceof ApiError ? err.message : 'Could not save configuration.';
+			saveError = err instanceof ApiError ? err.message : t('admin.binkp.could_not_save_configuration');
 		} finally {
 			saving = false;
 		}
@@ -158,40 +159,36 @@
 </script>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="page-title">Networks &amp; Addresses</h1>
-	<a href="/admin/binkp/uplinks" class="btn-secondary btn-sm">Uplinks (Nodes/Points) &rarr;</a>
+	<h1 class="page-title">{t('admin.binkp.networks_addresses')}</h1>
+	<a href="/admin/binkp/uplinks" class="btn-secondary btn-sm">{t('admin.binkp.uplinks_nodes_points')}</a>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !config}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
 			<div class="flex items-center justify-between">
-				<h2 class="card-label">Networks and your addresses</h2>
-				<button type="button" class="btn-secondary btn-xs" onclick={addNetwork}>+ Add Network</button>
+				<h2 class="card-label">{t('admin.binkp.networks_and_your_addresses')}</h2>
+				<button type="button" class="btn-secondary btn-xs" onclick={addNetwork}>{t('admin.binkp.add_network')}</button>
 			</div>
 			<p class="text-xs leading-relaxed text-muted">
-				The FTN networks you belong to and your node address in each. The name is what an uplink
-				and its areas are grouped under (tabs in the admin and portal, dividers in the Telnet area
-				lists); the domain is appended to your address (<span class="font-mono">21:3/194</span> in
-				fsxnet becomes <span class="font-mono">21:3/194@fsxnet</span>). The primary address is
-				stamped on netmail written here. Renaming a network renames it on its uplinks and areas too.
+				{t('admin.binkp.the_ftn_networks_you_belong')}<span class="font-mono">21:3/194</span> {t('admin.binkp.in_fsxnet_becomes')} <span class="font-mono">21:3/194@fsxnet</span>{t('admin.binkp.the_primary_address_is_stamped')}
 			</p>
 
 			{#if rows.length === 0}
-				<p class="text-sm text-muted">No networks yet.</p>
+				<p class="text-sm text-muted">{t('admin.binkp.no_networks_yet')}</p>
 			{:else}
 				<div class="overflow-x-auto">
 					<table class="w-full min-w-[40rem] text-left text-[13px]">
 						<thead class="card-label">
 							<tr>
-								<th class="w-16 pb-2 text-center font-normal">Primary</th>
-								<th class="w-44 pr-3 pb-2 font-normal">Name</th>
-								<th class="w-36 pr-3 pb-2 font-normal">Domain</th>
-								<th class="pr-3 pb-2 font-normal">Your address</th>
+								<th class="w-16 pb-2 text-center font-normal">{t('admin.binkp.primary')}</th>
+								<th class="w-44 pr-3 pb-2 font-normal">{t('admin.common.name')}</th>
+								<th class="w-36 pr-3 pb-2 font-normal">{t('admin.binkp.domain')}</th>
+								<th class="pr-3 pb-2 font-normal">{t('admin.binkp.your_address')}</th>
 								<th class="w-20 pb-2"></th>
 							</tr>
 						</thead>
@@ -201,7 +198,7 @@
 									<td class="py-2">
 										<div class="flex flex-col items-center">
 											{#each r.addresses as addr, j (j)}
-												<label class="flex h-[2.1rem] items-center justify-center" title="Primary address">
+												<label class="flex h-[2.1rem] items-center justify-center" title={t('admin.binkp.primary_address')}>
 													<input
 														type="radio"
 														name="primary"
@@ -236,7 +233,7 @@
 														type="button"
 														class="w-4 text-xs text-faint hover:text-red-400 {r.addresses.length > 1 ? '' : 'invisible'}"
 														onclick={() => removeAddress(i, j)}
-														title="Remove this address">✕</button
+														title={t('admin.binkp.remove_this_address')}>✕</button
 													>
 												</div>
 											{/each}
@@ -245,13 +242,13 @@
 												class="mt-1 self-start text-xs text-faint hover:text-accent"
 												onclick={() => addAddress(i)}
 											>
-												+ Address
+												{t('admin.binkp.address')}
 											</button>
 										</div>
 									</td>
 									<td class="py-2 text-right">
 										<button type="button" class="btn-danger btn-xs mt-1" onclick={() => removeNetwork(i)}
-											>Remove</button
+											>{t('admin.common.remove')}</button
 										>
 									</td>
 								</tr>
@@ -264,13 +261,13 @@
 
 		{#if orphans.length > 0}
 			<section class="flex flex-col gap-3 rounded-xl border border-amber-500/40 p-4">
-				<h2 class="card-label">Addresses without a network</h2>
+				<h2 class="card-label">{t('admin.binkp.addresses_without_a_network')}</h2>
 				<p class="text-xs text-muted">
-					Their domain matches none of the networks above. Add the network, or remove the address.
+					{t('admin.binkp.their_domain_matches_none_of')}
 				</p>
 				{#each orphans as _, k (k)}
 					<div class="flex items-center gap-3">
-						<label class="flex w-16 justify-center" title="Primary address">
+						<label class="flex w-16 justify-center" title={t('admin.binkp.primary_address')}>
 							<input
 								type="radio"
 								name="primary"
@@ -280,7 +277,7 @@
 							/>
 						</label>
 						<input class="field field-sm flex-1 font-mono" bind:value={orphans[k]} />
-						<button type="button" class="btn-danger btn-xs" onclick={() => removeOrphan(k)}>Remove</button>
+						<button type="button" class="btn-danger btn-xs" onclick={() => removeOrphan(k)}>{t('admin.common.remove')}</button>
 					</div>
 				{/each}
 			</section>
@@ -290,11 +287,11 @@
 			<p class="text-sm text-red-400">{saveError}</p>
 		{/if}
 		{#if saved}
-			<p class="text-sm text-muted">Saved.</p>
+			<p class="text-sm text-muted">{t('admin.binkp.saved')}</p>
 		{/if}
 
 		<button type="submit" disabled={saving} class="btn-primary">
-			{saving ? 'Saving…' : 'Save changes'}
+			{saving ? t('admin.common.saving') : t('admin.binkp.save_changes')}
 		</button>
 	</form>
 {/if}

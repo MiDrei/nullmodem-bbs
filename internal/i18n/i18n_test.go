@@ -95,6 +95,7 @@ func TestKeysUsedExist(t *testing.T) {
 		regexp.MustCompile(`\.(?:T|U)\("([a-z0-9_.-]+)"`),
 		regexp.MustCompile(`i18n\.T\([^,()]+(?:\(\))?, "([a-z0-9_.-]+)"`),
 		regexp.MustCompile(`\{T:([a-z0-9_.-]+)`),
+		regexp.MustCompile(`i18n\.Ref\("([a-z0-9_.-]+)"`),
 		// The web: t('web.x') in .svelte and .ts, and keys kept in lists.
 		regexp.MustCompile(`\bt\(\s*'([a-z0-9_.-]+)'`),
 		regexp.MustCompile(`'(web\.[a-z0-9_.-]+)'`),

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -76,7 +77,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load pending areas.';
+			loadError = err instanceof ApiError ? err.message : t('admin.pending_areas.could_not_load_pending_areas');
 		} finally {
 			loaded = true;
 		}
@@ -102,10 +103,10 @@
 			await updateMessageArea(auth.token, area.id, messageDrafts[area.id]);
 			await approvePendingMessageArea(auth.token, area.id);
 			messageAreas = messageAreas.filter((a) => a.id !== area.id);
-			toast.push(`Approved "${messageDrafts[area.id].name}". It's now visible in the BBS.`, 'success');
+			toast.push(t('admin.pending_areas.approved_name_it_s_now', { NAME: messageDrafts[area.id].name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not approve.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.pending_areas.could_not_approve'), 'error');
 		} finally {
 			busyID = null;
 		}
@@ -113,16 +114,16 @@
 
 	async function rejectMessage(area: MessageArea) {
 		if (!auth.token) return;
-		if (!confirm(`Reject and delete area "${area.tag}"? Any messages already tossed into it are lost.`))
+		if (!confirm(t('admin.pending_areas.reject_and_delete_area_tag', { TAG: area.tag })))
 			return;
 		busyID = `m${area.id}`;
 		try {
 			await deleteMessageArea(auth.token, area.id);
 			messageAreas = messageAreas.filter((a) => a.id !== area.id);
-			toast.push(`Rejected "${area.tag}".`, 'success');
+			toast.push(t('admin.pending_areas.rejected_tag', { TAG: area.tag }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not reject.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.pending_areas.could_not_reject'), 'error');
 		} finally {
 			busyID = null;
 		}
@@ -135,10 +136,10 @@
 			await updateFileArea(auth.token, area.id, fileDrafts[area.id]);
 			await approvePendingFileArea(auth.token, area.id);
 			fileAreas = fileAreas.filter((a) => a.id !== area.id);
-			toast.push(`Approved "${fileDrafts[area.id].name}". It's now visible in the BBS.`, 'success');
+			toast.push(t('admin.pending_areas.approved_name_it_s_now', { NAME: fileDrafts[area.id].name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not approve.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.pending_areas.could_not_approve'), 'error');
 		} finally {
 			busyID = null;
 		}
@@ -146,27 +147,24 @@
 
 	async function rejectFile(area: FileArea) {
 		if (!auth.token) return;
-		if (!confirm(`Reject and delete area "${area.tag}"?`)) return;
+		if (!confirm(t('admin.pending_areas.reject_and_delete_area_tag_2', { TAG: area.tag }))) return;
 		busyID = `f${area.id}`;
 		try {
 			await deleteFileArea(auth.token, area.id);
 			fileAreas = fileAreas.filter((a) => a.id !== area.id);
-			toast.push(`Rejected "${area.tag}".`, 'success');
+			toast.push(t('admin.pending_areas.rejected_tag', { TAG: area.tag }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not reject.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.pending_areas.could_not_reject'), 'error');
 		} finally {
 			busyID = null;
 		}
 	}
 </script>
 
-<h1 class="mb-2 page-title">Pending Areas</h1>
+<h1 class="mb-2 page-title">{t('admin.pending_areas.pending_areas')}</h1>
 <p class="mb-6 text-sm text-slate-400">
-	Areas the BinkP tosser auto-created for an echo it hadn't seen before. They stay invisible
-	everywhere in the BBS -- and out of the normal Message Areas / File Areas lists -- until you
-	review and approve them here. Adjust name, description, group, and security levels below before
-	approving; the tag itself is fixed (it must match the network's own AREA/echo tag).
+	{t('admin.pending_areas.areas_the_binkp_tosser_auto')}
 </p>
 
 <datalist id="groups-list">
@@ -178,16 +176,16 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else}
-	<div class="mb-5 flex gap-6 border-b border-line" role="tablist" aria-label="Area type">
+	<div class="mb-5 flex gap-6 border-b border-line" role="tablist" aria-label={t('admin.pending_areas.area_type')}>
 		<button
 			role="tab"
 			aria-selected={tab === 'message'}
 			class="tab {tab === 'message' ? 'tab-active' : ''}"
 			onclick={() => (tab = 'message')}
 		>
-			Message Areas
+			{t('admin.pending_areas.message_areas')}
 			<span class="ml-1.5 rounded-md px-1.5 py-0.5 font-mono text-[11px] {messageAreas.length > 0
 					? 'bg-accent text-white'
 					: 'text-faint'}">{messageAreas.length}</span
@@ -199,7 +197,7 @@
 			class="tab {tab === 'file' ? 'tab-active' : ''}"
 			onclick={() => (tab = 'file')}
 		>
-			File Areas
+			{t('admin.pending_areas.file_areas')}
 			<span class="ml-1.5 rounded-md px-1.5 py-0.5 font-mono text-[11px] {fileAreas.length > 0
 					? 'bg-accent text-white'
 					: 'text-faint'}">{fileAreas.length}</span
@@ -210,7 +208,7 @@
 	{#if tab === 'message'}
 	<section>
 		{#if messageAreas.length === 0}
-			<p class="text-sm text-slate-500">No pending message areas.</p>
+			<p class="text-sm text-slate-500">{t('admin.pending_areas.no_pending_message_areas')}</p>
 		{:else}
 			<div class="flex flex-col gap-4">
 				{#each messageAreas as area (area.id)}
@@ -219,30 +217,30 @@
 						<div class="mb-3 font-mono text-xs text-slate-500">{area.tag}</div>
 						<div class="grid grid-cols-2 gap-4">
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Name</span>
+								<span class="text-slate-400">{t('admin.common.name')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.name}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Group</span>
+								<span class="text-slate-400">{t('admin.pending_areas.group')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.network}
 									list="groups-list"
-									placeholder="fsxNet, FidoNet… (blank for ungrouped)"
+									placeholder={t('admin.pending_areas.fsxnet_fidonet_blank_for_ungrouped')}
 								/>
 							</label>
 							<label class="col-span-2 flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Description</span>
+								<span class="text-slate-400">{t('admin.common.description')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.description}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Min SL to read</span>
+								<span class="text-slate-400">{t('admin.pending_areas.min_sl_to_read')}</span>
 								<input
 									type="number"
 									min="0"
@@ -252,7 +250,7 @@
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Min SL to post</span>
+								<span class="text-slate-400">{t('admin.pending_areas.min_sl_to_post')}</span>
 								<input
 									type="number"
 									min="0"
@@ -268,14 +266,14 @@
 								disabled={busyID === `m${area.id}`}
 								onclick={() => approveMessage(area)}
 							>
-								{busyID === `m${area.id}` ? 'Approving…' : 'Save & Approve'}
+								{busyID === `m${area.id}` ? t('admin.pending_areas.approving') : t('admin.pending_areas.save_approve')}
 							</button>
 							<button
 								class="btn-danger btn-sm"
 								disabled={busyID === `m${area.id}`}
 								onclick={() => rejectMessage(area)}
 							>
-								Reject
+								{t('admin.pending_areas.reject')}
 							</button>
 						</div>
 					</div>
@@ -287,7 +285,7 @@
 	{:else}
 	<section>
 		{#if fileAreas.length === 0}
-			<p class="text-sm text-slate-500">No pending file areas.</p>
+			<p class="text-sm text-slate-500">{t('admin.pending_areas.no_pending_file_areas')}</p>
 		{:else}
 			<div class="flex flex-col gap-4">
 				{#each fileAreas as area (area.id)}
@@ -296,30 +294,30 @@
 						<div class="mb-3 font-mono text-xs text-slate-500">{area.tag}</div>
 						<div class="grid grid-cols-2 gap-4">
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Name</span>
+								<span class="text-slate-400">{t('admin.common.name')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.name}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Group</span>
+								<span class="text-slate-400">{t('admin.pending_areas.group')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.network}
 									list="groups-list"
-									placeholder="fsxNet, FidoNet… (blank for ungrouped)"
+									placeholder={t('admin.pending_areas.fsxnet_fidonet_blank_for_ungrouped')}
 								/>
 							</label>
 							<label class="col-span-2 flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Description</span>
+								<span class="text-slate-400">{t('admin.common.description')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.description}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Min SL to download</span>
+								<span class="text-slate-400">{t('admin.pending_areas.min_sl_to_download')}</span>
 								<input
 									type="number"
 									min="0"
@@ -329,7 +327,7 @@
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">Min SL to upload</span>
+								<span class="text-slate-400">{t('admin.pending_areas.min_sl_to_upload')}</span>
 								<input
 									type="number"
 									min="0"
@@ -345,14 +343,14 @@
 								disabled={busyID === `f${area.id}`}
 								onclick={() => approveFile(area)}
 							>
-								{busyID === `f${area.id}` ? 'Approving…' : 'Save & Approve'}
+								{busyID === `f${area.id}` ? t('admin.pending_areas.approving') : t('admin.pending_areas.save_approve')}
 							</button>
 							<button
 								class="btn-danger btn-sm"
 								disabled={busyID === `f${area.id}`}
 								onclick={() => rejectFile(area)}
 							>
-								Reject
+								{t('admin.pending_areas.reject')}
 							</button>
 						</div>
 					</div>

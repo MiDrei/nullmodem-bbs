@@ -231,10 +231,10 @@ func main() {
 		Extra: func() []health.Problem {
 			var out []health.Problem
 			if down, detail := srv.Discord.Down(15 * time.Minute); down {
-				out = append(out, health.Problem{Key: "discord", Title: "The Discord bridge is not connected", Detail: detail})
+				out = append(out, health.Problem{Key: "discord", Title: i18n.Ref("health.discord_down"), Detail: detail})
 			}
 			if down, detail := srv.Matrix.Down(15 * time.Minute); down {
-				out = append(out, health.Problem{Key: "matrix", Title: "The Matrix bridge is not connected", Detail: detail})
+				out = append(out, health.Problem{Key: "matrix", Title: i18n.Ref("health.matrix_down"), Detail: detail})
 			}
 			return out
 		},
@@ -242,9 +242,15 @@ func main() {
 		if srv.Push == nil {
 			return
 		}
-		n := push.Notification{Title: "⚠ " + p.Title, Body: p.Detail, URL: "/admin/dashboard", Tag: "health-" + p.Key}
+		// In the board's language: it goes to every sysop's devices.
+		lang := i18n.Fallback
+		if c, err := config.Load(cfg.BBSConfigPath); err == nil && i18n.Valid(c.BBS.Language) {
+			lang = c.BBS.Language
+		}
+		title := i18n.Resolve(lang, p.Title)
+		n := push.Notification{Title: "⚠ " + title, Body: i18n.Resolve(lang, p.Detail), URL: "/admin/dashboard", Tag: "health-" + p.Key}
 		if ok {
-			n = push.Notification{Title: "✓ Fixed: " + p.Title, URL: "/admin/dashboard", Tag: "health-" + p.Key}
+			n = push.Notification{Title: i18n.T(lang, "health.fixed", "TITLE", title), URL: "/admin/dashboard", Tag: "health-" + p.Key}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

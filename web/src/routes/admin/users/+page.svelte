@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -40,7 +41,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load users.';
+			loadError = err instanceof ApiError ? err.message : t('admin.users.could_not_load_users');
 		} finally {
 			loaded = true;
 		}
@@ -62,14 +63,14 @@
 			row.user = updated;
 			row.level = updated.security_level;
 			row.realName = updated.real_name;
-			toast.push(`Saved ${updated.username}.`, 'success');
+			toast.push(t('admin.users.saved_username', { USERNAME: updated.username }), 'success');
 		} catch (err) {
 			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
 				auth.clear();
 				await goto('/admin/login');
 				return;
 			}
-			toast.push(err instanceof ApiError ? err.message : 'Could not save.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.users.could_not_save'), 'error');
 		} finally {
 			row.saving = false;
 		}
@@ -81,24 +82,24 @@
 	// to them however you reach them.
 	async function newPassword(row: Row) {
 		if (!auth.token) return;
-		const pw = prompt(`New password for ${row.user.username} (at least 6 characters):`);
+		const pw = prompt(t('admin.users.new_password_for_username_at', { USERNAME: row.user.username }));
 		if (!pw) return;
 		try {
 			await setUserPassword(auth.token, row.user.id, pw);
-			toast.push(`New password set for ${row.user.username}.`, 'success');
+			toast.push(t('admin.users.new_password_set_for_username', { USERNAME: row.user.username }), 'success');
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not set it.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.users.could_not_set_it'), 'error');
 		}
 	}
 
 	async function resetTwoFactor(row: Row) {
-		if (!auth.token || !confirm(`Turn off two-factor login for ${row.user.username}? They can set it up again afterwards.`)) return;
+		if (!auth.token || !confirm(t('admin.users.turn_off_two_factor_login', { USERNAME: row.user.username }))) return;
 		try {
 			await resetUserTOTP(auth.token, row.user.id);
 			row.user = { ...row.user, two_factor: false };
-			toast.push(`Two-factor login is off for ${row.user.username}.`, 'success');
+			toast.push(t('admin.users.two_factor_login_is_off', { USERNAME: row.user.username }), 'success');
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not reset it.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.users.could_not_reset_it'), 'error');
 		}
 	}
 
@@ -109,28 +110,28 @@
 			const updated = await approveUser(auth.token, row.user.id);
 			row.user = updated;
 			row.level = updated.security_level;
-			toast.push(`${updated.username} approved (SL ${updated.security_level}).`, 'success');
+			toast.push(t('admin.users.username_approved_sl_security_level', { USERNAME: updated.username, SECURITY_LEVEL: updated.security_level }), 'success');
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not approve.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.users.could_not_approve'), 'error');
 		} finally {
 			row.saving = false;
 		}
 	}
 
 	async function turnDown(row: Row) {
-		if (!auth.token || !confirm(`Turn down and delete the account ${row.user.username}?`)) return;
+		if (!auth.token || !confirm(t('admin.users.turn_down_and_delete_the', { USERNAME: row.user.username }))) return;
 		try {
 			await deletePendingUser(auth.token, row.user.id);
 			rows = rows.filter((r) => r.user.id !== row.user.id);
-			toast.push(`${row.user.username} deleted.`, 'success');
+			toast.push(t('admin.users.username_deleted', { USERNAME: row.user.username }), 'success');
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.users.could_not_delete'), 'error');
 		}
 	}
 
 	function formatDate(iso: string | null): string {
 		if (!iso) return 'never';
-		return new Date(iso).toLocaleString();
+		return new Date(iso).toLocaleString(i18n.locale);
 	}
 
 	// Mirrors the backend's user.SLSysop constant (internal/user/user.go).
@@ -140,19 +141,18 @@
 	}
 </script>
 
-<h1 class="mb-6 page-title">Users</h1>
+<h1 class="mb-6 page-title">{t('admin.users.users')}</h1>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">Loading…</p>
+	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
 {:else}
 	{#if pending.length}
 		<section class="mb-6 rounded-xl border border-amber-800/60 bg-amber-950/20 p-4">
-			<h2 class="mb-1 text-sm font-semibold tracking-wide text-amber-400 uppercase">Awaiting approval</h2>
+			<h2 class="mb-1 text-sm font-semibold tracking-wide text-amber-400 uppercase">{t('admin.users.awaiting_approval')}</h2>
 			<p class="mb-3 text-xs text-muted">
-				They can read and write netmail to you; approving gives them the new-user level and lets them post,
-				use doors and upload.
+				{t('admin.users.they_can_read_and_write')}
 			</p>
 			<div class="flex flex-col divide-y divide-amber-900/40">
 				{#each pending as row (row.user.id)}
@@ -160,10 +160,10 @@
 						<span class="min-w-0 flex-1">
 							<span class="text-ink-strong">{row.user.username}</span>
 							{#if row.user.real_name}<span class="text-muted"> · {row.user.real_name}</span>{/if}
-							<span class="block text-xs text-faint">signed up {formatDate(row.user.created_at)} · {row.user.total_calls} call(s)</span>
+							<span class="block text-xs text-faint">{t('admin.users.signed_up_v_total_calls', { V: formatDate(row.user.created_at), TOTAL_CALLS: row.user.total_calls })}</span>
 						</span>
-						<button class="btn-primary btn-sm" disabled={row.saving} onclick={() => approve(row)}>Approve</button>
-						<button class="btn-secondary btn-sm" disabled={row.saving} onclick={() => turnDown(row)}>Turn down</button>
+						<button class="btn-primary btn-sm" disabled={row.saving} onclick={() => approve(row)}>{t('admin.users.approve')}</button>
+						<button class="btn-secondary btn-sm" disabled={row.saving} onclick={() => turnDown(row)}>{t('admin.users.turn_down')}</button>
 					</div>
 				{/each}
 			</div>
@@ -173,12 +173,12 @@
 		<table class="w-full text-left text-sm">
 			<thead class="card-label">
 				<tr class="border-b border-slate-800">
-					<th class="p-3">Username</th>
-					<th class="p-3">Real Name</th>
-					<th class="p-3">Security Level</th>
-					<th class="p-3">Total Calls</th>
-					<th class="p-3">Last Login</th>
-					<th class="p-3">Member Since</th>
+					<th class="p-3">{t('admin.users.username')}</th>
+					<th class="p-3">{t('admin.users.real_name')}</th>
+					<th class="p-3">{t('admin.users.security_level')}</th>
+					<th class="p-3">{t('admin.users.total_calls')}</th>
+					<th class="p-3">{t('admin.users.last_login')}</th>
+					<th class="p-3">{t('admin.users.member_since')}</th>
 					<th class="p-3"></th>
 				</tr>
 			</thead>
@@ -194,15 +194,15 @@
 										class="h-4 w-4 shrink-0 text-amber-400"
 										aria-hidden="true"
 									>
-										<title>Sysop</title>
+										<title>{t('admin.users.sysop')}</title>
 										<path
 											d="M10 1.6l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 12.2l-4.2 2.4.8-4.7-3.4-3.3 4.7-.7L10 1.6z"
 										/>
 									</svg>
 								{/if}
 								{row.user.username}
-								{#if !row.user.validated}<span class="rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400 uppercase">waiting</span>{/if}
-								{#if row.user.two_factor}<span class="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400 uppercase" title="Two-factor login">2FA</span>{/if}
+								{#if !row.user.validated}<span class="rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-400 uppercase">{t('admin.users.waiting')}</span>{/if}
+								{#if row.user.two_factor}<span class="rounded bg-emerald-950 px-1.5 py-0.5 text-[10px] text-emerald-400 uppercase" title={t('admin.users.two_factor_login')}>2FA</span>{/if}
 							</div>
 						</td>
 						<td class="p-3">
@@ -227,9 +227,9 @@
 						<td class="p-3 text-slate-400">{formatDate(row.user.last_login_at)}</td>
 						<td class="p-3 text-slate-400">{formatDate(row.user.created_at)}</td>
 						<td class="flex flex-wrap gap-1.5 p-3">
-							<button class="btn-secondary btn-sm" onclick={() => newPassword(row)}>Password…</button>
+							<button class="btn-secondary btn-sm" onclick={() => newPassword(row)}>{t('admin.users.password')}</button>
 							{#if row.user.two_factor && row.user.username !== auth.username}
-								<button class="btn-secondary btn-sm" onclick={() => resetTwoFactor(row)}>Reset 2FA</button>
+								<button class="btn-secondary btn-sm" onclick={() => resetTwoFactor(row)}>{t('admin.users.reset_2fa')}</button>
 							{/if}
 							<button
 								class="btn-primary btn-sm"
@@ -237,7 +237,7 @@
 									(row.level === row.user.security_level && row.realName === row.user.real_name)}
 								onclick={() => save(row)}
 							>
-								{row.saving ? 'Saving…' : 'Save'}
+								{row.saving ? t('admin.common.saving') : t('admin.common.save')}
 							</button>
 						</td>
 					</tr>

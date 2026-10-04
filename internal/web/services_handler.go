@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 )
 
@@ -62,9 +63,9 @@ func (s *Server) handleListServices(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]serviceDTO, len(list))
 	for i, st := range list {
-		needed := st.RestartNeeded
-		if needed == nil {
-			needed = []string{}
+		needed := []string{}
+		for _, reason := range st.RestartNeeded {
+			needed = append(needed, i18n.Resolve(s.requestLang(r), reason))
 		}
 		out[i] = serviceDTO{
 			Name:           st.Name,

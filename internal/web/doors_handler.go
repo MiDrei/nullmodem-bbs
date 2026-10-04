@@ -13,6 +13,7 @@ import (
 
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/doors"
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 )
 
@@ -311,7 +312,12 @@ func (s *Server) handleListDoorTemplates(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	out := make([]doorTemplateDTO, len(doors.Templates))
+	lang := s.requestLang(r)
 	for i, t := range doors.Templates {
+		// In the admin's language, where the catalog has them.
+		t.Description = i18n.ByEnglish(lang, "doortpl.", t.Description)
+		t.Setup = i18n.ByEnglish(lang, "doortpl.", t.Setup)
+		t.License = i18n.ByEnglish(lang, "doortpl.", t.License)
 		configured := false
 		for _, d := range c.Doors {
 			configured = configured || d.Template == t.ID || strings.EqualFold(d.Name, t.Name)

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, i18n } from '$lib/i18n.svelte';
 	// Chat with the callers: the rooms with something going on (a
 	// caller paging you first), talking in one -- they're on Telnet/SSH,
 	// the room is shared through the database -- and the one-liners
@@ -49,7 +50,7 @@
 		try {
 			rooms = await listChatRooms(auth.token);
 		} catch (err) {
-			await failed(err, 'Could not load the rooms.');
+			await failed(err, t('admin.chat.could_not_load_the_rooms'));
 		}
 	}
 
@@ -83,7 +84,7 @@
 		try {
 			await chatAction(auth.token, room, 'enter');
 		} catch (err) {
-			await failed(err, 'Could not enter the room.');
+			await failed(err, t('admin.chat.could_not_enter_the_room'));
 		}
 		history.replaceState(history.state, '', `?room=${encodeURIComponent(room)}`);
 		await poll();
@@ -102,25 +103,25 @@
 
 	async function send(e: SubmitEvent) {
 		e.preventDefault();
-		const t = text.trim();
-		if (!auth.token || !current || !t) return;
+		const said = text.trim();
+		if (!auth.token || !current || !said) return;
 		text = '';
 		try {
-			await chatAction(auth.token, current, 'say', t);
+			await chatAction(auth.token, current, 'say', said);
 			await poll();
 		} catch (err) {
-			text = t;
-			await failed(err, 'Could not send it.');
+			text = said;
+			await failed(err, t('admin.chat.could_not_send_it'));
 		}
 	}
 
 	async function removeOneliner(o: Oneliner) {
-		if (!auth.token || !confirm(`Delete "${o.text}" by ${o.username}?`)) return;
+		if (!auth.token || !confirm(t('admin.chat.delete_text_by_username', { TEXT: o.text, USERNAME: o.username }))) return;
 		try {
 			await deleteOneliner(auth.token, o.id);
 			oneliners = oneliners.filter((x) => x.id !== o.id);
 		} catch (err) {
-			await failed(err, 'Could not delete it.');
+			await failed(err, t('admin.chat.could_not_delete_it'));
 		}
 	}
 
@@ -143,25 +144,24 @@
 
 	const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	const label = (name: string) =>
-		settings.find((r) => r.name === name)?.title ?? (name === 'main' ? 'Teleconference' : name.startsWith('page-') ? `${name.slice(5)} (page)` : name);
+		settings.find((r) => r.name === name)?.title ?? (name === 'main' ? t('admin.chat.teleconference') : name.startsWith('page-') ? t('admin.chat.v_page', { V: name.slice(5) }) : name);
 	const bridged = (name: string) => {
 		const r = settings.find((x) => x.name === name);
 		return [r?.discord_channel && 'Discord', r?.matrix_room && 'Matrix'].filter(Boolean).join(', ');
 	};
-	const who = (p: ChatPresence[]) => p.map((x) => (x.source === 'web' ? `${x.username} (web)` : `${x.username} (${x.source})`)).join(', ');
+	const who = (p: ChatPresence[]) => p.map((x) => (x.source === 'web' ? t('admin.chat.username_web', { USERNAME: x.username }) : `${x.username} (${x.source})`)).join(', ');
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">Chat & One-liners</h1>
+	<h1 class="page-title">{t('admin.chat.chat_one_liners')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
-		Talk with the callers on Telnet and SSH -- and, through a bridged room, with Discord and Matrix. A caller paging
-		you waits in their own room -- you get a notification, and it's at the top here.
+		{t('admin.chat.talk_with_the_callers_on')}
 	</p>
 </div>
 
 <div class="grid gap-4 lg:grid-cols-[16rem_1fr]">
 	<section class="card p-0">
-		<h2 class="card-label px-4 pt-4 pb-2">Rooms</h2>
+		<h2 class="card-label px-4 pt-4 pb-2">{t('admin.chat.rooms')}</h2>
 		{#each rooms as r (r.name)}
 			<button
 				class="flex w-full flex-col items-start gap-0.5 border-t border-line px-4 py-2.5 text-left hover:bg-surface {current === r.name ? 'bg-surface' : ''}"
@@ -169,11 +169,11 @@
 			>
 				<span class="flex w-full items-center gap-2">
 					<span class="flex-1 truncate {r.paging ? 'font-semibold text-fuchsia-300' : 'text-ink-strong'}">{label(r.name)}</span>
-					{#if bridged(r.name)}<span class="text-[11px] text-indigo-400" title="Bridged">↔ {bridged(r.name)}</span>{/if}
+					{#if bridged(r.name)}<span class="text-[11px] text-indigo-400" title={t('admin.chat.bridged')}>↔ {bridged(r.name)}</span>{/if}
 					{#if r.present.length}<span class="r-badge rounded-full bg-accent px-1.5 text-[11px] text-black">{r.present.length}</span>{/if}
 				</span>
 				{#if r.paging}
-					<span class="text-xs text-fuchsia-300">waiting for you</span>
+					<span class="text-xs text-fuchsia-300">{t('admin.chat.waiting_for_you')}</span>
 				{:else if r.last_line}
 					<span class="w-full truncate text-xs text-faint">{r.last_line.username}: {r.last_line.text || r.last_line.kind}</span>
 				{/if}
@@ -183,23 +183,23 @@
 
 	<section class="card flex min-h-[28rem] flex-col p-0">
 		{#if !current}
-			<p class="m-auto text-sm text-muted">Pick a room.</p>
+			<p class="m-auto text-sm text-muted">{t('admin.chat.pick_a_room')}</p>
 		{:else}
 			<div class="flex items-baseline gap-3 border-b border-line px-4 py-3">
 				<h2 class="font-semibold text-ink-strong">{label(current)}</h2>
 				<span class="min-w-0 flex-1 truncate text-xs text-muted">{present.length ? 'here: ' + who(present) : 'nobody here'}</span>
-				<button class="btn-secondary btn-xs" onclick={leave}>Leave</button>
+				<button class="btn-secondary btn-xs" onclick={leave}>{t('admin.chat.leave')}</button>
 			</div>
 			<div bind:this={box} class="h-[24rem] flex-1 overflow-y-auto px-4 py-3 font-mono text-[13px] leading-relaxed">
 				{#each lines as l (l.id)}
 					<div>
 						<span class="text-faint">{time(l.at)}</span>
 						{#if l.kind === 'join'}
-							<span class="text-emerald-500">{l.username} joined ({l.source})</span>
+							<span class="text-emerald-500">{t('admin.chat.username_joined_source', { USERNAME: l.username, SOURCE: l.source })}</span>
 						{:else if l.kind === 'leave'}
-							<span class="text-emerald-700">{l.username} left</span>
+							<span class="text-emerald-700">{t('admin.chat.username_left', { USERNAME: l.username })}</span>
 						{:else if l.kind === 'page'}
-							<span class="font-semibold text-fuchsia-300">{l.username} paged you: {l.text}</span>
+							<span class="font-semibold text-fuchsia-300">{t('admin.chat.username_paged_you_text', { USERNAME: l.username, TEXT: l.text })}</span>
 						{:else}
 							{#if l.source === 'discord' || l.source === 'matrix'}
 								<span class="text-indigo-400">{l.username}@{l.source}:</span>
@@ -213,8 +213,8 @@
 			</div>
 			<form class="flex gap-2 border-t border-line p-3" onsubmit={send}>
 				<!-- svelte-ignore a11y_autofocus -->
-				<input class="field min-w-0 flex-1" maxlength="400" placeholder="Say something…" bind:value={text} autofocus />
-				<button type="submit" class="btn-primary btn-sm" disabled={!text.trim()}>Send</button>
+				<input class="field min-w-0 flex-1" maxlength="400" placeholder={t('admin.chat.say_something')} bind:value={text} autofocus />
+				<button type="submit" class="btn-primary btn-sm" disabled={!text.trim()}>{t('admin.chat.send')}</button>
 			</form>
 		{/if}
 	</section>
@@ -225,18 +225,18 @@
 </div>
 
 <section class="card mt-4">
-	<h2 class="card-label mb-3">One-liners</h2>
+	<h2 class="card-label mb-3">{t('admin.chat.one_liners')}</h2>
 	{#if oneliners.length === 0}
-		<p class="text-sm text-muted">The wall is empty.</p>
+		<p class="text-sm text-muted">{t('admin.chat.the_wall_is_empty')}</p>
 	{:else}
 		<table class="w-full text-left text-sm">
 			<tbody class="divide-y divide-slate-800">
 				{#each [...oneliners].reverse() as o (o.id)}
 					<tr>
-						<td class="py-1.5 text-xs whitespace-nowrap text-muted">{new Date(o.at).toLocaleString()}</td>
+						<td class="py-1.5 text-xs whitespace-nowrap text-muted">{new Date(o.at).toLocaleString(i18n.locale)}</td>
 						<td class="py-1.5 text-accent">{o.username}</td>
 						<td class="py-1.5 text-ink">{o.text}</td>
-						<td class="py-1.5 text-right"><button class="btn-secondary btn-xs" onclick={() => removeOneliner(o)}>Delete</button></td>
+						<td class="py-1.5 text-right"><button class="btn-secondary btn-xs" onclick={() => removeOneliner(o)}>{t('admin.common.delete')}</button></td>
 					</tr>
 				{/each}
 			</tbody>

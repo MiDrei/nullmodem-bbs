@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
@@ -99,7 +100,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load file areas.';
+			loadError = err instanceof ApiError ? err.message : t('admin.file_areas.could_not_load_file_areas');
 		} finally {
 			loaded = true;
 		}
@@ -140,10 +141,10 @@
 			const updated = await updateFileArea(auth.token, id, draft);
 			areas = areas.map((a) => (a.id === id ? updated : a));
 			editingId = null;
-			toast.push(`Saved "${updated.name}".`, 'success');
+			toast.push(t('admin.file_areas.saved_name', { NAME: updated.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not save.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.file_areas.could_not_save'), 'error');
 		} finally {
 			saving = false;
 		}
@@ -157,10 +158,10 @@
 			areas = [...areas, created];
 			creating = false;
 			newDraft = emptyDraft();
-			toast.push(`Created "${created.name}".`, 'success');
+			toast.push(t('admin.file_areas.created_name', { NAME: created.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not create area.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.file_areas.could_not_create_area'), 'error');
 		} finally {
 			saving = false;
 		}
@@ -168,14 +169,14 @@
 
 	async function remove(area: FileArea) {
 		if (!auth.token) return;
-		if (!confirm(`Delete area "${area.name}"? This also deletes all its files from disk.`)) return;
+		if (!confirm(t('admin.file_areas.delete_area_name_this_also', { NAME: area.name }))) return;
 		try {
 			await deleteFileArea(auth.token, area.id);
 			areas = areas.filter((a) => a.id !== area.id);
-			toast.push(`Deleted "${area.name}".`, 'success');
+			toast.push(t('admin.file_areas.deleted_name', { NAME: area.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete area.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.file_areas.could_not_delete_area'), 'error');
 		}
 	}
 
@@ -197,7 +198,7 @@
 			filesByArea = { ...filesByArea, [areaId]: await listAreaFiles(auth.token, areaId) };
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not load files.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.file_areas.could_not_load_files'), 'error');
 		} finally {
 			filesLoading = false;
 		}
@@ -211,10 +212,10 @@
 			filesByArea = { ...filesByArea, [areaId]: [...(filesByArea[areaId] ?? []), uploaded] };
 			uploadDescription = '';
 			if (fileInput) fileInput.value = '';
-			toast.push(`Uploaded ${uploaded.filename}.`, 'success');
+			toast.push(t('admin.file_areas.uploaded_filename', { FILENAME: uploaded.filename }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Upload failed.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.file_areas.upload_failed'), 'error');
 		} finally {
 			uploading = false;
 		}
@@ -222,14 +223,14 @@
 
 	async function removeFile(areaId: number, file: BBSFile) {
 		if (!auth.token) return;
-		if (!confirm(`Delete file "${file.filename}"?`)) return;
+		if (!confirm(t('admin.file_areas.delete_file_filename', { FILENAME: file.filename }))) return;
 		try {
 			await deleteFile(auth.token, file.id);
 			filesByArea = { ...filesByArea, [areaId]: filesByArea[areaId].filter((f) => f.id !== file.id) };
-			toast.push(`Deleted ${file.filename}.`, 'success');
+			toast.push(t('admin.file_areas.deleted_filename', { FILENAME: file.filename }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete file.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.file_areas.could_not_delete_file'), 'error');
 		}
 	}
 
@@ -255,77 +256,75 @@
 
 <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
 	<div>
-		<h1 class="page-title">File Areas</h1>
-		<p class="page-subtitle">{areas.length} areas</p>
+		<h1 class="page-title">{t('admin.file_areas.file_areas')}</h1>
+		<p class="page-subtitle">{t('admin.file_areas.length_areas', { LENGTH: areas.length })}</p>
 	</div>
 	<div class="flex items-center gap-2.5">
-		<input class="field field-sm w-56" type="search" placeholder="Search tag, name…" bind:value={search} />
-		<button class="btn-primary btn-sm shrink-0" onclick={startCreate}>+ New Area</button>
+		<input class="field field-sm w-56" type="search" placeholder={t('admin.file_areas.search_tag_name')} bind:value={search} />
+		<button class="btn-primary btn-sm shrink-0" onclick={startCreate}>{t('admin.file_areas.new_area')}</button>
 	</div>
 </div>
 
 {#snippet fields(d: FileAreaInput, isNew: boolean)}
 	<div class="grid grid-cols-2 gap-3.5">
 		<label class="flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Tag</span>
+			<span class="text-xs text-muted">{t('admin.common.tag')}</span>
 			{#if isNew}
 				<input class="field field-sm font-mono" bind:value={d.tag} placeholder="general" />
 			{:else}
-				<input class="field field-sm font-mono" value={d.tag} disabled title="The tag can't be changed" />
+				<input class="field field-sm font-mono" value={d.tag} disabled title={t('admin.file_areas.the_tag_can_t_be')} />
 			{/if}
 		</label>
 		<label class="flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Name</span>
+			<span class="text-xs text-muted">{t('admin.common.name')}</span>
 			<input class="field field-sm" bind:value={d.name} />
 		</label>
 		<label class="col-span-2 flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Description</span>
+			<span class="text-xs text-muted">{t('admin.common.description')}</span>
 			<input class="field field-sm" bind:value={d.description} />
 		</label>
 		<label class="col-span-2 flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Group</span>
+			<span class="text-xs text-muted">{t('admin.file_areas.group')}</span>
 			<input
 				class="field field-sm"
 				bind:value={d.network}
 				list="groups-list"
-				placeholder="fsxNet, FidoNet… (blank for ungrouped)"
+				placeholder={t('admin.file_areas.fsxnet_fidonet_blank_for_ungrouped')}
 			/>
 		</label>
 		<div class="col-span-2 grid grid-cols-3 gap-3.5">
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Min SL to download</span>
+				<span class="text-xs text-muted">{t('admin.file_areas.min_sl_to_download')}</span>
 				<input type="number" min="0" max="255" class="field field-sm" bind:value={d.min_sl_download} />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Min SL to upload</span>
+				<span class="text-xs text-muted">{t('admin.file_areas.min_sl_to_upload')}</span>
 				<input type="number" min="0" max="255" class="field field-sm" bind:value={d.min_sl_upload} />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">Sort order</span>
+				<span class="text-xs text-muted">{t('admin.file_areas.sort_order')}</span>
 				<input type="number" class="field field-sm" bind:value={d.sort_order} />
 			</label>
 		</div>
 		<label class="col-span-2 flex items-start gap-2 text-sm">
 			<input type="checkbox" class="check mt-0.5" bind:checked={d.public} />
 			<span>
-				<span class="text-ink">Public</span>
-				<span class="block text-xs text-faint">Anyone may download its files without login: each gets a page to share
-					(with a link preview), and the front page lists the newest.</span>
+				<span class="text-ink">{t('admin.file_areas.public')}</span>
+				<span class="block text-xs text-faint">{t('admin.file_areas.anyone_may_download_its_files')}</span>
 			</span>
 		</label>
 		<label class="col-span-2 flex flex-col gap-1.5">
-			<span class="text-xs text-muted">Keep days</span>
+			<span class="text-xs text-muted">{t('admin.file_areas.keep_days')}</span>
 			<input type="number" min="-1" class="field field-sm max-w-40" bind:value={d.keep_days} />
 			<span class="text-xs text-faint"
-				>Cleanup limit (Maintenance): 0 = the default, -1 = keep everything. Files a TIC "Replaces"
-				supersedes go right away.</span
+				>{t('admin.file_areas.cleanup_limit_maintenance_0_the')}</span
 			>
 		</label>
 	</div>
 {/snippet}
 
 {#if creating}
-	<Modal title="New file area" onclose={closeDialog}>
+	<Modal title={t('admin.file_areas.new_file_area')} onclose={closeDialog}>
 		<form
 			onsubmit={(e) => {
 				e.preventDefault();
@@ -334,9 +333,9 @@
 		>
 			{@render fields(newDraft, true)}
 			<div class="mt-5 flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>Cancel</button>
+				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>{t('admin.common.cancel')}</button>
 				<button type="submit" class="btn-primary btn-sm" disabled={saving}>
-					{saving ? 'Creating…' : 'Create area'}
+					{saving ? t('admin.file_areas.creating') : t('admin.file_areas.create_area')}
 				</button>
 			</div>
 		</form>
@@ -352,9 +351,9 @@
 		>
 			{@render fields(draft, false)}
 			<div class="mt-5 flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>Cancel</button>
+				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>{t('admin.common.cancel')}</button>
 				<button type="submit" class="btn-primary btn-sm" disabled={saving}>
-					{saving ? 'Saving…' : 'Save'}
+					{saving ? t('admin.common.saving') : t('admin.common.save')}
 				</button>
 			</div>
 		</form>
@@ -368,25 +367,25 @@
 				bind:this={fileInput}
 				class="text-xs text-muted file:mr-2.5 file:rounded-lg file:border file:border-line-strong file:bg-transparent file:px-3 file:py-1.5 file:text-xs file:text-ink"
 			/>
-			<input class="field field-sm w-auto flex-1" placeholder="Description" bind:value={uploadDescription} />
+			<input class="field field-sm w-auto flex-1" placeholder={t('admin.common.description')} bind:value={uploadDescription} />
 			<button class="btn-primary btn-sm" disabled={uploading} onclick={() => upload(area.id)}>
-				{uploading ? 'Uploading…' : 'Upload'}
+				{uploading ? t('admin.file_areas.uploading') : t('admin.common.upload')}
 			</button>
 		</div>
 		{#if filesLoading && !filesByArea[area.id]}
-			<p class="text-sm text-muted">Loading files…</p>
+			<p class="text-sm text-muted">{t('admin.file_areas.loading_files')}</p>
 		{:else if (filesByArea[area.id] ?? []).length === 0}
-			<p class="text-sm text-muted">No files yet.</p>
+			<p class="text-sm text-muted">{t('admin.file_areas.no_files_yet')}</p>
 		{:else}
 			<div class="max-h-[60vh] overflow-auto">
 				<table class="w-full text-left text-[13px]">
 					<thead class="card-label">
 						<tr class="border-b border-line">
-							<th class="py-2 pr-3 font-normal">Filename</th>
-							<th class="py-2 pr-3 text-right font-normal">Size</th>
-							<th class="py-2 pr-3 font-normal">Description</th>
-							<th class="py-2 pr-3 font-normal">Uploaded by</th>
-							<th class="py-2 pr-3 text-right font-normal">DLs</th>
+							<th class="py-2 pr-3 font-normal">{t('admin.file_areas.filename')}</th>
+							<th class="py-2 pr-3 text-right font-normal">{t('admin.file_areas.size')}</th>
+							<th class="py-2 pr-3 font-normal">{t('admin.common.description')}</th>
+							<th class="py-2 pr-3 font-normal">{t('admin.file_areas.uploaded_by')}</th>
+							<th class="py-2 pr-3 text-right font-normal">{t('admin.file_areas.dls')}</th>
 							<th class="py-2"></th>
 						</tr>
 					</thead>
@@ -399,7 +398,7 @@
 								<td class="py-1.5 pr-3 text-muted">{f.uploaded_by}</td>
 								<td class="py-1.5 pr-3 text-right font-mono text-xs text-muted">{f.download_count}</td>
 								<td class="py-1.5 text-right">
-									<button class="btn-danger btn-xs" onclick={() => removeFile(area.id, f)}>Delete</button>
+									<button class="btn-danger btn-xs" onclick={() => removeFile(area.id, f)}>{t('admin.common.delete')}</button>
 								</td>
 							</tr>
 						{/each}
@@ -413,7 +412,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
 {:else}
 	{#if networkTabs.length > 1}
 		<div class="mb-3 flex flex-wrap gap-x-6 gap-y-1 border-b border-line" role="tablist">
@@ -423,7 +422,7 @@
 				class="tab {activeNetwork === ALL_TAB ? 'tab-active' : ''}"
 				onclick={() => (activeNetwork = ALL_TAB)}
 			>
-				All <span class="font-mono text-[11px] text-faint">{areas.length}</span>
+				{t('admin.file_areas.all')} <span class="font-mono text-[11px] text-faint">{areas.length}</span>
 			</button>
 			{#each networkTabs as [name, count] (name)}
 				<button
@@ -439,17 +438,17 @@
 	{/if}
 
 	{#if visibleAreas.length === 0}
-		<p class="py-4 text-sm text-muted">{search ? 'No area matches.' : 'No areas in this group.'}</p>
+		<p class="py-4 text-sm text-muted">{search ? t('admin.file_areas.no_area_matches') : t('admin.file_areas.no_areas_in_this_group')}</p>
 	{:else}
 		<div class="overflow-x-auto">
 			<table class="w-full min-w-[44rem] table-fixed text-left text-[13px]">
 				<thead class="card-label">
 					<tr class="border-b border-line">
-						<th class="w-52 py-2 pr-3 pl-2 font-normal">Tag</th>
-						<th class="py-2 pr-3 font-normal">Name</th>
-						{#if activeNetwork === ALL_TAB}<th class="w-28 py-2 pr-3 font-normal">Group</th>{/if}
-						<th class="w-14 py-2 pr-3 text-right font-normal" title="Minimum security level to download">DL</th>
-						<th class="w-14 py-2 pr-3 text-right font-normal" title="Minimum security level to upload">UL</th>
+						<th class="w-52 py-2 pr-3 pl-2 font-normal">{t('admin.common.tag')}</th>
+						<th class="py-2 pr-3 font-normal">{t('admin.common.name')}</th>
+						{#if activeNetwork === ALL_TAB}<th class="w-28 py-2 pr-3 font-normal">{t('admin.file_areas.group')}</th>{/if}
+						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.file_areas.minimum_security_level_to_download')}>DL</th>
+						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.file_areas.minimum_security_level_to_upload')}>UL</th>
 						<th class="w-[11.5rem] py-2"></th>
 					</tr>
 				</thead>
@@ -485,21 +484,21 @@
 									onclick={(e) => {
 										e.stopPropagation();
 										toggleFiles(area);
-									}}>Files</button
+									}}>{t('admin.file_areas.files')}</button
 								>
 								<button
 									class="btn-secondary btn-xs ml-1"
 									onclick={(e) => {
 										e.stopPropagation();
 										startEdit(area);
-									}}>Edit</button
+									}}>{t('admin.common.edit')}</button
 								>
 								<button
 									class="btn-danger btn-xs ml-1"
 									onclick={(e) => {
 										e.stopPropagation();
 										remove(area);
-									}}>Delete</button
+									}}>{t('admin.common.delete')}</button
 								>
 							</td>
 						</tr>

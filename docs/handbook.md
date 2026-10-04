@@ -189,7 +189,8 @@ antworten, über die ganze Area hinweg.
 Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
 
 **Sprachen:** Die BBS spricht Englisch, Deutsch (Sie) und Deutsch (Du) — auf
-Telnet/SSH wie im Portal, in der Reader-App und auf der Startseite.
+Telnet/SSH wie im Portal, in der Reader-App, auf der Startseite und im Admin
+(Sprachwahl oben rechts, das Kürzel neben dem Mond).
 Neue Anrufer wählen ihre Sprache gleich bei der Registrierung, später im
 Profil (Telnet `Y`, dann `A`; im Portal unter Profil, in der Reader-App in den
 Einstellungen) — es ist eine Einstellung fürs Konto, überall gleich. Vor dem

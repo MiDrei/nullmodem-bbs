@@ -5,10 +5,16 @@
 	import { updateBBSProfile } from '$lib/api';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 
-	let { class: cls = '' }: { class?: string } = $props();
+	// compact: the codes (DE, DE-DU) instead of the names, for a tight header.
+	let { class: cls = '', compact = false }: { class?: string; compact?: boolean } = $props();
 
 	async function change(code: string) {
 		await setLang(code);
+		// The admin's pages keep some texts in plain constants: start over.
+		if (location.pathname.startsWith('/admin')) {
+			location.reload();
+			return;
+		}
 		if (bbsAuth.token) {
 			try {
 				await updateBBSProfile(bbsAuth.token, { language: code });
@@ -26,6 +32,6 @@
 		onchange={(e) => change(e.currentTarget.value)}
 		aria-label={t('web.common.language')}
 	>
-		{#each i18n.languages as l (l.code)}<option value={l.code} class="bg-ground text-ink">{l.name}</option>{/each}
+		{#each i18n.languages as l (l.code)}<option value={l.code} class="bg-ground text-ink" title={l.name}>{compact ? l.code.toUpperCase() : l.name}</option>{/each}
 	</select>
 {/if}
