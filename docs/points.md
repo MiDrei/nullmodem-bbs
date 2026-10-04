@@ -1,5 +1,7 @@
 # Points: your own reader app (FidoMail and the like)
 
+**English** · [Deutsch](points.de.md)
+
 A point is a reader system under this BBS's own node address:
 `21:3/194.1` is point 1 of `21:3/194`. Offline reader apps such as
 FidoMail on iOS work as points -- they call the BBS over BinkP, fetch

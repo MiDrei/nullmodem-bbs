@@ -1,110 +1,109 @@
 # Backups
 
-Der Web-Dienst schreibt jede Nacht (Standard 03:00, vor der Maintenance)
-ein Backup nach `data/backups/` — einstellbar unter Admin → System →
-Backups, dort auch „Back up now“, Download und Löschen.
+**English** · [Deutsch](backup.de.md)
 
-## Was drin ist
+Every night (default 03:00, before the maintenance) the web service writes a
+backup to `data/backups/` — adjustable under Admin → System → Backups, where
+you'll also find "Back up now", download and delete.
 
-Ein `nullmodem-JJJJMMTT-HHMMSS.tar.gz` mit denselben Pfaden wie im
-Deploy-Verzeichnis:
+## What's in it
 
-| Pfad | Inhalt |
+A `nullmodem-YYYYMMDD-HHMMSS.tar.gz` with the same paths as in the deploy
+directory:
+
+| Path | Contents |
 |---|---|
-| `data/nullmodem.sqlite` | die Datenbank: Benutzer, Nachrichten, Netmail, Areas, Dateiliste, Logs … (konsistente Kopie per `VACUUM INTO`, im laufenden Betrieb) |
-| `configs/bbs.yaml`, `configs/web.yaml` | die Konfiguration, inkl. Uplink-Passwörter |
-| `configs/menus/`, `configs/screens/` | Menüs und ANSI-Bildschirme (auch die im Designer bearbeiteten) |
-| `data/jwt_secret`, `data/ssh_host_key`, `data/vapid.json` … | Schlüssel: Logins bleiben gültig, der SSH-Hostkey bleibt gleich, Push-Abos bleiben bestehen |
-| `data/files/`, `data/doors/` | nur mit „Include the file areas and doors“ |
+| `data/nullmodem.sqlite` | the database: users, messages, netmail, areas, file list, logs … (a consistent copy via `VACUUM INTO`, while running) |
+| `configs/bbs.yaml`, `configs/web.yaml` | the configuration, incl. uplink passwords |
+| `configs/menus/`, `configs/screens/` | menus and ANSI screens (the ones edited in the designer too) |
+| `data/lang/` | your changed texts (language editor) |
+| `data/jwt_secret`, `data/ssh_host_key`, `data/vapid.json` … | keys: logins stay valid, the SSH host key stays the same, push subscriptions keep working |
+| `data/files/`, `data/doors/` | only with "Include the file areas and doors" |
 
-Nicht drin: BinkP-Mitschnitte und das Eingangsarchiv (die Maintenance
-räumt sie ohnehin nach wenigen Tagen weg).
+Not in it: BinkP transcripts and the inbound archive (the maintenance clears
+them out after a few days anyway).
 
-Das Backup enthält Passwörter und Schlüssel — so aufbewahren wie die
-Maschine selbst.
+The backup contains passwords and keys — keep it as carefully as the machine
+itself.
 
-## Aufbewahrung
+## Retention
 
-Die neuesten 7 (`keep_daily`) plus das neueste jeder der letzten 4
-Wochen (`keep_weekly`). Ältere werden nach jedem Backup gelöscht.
+The newest 7 (`keep_daily`) plus the newest of each of the last 4 weeks
+(`keep_weekly`). Older ones are deleted after every backup.
 
-Die Backups liegen auf derselben Platte wie die BBS: Sie helfen gegen
-Fehler und eine kaputte Datenbank, nicht gegen eine kaputte Platte —
-dafür die verschlüsselte Kopie außer Haus (unten) einschalten, ab und zu
-eines herunterladen, oder das Verzeichnis auf eine andere Platte bzw. ein
-NAS legen (im Container gemountet, z. B. `/backup` in der
-`docker-compose.yml` beim Dienst `web` und als Verzeichnis `/backup`
-eintragen).
+The backups sit on the same disk as the BBS: they help against mistakes and a
+broken database, not against a broken disk — for that, turn on the encrypted
+off-site copy (below), download one now and then, or put the directory on
+another disk or a NAS (mounted into the container, e.g. `/backup` in
+`docker-compose.yml` for the `web` service, and entered as directory
+`/backup`).
 
-## Kopie außer Haus (verschlüsselt)
+## Off-site copy (encrypted)
 
-Admin → System → Backups → **Off-site copy**: Jedes Backup geht danach
-zusätzlich an einen Speicherdienst (S3, OpenStack Swift, SFTP oder WebDAV) — vorher mit [age](https://age-encryption.org)
-verschlüsselt. Die BBS kennt nur den öffentlichen Schlüssel; weder der
-Dienst noch jemand, der an den Server kommt, kann die Kopien lesen. Nur der
-private Schlüssel öffnet sie.
+Admin → System → Backups → **Off-site copy**: every backup then also goes to a
+storage service (S3, OpenStack Swift, SFTP or WebDAV) — encrypted with
+[age](https://age-encryption.org) first. The BBS only knows the public key;
+neither the service nor anyone who gets at the server can read the copies.
+Only the private key opens them.
 
-1. **Schlüssel:** „Make a key“ — der private Schlüssel
-   (`AGE-SECRET-KEY-1…`) wird **nur einmal** angezeigt. Herunterladen bzw.
-   in den Passwort-Manager, nicht auf dem Server lassen. Ohne ihn sind die
-   Kopien wertlos. (Oder einen eigenen öffentlichen `age1…`-Schlüssel
-   einfügen.)
-2. **Ziel:**
-   - **OpenStack Swift** (z. B. Infomaniak Swiss Backup): Auth-URL
-     (`https://swiss-backupNN.infomaniak.com/identity/v3`), Benutzer,
-     Passwort, Projekt, Region, Container — die Werte stehen in der
-     OpenRC-/rclone-Konfiguration des Geräts. Der Container wird angelegt,
-     falls es ihn nicht gibt.
+1. **Key:** "Make a key" — the private key (`AGE-SECRET-KEY-1…`) is shown
+   **only once**. Download it or put it in your password manager, don't leave
+   it on the server. Without it the copies are worthless. (Or paste your own
+   public `age1…` key.)
+2. **Destination:**
+   - **OpenStack Swift** (e.g. Infomaniak Swiss Backup): auth URL
+     (`https://swiss-backupNN.infomaniak.com/identity/v3`), user, password,
+     project, region, container — the values are in the device's
+     OpenRC/rclone configuration. The container is created if it doesn't
+     exist.
    - **S3** (AWS, Hetzner Object Storage, Infomaniak, Wasabi, Backblaze B2,
-     Exoscale, MinIO …): Endpoint (z. B. `s3.amazonaws.com`,
-     `fsn1.your-objectstorage.com`), Region, Bucket, Access- und Secret-Key,
-     optional ein Präfix. Den Bucket legt die BBS an, falls es ihn nicht gibt;
-     „path-style“ nur für Dienste, die es verlangen (MinIO). Am besten einen
-     Schlüssel, der nur diesen Bucket darf.
-   - **WebDAV** (Nextcloud, ownCloud, kDrive, Storage Box): die URL des Ordners
-     (Nextcloud: Einstellungen → WebDAV, plus Ordnername), Benutzer und — am
-     besten ein App-Passwort. Fehlende Ordner werden angelegt.
-   - **SFTP** (z. B. Hetzner Storage Box: Host `uNNNNNN.your-storagebox.de`,
-     Port 23): Benutzer und Passwort, oder besser „Make a key“ und die
-     angezeigte Zeile in `.ssh/authorized_keys` der Box eintragen. Beim
-     ersten Test zeigt die BBS den Schlüssel des Servers zum Bestätigen
-     (mit den Angaben des Anbieters vergleichen); danach verbindet sie sich
-     nur noch mit genau diesem Server.
-3. **Save and test** schreibt, liest und löscht eine kleine Datei. Dann
-   „after each backup“ einschalten; „Copy the newest now“ schickt sofort
-   eines.
+     Exoscale, MinIO …): endpoint (e.g. `s3.amazonaws.com`,
+     `fsn1.your-objectstorage.com`), region, bucket, access and secret key,
+     optionally a prefix. The BBS creates the bucket if it doesn't exist;
+     "path-style" only for services that require it (MinIO). Best use a key
+     that may only access this bucket.
+   - **WebDAV** (Nextcloud, ownCloud, kDrive, Storage Box): the folder's URL
+     (Nextcloud: Settings → WebDAV, plus the folder name), user and — best —
+     an app password. Missing folders are created.
+   - **SFTP** (e.g. Hetzner Storage Box: host `uNNNNNN.your-storagebox.de`,
+     port 23): user and password, or better "Make a key" and add the line
+     shown to the box's `.ssh/authorized_keys`. On the first test the BBS
+     shows the server's key for confirmation (compare it with what the
+     provider states); from then on it only connects to exactly that server.
+3. **Save and test** writes, reads and deletes a small file. Then turn on
+   "after each backup"; "Copy the newest now" sends one right away.
 
-Dort bleiben die neuesten 14 plus je das neueste der letzten 8 Wochen
-(einstellbar). Schlägt eine Kopie fehl, versucht es die BBS stündlich
-wieder und meldet es unter „Needs attention“.
+The newest 14 are kept there plus the newest of each of the last 8 weeks
+(adjustable). If a copy fails, the BBS retries every hour and reports it
+under "Needs attention".
 
-**Eine Kopie zurückholen:** herunterladen (Webinterface des Dienstes,
-`rclone`, `sftp` …), dann entschlüsseln:
+**Getting a copy back:** download it (the service's web interface, `rclone`,
+`sftp` …), then decrypt:
 
 ```sh
-age -d -i nullmodem-backup-key.txt nullmodem-JJJJMMTT-HHMMSS.tar.gz.age > nullmodem-JJJJMMTT-HHMMSS.tar.gz
+age -d -i nullmodem-backup-key.txt nullmodem-YYYYMMDD-HHMMSS.tar.gz.age > nullmodem-YYYYMMDD-HHMMSS.tar.gz
 ```
 
-(`age` gibt es für Linux, macOS und Windows, z. B. `apt install age`.)
-Danach wie unten zurückspielen.
+(`age` exists for Linux, macOS and Windows, e.g. `apt install age`.) Then
+restore as below.
 
-## Zurückspielen
+## Restoring
 
-Im Deploy-Verzeichnis (auf apollo `~/nullmodem-deploy`):
+In the deploy directory (on apollo `~/nullmodem-deploy`):
 
 ```sh
 docker compose down
-# zur Sicherheit den aktuellen Stand wegkopieren
-mv data/nullmodem.sqlite data/nullmodem.sqlite.vor-restore
+# move the current state out of the way, to be safe
+mv data/nullmodem.sqlite data/nullmodem.sqlite.before-restore
 rm -f data/nullmodem.sqlite-wal data/nullmodem.sqlite-shm
 tar xzf data/backups/nullmodem-20261001-030000.tar.gz
 docker compose up -d
 ```
 
-`tar` überschreibt dabei nur, was im Backup steht. Wichtig ist das
-Entfernen von `-wal`/`-shm`: sie gehören zur alten Datenbank.
+`tar` only overwrites what's in the backup. Removing `-wal`/`-shm` matters:
+they belong to the old database.
 
-Nur einzelne Teile zurückholen geht auch, z. B. nur die Bildschirme:
+Restoring single parts works too, e.g. only the screens:
 
 ```sh
 tar xzf data/backups/nullmodem-….tar.gz configs/screens

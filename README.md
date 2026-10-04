@@ -1,191 +1,204 @@
 # NullModem BBS
 
-Eine Mailbox im Stil von Synchronet, Mystic und ENiGMA½ — über Telnet und
-SSH mit ANSI/CP437 wie in den Neunzigern, dazu ein Web-Portal für Benutzer,
-eine Web-Administration für den Sysop und ein FTN-Mailer für FidoNet, fsxNet
-und Co. Geschrieben in Go, Daten in SQLite, Oberfläche in SvelteKit; läuft
-als Docker-Image.
+**English** · [Deutsch](README.de.md)
 
-Teil der NullModem-Familie:
+A bulletin board system in the style of Synchronet, Mystic and ENiGMA½ — over
+Telnet and SSH with ANSI/CP437 like in the nineties, plus a web portal for
+callers, a web administration for the sysop and an FTN mailer for FidoNet,
+fsxNet and friends. Written in Go, data in SQLite, interface in SvelteKit;
+runs as a Docker image.
 
-| Repo | Inhalt |
+Part of the NullModem family:
+
+| Repo | Contents |
 |---|---|
-| **bbs** (dieses) | die Mailbox selbst |
-| [kit](https://git.maik.ch/nullmodem/kit) | gemeinsamer Unterbau: ANSI/CP437, QWK/QWKE, Zmodem |
-| [reader](https://git.maik.ch/nullmodem/reader) | NullModem Reader (`nmr`), Offline-Reader für QWK-Post dieser BBS |
+| **bbs** (this one) | the BBS itself |
+| [kit](https://git.maik.ch/nullmodem/kit) | shared foundation: ANSI/CP437, QWK/QWKE, Zmodem |
+| [reader](https://git.maik.ch/nullmodem/reader) | NullModem Reader (`nmr`), offline reader for this BBS's QWK mail |
 
-## Was sie kann
+## What it does
 
 **Telnet/SSH**
-- ANSI-Bildschirme mit Platzhaltern (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
-  Menüs aus YAML, Lightbar-Listen, Security Levels 0–255
-- Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche — mit
-  Nachrichtensuche (Telnet, Portal, Reader), „neue Dateien“ über alle Areas
-  und Dateisuche
-- Unter den Anrufern: One-liner-Wand nach dem Login, Teleconference (Chat),
-  Node-Nachrichten an andere Online-Anrufer (bei „Who's online“), Sysop rufen
-  („Page“): der Sysop bekommt eine Push-Nachricht und antwortet im Web-Admin
-  (Chat & One-liners) oder auf einem Node
-- Abstimmungen (V): der Sysop fragt im Web-Admin, Anrufer stimmen über Telnet
-  oder im Portal (Community) ab und sehen das Ergebnis als Balken; BBS-Liste (B),
-  von den Anrufern gepflegt
-- Nodelisten (I): werden aus den File-Echos der Netze übernommen (FSXNET.Z75 …),
-  zum Nachschlagen und zum Prüfen von Netmail-Adressen („→ Agency BBS, Dunedin“)
-- Vollbild-Editor zum Schreiben (Pfeiltasten, Pos1/Ende, Bild auf/ab, Wortumbruch,
-  Antwort mit Zitat; ^Z speichern, ^X abbrechen, ^Y Zeile löschen); wer lieber
-  zeilenweise schreibt, stellt im Profil den Zeileneditor ein
-- Neue Nachrichten nach dem Login: Übersicht (Netmail, an dich, neu pro Area),
-  „Read new messages“ liest alle Areas der Reihe nach, „Messages to you“ nur
-  die an dich; welche Areas, bestimmt dieselbe Auswahl wie für QWK
-- Datei-Download und -Upload per Zmodem (Synchronets `sexyz`)
-- QWK-Pakete holen und Antworten hochladen, Auswahl der Bereiche
-- Remote-Doors über RLogin (Door-Netzwerke wie DoorParty, andere BBS):
-  Host und die beiden Benutzernamen mit Platzhaltern im Web-Admin
-- Doors: native Linux-Doors per `DOOR32.SYS` und DOS-Doors unter DOSBox-X (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), verwaltet im Web-Admin mit Vorlagen (per Klick installierbar: MRC Chat (uMRC), Immortal Barons, Usurper, Usurper Reborn, Judge Dredd; vorbereitet: LORD, TradeWars, OO2, DoorMUD); tägliche Wartung pro Door (zur eingestellten Zeit, nie während jemand spielt)
-- Mehrsprachig: Englisch, Deutsch (Sie) und Deutsch (Du) — Telnet/SSH, Portal,
-  Reader-App, Startseite und Admin; gewählt bei der Registrierung und im Profil; jeder Text im Web-Admin änderbar (Spracheditor),
-  Screens pro Sprache (`main.de.ans`) oder mit Katalogtexten (`{T:schlüssel}`),
-  Menüpunkte mit Übersetzungen; Englisch springt ein, wo etwas fehlt
-- Profil: Realname, Zeitzone, Sprache, Passwort, QWK-Einstellungen
-- Wer sich als Erster registriert, wird Sysop
+- ANSI screens with placeholders (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
+  menus from YAML, lightbar lists, security levels 0–255
+- Message areas (local and echomail), netmail, file areas — with message
+  search (Telnet, portal, reader), "new files" across all areas and file
+  search
+- Among callers: one-liner wall after login, teleconference (chat), node
+  messages to other callers online (under "Who's online"), paging the sysop:
+  the sysop gets a push notification and answers in the web admin (Chat &
+  One-liners) or on a node
+- Polls (V): the sysop asks in the web admin, callers vote over Telnet or in
+  the portal (Community) and see the result as bars; BBS list (B), kept by
+  the callers
+- Nodelists (I): taken from the networks' file echos (FSXNET.Z75 …), for
+  looking things up and for checking netmail addresses ("→ Agency BBS,
+  Dunedin")
+- Full-screen editor for writing (arrow keys, Home/End, Page Up/Down, word
+  wrap, reply with quote; ^Z save, ^X abort, ^Y delete line); whoever prefers
+  writing line by line picks the line editor in their profile
+- New messages after login: an overview (netmail, to you, new per area),
+  "Read new messages" reads all areas in turn, "Messages to you" only those
+  to you; which areas is decided by the same selection as for QWK
+- File download and upload by Zmodem (Synchronet's `sexyz`)
+- Fetching QWK packets and uploading replies, choice of areas
+- Remote doors over RLogin (door networks like DoorParty, other BBSes): host
+  and both user names with placeholders in the web admin
+- Doors: native Linux doors via `DOOR32.SYS` and DOS doors under DOSBox-X
+  (DOOR.SYS, DORINFO1.DEF, DOORFILE.SR), managed in the web admin with
+  templates (installable with a click: MRC Chat (uMRC), Immortal Barons,
+  Usurper, Usurper Reborn, Judge Dredd; prepared: LORD, TradeWars, OO2,
+  DoorMUD); daily maintenance per door (at the time set, never while someone
+  is playing)
+- Multilingual: English, German formal (Sie) and German informal (Du) —
+  Telnet/SSH, portal, reader app, front page and admin; chosen at
+  registration and in the profile; every text can be changed in the web admin
+  (language editor), screens per language (`main.de.ans`) or with catalog
+  texts (`{T:key}`), menu items with translations; English steps in wherever
+  something is missing
+- Profile: real name, time zone, language, password, QWK settings
+- Whoever registers first becomes sysop
 
 **Web** (`:8090`)
-- Öffentliche Startseite (`/`): Begrüßungsbildschirm, alle Zugänge (Web-Terminal,
-  Telnet/SSH, Portal, Reader-App, QWK), wer online ist, letzte Anrufer,
-  One-Liner, Doors, FTN-Adressen, Statistik der letzten 30 Tage; Link-Vorschau
-  (OpenGraph) mit dem Begrüßungsbildschirm als Bild; RSS-Feed pro öffentlicher
-  Area (abschaltbar)
-- Threads: Antworten über REPLY-Kludge, direkte Antworten oder den Betreff
-  verknüpft; Thread-Ansicht im Portal und in der Reader-App, Thread-Liste (T)
-  und `[`/`]` im Telnet, REPLY in ausgehender Echomail, Referenznummer im QWK-Paket
-- Chat-Räume (`/rooms`, `/join` in der Teleconference) mit Brücken zu
-  Discord-Kanälen und Matrix-Räumen: BBS-Anrufer erscheinen dort unter ihrem
-  Namen, die anderen in der BBS als `name@discord` / `name@matrix`; nur
-  ausgehende Verbindungen
-- Meine Areas: jeder Anrufer nimmt Areas aus New-Scan, QWK und Reader-App heraus
-  (Telnet K, Portal ✓, Reader); neue Areas sind automatisch drin
-- Chat auch im Portal und in der Reader-App; öffentliche Download-Links für
-  Dateien freigegebener Areas (Seite mit Link-Vorschau); Door-Bulletins
-  (Scoreboards, News) im Doors-Menü, Portal und auf der Startseite
-- BBS-Liste mit stündlichem Online-Check; Monatsrückblick per Netmail an die
-  Sysops
-- Menü-Editor (Admin → Content → Menus): Punkte, Aktionen, SL, neue Menüs,
-  Vorschau wie im Telnet mit Abgleich gegen den Bildschirm, neue Standardpunkte
-  einer Version per Klick; Änderungen gelten ohne Neustart
-- Statistik (Admin → System → Statistics): Anrufe, Schreiber, Areas,
-  Echomail pro Netzwerk, Doors, Downloads, BinkP-Sitzungen
-- Portal für Benutzer (`/login`, `/message-areas` …): Nachrichten, Netmail, Dateien, QWK, Profil —
-  dieselben Funktionen wie über Telnet
-- Web-Terminal (`/terminal`): die BBS im Browser, ohne Telnet-Client — mit dem
-  Pixel-Font der ANSI-Bildschirme, Tastenleiste fürs Handy; Sperren und
-  Verbindungslimit gelten für die echte Adresse des Besuchers
-- Reader fürs Handy (`/reader`): schlanke Web-App zum Lesen und Beantworten
-  von Echomail und Netmail, installierbar auf dem Home-Bildschirm (iOS,
-  Android); Gelesen-Status wie überall auf der BBS. Offline lesen (Ungelesenes
-  wird vorab geholt, offline Geschriebenes später verschickt) und
-  Benachrichtigungen (Web Push) bei neuer Netmail und Echomail an einen selbst
-- Administration für den Sysop (`/admin`, ab SL 255): Benutzer, Bereiche,
-  Security-Level-Matrix, Logs, BinkP-Uplinks, Areafix, Archiv, ANSI-Designer
-  für die Bildschirme
-- Schutz (Admin → Users → Security): Adressen mit zu vielen Fehl-Logins
-  (Telnet, SSH, Portal, Admin) werden gesperrt, bei Wiederholung länger;
-  Limit gleichzeitiger Verbindungen pro Adresse; Allow- und Blocklisten (IP oder
-  Bereich). Neue Benutzer warten auf Freischaltung (lesen und Netmail an den
-  Sysop dürfen sie schon), Push an den Sysop bei Neuanmeldung; gesperrte Handles
-- Zwei-Faktor-Login (TOTP) für Admin und Telnet-Sysop-Menü, Passwort-Reset für
-  Benutzer, Warnungen per Push (Dienst steht, Uplink unerreichbar, Backup fehlt,
-  Platte voll, Netmail hängt) — siehe [docs/security.md](docs/security.md)
-- Nächtliches Backup (Admin → Backups): Datenbank, Konfiguration, Menüs,
-  Bildschirme und Schlüssel als ein `.tar.gz`, wahlweise mit Dateien und Doors;
-  verschlüsselte Kopie außer Haus (age) per S3, OpenStack Swift, SFTP oder WebDAV;
-  Download im Admin, Zurückspielen siehe [docs/backup.md](docs/backup.md)
-- REST-API; die QWK-Endpunkte nutzen auch NullModem Reader und die Skripte in
-  `scripts/multimail/`
+- Public front page (`/`): welcome screen, every way in (web terminal,
+  Telnet/SSH, portal, reader app, QWK), who's online, last callers,
+  one-liners, doors, FTN addresses, statistics of the last 30 days; link
+  preview (OpenGraph) with the welcome screen as its image; an RSS feed per
+  public area (can be turned off)
+- Threads: replies linked by the REPLY kludge, direct replies or the subject;
+  thread view in the portal and the reader app, thread list (T) and `[`/`]`
+  in Telnet, REPLY in outgoing echomail, reference number in the QWK packet
+- Chat rooms (`/rooms`, `/join` in the teleconference) with bridges to Discord
+  channels and Matrix rooms: BBS callers appear there under their names, the
+  others on the BBS as `name@discord` / `name@matrix`; outgoing connections
+  only
+- My areas: every caller can take areas out of new scan, QWK and the reader
+  app (Telnet K, portal ✓, reader); new areas are in automatically
+- Chat in the portal and the reader app too; public download links for files
+  of shared areas (a page with link preview); door bulletins (scoreboards,
+  news) in the doors menu, the portal and on the front page
+- BBS list with an hourly online check; a monthly recap by netmail to the
+  sysops
+- Menu editor (Admin → Content → Menus): items, actions, SL, new menus, a
+  preview as in Telnet that is checked against the screen, a version's new
+  stock items with a click; changes apply without a restart
+- Statistics (Admin → System → Statistics): calls, writers, areas, echomail
+  per network, doors, downloads, BinkP sessions
+- Portal for callers (`/login`, `/message-areas` …): messages, netmail, files,
+  QWK, profile — the same features as over Telnet
+- Web terminal (`/terminal`): the BBS in the browser, without a Telnet client —
+  with the pixel font of the ANSI screens and a key bar for phones; lockouts
+  and the connection limit apply to the visitor's real address
+- Reader for phones (`/reader`): a lean web app for reading and answering
+  echomail and netmail, installable on the home screen (iOS, Android); read
+  status as everywhere on the BBS. Offline reading (unread mail is fetched
+  ahead, what's written offline is sent later) and notifications (Web Push)
+  for new netmail and echomail to you
+- Administration for the sysop (`/admin`, SL 255): users, areas, the security
+  level matrix, logs, BinkP uplinks, Areafix, archive, ANSI designer for the
+  screens
+- Protection (Admin → Users → Security): addresses with too many failed logins
+  (Telnet, SSH, portal, admin) are locked out, longer on repeat; a limit of
+  simultaneous connections per address; allow and block lists (IP or range).
+  New users wait for approval (they may already read and send netmail to the
+  sysop), a push to the sysop on sign-up; blocked handles
+- Two-factor login (TOTP) for the admin and the Telnet sysop menu, password
+  reset for users, warnings by push (service down, uplink unreachable,
+  backup missing, disk full, netmail stuck) — see
+  [docs/security.md](docs/security.md)
+- Nightly backup (Admin → Backups): database, configuration, menus, screens
+  and keys as one `.tar.gz`, optionally with files and doors; an encrypted
+  off-site copy (age) to S3, OpenStack Swift, SFTP or WebDAV; download in the
+  admin, restoring see [docs/backup.md](docs/backup.md)
+- REST API; the QWK endpoints are also used by NullModem Reader and the
+  scripts in `scripts/multimail/`
 
 **FTN**
-- BinkP-Mailer (binkp/1.1), eingehend und ausgehend, Crash und Hold, mehrere
+- BinkP mailer (binkp/1.1), inbound and outbound, crash and hold, several
   AKAs
-- Tosser für Echomail, Netmail und TIC-Datei-Echos
-- Areafix/Filefix, auch für eigene Downlinks
-- TIC „Replaces“: eine Datei ersetzt ältere in der Area (auch mit Platzhaltern),
-  weitergeleitet wird die Angabe mit
-- Maintenance (Admin → Maintenance): räumt nachts alte Echomail, Dateien, gelesene
-  Netmail, Log, BinkP-Mitschnitte und Eingangsarchiv auf und verdichtet die
-  Datenbank; Grenzen pro Area, Vorschau vor dem Löschen
-- InterBBS Last Callers: liest die Liste aus FSX_DAT (beide gängigen Formate),
-  zeigt sie nach dem Login und im Portal und meldet die eigenen Anrufer;
-  Daten-Areas wie FSX_DAT lassen sich für Anrufer ausblenden
-- Points, z. B. ein Reader wie FidoMail; wahlweise schreibt er als dein
-  BBS-User, als käme die Post direkt von der BBS
+- Tosser for echomail, netmail and TIC file echos
+- Areafix/Filefix, for your own downlinks too
+- TIC "Replaces": a file replaces older ones in the area (wildcards too),
+  and the line is passed on
+- Maintenance (Admin → Maintenance): clears out old echomail, files, read
+  netmail, the log, BinkP transcripts and the inbound archive at night and
+  compacts the database; limits per area, a preview before deleting
+- InterBBS Last Callers: reads the list from FSX_DAT (both common formats),
+  shows it after login and in the portal and reports your own callers; data
+  areas like FSX_DAT can be hidden from callers
+- Points, e.g. a reader like FidoMail; optionally it writes as your BBS user,
+  as if the mail came straight from the BBS
 
-## Aufbau
+## Layout
 
-Drei unabhängige Dienste, alle aus demselben Image, verbunden nur über die
-gemeinsame SQLite-Datenbank und `configs/bbs.yaml`:
+Three independent services, all from the same image, connected only through
+the shared SQLite database and `configs/bbs.yaml`:
 
-| Dienst | Programm | Ports |
+| Service | Program | Ports |
 |---|---|---|
 | `bbs` | `cmd/bbs` | 2323 Telnet, 2222 SSH |
 | `mailer` | `cmd/mailer` | 24554 BinkP |
-| `web` | `cmd/web` | 8090 Portal, Administration, API |
+| `web` | `cmd/web` | 8090 portal, administration, API |
 
-Wer nicht am FTN hängt, lässt `mailer` einfach weg.
+If you're not on FTN, just leave `mailer` out.
 
-## Schnellstart mit Docker
+## Quick start with Docker
 
 ```sh
 cp configs/bbs.yaml.example configs/bbs.yaml
 docker compose up -d --build
-telnet localhost 2323        # als Erster registrieren = Sysop
+telnet localhost 2323        # register first = sysop
 ```
 
-Danach unter `http://localhost:8090/admin` mit demselben Konto anmelden.
-Konfiguration, Daten-Verzeichnis, eigene Bildschirme, Multi-Arch-Builds und
-versionierte Images: [docs/docker.md](docs/docker.md).
+Then log in at `http://localhost:8090/admin` with the same account.
+Configuration, the data directory, your own screens, multi-arch builds and
+versioned images: [docs/docker.md](docs/docker.md).
 
-## Entwickeln
+## Development
 
 ```sh
 go build -o bin/ ./cmd/...           # bbs, mailer, web
-(cd web && npm ci && npm run build)  # Oberfläche nach web/build
-./bin/bbs & ./bin/web &              # liest configs/bbs.yaml und configs/web.yaml
+(cd web && npm ci && npm run build)  # interface into web/build
+./bin/bbs & ./bin/web &              # reads configs/bbs.yaml and configs/web.yaml
 go test ./...
 ```
 
-- Go 1.26+, Node 24 für die Oberfläche; alles ohne cgo, auch SQLite
+- Go 1.26+, Node 24 for the interface; everything without cgo, SQLite too
   (`modernc.org/sqlite`).
-- Für Zmodem braucht es `sexyz` im `PATH` — auch für die Zmodem-Tests, die
-  sonst übersprungen werden: [docs/building-sexyz.md](docs/building-sexyz.md).
-- Das Kit wird über eine feste Version in `go.mod` eingebunden. Wer BBS und
-  Kit gleichzeitig ändert, legt BBS, Kit und Reader nebeneinander und nutzt
-  das `go.work` im Elternverzeichnis; Kit-Releases beschreibt die README des
-  Kits.
-- Die Versionsnummer steht in `internal/version/version.go` und erscheint im
-  Begrüßungsbildschirm.
+- Zmodem needs `sexyz` in the `PATH` — so do the Zmodem tests, which are
+  skipped otherwise: [docs/building-sexyz.md](docs/building-sexyz.md).
+- The kit is pulled in at a fixed version in `go.mod`. To change BBS and kit
+  together, put BBS, kit and reader side by side and use the `go.work` in the
+  parent directory; kit releases are described in the kit's README.
+- The version number is in `internal/version/version.go` and shows on the
+  welcome screen.
+- Texts are in `internal/i18n/lang/` (`en.yaml`, `de.yaml`, `de-du.yaml`); a
+  new text goes into all three. Docs for sysops come in English and German
+  (`x.md`, `x.de.md`).
 
-## Weitere Dokumentation
+## More documentation
 
-- [docs/handbook.md](docs/handbook.md) — **Sysop-Handbuch**: Aufsetzen, Netzwerke,
-  Areas, Doors, Benutzer, Alltag, Updates, Fehlersuche
-- [docs/docker.md](docs/docker.md) — Betrieb mit Docker
-- [docs/adding-a-door.md](docs/adding-a-door.md) — Doors einrichten, nativ und
-  unter DOSBox-X
-- [docs/points.md](docs/points.md) — Points und eigene Reader-Apps (FidoMail)
-- [docs/building-sexyz.md](docs/building-sexyz.md) — `sexyz` bauen, warum nicht
+- [docs/handbook.md](docs/handbook.md) — **Sysop handbook**: setting up,
+  networks, areas, doors, users, day to day, updates, troubleshooting
+- [docs/docker.md](docs/docker.md) — running with Docker
+- [docs/adding-a-door.md](docs/adding-a-door.md) — setting up doors, native and
+  under DOSBox-X
+- [docs/points.md](docs/points.md) — points and your own reader apps (FidoMail)
+- [docs/building-sexyz.md](docs/building-sexyz.md) — building `sexyz`, why not
   lrzsz
-- [docs/third-party.md](docs/third-party.md) — Fremdsoftware im Image und ihre
-  Lizenzen
-- [scripts/multimail/README.md](scripts/multimail/README.md) — QWK-Austausch
-  per Skript, z. B. für MultiMail
+- [docs/third-party.md](docs/third-party.md) — third-party software in the image
+  and its licenses
+- [scripts/multimail/README.md](scripts/multimail/README.md) — QWK exchange
+  by script, e.g. for MultiMail
 
-## Fremdsoftware
+## Third-party software
 
-Das Docker-Image enthält Synchronets `sexyz` (GNU GPL, Version 2 oder später)
-als eigenes Programm für Zmodem-Übertragungen; Lizenztexte, Hinweise und der
-vollständige Quellcode liegen im Image unter `/usr/local/share/doc/sexyz/`.
-Einzelheiten: [docs/third-party.md](docs/third-party.md).
+The Docker image contains Synchronet's `sexyz` (GNU GPL, version 2 or later)
+as a separate program for Zmodem transfers; license texts, notices and the
+complete source code are in the image under `/usr/local/share/doc/sexyz/`.
+Details: [docs/third-party.md](docs/third-party.md).
 
-## Lizenz
+## License
 
-MIT — siehe [LICENSE](LICENSE). Fremdsoftware im Docker-Image behält ihre
-eigene Lizenz (siehe oben).
+MIT — see [LICENSE](LICENSE). Third-party software in the Docker image keeps
+its own license (see above).

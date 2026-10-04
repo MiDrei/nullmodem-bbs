@@ -1,30 +1,32 @@
-# Sicherheit
+# Security
+
+**English** · [Deutsch](security.de.md)
 
 Admin → Users → Security.
 
-## Zwei-Faktor-Login (TOTP)
+## Two-factor login (TOTP)
 
-Unter „Your account: two-factor login“ einrichten: QR-Code mit einer
-Authenticator-App scannen (Aegis, Google Authenticator, 1Password …), den
-angezeigten Code eingeben, die 8 Recovery-Codes sicher aufbewahren (jeder
-gilt einmal anstelle eines Codes).
+Set it up under "Your account: two-factor login": scan the QR code with an
+authenticator app (Aegis, Google Authenticator, 1Password …), enter the code
+shown, keep the 8 recovery codes somewhere safe (each works once in place of
+a code).
 
-Danach fragen nach dem Code:
+From then on these ask for the code:
 
-- die Anmeldung im Web-Admin,
-- das Sysop-Menü über Telnet/SSH (einmal pro Anruf).
+- logging in to the web admin,
+- the sysop menu over Telnet/SSH (once per call).
 
-Nicht betroffen (geben nur Benutzerrechte): Portal, Reader-App, QWK-Clients
-wie NullModem Reader, der normale Telnet-Login.
+Not affected (they only grant user rights): portal, reader app, QWK clients
+like NullModem Reader, the normal Telnet login.
 
-„Require two-factor login for the admin and the Telnet sysop menu“ sperrt
-Sysop-Konten ohne Zwei-Faktor aus Admin und Sysop-Menü aus. Ein anderer Sysop
-kann einem Konto unter Users „Reset 2FA“ den zweiten Faktor wegnehmen (Handy
-weg) — danach neu einrichten.
+"Require two-factor login for the admin and the Telnet sysop menu" locks
+sysop accounts without a second factor out of the admin and the sysop menu.
+Another sysop can take an account's second factor away under Users with
+"Reset 2FA" (phone gone) — set it up again afterwards.
 
-### Handy und Recovery-Codes weg, kein zweiter Sysop
+### Phone and recovery codes gone, no second sysop
 
-Direkt auf dem Server, im Deploy-Verzeichnis (Beispiel-Handle `SwissMaik`):
+Directly on the server, in the deploy directory (example handle `SwissMaik`):
 
 ```sh
 python3 -c "import sqlite3; c=sqlite3.connect('data/nullmodem.sqlite'); \
@@ -32,25 +34,26 @@ c.execute(\"UPDATE users SET totp_secret='', totp_pending='', totp_last=0 WHERE 
 c.execute(\"DELETE FROM totp_recovery WHERE user_id=(SELECT id FROM users WHERE username='SwissMaik')\"); c.commit()"
 ```
 
-Wer Shell-Zugang zum Server hat, braucht keinen zweiten Faktor — der schützt
-gegen gestohlene Passwörter, nicht gegen den Server selbst.
+Whoever has shell access to the server doesn't need a second factor — it
+protects against stolen passwords, not against the server itself.
 
-## Passwort vergessen
+## Forgotten password
 
-Users → „Password…“ setzt ein neues Passwort für ein Konto; dem Anrufer auf
-einem anderen Weg mitteilen.
+Users → "Password…" sets a new password for an account; tell the caller by
+some other way.
 
-## Sperren und Listen
+## Lockouts and lists
 
-Fehl-Logins pro Adresse (Telnet, SSH, Portal, Admin, falsche Zwei-Faktor-Codes)
-sperren die Adresse vorübergehend; Allow-/Blocklisten mit IP oder Bereich.
-Hinter Caddy und Dockers Port-Mapping zählt die weitergereichte Adresse
-(`X-Forwarded-For` von privaten Adressen).
+Failed logins per address (Telnet, SSH, portal, admin, wrong two-factor
+codes) lock the address out for a while; allow/block lists with an IP or a
+range. Behind Caddy and Docker's port mapping the forwarded address counts
+(`X-Forwarded-For` from private addresses).
 
-## Warnungen
+## Warnings
 
-Alle 5 Minuten prüft der Web-Dienst: läuft BBS/Mailer/Door-Hintergrundprogramm,
-gab es mit jedem Uplink in den letzten 48 h eine erfolgreiche Sitzung, ist das
-Backup jünger als 26 h, ist genug Platz frei, hängt Netmail seit über zwei
-Tagen. Neue Probleme und deren Behebung kommen als Push aufs Handy (Reader-App
-mit Benachrichtigungen) und stehen auf dem Dashboard.
+Every 5 minutes the web service checks: are BBS, mailer and door background
+programs running, was there a successful session with every uplink in the
+last 48 h, is the backup younger than 26 h, is there enough free space, has
+netmail been stuck for more than two days. New problems and their fixes come
+as push notifications to your phone (reader app with notifications) and show
+on the dashboard.

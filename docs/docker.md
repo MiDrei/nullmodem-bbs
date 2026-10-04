@@ -1,5 +1,7 @@
 # Running NullModem BBS in Docker
 
+**English** · [Deutsch](docker.de.md)
+
 ## Quick start
 
 ```sh
@@ -53,7 +55,8 @@ from -- see `internal/bbs`'s own doc comments for how the plain
 binaries load them.
 
 `data/` (SQLite database, SSH host key, JWT signing key, uploaded
-files, and any door installs -- see `docs/adding-a-door.md`) is also
+files, door installs -- see `docs/adding-a-door.md` -- and the
+changed texts under `data/lang/`) is also
 a plain bind mount (`./data`), not a named volume, so it survives a
 `docker compose down`/recreate and -- unlike a named volume -- is
 directly reachable from the host: installing a door is just copying

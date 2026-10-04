@@ -1000,7 +1000,7 @@ admin.backups.could_not_download_the_backup: "Das Backup konnte nicht herunterge
 admin.backups.could_not_delete_the_backup: "Das Backup konnte nicht gelöscht werden."
 admin.backups.could_not_load_the_backups: "Die Backups konnten nicht geladen werden."
 admin.backups.backups: "Backups"
-admin.backups.every_night_a_copy_of: "Jede Nacht eine Kopie der Datenbank, der Konfiguration (bbs.yaml, web.yaml, Menüs und Screens) und der Schlüssel (Login-Geheimnis, SSH-Hostschlüssel, Push-Schlüssel) -- erstellt, während die BBS weiterläuft. Zum Wiederherstellen packt man eines ins Verzeichnis der BBS aus; siehe docs/backup.md."
+admin.backups.every_night_a_copy_of: "Jede Nacht eine Kopie der Datenbank, der Konfiguration (bbs.yaml, web.yaml, Menüs und Screens) und der Schlüssel (Login-Geheimnis, SSH-Hostschlüssel, Push-Schlüssel) -- erstellt, während die BBS weiterläuft. Zum Wiederherstellen packt man eines ins Verzeichnis der BBS aus; siehe docs/backup.de.md."
 admin.backups.the_newest_backup_is_v: "Das neuste Backup ist {V} Tag(e) alt -- warum, steht im Log (Tab Web)."
 admin.backups.the_backups_are_on_the: "Die Backups liegen auf derselben Platte wie die BBS: sie helfen gegen Fehler und eine kaputte Datenbank, nicht gegen eine kaputte Platte oder einen verlorenen Server. Dafür schalten Sie unten die Kopie ausser Haus ein -- verschlüsselt, nach S3, OpenStack Swift, SFTP oder WebDAV."
 admin.backups.back_up_every_night_at: "Jede Nacht sichern um"

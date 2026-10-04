@@ -1,351 +1,352 @@
-# Sysop-Handbuch
+# Sysop handbook
 
-Wie man eine NullModem BBS aufsetzt und im Alltag betreibt. Die Details stehen
-in den verlinkten Einzeldokumenten; hier steht, was wohin gehört und in welcher
-Reihenfolge man es angeht.
+**English** · [Deutsch](handbook.de.md)
 
-- [1. Aufbau](#1-aufbau)
+How to set up a NullModem BBS and run it day to day. The details are in the
+linked documents; this one says what goes where and in which order to tackle
+it.
+
+- [1. Layout](#1-layout)
 - [2. Installation](#2-installation)
-- [3. Die ersten Schritte](#3-die-ersten-schritte)
-- [4. FTN-Netzwerke](#4-ftn-netzwerke)
+- [3. First steps](#3-first-steps)
+- [4. FTN networks](#4-ftn-networks)
 - [5. Areas](#5-areas)
 - [6. Doors](#6-doors)
-- [7. Benutzer](#7-benutzer)
-- [8. Für die Anrufer](#8-für-die-anrufer)
-- [9. Im Alltag](#9-im-alltag)
+- [7. Users](#7-users)
+- [8. For the callers](#8-for-the-callers)
+- [9. Day to day](#9-day-to-day)
 - [10. Updates](#10-updates)
-- [11. Fehlersuche](#11-fehlersuche)
-- [12. Wo was liegt](#12-wo-was-liegt)
+- [11. Troubleshooting](#11-troubleshooting)
+- [12. Where things are](#12-where-things-are)
 
-## 1. Aufbau
+## 1. Layout
 
-Drei Dienste aus demselben Docker-Image, verbunden über die gemeinsame
-SQLite-Datenbank und `configs/bbs.yaml`:
+Three services from the same Docker image, connected through the shared
+SQLite database and `configs/bbs.yaml`:
 
-| Dienst | Aufgabe | Port |
+| Service | Job | Port |
 |---|---|---|
-| `bbs` | Telnet, SSH, Doors, Chat | 2323, 2222 |
-| `mailer` | BinkP, Tosser, Areafix/Filefix, Nodelisten, nächtliche Maintenance | 24554 |
-| `web` | Portal, Reader-App, Web-Terminal, Administration, Backups, Warnungen | 8090 |
+| `bbs` | Telnet, SSH, doors, chat | 2323, 2222 |
+| `mailer` | BinkP, tosser, Areafix/Filefix, nodelists, nightly maintenance | 24554 |
+| `web` | portal, reader app, web terminal, administration, backups, warnings | 8090 |
 
-Davor gehört ein Reverse Proxy mit TLS (z. B. Caddy) für Port 8090. Die BBS
-liest die echte Adresse der Besucher aus `X-Forwarded-For` — auch hinter
-Dockers Port-Mapping.
+Put a reverse proxy with TLS (e.g. Caddy) in front of port 8090. The BBS
+reads the visitors' real address from `X-Forwarded-For` — behind Docker's
+port mapping too.
 
 ## 2. Installation
 
-Siehe [docker.md](docker.md). Kurz:
+See [docker.md](docker.md). In short:
 
 ```sh
 cp configs/bbs.yaml.example configs/bbs.yaml
 docker compose up -d
 ```
 
-In `.env` neben der `docker-compose.yml`:
+In `.env` next to `docker-compose.yml`:
 
 ```
-PUID=1000          # Benutzer, dem data/ gehört
+PUID=1000          # the user who owns data/
 PGID=1000
-TZ=Europe/Zurich   # Zeitzone: Logs, Backup-Namen, nächtliche Läufe
+TZ=Europe/Zurich   # time zone: logs, backup names, nightly runs
 ```
 
-In `configs/web.yaml` für das Web-Terminal im Docker-Betrieb:
+In `configs/web.yaml`, for the web terminal under Docker:
 `terminal_addr: "bbs:2323"`.
 
-## 3. Die ersten Schritte
+## 3. First steps
 
-1. **Sysop-Konto:** Per Telnet (oder `/terminal` im Browser) als Erster
-   registrieren — das erste Konto wird automatisch Sysop (SL 255).
-2. **Admin:** `https://deine-bbs/admin`, mit demselben Konto.
-3. **Zwei-Faktor-Login einschalten:** Users → Security, siehe
-   [security.md](security.md). Recovery-Codes sicher ablegen.
-4. **Eigene Adresse auf die Allow-Liste** (Security), wenn du eine feste IP
-   hast — dann sperrst du dich nie selbst aus.
-5. **Grunddaten:** System → Settings (Name, Sysop, Ort — erscheint im
-   BinkP-Handshake und auf den Bildschirmen).
-6. **Bildschirme:** Content → Screens → Begrüßung, Hauptmenü usw. im ANSI-Designer
-   anpassen. Rahmen mit `{FILL:x}` bauen, damit sie bei jeder Breite schließen. Gespeichert gilt
-   sofort, auch für den Begrüßungsbildschirm.
-   **Menüs:** Content → Menus — Punkte (Taste, Text, was er tut, ab welchem
-   SL) ändern, umsortieren, neue Menüs anlegen und verknüpfen. Die Vorschau
-   zeigt das Menü wie ein Anrufer oder der Sysop und warnt, wenn Bildschirm und
-   Punkte nicht zusammenpassen (ein Punkt fehlt auf dem Bildschirm, oder der
-   Bildschirm zeigt eine Taste, die nichts tut). Gespeichert gilt es beim
-   nächsten Menü der Anrufer, ohne Neustart.
-7. **Benachrichtigungen:** Die Reader-App (`/reader`) aufs Handy legen und unter
-   ⚙ Benachrichtigungen einschalten — dann kommen Warnungen, neue Benutzer und
-   Pages aufs Handy.
-8. **Backup prüfen:** System → Backups → „Back up now“, und die
-   verschlüsselte Kopie außer Haus einrichten (S3, Swift, SFTP oder WebDAV,
+1. **Sysop account:** register first over Telnet (or `/terminal` in the
+   browser) — the first account becomes sysop (SL 255) automatically.
+2. **Admin:** `https://your-bbs/admin`, with the same account.
+3. **Turn on two-factor login:** Users → Security, see
+   [security.md](security.md). Keep the recovery codes somewhere safe.
+4. **Put your own address on the allow list** (Security) if you have a fixed
+   IP — then you never lock yourself out.
+5. **Basics:** System → Settings (name, sysop, location — shown in the BinkP
+   handshake and on the screens).
+6. **Screens:** Content → Screens → adjust the welcome, main menu etc. in the
+   ANSI designer. Build borders with `{FILL:x}` so they close at any width.
+   Saved means live at once, the welcome screen too.
+   **Menus:** Content → Menus — change items (key, text, what it does, from
+   which SL), reorder them, create new menus and link them. The preview shows
+   the menu as a caller or the sysop sees it and warns when screen and items
+   don't match (an item is missing on the screen, or the screen shows a key
+   that does nothing). Once saved, it applies at the callers' next menu,
+   without a restart.
+7. **Notifications:** put the reader app (`/reader`) on your phone and turn on
+   notifications under ⚙ — then warnings, new users and pages reach your
+   phone.
+8. **Check the backup:** System → Backups → "Back up now", and set up the
+   encrypted off-site copy (S3, Swift, SFTP or WebDAV,
    [backup.md](backup.md)).
 
-## 4. FTN-Netzwerke
+## 4. FTN networks
 
 FTN → Networks & Addresses:
 
-- **Netzwerk** anlegen (Name und Domain, z. B. `fsxNet` / `fsxnet`).
-- **Eigene Adresse** pro Netzwerk (z. B. `21:3/194@fsxnet`).
+- Add a **network** (name and domain, e.g. `fsxNet` / `fsxnet`).
+- Your **own address** per network (e.g. `21:3/194@fsxnet`).
 
 FTN → Uplinks:
 
-- **Uplink** (Hub) mit Adresse, Host, Session- und Packet-Passwort, Areafix-
-  und Filefix-Passwort. „Crash only“, wenn man nur bei Post anrufen will;
-  „Hold“, wenn der Hub abholt.
-- **Areas abonnieren:** FTN → Areafix / Filefix — Liste beim Hub anfordern,
-  ankreuzen, senden. Neue Echos aus eingehender Post landen erst unter
-  „Pending areas“ und werden sichtbar, sobald du sie freigibst.
-- **Points / eigene Reader-App:** [points.md](points.md).
-- **Nodelisten:** kommen von selbst mit den File-Echos (`FSX_NODE` …) und
-  werden alle 10 Minuten übernommen; Status unter FTN → Nodelists.
+- **Uplink** (hub) with address, host, session and packet password, Areafix
+  and Filefix password. "Crash only" if you only want to call when there's
+  mail; "Hold" if the hub picks up.
+- **Subscribe to areas:** FTN → Areafix / Filefix — request the list from the
+  hub, tick, send. New echos from incoming mail land under "Pending areas"
+  first and become visible once you approve them.
+- **Points / your own reader app:** [points.md](points.md).
+- **Nodelists:** arrive on their own with the file echos (`FSX_NODE` …) and
+  are taken over every 10 minutes; status under FTN → Nodelists.
 
-Was zu tun ist, wenn ein Hub nicht antwortet, steht unter
-[Fehlersuche](#11-fehlersuche).
+What to do when a hub doesn't answer is under
+[Troubleshooting](#11-troubleshooting).
 
 ## 5. Areas
 
-- **Message Areas:** Name, Beschreibung, Netzwerk, Security Level fürs Lesen
-  und Schreiben, eigene Aufbewahrung (Tage / Anzahl). Daten-Areas wie
-  `FSX_DAT` (InterBBS-Daten) als „hidden“ markieren (Content → Message Areas) — dann sehen Anrufer sie
-  nicht.
-- **File Areas:** analog, mit Download-/Upload-SL. Mit „Public“ darf jeder ihre
-  Dateien ohne Login laden: jede Datei hat eine Seite zum Teilen
-  (`/share/f/<id>`, mit Link-Vorschau), das Portal zeigt dafür „Copy share
-  link“, und die Startseite listet die neuesten. TIC-Dateien mit „Replaces“
-  ersetzen ältere Versionen automatisch.
-- **Aufräumen:** System → Maintenance — Grenzen einstellen, „Preview“ zeigt,
-  was weg würde, nachts läuft es von selbst.
+- **Message areas:** name, description, network, security level for reading
+  and writing, own retention (days / count). Mark data areas like `FSX_DAT`
+  (InterBBS data) as "hidden" (Content → Message Areas) — then callers don't
+  see them.
+- **File areas:** the same, with download/upload SL. With "Public", anyone may
+  download their files without logging in: every file has a page for sharing
+  (`/share/f/<id>`, with link preview), the portal shows "Copy share link" for
+  it, and the front page lists the newest. TIC files with "Replaces" replace
+  older versions automatically.
+- **Cleaning up:** System → Maintenance — set the limits, "Preview" shows what
+  would go, and it runs on its own at night.
 
 ## 6. Doors
 
-Content → Doors. Fertige Vorlagen (MRC Chat, Usurper, Immortal Barons …) lassen
-sich mit einem Klick installieren. Eigene Doors: [adding-a-door.md](adding-a-door.md).
+Content → Doors. Ready-made templates (MRC Chat, Usurper, Immortal Barons …)
+install with one click. Your own doors: [adding-a-door.md](adding-a-door.md).
 
-| Art | Wofür |
+| Kind | For |
 |---|---|
-| DOS (DOSBox-X) | klassische DOS-Doors, mit FOSSIL, Drop-Datei nach Wahl |
-| Native Linux | Linux-Doors über DOOR32.SYS oder stdio |
-| Remote (RLogin) | Door-Netzwerke wie DoorParty oder eine andere BBS |
+| DOS (DOSBox-X) | classic DOS doors, with FOSSIL, drop file of your choice |
+| Native Linux | Linux doors via DOOR32.SYS or stdio |
+| Remote (RLogin) | door networks like DoorParty, or another BBS |
 
-**Tägliche Wartung:** Viele Doors (TradeWars, BRE, Usurper …) wollen einmal am
-Tag ein Wartungsprogramm laufen sehen (neue Züge, Tagesereignisse). Im Door unter
-„Daily maintenance“ den Befehl eintragen (bei DOS-Doors die DOS-Befehle, z. B.
-`USURPER /MAINT`), dazu die Uhrzeit (Standard 00:05). Die BBS führt ihn ohne
-Anrufer aus — nie, während jemand spielt, dann eben etwas später. Ergebnis und
-Ausgabe stehen in der Door-Liste, „Run maintenance“ startet ihn sofort; ein
-Fehlschlag erscheint unter „Needs attention“.
+**Daily maintenance:** many doors (TradeWars, BRE, Usurper …) want a
+maintenance program to run once a day (new turns, daily events). In the door,
+enter the command under "Daily maintenance" (for DOS doors the DOS commands,
+e.g. `USURPER /MAINT`), plus the time (default 00:05). The BBS runs it with
+no caller — never while someone is playing, a bit later then. Result and
+output are in the door list, "Run maintenance" starts it right away; a
+failure shows under "Needs attention".
 
-**Bulletins (Bestenlisten, News):** Viele Doors schreiben ihre Scoreboards
-und News in Dateien. Beim Door unter „Bulletins“ Titel und Datei (relativ zum
-Door-Verzeichnis) eintragen, „public“ zeigt sie auch auf der Startseite.
-Anrufer lesen sie im Doors-Menü (B) und im Portal unter Community → Door
-scores. Für Immortal Barons und Usurper Reborn kennt die BBS die Dateien:
-„Use the template's …“ trägt sie ein — bei Immortal Barons schaltet das auch
-`BulletinDir` in `data/bbs.cfg` ein und setzt die tägliche Wartung
-(`immortal-barons -maint`), die sie jeden Tag neu schreibt.
+**Bulletins (scoreboards, news):** many doors write their scoreboards and
+news to files. Under "Bulletins" in the door, enter the title and file
+(relative to the door's directory); "public" shows it on the front page too.
+Callers read them in the doors menu (B) and in the portal under Community →
+Door scores. For Immortal Barons and Usurper Reborn the BBS knows the files:
+"Use the template's …" enters them — for Immortal Barons this also turns on
+`BulletinDir` in `data/bbs.cfg` and sets the daily maintenance
+(`immortal-barons -maint`), which rewrites them every day.
 
-Hintergrundprogramme (z. B. die MRC-Bridge) laufen als eigener Dienst und
-erscheinen unter System → Services.
+Background programs (e.g. the MRC bridge) run as a service of their own and
+show under System → Services.
 
-## 7. Benutzer
+## 7. Users
 
-- **Neue Konten** warten auf deine Freischaltung (Users → „Awaiting approval“
-  → Approve / Turn down). Bis dahin lesen sie und dürfen dir Netmail
-  schreiben. Nie freigeschaltete Konten löscht die Maintenance nach 30 Tagen.
-- **Security Levels:** Users (pro Konto) und SL Matrix (wer was darf).
-- **Passwort vergessen:** Users → „Password…“ setzt ein neues.
-- **Zweiter Faktor verloren:** Ein anderer Sysop setzt ihn mit „Reset 2FA“
-  zurück; sonst siehe [security.md](security.md).
-- **Gesperrte Adressen** und Fehl-Logins: Users → Security.
+- **New accounts** wait for your approval (Users → "Awaiting approval" →
+  Approve / Turn down). Until then they can read and may send you netmail.
+  Accounts never approved are deleted by the maintenance after 30 days.
+- **Security levels:** Users (per account) and SL Matrix (who may do what).
+- **Forgotten password:** Users → "Password…" sets a new one.
+- **Second factor lost:** another sysop resets it with "Reset 2FA"; otherwise
+  see [security.md](security.md).
+- **Locked addresses** and failed logins: Users → Security.
 
-## 8. Für die Anrufer
+## 8. For the callers
 
-**Telnet / SSH / Web-Terminal (`/terminal`):**
+**Telnet / SSH / web terminal (`/terminal`):**
 
-| Taste | |
+| Key | |
 |---|---|
-| R / T | neue Nachrichten lesen / Nachrichten an mich |
-| M / F | Message-Areas (dort S = Nachrichten suchen) / File-Areas (N = neue Dateien, S = Suche) |
-| N / I | Netmail / Nodeliste |
-| C / P | Chat (Teleconference; dort `/rooms`, `/join name`) / Sysop rufen |
-| L / V / B | One-Liner / Abstimmungen / BBS-Liste |
-| W / D | Wer ist online (mit Node-Nachricht) / Doors |
-| O / U / K | QWK holen / QWK-Antworten hochladen / Meine Areas |
-| Y / ? | Profil (u. a. Zeileneditor statt Vollbild) / Version |
+| R / T | read new messages / messages to me |
+| M / F | message areas (there S = search messages) / file areas (N = new files, S = search) |
+| N / I | netmail / nodelist |
+| C / P | chat (teleconference; there `/rooms`, `/join name`) / page the sysop |
+| L / V / B | one-liners / polls / BBS list |
+| W / D | who's online (with node message) / doors |
+| O / U / K | fetch QWK / upload QWK replies / my areas |
+| Y / ? | profile (incl. line editor instead of full screen) / version |
 
-**Meine Areas** (K, im Portal „My areas / All areas“ mit ✓ pro Area, in der
-Reader-App unter „All“): Was dort drin ist, nehmen New-Scan, QWK-Pakete und die
-Reader-App (Ungelesen-Liste, Offline-Vorabladen) mit. Alles ist drin, bis man
-eine Area herausnimmt — neue Areas kommen also automatisch dazu. Nachrichten
-*an mich* (T) und Push-Meldungen dafür kommen aus allen Areas.
+**My areas** (K; in the portal "My areas / All areas" with a ✓ per area, in
+the reader app under "All"): whatever is in there is picked up by new scan,
+QWK packets and the reader app (unread list, offline prefetch). Everything is
+in until you take an area out — so new areas join automatically. Messages
+*to me* (T) and their push notifications come from all areas.
 
-In der Nachrichtenliste einer Area schaltet `T` auf Threads um: eine Zeile
-pro Thread (Anzahl Nachrichten, wer ihn begann, letzte Aktivität, NEW solange
-etwas ungelesen ist), Enter liest den Thread in Antwort-Reihenfolge.
+In an area's message list, `T` switches to threads: one line per thread
+(number of messages, who started it, last activity, NEW while something is
+unread); Enter reads the thread in reply order.
 
-Im Nachrichten-Reader: `]` (oder `T`) springt zur nächsten Nachricht im
-Thread, `[` zur vorherigen — Antworten in der Reihenfolge, wie sie aufeinander
-antworten, über die ganze Area hinweg.
+In the message reader: `]` (or `T`) jumps to the next message in the thread,
+`[` to the previous one — replies in the order they answer each other, across
+the whole area.
 
-Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
+After login: InterBBS Last Callers, one-liners, an overview of what's new.
 
-**Sprachen:** Die BBS spricht Englisch, Deutsch (Sie) und Deutsch (Du) — auf
-Telnet/SSH wie im Portal, in der Reader-App, auf der Startseite und im Admin
-(Sprachwahl oben rechts, das Kürzel neben dem Mond).
-Neue Anrufer wählen ihre Sprache gleich bei der Registrierung, später im
-Profil (Telnet `Y`, dann `A`; im Portal unter Profil, in der Reader-App in den
-Einstellungen) — es ist eine Einstellung fürs Konto, überall gleich. Vor dem
-Login — und für alle, die nie gewählt haben — gilt die Sprache des Boards
-(Content → Languages, „The board's language“); im Web nimmt ein Besucher ohne
-Konto die Sprache seines Browsers (Deutsch in der Form des Boards, Sie oder
-Du) und kann sie oben auf der Seite wechseln. Auch Fehlermeldungen,
-Push-Benachrichtigungen und der Begrüßungsbildschirm (`welcome.de.ans`) folgen
-der Sprache.
-Was einer Sprache fehlt, kommt auf Englisch; Deutsch (Du) nimmt zuerst von
-Deutsch (Sie), was gleich lautet.
+**Languages:** the BBS speaks English, German formal (Sie) and German informal
+(Du) — on Telnet/SSH as in the portal, the reader app, the front page and the
+admin (language choice at the top right, the code next to the moon).
+New callers pick their language right at registration, later in the profile
+(Telnet `Y`, then `A`; in the portal under Profile, in the reader app in the
+settings) — it's a setting of the account, the same everywhere. Before login
+— and for everyone who never chose — the board's language applies (Content →
+Languages, "The board's language"); on the web a visitor without an account
+gets their browser's language (German in the board's form, Sie or Du) and can
+switch at the top of the page. Error messages, push notifications and the
+welcome screen (`welcome.de.ans`) follow the language too.
+What a language lacks comes in English; German (Du) first takes from German
+(Sie) whatever reads the same.
 
-- **Texte ändern:** Content → Languages. Jeder Text lässt sich pro Sprache
-  überschreiben; leer heißt „wie mitgeliefert“. `{NAME}` sind Platzhalter, die
-  die BBS füllt — ein Text darf einen weglassen, aber keinen erfinden (der
-  Editor zeigt, welche gehen). Gespeichert wird nur, was du geändert hast,
-  in `data/lang/<sprache>.yaml`; es gilt sofort und übersteht Updates.
-- **Screens:** Zu jedem Screen kann es eine Fassung pro Sprache geben:
-  `main.de-du.ans`, dann `main.de.ans`, dann `main.ans`. Mitgeliefert sind
-  deutsche Fassungen der Standard-Screens; sie holen ihre Texte mit
-  `{T:schlüssel}` aus dem Katalog (`{T:col.subject:-40}` linksbündig auf 40
-  Zeichen, `{T:col.total:5}` rechtsbündig) — eine Datei für Sie und Du, und
-  die Beschriftungen ändert man im Spracheditor. `{T:…}` geht in jedem Screen,
-  auch in eigenen. Den eigenen `welcome.ans` übersetzt man als
-  `welcome.de.ans` im Designer.
-- **Menüs:** Ein mitgelieferter Menüpunkt erscheint von selbst übersetzt. Eigene
-  Beschriftungen bekommen ihre Übersetzung im Menü-Editor („Other
-  languages…“); die Vorschau zeigt jede Sprache.
+- **Changing texts:** Content → Languages. Every text can be overridden per
+  language; empty means "as shipped". `{NAME}` are placeholders the BBS fills
+  in — a text may leave one out but not invent one (the editor shows which
+  work). Only what you changed is saved, in `data/lang/<language>.yaml`; it
+  applies at once and survives updates.
+- **Screens:** every screen can have a version per language:
+  `main.de-du.ans`, then `main.de.ans`, then `main.ans`. German versions of
+  the stock screens are shipped; they take their texts from the catalog with
+  `{T:key}` (`{T:col.subject:-40}` left-aligned to 40 characters,
+  `{T:col.total:5}` right-aligned) — one file for Sie and Du, and the labels
+  are changed in the language editor. `{T:…}` works in any screen, your own
+  too. Your own `welcome.ans` is translated as `welcome.de.ans` in the
+  designer.
+- **Menus:** a stock menu item shows up translated by itself. Your own labels
+  get their translation in the menu editor ("Other languages…"); the preview
+  shows every language.
 
-**Startseite (`/`):** öffentlich, ohne Login — Begrüßungsbildschirm, alle
-Zugänge (Web-Terminal, Telnet/SSH, Portal, Reader-App, QWK), wer online ist,
-letzte Anrufer, One-Liner, Doors und die FTN-Adressen für andere Sysops. Die
-Adresse, die man weitergibt. Ein geteilter Link (Telegram, Discord, Mastodon …) zeigt als
-Vorschau den Begrüßungsbildschirm (`/og-image.png`, aus `welcome.ans` gezeichnet).
+**Front page (`/`):** public, no login — welcome screen, every way in (web
+terminal, Telnet/SSH, portal, reader app, QWK), who's online, last callers,
+one-liners, doors and the FTN addresses for other sysops. The address to pass
+on. A shared link (Telegram, Discord, Mastodon …) shows the welcome screen as
+its preview (`/og-image.png`, drawn from `welcome.ans`).
 
-**RSS-Feeds:** System → Settings → „Public RSS feeds“ einschalten, dann gibt es
-für jede Area, die ein neuer Anrufer lesen darf, `/feeds/<tag>.xml` mit den
-neuesten 30 Nachrichten (die Startseite listet sie, Feed-Reader finden sie
-selbst). Areas mit höherem SL (Sysop, lokal Privates) bleiben draußen.
+**RSS feeds:** turn on System → Settings → "Public RSS feeds", and every area
+a new caller may read gets `/feeds/<tag>.xml` with the newest 30 messages
+(the front page lists them, feed readers find them by themselves). Areas with
+a higher SL (sysop, local private ones) stay out.
 
-**Threads:** Jede Antwort weiß, worauf sie antwortet — aus dem REPLY-Kludge
-der Echomail, bei Antworten hier direkt (Telnet, Portal, Reader-App, QWK).
-Ältere Nachrichten ohne diese Angabe werden über den Betreff („Re: …“)
-zugeordnet. Im Portal zeigt jede Area „All messages“ oder „Threads“, jede
-Nachricht ihren Thread als Baum; ausgehende Antworten tragen ein REPLY, damit
-andere Systeme sie ebenfalls einordnen.
+**Threads:** every reply knows what it answers — from the echomail's REPLY
+kludge, for replies written here directly (Telnet, portal, reader app, QWK).
+Older messages without it are matched by subject ("Re: …"). In the portal
+every area shows "All messages" or "Threads", every message its thread as a
+tree; outgoing replies carry a REPLY so other systems can place them too.
 
-**Chat im Web:** Das Portal (Chat) und die Reader-App (Chat in der Liste)
-haben dieselben Räume wie die Teleconference — wer im Portal schreibt, ist für
-Telnet-Anrufer da (`name (web)`), und gebrückte Räume reichen bis Discord und
+**Chat on the web:** the portal (Chat) and the reader app (Chat in the list)
+have the same rooms as the teleconference — whoever writes in the portal is
+there for Telnet callers (`name (web)`), and bridged rooms reach Discord and
 Matrix.
 
-**Web:** Portal (`/message-areas` …, Login unter `/login`) mit allem aus Telnet (Suche über das Feld bei den Message Areas), Reader-App (`/reader`) fürs Handy
-mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
+**Web:** portal (`/message-areas` …, login at `/login`) with everything from
+Telnet (search through the field at the message areas), reader app
+(`/reader`) for phones with offline reading and push, QWK readers like
+NullModem Reader.
 
-## 9. Im Alltag
+## 9. Day to day
 
-- **Dashboard:** „Needs attention“ zeigt Probleme (Dienst steht, Uplink
-  unerreichbar, Backup überfällig, Platte voll, Netmail hängt), wartende
-  Benutzer, gesperrte Adressen und wer dich gerade ruft. Probleme kommen auch
-  als Push.
-- **Chat & One-Liner:** Community → Chat & One-liners — dort antwortest du, wenn
-  jemand pagt, und räumst die One-Liner-Wand auf.
-- **Chat-Räume:** ebenda unter „Rooms“. Neben der Teleconference (`main`)
-  beliebig viele, je mit Thema und Mindest-SL. Anrufer sehen sie in der
-  Teleconference mit `/rooms` und wechseln mit `/join name`.
-- **Discord-Brücke:** Ein Raum kann mit einem Discord-Kanal verbunden werden:
-  Was in der BBS gesagt wird, erscheint dort unter dem Namen des Anrufers, was
-  in Discord geschrieben wird, in der BBS als `name@discord`. Die BBS baut nur
-  ausgehende Verbindungen auf, es braucht keinen offenen Port und keinen
-  eigenen Server. Einrichten (ca. 10 Minuten):
-  1. Eigener Discord-Server, falls noch keiner da ist: im Discord-Programm
-     unten in der Serverliste **+** → „Create My Own“.
+- **Dashboard:** "Needs attention" shows problems (service down, uplink
+  unreachable, backup overdue, disk full, netmail stuck), waiting users,
+  locked addresses and who's paging you right now. Problems come as push
+  notifications too.
+- **Chat & one-liners:** Community → Chat & One-liners — that's where you
+  answer when someone pages, and tidy up the one-liner wall.
+- **Chat rooms:** same place, under "Rooms". Besides the teleconference
+  (`main`) as many as you like, each with a topic and minimum SL. Callers see
+  them in the teleconference with `/rooms` and switch with `/join name`.
+- **Discord bridge:** a room can be linked to a Discord channel: what's said
+  on the BBS appears there under the caller's name, what's written in Discord
+  appears on the BBS as `name@discord`. The BBS makes outgoing connections
+  only; no open port and no server of your own needed. Setting up (about 10
+  minutes):
+  1. Your own Discord server, if you don't have one yet: in the Discord app,
+     **+** at the bottom of the server list → "Create My Own".
   2. [Developer Portal](https://discord.com/developers/applications) → **New
-     Application** (der Name wird der Name des Bots).
-  3. **Bot** → **Message Content Intent** einschalten → Save.
-  4. **Bot** → **Reset Token** → Token kopieren, in der BBS unter Community →
-     Chat & One-liners → Discord bridge einfügen → **Turn on**.
-  5. Sobald dort „Connected“ steht: **Add it to your server** — der Link fragt
-     die nötigen Rechte an (Kanäle sehen, schreiben, Verlauf lesen, Webhooks
-     verwalten).
-  6. Bei jedem Raum unter **Edit** den Kanal wählen.
+     Application** (its name becomes the bot's name).
+  3. **Bot** → turn on **Message Content Intent** → Save.
+  4. **Bot** → **Reset Token** → copy the token, paste it on the BBS under
+     Community → Chat & One-liners → Discord bridge → **Turn on**.
+  5. Once it says "Connected" there: **Add it to your server** — the link asks
+     for the rights needed (view channels, send, read history, manage
+     webhooks).
+  6. For each room, choose the channel under **Edit**.
 
-  Ohne das Recht „Webhooks verwalten“ schreibt der Bot selbst (`**name**:
-  text`). Ein- und Austritte meldet er, solange „Don't tell Discord …“ aus
-  ist. Ist die Brücke eingeschaltet, aber länger als 15 Minuten getrennt,
-  erscheint das unter „Needs attention“. Das Token steht in `bbs.yaml` und
-  wird im Web nie wieder angezeigt.
-- **Matrix-Brücke:** genauso, für Matrix-Räume (z. B. auf matrix.org): ein
-  Konto für den Bot anlegen (etwa über Element), unter „Matrix bridge“
-  Homeserver, Bot-Name und Passwort eintragen → „Log in and turn on“ (es wird
-  nur das Zugriffstoken gespeichert). Mit dem eigenen Konto einen Raum **ohne
-  Verschlüsselung** anlegen und den Bot einladen (oder den Raum öffentlich
-  machen), dann beim BBS-Raum unter Edit den Matrix-Raum wählen oder seine
-  Adresse `#raum:server` eintragen. In Matrix schreibt der Bot „name: text“,
-  in der BBS erscheint `name@matrix`. Verschlüsselte Räume kann der Bot nicht
-  lesen — das Admin warnt dann. Ein Raum kann gleichzeitig mit Discord und
-  Matrix verbunden sein; was in Discord gesagt wird, kommt dann auch in Matrix
-  an und umgekehrt.
-- **Abstimmungen / BBS-Liste:** Community → Polls & BBS List. Die BBS prüft
-  stündlich, ob die Boards der Liste antworten (TCP-Verbindung, nichts wird
-  gesendet) und zeigt „up/down“ bzw. „online/offline“; Adressen im eigenen
-  oder einem privaten Netz werden nie angefragt.
-- **Monatsrückblick:** Am 1. um 07:00 bekommt jeder Sysop eine Netmail mit dem
-  Vormonat — Anrufe, Schreiber, Areas, Echomail pro Netzwerk, Doors, Downloads,
-  BinkP-Sitzungen, Backup und was gerade nicht stimmt. Abschalten unter
-  Settings → Monthly recap; System → Statistics → „Send a recap now“ schickt
-  sofort einen.
-- **Statistik:** System → Statistics — Anrufe pro Tag und Stunde, aktivste
-  Anrufer, Schreiber und Areas, Echomail pro Netzwerk, Doors, Downloads,
-  BinkP-Sitzungen, neue Konten (7 Tage bis 1 Jahr). Die letzten 30 Tage ohne
-  den Sysop-Teil stehen auch auf der Startseite.
-- **Logs:** System → Logs — „All“ mit „Warnings & errors“ als schneller
-  Überblick; „BinkP sessions“ zeigt jede Sitzung samt Mitschnitt.
-- **Nachts automatisch:** 00:05 Door-Wartung (pro Door einstellbar), 03:00
-  Backup, 04:00 Maintenance (Serverzeit).
+  Without the "Manage webhooks" right the bot writes itself (`**name**:
+  text`). It announces joins and leaves as long as "Don't tell Discord …" is
+  off. If the bridge is on but disconnected for more than 15 minutes, it
+  shows under "Needs attention". The token is in `bbs.yaml` and never shown
+  on the web again.
+- **Matrix bridge:** the same, for Matrix rooms (e.g. on matrix.org): create
+  an account for the bot (through Element, say), enter homeserver, bot name
+  and password under "Matrix bridge" → "Log in and turn on" (only the access
+  token is stored). With your own account, create a room **without
+  encryption** and invite the bot (or make the room public), then choose the
+  Matrix room under Edit at the BBS room or enter its address
+  `#room:server`. In Matrix the bot writes "name: text", on the BBS it shows
+  as `name@matrix`. The bot can't read encrypted rooms — the admin warns you
+  then. A room can be linked to Discord and Matrix at the same time; what's
+  said in Discord then arrives in Matrix too, and the other way round.
+- **Polls / BBS list:** Community → Polls & BBS List. Every hour the BBS
+  checks whether the boards on the list answer (a TCP connection, nothing is
+  sent) and shows "up/down" or "online/offline"; addresses in your own or a
+  private network are never contacted.
+- **Monthly recap:** on the 1st at 07:00 every sysop gets a netmail about the
+  previous month — calls, writers, areas, echomail per network, doors,
+  downloads, BinkP sessions, backup and whatever is wrong right now. Turn it
+  off under Settings → Monthly recap; System → Statistics → "Send a recap
+  now" sends one at once.
+- **Statistics:** System → Statistics — calls per day and hour, most active
+  callers, writers and areas, echomail per network, doors, downloads, BinkP
+  sessions, new accounts (7 days to 1 year). The last 30 days without the
+  sysop part are on the front page too.
+- **Logs:** System → Logs — "All" with "Warnings & errors" as a quick
+  overview; "BinkP sessions" shows every session with its transcript.
+- **Automatic at night:** 00:05 door maintenance (set per door), 03:00
+  backup, 04:00 maintenance (server time).
 
 ## 10. Updates
 
-Neue Version: Image-Tag in der `docker-compose.yml` anpassen, dann
+New version: change the image tag in `docker-compose.yml`, then
 
 ```sh
 docker compose pull && docker compose up -d
 ```
 
-Menüs und Bildschirme unter `configs/` bleiben dabei unangetastet; neue
-Standard-Bildschirme kommen dazu, ohne angepasste zu überschreiben. Neue
-Menüpunkte zeigt Content → Menus an („This version's stock main menu has,
-and yours doesn't“) — mit **Add** übernehmen und speichern; die Vorschau
-sagt dann, ob der Bildschirm (`main.ans`) den Punkt schon zeigt, sonst
-„Edit screen“. Vor größeren Updates: „Back up now“.
+Menus and screens under `configs/` stay untouched; new stock screens are
+added without overwriting customized ones. Content → Menus shows new menu
+items ("This version's stock main menu has, and yours doesn't") — take them
+with **Add** and save; the preview then says whether the screen (`main.ans`)
+already shows the item, otherwise "Edit screen". Before bigger updates:
+"Back up now".
 
-## 11. Fehlersuche
+## 11. Troubleshooting
 
-| Symptom | Wo schauen | Häufige Ursache |
+| Symptom | Where to look | Common cause |
 |---|---|---|
-| Hub antwortet nicht | Logs → BinkP sessions → Mitschnitt | falsches Passwort, Hub down, Firewall |
-| `M_BSY … busy` | Mitschnitt | der Hub glaubt, es läuft schon eine Sitzung (alte Sperrdatei bei ihm) — Hub-Sysop fragen |
-| Post kommt nicht an | FTN → Packet Analyzer, Undeliverable Netmail | Area nicht abonniert / nicht freigegeben, falsches Packet-Passwort |
-| Anrufer ausgesperrt | Users → Security | zu viele Fehl-Logins; Unlock |
-| Door startet nicht | Logs → System (Door-Filter) | Verzeichnis leer, falsche Drop-Datei, Lock-Datei |
-| Zeiten falsch | `.env` → `TZ` | Container ohne Zeitzone (UTC) |
+| Hub doesn't answer | Logs → BinkP sessions → transcript | wrong password, hub down, firewall |
+| `M_BSY … busy` | transcript | the hub thinks a session is already running (a stale lock file on its side) — ask the hub's sysop |
+| Mail doesn't arrive | FTN → Packet Analyzer, Undeliverable Netmail | area not subscribed / not approved, wrong packet password |
+| Caller locked out | Users → Security | too many failed logins; Unlock |
+| Door doesn't start | Logs → System (door filter) | directory empty, wrong drop file, lock file |
+| Times wrong | `.env` → `TZ` | container without a time zone (UTC) |
 
-Wer Shell-Zugang hat: `docker compose logs -f mailer` (bzw. `bbs`, `web`).
+With shell access: `docker compose logs -f mailer` (or `bbs`, `web`).
 
-## 12. Wo was liegt
+## 12. Where things are
 
-| Pfad | Inhalt |
+| Path | Contents |
 |---|---|
-| `configs/bbs.yaml` | Konfiguration (inkl. Passwörter) |
-| `configs/web.yaml` | Web-Dienst |
-| `configs/menus/`, `configs/screens/` | Menüs und ANSI-Bildschirme (`name.de.ans` = deutsche Fassung) |
-| `data/lang/` | deine geänderten Texte pro Sprache (Spracheditor) |
-| `data/nullmodem.sqlite` | die Datenbank |
-| `data/files/`, `data/doors/` | Dateien der File-Areas, installierte Doors |
-| `data/backups/` | nächtliche Backups ([backup.md](backup.md)) |
-| `data/binkp-sessions/`, `data/inbound-archive/` | BinkP-Mitschnitte, empfangene Pakete (ein paar Tage) |
-| `data/jwt_secret`, `data/ssh_host_key`, `data/vapid.json` | Schlüssel — nicht weitergeben |
+| `configs/bbs.yaml` | configuration (incl. passwords) |
+| `configs/web.yaml` | web service |
+| `configs/menus/`, `configs/screens/` | menus and ANSI screens (`name.de.ans` = German version) |
+| `data/lang/` | your changed texts per language (language editor) |
+| `data/nullmodem.sqlite` | the database |
+| `data/files/`, `data/doors/` | files of the file areas, installed doors |
+| `data/backups/` | nightly backups ([backup.md](backup.md)) |
+| `data/binkp-sessions/`, `data/inbound-archive/` | BinkP transcripts, received packets (a few days) |
+| `data/jwt_secret`, `data/ssh_host_key`, `data/vapid.json` | keys — don't hand them out |
