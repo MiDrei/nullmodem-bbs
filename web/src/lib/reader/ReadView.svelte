@@ -1,6 +1,7 @@
 <script lang="ts">
 	// One message, full screen: swipe left for the next, right for the
 	// previous (or the arrows at the bottom), Reply below it.
+	import { t } from '$lib/i18n.svelte';
 	import { untrack, tick, type Snippet } from 'svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import { formatDateTime } from '$lib/datetime';
@@ -151,7 +152,7 @@
 >
 	<header class="r-bar">
 		{#if onBack}
-			<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label="Back">‹</button>
+			<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('web.common.back')}>‹</button>
 		{/if}
 		<span class="r-title text-sm font-normal text-muted">{title}</span>
 		{#if position}<span class="text-xs text-faint">{position}</span>{/if}
@@ -188,10 +189,10 @@
 		class="sticky bottom-0 flex items-center justify-between border-t border-line bg-black/95 px-3 pt-2 backdrop-blur"
 		style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom))"
 	>
-		<button class="r-btn text-4xl leading-none" disabled={!onPrev} onclick={() => slide(1)} aria-label="Previous">‹</button>
+		<button class="r-btn text-4xl leading-none" disabled={!onPrev} onclick={() => slide(1)} aria-label={t('web.common.prev')}>‹</button>
 		{#if onReply}
-			<button class="btn-primary px-6 py-2.5 text-base" onclick={onReply}>Reply</button>
+			<button class="btn-primary px-6 py-2.5 text-base" onclick={onReply}>{t('web.msg.reply')}</button>
 		{/if}
-		<button class="r-btn text-4xl leading-none" disabled={!onNext} onclick={() => slide(-1)} aria-label="Next">›</button>
+		<button class="r-btn text-4xl leading-none" disabled={!onNext} onclick={() => slide(-1)} aria-label={t('web.common.next')}>›</button>
 	</nav>
 </div>

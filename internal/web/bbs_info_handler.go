@@ -3,8 +3,10 @@ package web
 import (
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/version"
 	"git.maik.ch/nullmodem/kit/ansi"
 )
@@ -86,12 +88,19 @@ func (s *Server) handleWelcomeScreen(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load config")
 		return
 	}
-	raw, err := ansi.LoadScreen(filepath.Join(c.BBS.ScreensDir, welcomeScreenFile))
+	// In the visitor's language where there's one (welcome.de.ans).
+	lang := s.requestLang(r)
+	raw, err := "", os.ErrNotExist
+	for _, name := range i18n.ScreenNames(welcomeScreenFile, lang) {
+		if raw, err = ansi.LoadScreen(filepath.Join(c.BBS.ScreensDir, name)); err == nil {
+			break
+		}
+	}
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no welcome screen configured")
 		return
 	}
-	rendered := ansi.Render(raw, previewVars(c.BBS.Name, c.BBS.Sysop))
+	rendered := ansi.Render(i18n.FillScreen(lang, raw), previewVars(c.BBS.Name, c.BBS.Sysop))
 	rendered = ansi.Layout(rendered, previewWidth)
 
 	preformatted := ansi.IsPreformatted(rendered)

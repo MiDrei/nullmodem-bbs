@@ -5,6 +5,8 @@
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import { site } from '$lib/site.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
+	import LanguagePicker from '$lib/LanguagePicker.svelte';
+	import { t, useAccountLang } from '$lib/i18n.svelte';
 
 	let username = $state('');
 	let password = $state('');
@@ -34,9 +36,10 @@
 				timezone: res.timezone ?? '',
 				securityLevel: res.security_level
 			});
+			await useAccountLang(res.language);
 			await goto('/message-areas');
 		} catch (err) {
-			error = err instanceof ApiError ? err.message : 'Login failed.';
+			error = err instanceof ApiError ? err.message : t('web.login.failed');
 		} finally {
 			submitting = false;
 		}
@@ -62,27 +65,27 @@
 	{/if}
 
 	<div class="text-center">
-		<h1 class="text-3xl font-semibold tracking-tight text-ink-strong">Welcome back</h1>
-		<p class="mt-1.5 text-[13.5px] text-muted">Sign in to continue to {site.info.name}</p>
+		<h1 class="text-3xl font-semibold tracking-tight text-ink-strong">{t('web.login.title')}</h1>
+		<p class="mt-1.5 text-[13.5px] text-muted">{t('web.login.subtitle', { BBSNAME: site.info.name })}</p>
 	</div>
 
 	<form class="flex w-full max-w-[340px] flex-col gap-2.5" onsubmit={handleSubmit}>
-		<label class="sr-only" for="login-user">Username</label>
+		<label class="sr-only" for="login-user">{t('web.login.username')}</label>
 		<input
 			id="login-user"
 			class="field py-3 text-sm"
 			bind:value={username}
-			placeholder="Username"
+			placeholder={t('web.login.username')}
 			autocomplete="username"
 			required
 		/>
-		<label class="sr-only" for="login-pass">Password</label>
+		<label class="sr-only" for="login-pass">{t('web.login.password')}</label>
 		<input
 			id="login-pass"
 			type="password"
 			class="field py-3 text-sm"
 			bind:value={password}
-			placeholder="Password"
+			placeholder={t('web.login.password')}
 			autocomplete="current-password"
 			required
 		/>
@@ -90,19 +93,20 @@
 			<p class="text-sm text-red-400">{error}</p>
 		{/if}
 		<button type="submit" disabled={submitting} class="btn-primary mt-1.5 w-full py-3 text-sm">
-			{submitting ? 'Signing in…' : 'Sign in'}
+			{submitting ? t('web.login.signing_in') : t('web.login.sign_in')}
 		</button>
 	</form>
 
 	{#if site.info.telnet_port || site.info.ssh_port}
 		<p class="max-w-[340px] text-center text-xs leading-relaxed text-faint">
-			New here? Create an account over
+			{t('web.login.new_here')}
 			{#if site.info.telnet_port}
 				Telnet (<span class="font-mono text-muted">{host}:{site.info.telnet_port}</span>){/if}{#if site.info.telnet_port && site.info.ssh_port}
-				or{/if}
+				{t('web.common.or')}{/if}
 			{#if site.info.ssh_port}
 				SSH (<span class="font-mono text-muted">ssh {host} -p {site.info.ssh_port}</span>){/if}
-			first -- or <a href="/terminal" class="text-accent hover:underline">right here in the browser</a>.
+			{t('web.login.first')} <a href="/terminal" class="text-accent hover:underline">{t('web.login.in_browser')}</a>.
 		</p>
 	{/if}
+	<LanguagePicker class="text-xs text-faint" />
 </div>

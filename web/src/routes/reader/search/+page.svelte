@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Searching messages from the reader: subject, text, from and to,
 	// in every area you can read; a result opens in the reader.
+	import { t } from '$lib/i18n.svelte';
 	import { goto } from '$app/navigation';
 	import { searchMessages, type SearchHit } from '$lib/api';
 	import { readerToken, readerAuthFailed, errorText, shortDate } from '$lib/reader/session';
@@ -20,7 +21,7 @@
 			error = null;
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, 'Could not search.');
+			error = errorText(err, t('web.common.search_failed'));
 		} finally {
 			busy = false;
 		}
@@ -29,18 +30,18 @@
 
 <div class="r-full">
 	<header class="r-bar">
-		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label="Back">‹</button>
-		<span class="r-title">Search</span>
+		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label={t('web.common.back')}>‹</button>
+		<span class="r-title">{t('web.common.search')}</span>
 	</header>
 	<form class="flex gap-2 p-3" onsubmit={run}>
 		<!-- svelte-ignore a11y_autofocus -->
-		<input class="field min-w-0 flex-1 py-2.5" type="search" placeholder="Subject, text, from, to…" bind:value={q} autofocus />
+		<input class="field min-w-0 flex-1 py-2.5" type="search" placeholder={t('web.reader.search_placeholder')} bind:value={q} autofocus />
 		<button type="submit" class="r-btn font-semibold" disabled={busy || q.trim().length < 2}>{busy ? '…' : 'Go'}</button>
 	</form>
 	{#if error}
 		<p class="r-note text-red-400">{error}</p>
 	{:else if hits && hits.length === 0}
-		<p class="r-note">Nothing found.</p>
+		<p class="r-note">{t('web.common.nothing_found')}</p>
 	{:else if hits}
 		{#each hits as h (h.id)}
 			<button class="r-row" onclick={() => goto(`/reader/m/${h.id}`)}>

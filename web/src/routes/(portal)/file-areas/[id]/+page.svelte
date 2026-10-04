@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -78,7 +79,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load files.';
+			loadError = err instanceof ApiError ? err.message : t('web.files.list_failed');
 		} finally {
 			loaded = true;
 		}
@@ -97,7 +98,7 @@
 			archiveListings = { ...archiveListings, [f.id]: { loading: false, error: null, preview: p } };
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			const message = err instanceof ApiError ? err.message : 'Could not load contents.';
+			const message = err instanceof ApiError ? err.message : t('web.files.contents_failed');
 			archiveListings = { ...archiveListings, [f.id]: { loading: false, error: message, preview: null } };
 		}
 	}
@@ -118,10 +119,10 @@
 			uploadDescription = '';
 			if (fileInput) fileInput.value = '';
 			await load();
-			toast.push('File uploaded.', 'success');
+			toast.push(t('web.files.uploaded'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not upload file.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.files.upload_failed'), 'error');
 		} finally {
 			uploading = false;
 		}
@@ -134,7 +135,7 @@
 			await load();
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not download file.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.files.download_failed'), 'error');
 		}
 	}
 
@@ -155,7 +156,7 @@
 			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			modalError = err instanceof ApiError ? err.message : 'Could not load preview.';
+			modalError = err instanceof ApiError ? err.message : t('web.files.preview_failed');
 		} finally {
 			modalLoading = false;
 		}
@@ -178,21 +179,21 @@
 			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			modalError = err instanceof ApiError ? err.message : 'Could not load preview.';
+			modalError = err instanceof ApiError ? err.message : t('web.files.preview_failed');
 		} finally {
 			modalLoading = false;
 		}
 	}
 </script>
 
-<a href="/file-areas" class="back-link">&larr; Files</a>
+<a href="/file-areas" class="back-link">&larr; {t('web.nav.files')}</a>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="mt-4 text-sm text-muted">Loading…</p>
+	<p class="mt-4 text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
-	<h1 class="page-title mt-1.5 mb-5">{area?.name ?? 'Area'}</h1>
+	<h1 class="page-title mt-1.5 mb-5">{area?.name ?? t('web.msgs.area')}</h1>
 
 	<div class="card mb-6 flex flex-wrap items-center gap-2.5 p-4">
 		<input
@@ -200,14 +201,14 @@
 			bind:this={fileInput}
 			class="text-xs text-muted file:mr-2.5 file:rounded-lg file:border file:border-line-strong file:bg-transparent file:px-3 file:py-1.5 file:text-xs file:text-ink hover:file:border-accent hover:file:text-accent"
 		/>
-		<input class="field w-auto flex-1 py-2" placeholder="Description" bind:value={uploadDescription} />
+		<input class="field w-auto flex-1 py-2" placeholder={t('web.files.description')} bind:value={uploadDescription} />
 		<button class="btn-primary py-2" disabled={uploading} onclick={upload}>
-			{uploading ? 'Uploading…' : 'Upload'}
+			{uploading ? t('web.files.uploading') : t('web.files.upload')}
 		</button>
 	</div>
 
 	{#if files.length === 0}
-		<p class="text-sm text-muted">No files in this area yet.</p>
+		<p class="text-sm text-muted">{t('web.files.empty')}</p>
 	{:else}
 		<div class="flex flex-col">
 			{#each files as f, i (f.id)}
@@ -229,28 +230,28 @@
 						</div>
 					</div>
 					{#if f.unread}
-						<span class="badge-new">NEW</span>
+						<span class="badge-new">{t('web.common.new_badge')}</span>
 					{/if}
 					<span class="list-meta w-16 shrink-0 text-right">{f.size_human}</span>
 					<div class="flex shrink-0 justify-end gap-1.5">
 						{#if kind === 'image' || kind === 'text'}
 							<button class="btn-secondary px-3 py-1.5 text-xs" onclick={() => openPreview(f)}>
-								Preview
+								{t('web.files.preview')}
 							</button>
 						{:else if kind === 'archive'}
 							<button class="btn-secondary px-3 py-1.5 text-xs" onclick={() => toggleArchivePreview(f)}>
-								{expandedArchiveId === f.id ? 'Hide' : 'Preview'}
+								{expandedArchiveId === f.id ? t('web.files.hide') : t('web.files.preview')}
 							</button>
 						{/if}
 						<button class="btn-primary px-3 py-1.5 text-xs" onclick={() => download(f)}>
-							Download
+							{t('web.files.download')}
 						</button>
 					</div>
 				</div>
 				{#if kind === 'archive' && expandedArchiveId === f.id}
 					<div class="border-b border-line bg-sunken py-2.5 pr-3 pl-12">
 						{#if archiveEntry?.loading}
-							<p class="text-xs text-faint">Reading archive contents…</p>
+							<p class="text-xs text-faint">{t('web.files.reading_archive')}</p>
 						{:else if archiveEntry?.error}
 							<p class="text-xs text-red-400">{archiveEntry.error}</p>
 						{:else if archiveEntry?.preview?.kind === 'archive'}
@@ -265,7 +266,7 @@
 													class="text-faint transition-colors hover:text-accent"
 													onclick={() => openEntryPreview(f, entry.name)}
 												>
-													Preview
+													{t('web.files.preview')}
 												</button>
 											{/if}
 										</div>
@@ -273,7 +274,7 @@
 								{/each}
 							</ul>
 							{#if archiveEntry.preview.entries_truncated}
-								<p class="mt-1 text-xs text-faint">List truncated.</p>
+								<p class="mt-1 text-xs text-faint">{t('web.files.truncated')}</p>
 							{/if}
 						{/if}
 					</div>

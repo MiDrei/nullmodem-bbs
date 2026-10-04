@@ -43,16 +43,16 @@ func (s *Server) loginAllowed(w http.ResponseWriter, r *http.Request) (string, b
 	if v.Until.IsZero() {
 		status = http.StatusForbidden
 	}
-	writeError(w, status, v.Message())
+	writeError(w, status, v.MessageIn(s.requestLang(r)))
 	return ip, false
 }
 
 // loginFailed records a failed login and answers it: 401, or 429 when
 // it just locked the address out.
-func (s *Server) loginFailed(w http.ResponseWriter, ip, handle, source string) {
+func (s *Server) loginFailed(w http.ResponseWriter, r *http.Request, ip, handle, source string) {
 	if s.Guard != nil {
 		if v, err := s.Guard.Fail(ip, handle, source); err == nil && v.Blocked {
-			writeError(w, http.StatusTooManyRequests, v.Message())
+			writeError(w, http.StatusTooManyRequests, v.MessageIn(s.requestLang(r)))
 			return
 		}
 	}

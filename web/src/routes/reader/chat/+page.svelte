@@ -1,5 +1,6 @@
 <script lang="ts">
 	// The chat rooms in the reader app, with who's in them.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { listBBSChatRooms, type BBSChatRoom } from '$lib/api';
@@ -17,7 +18,7 @@
 			error = null;
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, 'Could not load the rooms.');
+			error = errorText(err, t('web.chat.load_failed'));
 		}
 	}
 
@@ -30,8 +31,8 @@
 
 <div class="r-full">
 	<header class="r-bar">
-		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label="Back">‹</button>
-		<span class="r-title">Chat</span>
+		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label={t('web.common.back')}>‹</button>
+		<span class="r-title">{t('web.nav.chat')}</span>
 	</header>
 	{#if error}
 		<p class="r-note text-red-400">{error}</p>
@@ -49,7 +50,7 @@
 				<span class="text-faint">›</span>
 			</button>
 		{:else}
-			<p class="r-note">No rooms.</p>
+			<p class="r-note">{t('web.chat.no_rooms')}</p>
 		{/each}
 	{/if}
 </div>

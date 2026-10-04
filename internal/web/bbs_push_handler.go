@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/push"
 )
 
@@ -136,7 +137,8 @@ func (s *Server) handleTestPush(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not subscribed")
 		return
 	}
-	n := push.Notification{Title: "Notifications are on", Body: "New mail will show up here.", URL: "/reader/", Tag: "test"}
+	lang := s.requestLang(r)
+	n := push.Notification{Title: i18n.T(lang, "push.test_title"), Body: i18n.T(lang, "push.test_body"), URL: "/reader/", Tag: "test"}
 	if err := s.Push.Send(r.Context(), sub, n); err != nil {
 		s.Logger.Warn("test notification: %v", err)
 		writeError(w, http.StatusBadGateway, "the push service did not take the notification")

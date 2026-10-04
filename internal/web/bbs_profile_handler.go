@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
@@ -28,6 +29,9 @@ type profileDTO struct {
 	// Location is where the caller is (user.User.Place), for the
 	// InterBBS last callers list; "" if not set.
 	Location string `json:"location"`
+	// Language is the language the caller reads the board in (an
+	// internal/i18n code), "" for the board's own.
+	Language string `json:"language"`
 }
 
 func toProfileDTO(u *user.User) profileDTO {
@@ -40,6 +44,7 @@ func toProfileDTO(u *user.User) profileDTO {
 		Timezone:      u.Timezone,
 		QWKRouting:    u.QWKRouting,
 		Location:      u.Place,
+		Language:      u.Language,
 	}
 }
 
@@ -72,6 +77,7 @@ func (s *Server) handleUpdateBBSProfile(w http.ResponseWriter, r *http.Request) 
 		Timezone   *string `json:"timezone"`
 		QWKRouting *bool   `json:"qwk_routing"`
 		Location   *string `json:"location"`
+		Language   *string `json:"language"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -124,6 +130,18 @@ func (s *Server) handleUpdateBBSProfile(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		s.logInfo("%s set their location via the BBS portal", claims.Subject)
+	}
+
+	if req.Language != nil {
+		if *req.Language != "" && !i18n.Valid(*req.Language) {
+			writeError(w, http.StatusBadRequest, "no such language")
+			return
+		}
+		if err := s.Users.SetLanguage(claims.UserID, *req.Language); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not save the language")
+			return
+		}
+		s.logInfo("%s set their language to %q via the BBS portal", claims.Subject, *req.Language)
 	}
 
 	if req.QWKRouting != nil {

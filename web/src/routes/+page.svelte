@@ -3,6 +3,7 @@
 	// no login needed -- the welcome screen, every way to call (browser
 	// terminal, Telnet/SSH, portal, reader app, QWK), the FTN details
 	// for other sysops, and what's going on right now.
+	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import favicon from '$lib/assets/favicon.svg';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
@@ -11,6 +12,7 @@
 	import StatsBoard from '$lib/stats/StatsBoard.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import Icon from '$lib/Icon.svelte';
+	import LanguagePicker from '$lib/LanguagePicker.svelte';
 
 	let o = $state<PublicOverview | null>(null);
 	let welcome = $state<WelcomeScreen | null>(null);
@@ -46,8 +48,8 @@
 		getPublicDoorBulletins()
 			.then((b) => (scores = b))
 			.catch(() => {});
-		const t = setInterval(refresh, 60_000);
-		return () => clearInterval(t);
+		const timer = setInterval(refresh, 60_000);
+		return () => clearInterval(timer);
 	});
 
 	async function copy(text: string) {
@@ -62,10 +64,10 @@
 
 	function ago(iso: string): string {
 		const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-		if (s < 90) return 'just now';
-		if (s < 3600) return `${Math.round(s / 60)} min ago`;
-		if (s < 86400 * 1.5) return `${Math.round(s / 3600)} h ago`;
-		return `${Math.round(s / 86400)} days ago`;
+		if (s < 90) return t('web.time.just_now');
+		if (s < 3600) return t('web.time.minutes', { N: Math.round(s / 60) });
+		if (s < 86400 * 1.5) return t('web.time.hours', { N: Math.round(s / 3600) });
+		return t('web.time.days_long', { N: Math.round(s / 86400) });
 	}
 
 	const telnet = $derived(o?.telnet_port ? `${host}:${o.telnet_port}` : '');
@@ -73,12 +75,12 @@
 	const stats = $derived(
 		o
 			? ([
-					['users', 'callers'],
-					['calls', 'calls'],
-					['messages', 'messages'],
-					['message_areas', 'message areas'],
-					['files', 'files'],
-					['doors', 'doors']
+					['users', 'web.home.stat_users'],
+					['calls', 'web.home.stat_calls'],
+					['messages', 'web.home.stat_messages'],
+					['message_areas', 'web.home.stat_areas'],
+					['files', 'web.home.stat_files'],
+					['doors', 'web.home.stat_doors']
 				] as const).filter(([k]) => (o!.stats[k] ?? 0) > 0)
 			: []
 	);
@@ -87,17 +89,17 @@
 <svelte:head>
 	<link rel="icon" href={favicon} />
 	<title>{o?.name ?? 'NullModem BBS'}</title>
-	<meta name="description" content="{o?.name ?? 'A BBS'} — call by Telnet, SSH or right in the browser." />
+	<meta name="description" content={t('web.home.meta', { BBSNAME: o?.name ?? 'BBS' })} />
 </svelte:head>
 
 {#snippet copyable(text: string)}
 	<button
 		class="group inline-flex max-w-full items-center gap-2 rounded-md border border-line px-2.5 py-1 font-mono text-[13px] text-accent transition hover:border-line-strong"
-		title="Copy"
+		title={t('web.home.copy')}
 		onclick={() => copy(text)}
 	>
 		<span class="truncate">{text}</span>
-		<span class="shrink-0 text-[10.5px] text-faint group-hover:text-muted">{copied === text ? 'copied ✓' : 'copy'}</span>
+		<span class="shrink-0 text-[10.5px] text-faint group-hover:text-muted">{copied === text ? t('web.home.copied') : t('web.home.copy_short')}</span>
 	</button>
 {/snippet}
 
@@ -105,12 +107,13 @@
 	<header class="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-line px-6 py-5 md:px-10">
 		<span class="text-[15px] font-bold tracking-tight text-ink-strong">{o?.name ?? ''}</span>
 		<nav class="flex items-center gap-x-5 text-[13px] text-muted">
-			<a href="/terminal" class="flex items-center gap-1.5 transition-colors hover:text-accent"><Icon name="server" />Terminal</a>
-			<a href="/reader" class="flex items-center gap-1.5 transition-colors hover:text-accent"><Icon name="qwk" />Reader</a>
+			<a href="/terminal" class="flex items-center gap-1.5 transition-colors hover:text-accent"><Icon name="server" />{t('web.home.terminal')}</a>
+			<a href="/reader" class="flex items-center gap-1.5 transition-colors hover:text-accent"><Icon name="qwk" />{t('web.home.reader')}</a>
+			<LanguagePicker />
 			{#if bbsAuth.token}
-				<a href="/message-areas" class="btn-primary btn-sm">Open the portal</a>
+				<a href="/message-areas" class="btn-primary btn-sm">{t('web.home.open_portal')}</a>
 			{:else}
-				<a href="/login" class="btn-primary btn-sm">Log in</a>
+				<a href="/login" class="btn-primary btn-sm">{t('web.home.login')}</a>
 			{/if}
 		</nav>
 	</header>
@@ -131,7 +134,7 @@
 				<div class="text-center">
 					<h1 class="text-3xl font-semibold tracking-tight text-ink-strong">{o.name}</h1>
 					<p class="mt-1.5 text-[13.5px] text-muted">
-						{[o.sysop && `Sysop ${o.sysop}`, o.location, o.since_year && `online since ${o.since_year}`]
+						{[o.sysop && t('web.bbslist.sysop_is', { NAME: o.sysop }), o.location, o.since_year && t('web.home.since', { YEAR: o.since_year })]
 							.filter(Boolean)
 							.join(' · ')}
 					</p>
@@ -140,8 +143,8 @@
 					<div class="flex flex-wrap justify-center gap-x-8 gap-y-3">
 						{#each stats as [k, label] (k)}
 							<div class="text-center">
-								<div class="font-mono text-xl text-ink-strong">{o.stats[k].toLocaleString()}</div>
-								<div class="card-label">{label}</div>
+								<div class="font-mono text-xl text-ink-strong">{o.stats[k].toLocaleString(i18n.locale)}</div>
+								<div class="card-label">{t(label)}</div>
 							</div>
 						{/each}
 					</div>
@@ -151,20 +154,20 @@
 
 		<!-- Every way in -->
 		<section>
-			<h2 class="card-label mb-3">How to call</h2>
+			<h2 class="card-label mb-3">{t('web.home.how')}</h2>
 			<div class="grid gap-4 md:grid-cols-2">
 				<a href="/terminal" class="card flex flex-col gap-2 transition hover:border-line-strong">
-					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="server" />In the browser</div>
+					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="server" />{t('web.home.browser')}</div>
 					<p class="text-sm text-ink-soft">
-						The full BBS — ANSI, menus, doors, chat — in a terminal right here. Nothing to install.
+						{t('web.home.browser_text')}
 					</p>
-					<span class="mt-auto text-sm text-accent">Open the terminal →</span>
+					<span class="mt-auto text-sm text-accent">{t('web.home.open_terminal')} →</span>
 				</a>
 
 				<div class="card flex flex-col gap-2">
 					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="binkp" />Telnet & SSH</div>
 					<p class="text-sm text-ink-soft">
-						The classic way, with SyncTERM, NetRunner, MagiTerm or any terminal. File transfers by Zmodem.
+						{t('web.home.telnet_text')}
 					</p>
 					{#if telnet}
 						<div class="flex flex-wrap items-center gap-2">
@@ -174,39 +177,38 @@
 					{/if}
 					{#if ssh}
 						<div>{@render copyable(ssh)}</div>
-						<p class="text-xs text-faint">Any SSH user name and password will do — the BBS's own login follows.</p>
+						<p class="text-xs text-faint">{t('web.home.ssh_hint')}</p>
 					{/if}
 				</div>
 
 				<a href={bbsAuth.token ? '/message-areas' : '/login'} class="card flex flex-col gap-2 transition hover:border-line-strong">
-					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="areas" />Web portal</div>
+					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="areas" />{t('web.terminal.portal')}</div>
 					<p class="text-sm text-ink-soft">
-						Message and file areas, netmail, search, polls and QWK packets — with a mouse, in any browser.
+						{t('web.home.portal_text')}
 					</p>
-					<span class="mt-auto text-sm text-accent">{bbsAuth.token ? 'Open the portal →' : 'Log in →'}</span>
+					<span class="mt-auto text-sm text-accent">{bbsAuth.token ? t('web.home.open_portal') : t('web.home.login')} →</span>
 				</a>
 
 				<a href="/reader" class="card flex flex-col gap-2 transition hover:border-line-strong">
-					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="netmail" />Reader app</div>
+					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="netmail" />{t('web.home.reader_app')}</div>
 					<p class="text-sm text-ink-soft">
-						Echomail and netmail on your phone. Add it to the home screen: reads offline, sends when you're back
-						online, and notifies you of new mail.
+						{t('web.home.reader_text')}
 					</p>
-					<span class="mt-auto text-sm text-accent">Open the reader →</span>
+					<span class="mt-auto text-sm text-accent">{t('web.home.open_reader')} →</span>
 				</a>
 
 				<div class="card flex flex-col gap-2 md:col-span-2">
-					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="qwk" />Offline with QWK</div>
+					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="qwk" />{t('web.home.qwk')}</div>
 					<p class="text-sm text-ink-soft">
-						Fetch your mail as a QWK packet and read it offline — with the
+						{t('web.home.qwk_text1')}
 						<a href="https://git.maik.ch/nullmodem/reader/releases" class="text-accent hover:underline" target="_blank" rel="noopener">NullModem Reader</a>
-						(it calls the board itself) or any QWK reader such as MultiMail. Packets come from the portal (QWK Mail), or by Telnet with
+						{t('web.home.qwk_text2')}
 						<span class="font-mono">O</span> / <span class="font-mono">U</span>.
 					</p>
 				</div>
 			</div>
 			<p class="mt-3 text-xs text-faint">
-				New here? Sign up by Telnet, SSH or in the browser terminal — the sysop then activates your account.
+				{t('web.home.new_here')}
 			</p>
 		</section>
 
@@ -214,9 +216,9 @@
 		{#if o}
 			<section class="grid gap-4 md:grid-cols-2">
 				<div class="card">
-					<h2 class="card-label mb-3">Online now</h2>
+					<h2 class="card-label mb-3">{t('web.home.online')}</h2>
 					{#if o.online.length === 0}
-						<p class="text-sm text-muted">Nobody's on — the line is free.</p>
+						<p class="text-sm text-muted">{t('web.home.nobody')}</p>
 					{:else}
 						<ul class="flex flex-col gap-1.5 text-sm">
 							{#each o.online as n (n.node)}
@@ -227,9 +229,9 @@
 							{/each}
 						</ul>
 					{/if}
-					<h2 class="card-label mt-5 mb-3">Last callers</h2>
+					<h2 class="card-label mt-5 mb-3">{t('web.home.last_callers')}</h2>
 					{#if o.callers.length === 0}
-						<p class="text-sm text-muted">Be the first.</p>
+						<p class="text-sm text-muted">{t('web.home.be_first')}</p>
 					{:else}
 						<ul class="flex flex-col gap-1.5 text-sm">
 							{#each o.callers as c (c.handle)}
@@ -244,9 +246,9 @@
 
 				<div class="flex flex-col gap-4">
 					<div class="card">
-						<h2 class="card-label mb-3">One-liners</h2>
+						<h2 class="card-label mb-3">{t('web.home.oneliners')}</h2>
 						{#if o.oneliners.length === 0}
-							<p class="text-sm text-muted">The wall is empty — leave the first line.</p>
+							<p class="text-sm text-muted">{t('web.home.wall_empty')}</p>
 						{:else}
 							<ul class="flex flex-col gap-2 text-sm">
 								{#each o.oneliners as l, i (i)}
@@ -259,7 +261,7 @@
 					</div>
 					{#if o.doors.length}
 						<div class="card">
-							<h2 class="card-label mb-3">Doors</h2>
+							<h2 class="card-label mb-3">{t('web.home.doors')}</h2>
 							<div class="flex flex-wrap gap-1.5">
 								{#each o.doors as d (d)}
 									<span class="rounded-md border border-line px-2 py-0.5 text-xs text-ink-soft">{d}</span>
@@ -272,21 +274,21 @@
 
 			{#if report}
 				<section>
-					<h2 class="card-label mb-3">The last 30 days</h2>
+					<h2 class="card-label mb-3">{t('web.home.last_30')}</h2>
 					<StatsBoard r={report} />
 				</section>
 			{/if}
 
 			{#if scores.length}
 				<section class="card">
-					<h2 class="card-label mb-3">Door scores</h2>
+					<h2 class="card-label mb-3">{t('web.home.scores')}</h2>
 					<DoorBulletins list={scores} />
 				</section>
 			{/if}
 
 			{#if files.length}
 				<section class="card">
-					<h2 class="card-label mb-3">Files to download</h2>
+					<h2 class="card-label mb-3">{t('web.home.files')}</h2>
 					<ul class="flex flex-col divide-y divide-line">
 						{#each files as f (f.id)}
 							<li>
@@ -303,11 +305,11 @@
 
 			{#if feeds.length}
 				<section class="card">
-					<h2 class="card-label mb-1">Follow the areas (RSS)</h2>
-					<p class="mb-3 text-xs text-faint">The newest messages of each area, for any feed reader -- no login needed.</p>
+					<h2 class="card-label mb-1">{t('web.home.rss')}</h2>
+					<p class="mb-3 text-xs text-faint">{t('web.home.rss_text')}</p>
 					<div class="flex flex-wrap gap-1.5">
 						{#each feeds as f (f.tag)}
-							<a href={f.url} class="rounded-md border border-line px-2 py-0.5 text-xs text-ink-soft transition hover:border-accent hover:text-accent" title={f.network || 'local'}>
+							<a href={f.url} class="rounded-md border border-line px-2 py-0.5 text-xs text-ink-soft transition hover:border-accent hover:text-accent" title={f.network || t('web.areas.local')}>
 								{f.name}
 							</a>
 						{/each}
@@ -318,7 +320,7 @@
 			<!-- For other sysops -->
 			{#if o.networks.length || o.binkp_port}
 				<section class="card">
-					<h2 class="card-label mb-3">For sysops: FidoNet-style networks</h2>
+					<h2 class="card-label mb-3">{t('web.home.sysops')}</h2>
 					<div class="flex flex-col gap-3 text-sm">
 						{#if o.binkp_port}
 							<div class="flex flex-wrap items-center gap-2">
@@ -334,7 +336,7 @@
 								</div>
 							{/each}
 						</div>
-						<p class="text-xs text-faint">Want to be a point here or link up? Send the sysop a netmail.</p>
+						<p class="text-xs text-faint">{t('web.home.sysops_text')}</p>
 					</div>
 				</section>
 			{/if}
@@ -343,6 +345,6 @@
 
 	<footer class="flex justify-between gap-4 border-t border-line px-6 py-4 font-mono text-[10.5px] text-dim md:px-10">
 		<span>NullModem BBS{o?.version ? ` v${o.version}` : ''}</span>
-		{#if bbsAuth.isSysop}<a href="/admin" class="hover:text-ink">Admin</a>{/if}
+		{#if bbsAuth.isSysop}<a href="/admin" class="hover:text-ink">{t('web.nav.admin')}</a>{/if}
 	</footer>
 </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
@@ -40,7 +41,7 @@
 		} catch (err) {
 			area.mine = !want;
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not save it.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.common.save_failed'), 'error');
 		}
 	}
 
@@ -67,7 +68,7 @@
 			areas = await listBBSMessageAreas(bbsAuth.token);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load message areas.';
+			loadError = err instanceof ApiError ? err.message : t('web.areas.load_failed');
 		} finally {
 			loaded = true;
 		}
@@ -79,7 +80,7 @@
 	let groups = $derived.by(() => {
 		const out: { network: string; areas: BBSMessageArea[]; newCount: number }[] = [];
 		for (const area of areas.filter((a) => scope === 'all' || a.mine)) {
-			const label = area.network || 'Local';
+			const label = area.network || t('web.areas.local');
 			const last = out[out.length - 1];
 			if (last && last.network === label) {
 				last.areas.push(area);
@@ -104,24 +105,24 @@
 
 <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
 	<div>
-		<h1 class="page-title">Message Areas</h1>
-		<p class="page-subtitle">Boards you can read and post to</p>
+		<h1 class="page-title">{t('web.areas.title')}</h1>
+		<p class="page-subtitle">{t('web.areas.subtitle')}</p>
 	</div>
 	<form action="/search" class="flex gap-2">
-		<input name="q" class="field field-sm w-56" placeholder="Search messages…" minlength="2" />
+		<input name="q" class="field field-sm w-56" placeholder={t('web.areas.search')} minlength="2" />
 	</form>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else if areas.length === 0}
-	<p class="text-sm text-muted">No message areas available to you yet.</p>
+	<p class="text-sm text-muted">{t('web.areas.none')}</p>
 {:else}
 	<div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line">
 		<div class="flex gap-1">
-			{#each [['mine', `My areas · ${mineCount}`], ['all', `All areas · ${areas.length}`]] as [v, label] (v)}
+			{#each [['mine', `${t('web.areas.mine')} · ${mineCount}`], ['all', `${t('web.areas.all')} · ${areas.length}`]] as [v, label] (v)}
 				<button
 					class="border-b-2 px-3 py-2 text-sm font-medium transition {scope === v ? 'border-accent text-ink-strong' : 'border-transparent text-muted hover:text-ink'}"
 					onclick={() => setScope(v as 'mine' | 'all')}>{label}</button
@@ -129,22 +130,22 @@
 			{/each}
 		</div>
 		<p class="pb-2 text-xs text-faint">
-			{scope === 'mine' ? 'What the new scan, QWK packets and the reader app include.' : '✓ marks your areas -- click it to add or take out an area.'}
+			{scope === 'mine' ? t('web.areas.mine_hint') : t('web.areas.all_hint')}
 		</p>
 	</div>
 	{#if scope === 'mine' && mineCount === 0}
-		<p class="text-sm text-muted">You took every area out -- add some under <button class="text-accent hover:underline" onclick={() => setScope('all')}>All areas</button>.</p>
+		<p class="text-sm text-muted">{t('web.areas.none_mine')} <button class="text-accent hover:underline" onclick={() => setScope('all')}>{t('web.areas.all')}</button>.</p>
 	{/if}
 	{#if groups.length > 1}
 		<!-- One pill per network, so hundreds of areas aren't one scroll. -->
-		<div class="mb-4 flex flex-wrap gap-1.5" role="tablist" aria-label="Networks">
+		<div class="mb-4 flex flex-wrap gap-1.5" role="tablist" aria-label={t('web.areas.networks')}>
 			<button
 				role="tab"
 				aria-selected={activeNetwork === ALL_TAB}
 				class="pill {activeNetwork === ALL_TAB ? 'pill-active' : ''}"
 				onclick={() => (activeNetwork = ALL_TAB)}
 			>
-				All · {shown.length}{totalNew > 0 ? ` · ${totalNew} new` : ''}
+				{t('web.common.all')} · {shown.length}{totalNew > 0 ? ` · ${t('web.common.n_new', { COUNT: totalNew })}` : ''}
 			</button>
 			{#each groups as group (group.network)}
 				<button
@@ -153,7 +154,7 @@
 					class="pill {activeNetwork === group.network ? 'pill-active' : ''}"
 					onclick={() => (activeNetwork = group.network)}
 				>
-					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${group.newCount} new` : ''}
+					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${t('web.common.n_new', { COUNT: group.newCount })}` : ''}
 				</button>
 			{/each}
 		</div>
@@ -165,7 +166,7 @@
 					<h2 class="card-label">{group.network}</h2>
 					{#if scope === 'all'}
 						<button class="text-xs text-muted hover:text-accent" onclick={() => toggleGroup(group.areas)}>
-							{group.areas.some((a) => !a.mine) ? 'all into my areas' : 'all out of my areas'}
+							{group.areas.some((a) => !a.mine) ? t('web.areas.group_in') : t('web.areas.group_out')}
 						</button>
 					{/if}
 				</div>
@@ -190,14 +191,14 @@
 						{/if}
 					</div>
 					{#if area.new > 0}
-						<span class="badge-new">{area.new} NEW</span>
+						<span class="badge-new">{t('web.common.n_new_badge', { COUNT: area.new })}</span>
 					{/if}
 					<span class="list-meta w-10 shrink-0 text-right">{area.total}</span>
 				</a>
 				<button
 					class="w-10 shrink-0 text-base transition {area.mine ? 'text-accent' : 'text-faint hover:text-accent'}"
-					title={area.mine ? 'In your areas -- click to take it out' : 'Not in your areas -- click to add it'}
-					aria-label={area.mine ? `Take ${area.name} out of my areas` : `Add ${area.name} to my areas`}
+					title={area.mine ? t('web.areas.in_title') : t('web.areas.out_title')}
+					aria-label={area.mine ? t('web.areas.take_out', { AREA: area.name }) : t('web.areas.add', { AREA: area.name })}
 					aria-pressed={area.mine}
 					onclick={(e) => toggle(area, e)}>{area.mine ? '✓' : '+'}</button
 				>

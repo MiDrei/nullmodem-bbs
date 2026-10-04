@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
@@ -38,7 +39,7 @@
 			areas = await listQWKAreas(bbsAuth.token);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load message areas.';
+			loadError = err instanceof ApiError ? err.message : t('web.areas.load_failed');
 		} finally {
 			loaded = true;
 		}
@@ -58,10 +59,10 @@
 				bbsAuth.token,
 				areas.filter((a) => a.selected).map((a) => a.id)
 			);
-			toast.push('QWK area selection saved.', 'success');
+			toast.push(t('web.qwk.saved'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not save selection.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.qwk.save_failed'), 'error');
 		} finally {
 			saving = false;
 		}
@@ -72,10 +73,10 @@
 		downloading = true;
 		try {
 			const got = await downloadQWKPacket(bbsAuth.token);
-			toast.push(got ? 'QWK packet downloaded.' : 'No new mail to download.', 'success');
+			toast.push(got ? t('web.qwk.downloaded') : t('web.qwk.no_mail'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not download packet.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.qwk.download_failed'), 'error');
 		} finally {
 			downloading = false;
 		}
@@ -90,17 +91,17 @@
 		try {
 			const result = await uploadQWKReply(bbsAuth.token, file);
 			toast.push(
-				`Replies processed: ${result.posted} posted, ${result.sent} netmail sent` +
-					(result.skipped > 0 ? `, ${result.skipped} skipped` : '') +
+				t('web.qwk.processed', { POSTED: result.posted, SENT: result.sent }) +
+					(result.skipped > 0 ? t('web.qwk.skipped', { COUNT: result.skipped }) : '') +
 					'.',
 				'success'
 			);
 			for (const r of result.rejected ?? []) {
-				toast.push(`Not delivered: "${r.subject}" to ${r.to} -- ${r.reason}`, 'error');
+				toast.push(t('web.qwk.not_delivered', { SUBJECT: r.subject, TO: r.to, REASON: r.reason }), 'error');
 			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not process reply packet.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.qwk.process_failed'), 'error');
 		} finally {
 			uploading = false;
 			input.value = '';
@@ -109,19 +110,16 @@
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">QWK Offline Mail</h1>
-	<p class="page-subtitle max-w-xl leading-relaxed">
-		Pick which areas your QWK packets include, download your current mail, and upload a reply
-		packet from your offline reader.
-	</p>
+	<h1 class="page-title">{t('web.qwk.title')}</h1>
+	<p class="page-subtitle max-w-xl leading-relaxed">{t('web.qwk.subtitle')}</p>
 </div>
 
 <div class="mb-6 flex flex-wrap gap-2.5">
 	<button class="btn-primary" disabled={downloading} onclick={download}>
-		{downloading ? 'Building…' : 'Download .QWK now'}
+		{downloading ? t('web.qwk.building') : t('web.qwk.download')}
 	</button>
 	<button class="btn-secondary" disabled={uploading} onclick={() => fileInput?.click()}>
-		{uploading ? 'Uploading…' : 'Upload .REP reply'}
+		{uploading ? t('web.files.uploading') : t('web.qwk.upload')}
 	</button>
 	<input bind:this={fileInput} type="file" accept=".rep" class="hidden" onchange={handleUpload} />
 </div>
@@ -129,9 +127,9 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else if areas.length === 0}
-	<p class="text-sm text-muted">No message areas available to you yet.</p>
+	<p class="text-sm text-muted">{t('web.areas.none')}</p>
 {:else}
 	<div class="flex flex-col">
 		{#each areas as area (area.id)}
@@ -148,7 +146,7 @@
 	</div>
 	<div class="mt-5 flex justify-end">
 		<button class="btn-primary" disabled={saving} onclick={save}>
-			{saving ? 'Saving…' : 'Save selection'}
+			{saving ? t('web.common.saving') : t('web.qwk.save')}
 		</button>
 	</div>
 {/if}

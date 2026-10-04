@@ -2,6 +2,7 @@
 	// Who was on which board of the network lately: the InterBBS Last
 	// Callers list the boards post to their data echo (see
 	// internal/lastcallers) -- a tab of the portal's Community page.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
@@ -21,7 +22,7 @@
 				await goto('/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : 'Could not load the last callers.';
+			loadError = err instanceof ApiError ? err.message : t('web.callers.load_failed');
 		} finally {
 			loaded = true;
 		}
@@ -34,19 +35,19 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else if callers.length === 0}
-	<p class="text-sm text-muted">No calls yet.</p>
+	<p class="text-sm text-muted">{t('web.callers.none')}</p>
 {:else}
 	<div class="overflow-x-auto">
 		<table class="w-full min-w-[40rem] text-left text-[13px]">
 			<thead class="card-label">
 				<tr>
-					<th class="pr-3 pb-2 font-normal">Caller</th>
-					<th class="pr-3 pb-2 font-normal">BBS</th>
-					<th class="pr-3 pb-2 font-normal">When</th>
-					<th class="pr-3 pb-2 font-normal">From</th>
-					<th class="pb-2 font-normal">Address</th>
+					<th class="pr-3 pb-2 font-normal">{t('web.callers.caller')}</th>
+					<th class="pr-3 pb-2 font-normal">{t('web.callers.bbs')}</th>
+					<th class="pr-3 pb-2 font-normal">{t('web.callers.when')}</th>
+					<th class="pr-3 pb-2 font-normal">{t('web.callers.from')}</th>
+					<th class="pb-2 font-normal">{t('web.callers.address')}</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -62,5 +63,5 @@
 			</tbody>
 		</table>
 	</div>
-	<p class="mt-4 text-xs text-faint">Times are each board's own clock.</p>
+	<p class="mt-4 text-xs text-faint">{t('web.callers.clock')}</p>
 {/if}

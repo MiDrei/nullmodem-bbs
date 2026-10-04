@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { formatDate } from '$lib/datetime';
+	import { t, tn } from '$lib/i18n.svelte';
+	import { relativeTime } from '$lib/datetime';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -70,7 +71,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load messages.';
+			loadError = err instanceof ApiError ? err.message : t('web.msgs.load_failed');
 		} finally {
 			loaded = true;
 		}
@@ -146,18 +147,6 @@
 		load();
 	}
 
-	function relativeTime(iso: string): string {
-		const diffMs = Date.now() - new Date(iso).getTime();
-		const mins = Math.round(diffMs / 60000);
-		if (mins < 1) return 'just now';
-		if (mins < 60) return `${mins}m ago`;
-		const hours = Math.round(mins / 60);
-		if (hours < 24) return `${hours}h ago`;
-		const days = Math.round(hours / 24);
-		if (days < 7) return `${days}d ago`;
-		return formatDate(iso);
-	}
-
 	async function post() {
 		if (!bbsAuth.token) return;
 		posting = true;
@@ -169,35 +158,35 @@
 			composeTo = 'All';
 			offset = 0;
 			await load();
-			toast.push('Message posted.', 'success');
+			toast.push(t('web.msgs.posted'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not post message.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.msgs.post_failed'), 'error');
 		} finally {
 			posting = false;
 		}
 	}
 </script>
 
-<a href="/message-areas" class="back-link">&larr; Message Areas</a>
+<a href="/message-areas" class="back-link">&larr; {t('web.areas.title')}</a>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="mt-4 text-sm text-muted">Loading…</p>
+	<p class="mt-4 text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<div class="mt-1.5 mb-4 flex items-center justify-between gap-4">
-		<h1 class="page-title">{area?.name ?? 'Area'}</h1>
+		<h1 class="page-title">{area?.name ?? t('web.msgs.area')}</h1>
 		<div class="flex items-center gap-2">
 			{#if area}
 				<form action="/search" class="hidden sm:flex">
 					<input type="hidden" name="area" value={area.id} />
 					<input type="hidden" name="name" value={area.name} />
-					<input name="q" class="field field-sm w-44" placeholder="Search here…" minlength="2" />
+					<input name="q" class="field field-sm w-44" placeholder={t('web.msgs.search_here')} minlength="2" />
 				</form>
 			{/if}
 			{#if area && area.min_sl_write <= 255 && !composing}
-				<button class="btn-primary" onclick={() => (composing = true)}>+ New Message</button>
+				<button class="btn-primary" onclick={() => (composing = true)}>+ {t('web.msgs.new')}</button>
 			{/if}
 		</div>
 	</div>
@@ -212,32 +201,32 @@
 			}}
 		>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">To</span>
+				<span class="card-label">{t('web.msg.to')}</span>
 				<input class="field" bind:value={composeTo} />
 			</label>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">Subject</span>
-				<input class="field" bind:value={composeSubject} placeholder="Say something…" />
+				<span class="card-label">{t('web.msg.subject')}</span>
+				<input class="field" bind:value={composeSubject} placeholder={t('web.msg.subject_placeholder')} />
 			</label>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">Message</span>
+				<span class="card-label">{t('web.msg.message')}</span>
 				<textarea
 					class="body-panel h-64 resize-y outline-none focus:border-accent"
 					bind:value={composeBody}
-					placeholder="Write your message…"
+					placeholder={t('web.msg.body_placeholder')}
 				></textarea>
 			</label>
 			<div class="flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary" onclick={() => (composing = false)}>Cancel</button>
+				<button type="button" class="btn-secondary" onclick={() => (composing = false)}>{t('web.common.cancel')}</button>
 				<button type="submit" class="btn-primary" disabled={posting || !composeSubject || !composeBody}>
-					{posting ? 'Posting…' : 'Post message'}
+					{posting ? t('web.msg.posting') : t('web.msg.post')}
 				</button>
 			</div>
 		</form>
 	{/if}
 
 	<div class="mb-3 flex gap-1 border-b border-line">
-		{#each [['list', 'All messages'], ['threads', 'Threads']] as [v, label] (v)}
+		{#each [['list', t('web.msgs.all')], ['threads', t('web.msgs.threads')]] as [v, label] (v)}
 			<button
 				class="border-b-2 px-3 py-2 text-sm font-medium transition {view === v ? 'border-accent text-ink-strong' : 'border-transparent text-muted hover:text-ink'}"
 				onclick={() => setView(v as View)}>{label}</button
@@ -247,30 +236,30 @@
 
 	{#if view === 'threads' && threads}
 		{#if threads.threads.length === 0}
-			<p class="text-sm text-muted">No messages in this area yet.</p>
+			<p class="text-sm text-muted">{t('web.msgs.none')}</p>
 		{:else}
 			<div class="flex flex-col">
-				{#each threads.threads as t (t.id)}
-					<a href="/messages/{t.id}" class="list-row group {t.unread ? 'list-row-unread' : ''}">
-						<span class="list-num w-8 text-right">{t.replies + 1}</span>
+				{#each threads.threads as th (th.id)}
+					<a href="/messages/{th.id}" class="list-row group {th.unread ? 'list-row-unread' : ''}">
+						<span class="list-num w-8 text-right">{th.replies + 1}</span>
 						<div class="min-w-0 flex-1">
-							<div class="truncate text-[13.5px] {t.unread ? 'font-semibold text-white' : 'font-medium text-slate-100'} group-hover:text-accent">
-								{t.subject}
+							<div class="truncate text-[13.5px] {th.unread ? 'font-semibold text-white' : 'font-medium text-slate-100'} group-hover:text-accent">
+								{th.subject}
 							</div>
 							<div class="mt-0.5 truncate text-xs text-faint">
-								{t.from_name}{#if t.replies}{` · ${t.replies} ${t.replies === 1 ? 'reply' : 'replies'}, last by ${t.last_from}`}{/if}
+								{th.from_name}{#if th.replies}{` · ${tn('web.msgs.replies', th.replies, { LAST: th.last_from })}`}{/if}
 							</div>
 						</div>
-						{#if t.unread}
-							<span class="badge-new">{t.unread} NEW</span>
+						{#if th.unread}
+							<span class="badge-new">{t('web.common.n_new_badge', { COUNT: th.unread })}</span>
 						{/if}
-						<span class="list-meta w-16 shrink-0 text-right">{relativeTime(t.last_at)}</span>
+						<span class="list-meta w-16 shrink-0 text-right">{relativeTime(th.last_at)}</span>
 					</a>
 				{/each}
 			</div>
 		{/if}
 	{:else if messagePage && messagePage.messages.length === 0}
-		<p class="text-sm text-muted">No messages in this area yet.</p>
+		<p class="text-sm text-muted">{t('web.msgs.none')}</p>
 	{:else if messagePage}
 		<div class="flex flex-col">
 			{#each messagePage.messages as m, i (m.id)}
@@ -287,7 +276,7 @@
 						<div class="mt-0.5 truncate text-xs text-faint">{m.from_name}</div>
 					</div>
 					{#if m.unread}
-						<span class="badge-new">NEW</span>
+						<span class="badge-new">{t('web.common.new_badge')}</span>
 					{/if}
 					<span class="list-meta w-16 shrink-0 text-right">{relativeTime(m.posted_at)}</span>
 				</a>
@@ -303,17 +292,17 @@
 				disabled={offset === 0}
 				onclick={prevPage}
 			>
-				&larr; {view === 'threads' ? 'Newer' : 'Older'}
+				&larr; {view === 'threads' ? t('web.common.newer') : t('web.common.older')}
 			</button>
 			<span class="list-meta">
-				{offset + 1}&ndash;{Math.min(offset + pageSize, total)} of {total}
+				{t('web.common.range', { FROM: offset + 1, TO: Math.min(offset + pageSize, total), TOTAL: total })}
 			</span>
 			<button
 				class="text-faint transition-colors hover:text-accent disabled:opacity-30 disabled:hover:text-faint"
 				disabled={offset + pageSize >= total}
 				onclick={nextPage}
 			>
-				{view === 'threads' ? 'Older' : 'Newer'} &rarr;
+				{view === 'threads' ? t('web.common.older') : t('web.common.newer')} &rarr;
 			</button>
 		</div>
 	{/if}

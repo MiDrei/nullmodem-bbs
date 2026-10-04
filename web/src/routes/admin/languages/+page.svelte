@@ -59,9 +59,43 @@
 		netmail: 'Netmail',
 		nodelist: 'Nodelist',
 		lastcallers: 'Last callers',
-		screen: 'Screens ({T:key} in .ans files)'
+		screen: 'Screens ({T:key} in .ans files)',
+		api: 'Web: error messages',
+		push: 'Push notifications'
 	};
-	const groupOf = (key: string) => groupNames[key.split('.')[0]] ?? key.split('.')[0];
+	// The web's texts (web.<part>.<name>), by their part.
+	const webNames: Record<string, string> = {
+		common: 'shared',
+		nav: 'navigation',
+		footer: 'navigation',
+		time: 'shared',
+		login: 'login',
+		areas: 'message areas',
+		msgs: 'message areas',
+		msg: 'messages',
+		netmail: 'netmail',
+		files: 'files',
+		file: 'files',
+		qwk: 'QWK',
+		chat: 'chat',
+		community: 'community',
+		polls: 'community',
+		bbslist: 'community',
+		callers: 'community',
+		profile: 'profile',
+		search: 'search',
+		share: 'shared files',
+		terminal: 'terminal',
+		home: 'front page',
+		stats: 'statistics',
+		push: 'reader app',
+		reader: 'reader app'
+	};
+	function groupOf(key: string) {
+		const [first, second] = key.split('.');
+		if (first === 'web') return `Web: ${webNames[second] ?? second}`;
+		return groupNames[first] ?? first;
+	}
 
 	function clean(m: Record<string, string>) {
 		const out: Record<string, string> = {};

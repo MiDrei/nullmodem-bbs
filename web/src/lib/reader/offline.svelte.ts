@@ -1,6 +1,7 @@
 // Reading without a network (the service worker, src/service-worker.ts,
 // keeps what was fetched): this fetches ahead what's unread, and keeps
 // messages written offline in an outbox until they can be sent.
+import { t, tn } from '$lib/i18n.svelte';
 import {
 	getFirstUnreadMessagePosition,
 	listBBSMessageAreas,
@@ -178,12 +179,12 @@ export async function flushOutbox() {
 			} catch (err) {
 				if (isNetworkError(err)) break;
 				// Refused by the BBS (an area gone, no permission): it would never go.
-				toast.push(`A message written offline couldn't be sent: "${list[0].subject}"`, 'error');
+				toast.push(t('web.reader.outbox_failed', { SUBJECT: list[0].subject }), 'error');
 			}
 			list = list.slice(1);
 			writeOutbox(list);
 		}
-		if (sent) toast.push(sent === 1 ? 'Message written offline sent.' : `${sent} messages written offline sent.`, 'success');
+		if (sent) toast.push(tn('web.reader.outbox_sent', sent), 'success');
 	} finally {
 		flushing = false;
 	}

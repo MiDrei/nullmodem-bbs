@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, useAccountLang } from '$lib/i18n.svelte';
 	import { goto } from '$app/navigation';
 	import { bbsLogin } from '$lib/api';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
@@ -21,9 +22,10 @@
 				timezone: res.timezone ?? '',
 				securityLevel: res.security_level
 			});
+			await useAccountLang(res.language);
 			await goto('/reader', { replaceState: true });
 		} catch (err) {
-			error = errorText(err, 'Login failed.');
+			error = errorText(err, t('web.login.failed'));
 		} finally {
 			busy = false;
 		}
@@ -32,11 +34,11 @@
 
 <form class="mx-auto flex max-w-sm flex-col gap-3 px-6 pt-[18vh]" onsubmit={login}>
 	<img src="/reader/icon-192.png" alt="" class="mx-auto mb-4 h-16 w-16 rounded-2xl" />
-	<h1 class="mb-3 text-center text-2xl font-semibold text-ink-strong">Reader</h1>
+	<h1 class="mb-3 text-center text-2xl font-semibold text-ink-strong">{t('web.home.reader')}</h1>
 	<input
 		class="field py-3 text-base"
 		bind:value={username}
-		placeholder="Username"
+		placeholder={t('web.login.username')}
 		autocomplete="username"
 		autocapitalize="off"
 		required
@@ -45,12 +47,12 @@
 		class="field py-3 text-base"
 		type="password"
 		bind:value={password}
-		placeholder="Password"
+		placeholder={t('web.login.password')}
 		autocomplete="current-password"
 		required
 	/>
 	{#if error}
 		<p class="text-sm text-red-400">{error}</p>
 	{/if}
-	<button class="btn-primary mt-2 py-3 text-base" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+	<button class="btn-primary mt-2 py-3 text-base" disabled={busy}>{busy ? t('web.login.signing_in') : t('web.login.sign_in')}</button>
 </form>

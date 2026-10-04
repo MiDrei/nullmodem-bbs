@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import type { FilePreview } from '$lib/api';
 
@@ -43,12 +44,12 @@
 				class="shrink-0 rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800"
 				onclick={onclose}
 			>
-				Close
+				{t('web.common.close')}
 			</button>
 		</div>
 
 		{#if loading}
-			<p class="text-sm text-slate-400">Loading…</p>
+			<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 		{:else if error}
 			<p class="text-sm text-red-400">{error}</p>
 		{:else if preview?.kind === 'image'}
@@ -68,10 +69,10 @@
 				{/if}
 			</div>
 			{#if preview.truncated}
-				<p class="mt-2 text-xs text-slate-500">Preview truncated -- download the file to see the rest.</p>
+				<p class="mt-2 text-xs text-slate-500">{t('web.files.preview_truncated')}</p>
 			{/if}
 		{:else}
-			<p class="text-sm text-slate-500">No preview available for this file.</p>
+			<p class="text-sm text-slate-500">{t('web.files.no_preview')}</p>
 		{/if}
 	</div>
 </div>

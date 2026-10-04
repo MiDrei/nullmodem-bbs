@@ -1,6 +1,8 @@
 <script lang="ts">
 	// The reader's settings on this device: notifications, reading
 	// offline, logging out.
+	import { t, tn, i18n } from '$lib/i18n.svelte';
+	import LanguagePicker from '$lib/LanguagePicker.svelte';
 	import { onMount } from 'svelte';
 	import { getPushSubscription, testPush, ApiError } from '$lib/api';
 	import { toast } from '$lib/toast.svelte';
@@ -47,7 +49,7 @@
 			}
 			enabled = on;
 		} catch (err) {
-			toast.push(err instanceof Error && !(err instanceof ApiError) ? err.message : errorText(err, 'Could not change the notifications.'), 'error');
+			toast.push(err instanceof Error && !(err instanceof ApiError) ? err.message : errorText(err, t('web.reader.push_failed')), 'error');
 		} finally {
 			busy = false;
 		}
@@ -60,70 +62,75 @@
 		busy = true;
 		try {
 			await testPush(token, sub.endpoint);
-			toast.push('Test sent -- it should show up in a moment.', 'success');
+			toast.push(t('web.reader.test_sent'), 'success');
 		} catch (err) {
-			toast.push(errorText(err, 'Could not send the test.'), 'error');
+			toast.push(errorText(err, t('web.reader.test_failed')), 'error');
 		} finally {
 			busy = false;
 		}
 	}
 
 	function since(ms: number): string {
-		if (!ms) return 'never';
+		if (!ms) return t('web.reader.never');
 		const min = Math.round((Date.now() - ms) / 60000);
-		if (min < 1) return 'just now';
-		if (min < 60) return `${min} min ago`;
-		return new Date(ms).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+		if (min < 1) return t('web.time.just_now');
+		if (min < 60) return t('web.time.minutes', { N: min });
+		return new Date(ms).toLocaleString(i18n.locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 	}
 </script>
 
 <div class="fixed inset-0 z-20 flex flex-col bg-black" style="padding-top: env(safe-area-inset-top)">
 	<header class="r-bar">
-		<span class="r-title">Settings</span>
-		<button class="r-btn text-base font-semibold" onclick={onClose}>Done</button>
+		<span class="r-title">{t('web.reader.settings')}</span>
+		<button class="r-btn text-base font-semibold" onclick={onClose}>{t('web.reader.done')}</button>
 	</header>
 	<div class="flex-1 overflow-y-auto pb-8">
-		<div class="r-section">Notifications</div>
+		<div class="r-section">{t('web.reader.notifications')}</div>
 		{#if unavailable}
 			<p class="px-4 py-2 text-sm text-muted">{unavailable}</p>
 		{:else if loaded}
 			<label class="r-row">
-				<span class="flex-1 text-ink-strong">On this device</span>
+				<span class="flex-1 text-ink-strong">{t('web.reader.this_device')}</span>
 				<input type="checkbox" class="check" checked={enabled} disabled={busy} onchange={(e) => apply(e.currentTarget.checked)} />
 			</label>
 			<label class="r-row">
-				<span class="flex-1 {enabled ? 'text-ink' : 'text-faint'}">New netmail</span>
+				<span class="flex-1 {enabled ? 'text-ink' : 'text-faint'}">{t('web.reader.new_netmail')}</span>
 				<input type="checkbox" class="check" bind:checked={netmail} disabled={busy || !enabled} onchange={() => apply(true)} />
 			</label>
 			<label class="r-row">
 				<span class="min-w-0 flex-1 {enabled ? 'text-ink' : 'text-faint'}">
-					Echomail to me
-					<span class="block text-xs text-faint">addressed to your name, in the areas you can read</span>
+					{t('web.reader.echomail_to_me')}
+					<span class="block text-xs text-faint">{t('web.reader.echomail_hint')}</span>
 				</span>
 				<input type="checkbox" class="check" bind:checked={echomail} disabled={busy || !enabled} onchange={() => apply(true)} />
 			</label>
 			{#if enabled}
-				<button class="r-row text-accent" disabled={busy} onclick={test}>Send a test notification</button>
+				<button class="r-row text-accent" disabled={busy} onclick={test}>{t('web.reader.send_test')}</button>
 			{/if}
 		{/if}
 
-		<div class="r-section">Offline</div>
+		<div class="r-section">{t('web.reader.offline')}</div>
 		<p class="px-4 py-2 text-sm text-muted">
-			Unread mail is fetched ahead whenever the reader is open, to read it without a network. Replies written
-			offline are sent once you're back online.
+			{t('web.reader.offline_hint')}
 		</p>
 		<div class="r-row">
 			<span class="min-w-0 flex-1">
-				<span class="block text-ink">Last fetched {since(offline.syncedAt)}</span>
-				{#if offline.syncedAt && offline.fetched}<span class="block text-xs text-faint">{offline.fetched} unread message(s) kept</span>{/if}
-				{#if offline.outbox}<span class="block text-xs text-amber-400">{offline.outbox} waiting to be sent</span>{/if}
+				<span class="block text-ink">{t('web.reader.last_fetched', { WHEN: since(offline.syncedAt) })}</span>
+				{#if offline.syncedAt && offline.fetched}<span class="block text-xs text-faint">{tn('web.reader.kept', offline.fetched)}</span>{/if}
+				{#if offline.outbox}<span class="block text-xs text-amber-400">{t('web.reader.waiting', { COUNT: offline.outbox })}</span>{/if}
 			</span>
 			<button class="r-btn text-base" disabled={offline.syncing || !offline.online} onclick={() => syncAhead(true)}>
-				{offline.syncing ? 'Fetching…' : 'Fetch now'}
+				{offline.syncing ? t('web.reader.fetching') : t('web.reader.fetch_now')}
 			</button>
 		</div>
 
-		<div class="r-section">Account</div>
-		<button class="r-row text-red-400" onclick={onLogout}>Log out</button>
+		<div class="r-section">{t('web.common.language')}</div>
+		<label class="r-row">
+			<span class="flex-1 text-ink">{t('web.reader.language_hint')}</span>
+			<LanguagePicker class="text-accent" />
+		</label>
+
+		<div class="r-section">{t('web.profile.account')}</div>
+		<button class="r-row text-red-400" onclick={onLogout}>{t('web.nav.logout')}</button>
 	</div>
 </div>

@@ -188,10 +188,17 @@ antworten, über die ganze Area hinweg.
 
 Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
 
-**Sprachen:** Die BBS spricht Englisch, Deutsch (Sie) und Deutsch (Du).
+**Sprachen:** Die BBS spricht Englisch, Deutsch (Sie) und Deutsch (Du) — auf
+Telnet/SSH wie im Portal, in der Reader-App und auf der Startseite.
 Neue Anrufer wählen ihre Sprache gleich bei der Registrierung, später im
-Profil (`Y`, dann `A`). Vor dem Login — und für alle, die nie gewählt haben —
-gilt die Sprache des Boards (Content → Languages, „The board's language“).
+Profil (Telnet `Y`, dann `A`; im Portal unter Profil, in der Reader-App in den
+Einstellungen) — es ist eine Einstellung fürs Konto, überall gleich. Vor dem
+Login — und für alle, die nie gewählt haben — gilt die Sprache des Boards
+(Content → Languages, „The board's language“); im Web nimmt ein Besucher ohne
+Konto die Sprache seines Browsers (Deutsch in der Form des Boards, Sie oder
+Du) und kann sie oben auf der Seite wechseln. Auch Fehlermeldungen,
+Push-Benachrichtigungen und der Begrüßungsbildschirm (`welcome.de.ans`) folgen
+der Sprache.
 Was einer Sprache fehlt, kommt auf Englisch; Deutsch (Du) nimmt zuerst von
 Deutsch (Sie), was gleich lautet.
 

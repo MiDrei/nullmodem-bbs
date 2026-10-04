@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Message search: subject, text, sender and recipient, across the
 	// areas you can read -- or one, from its page (?area=).
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -31,7 +32,7 @@
 				await goto('/login');
 				return;
 			}
-			error = err instanceof ApiError ? err.message : 'Could not search.';
+			error = err instanceof ApiError ? err.message : t('web.common.search_failed');
 		} finally {
 			busy = false;
 		}
@@ -54,22 +55,22 @@
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">Search</h1>
-	<p class="page-subtitle">{areaId ? `In ${areaName || 'this area'}` : 'In all areas you can read'} -- subject, text, from and to.</p>
+	<h1 class="page-title">{t('web.common.search')}</h1>
+	<p class="page-subtitle">{areaId ? t('web.search.in_area', { AREA: areaName || t('web.search.this_area') }) : t('web.search.in_all')}</p>
 </div>
 
 <form class="mb-5 flex gap-2" onsubmit={run}>
 	<!-- svelte-ignore a11y_autofocus -->
-	<input class="field min-w-0 flex-1" placeholder="Search messages…" bind:value={q} autofocus />
-	<button type="submit" class="btn-primary btn-sm" disabled={busy || q.trim().length < 2}>{busy ? 'Searching…' : 'Search'}</button>
+	<input class="field min-w-0 flex-1" placeholder={t('web.areas.search')} bind:value={q} autofocus />
+	<button type="submit" class="btn-primary btn-sm" disabled={busy || q.trim().length < 2}>{busy ? t('web.search.searching') : t('web.common.search')}</button>
 </form>
 
 {#if error}
 	<p class="text-sm text-red-400">{error}</p>
 {:else if hits && hits.length === 0}
-	<p class="text-sm text-muted">Nothing found.</p>
+	<p class="text-sm text-muted">{t('web.common.nothing_found')}</p>
 {:else if hits}
-	<p class="mb-2 text-xs text-faint">{hits.length === 100 ? 'The newest 100 -- search more precisely for older ones.' : `${hits.length} found`}</p>
+	<p class="mb-2 text-xs text-faint">{hits.length === 100 ? t('web.search.newest_100') : t('web.search.found', { COUNT: hits.length })}</p>
 	<div class="flex flex-col divide-y divide-line">
 		{#each hits as h (h.id)}
 			{@const s = marked(h.snippet)}

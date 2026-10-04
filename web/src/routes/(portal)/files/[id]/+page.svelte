@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t, tn } from '$lib/i18n.svelte';
 	import { formatDateTime } from '$lib/datetime';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
@@ -67,7 +68,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load file.';
+			loadError = err instanceof ApiError ? err.message : t('web.file.load_failed');
 			loaded = true;
 			return;
 		}
@@ -80,7 +81,7 @@
 				archiveListing = { loading: false, error: null, preview: p };
 			} catch (err) {
 				if (await handleAuthError(err)) return;
-				const message = err instanceof ApiError ? err.message : 'Could not load contents.';
+				const message = err instanceof ApiError ? err.message : t('web.files.contents_failed');
 				archiveListing = { loading: false, error: message, preview: null };
 			}
 		}
@@ -92,7 +93,7 @@
 			await downloadBBSFile(bbsAuth.token, file.id, file.filename);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not download file.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.files.download_failed'), 'error');
 		}
 	}
 
@@ -113,7 +114,7 @@
 			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			modalError = err instanceof ApiError ? err.message : 'Could not load preview.';
+			modalError = err instanceof ApiError ? err.message : t('web.files.preview_failed');
 		} finally {
 			modalLoading = false;
 		}
@@ -136,63 +137,62 @@
 			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			modalError = err instanceof ApiError ? err.message : 'Could not load preview.';
+			modalError = err instanceof ApiError ? err.message : t('web.files.preview_failed');
 		} finally {
 			modalLoading = false;
 		}
 	}
 </script>
 
-<a href={file ? `/file-areas/${file.area_id}` : '/file-areas'} class="back-link">&larr; Files</a>
+<a href={file ? `/file-areas/${file.area_id}` : '/file-areas'} class="back-link">&larr; {t('web.nav.files')}</a>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="mt-4 text-sm text-muted">Loading…</p>
+	<p class="mt-4 text-sm text-muted">{t('web.common.loading')}</p>
 {:else if file}
 	{@const kind = guessFilePreviewKind(file.filename)}
 	<div class="mt-1.5 mb-5">
 		<h1 class="font-mono text-xl font-semibold break-all text-ink-strong">{file.filename}</h1>
 		<div class="mt-1 text-[12.5px] text-muted">
-			<span class="font-mono">{file.size_human}</span> &middot; uploaded by
+			<span class="font-mono">{file.size_human}</span> &middot; {t('web.file.uploaded_by')}
 			<span class="text-slate-400">{file.uploaded_by}</span>
 			&middot; {formatDateTime(file.uploaded_at)} &middot;
-			{file.download_count}
-			{file.download_count === 1 ? 'download' : 'downloads'}
+			{tn('web.file.downloads', file.download_count)}
 		</div>
 	</div>
 
 	<div class="body-panel mb-5 font-sans whitespace-pre-wrap">
-		{#if file.description}{file.description}{:else}<span class="text-faint">No description.</span>{/if}
+		{#if file.description}{file.description}{:else}<span class="text-faint">{t('web.file.no_description')}</span>{/if}
 	</div>
 
 	<div class="mb-7 flex gap-2.5">
-		<button class="btn-primary px-5" onclick={download}>Download</button>
+		<button class="btn-primary px-5" onclick={download}>{t('web.files.download')}</button>
 		{#if kind === 'image' || kind === 'text'}
-			<button class="btn-secondary" onclick={openPreview}>Preview</button>
+			<button class="btn-secondary" onclick={openPreview}>{t('web.files.preview')}</button>
 		{/if}
 		{#if file.share_page}
 			<button
 				class="btn-secondary"
-				title="A page anyone can download it from, no login needed"
+				title={t('web.file.share_title')}
 				onclick={async () => {
 					const url = location.origin + file!.share_page;
 					try {
 						await navigator.clipboard.writeText(url);
-						toast.push('Share link copied: ' + url, 'success');
+						toast.push(t('web.file.share_copied', { URL: url }), 'success');
 					} catch {
-						prompt('The share link:', url);
+						prompt(t('web.file.share_link'), url);
 					}
-				}}>Copy share link</button
+				}}>{t('web.file.share')}</button
 			>
 		{/if}
 	</div>
 
 	{#if kind === 'archive'}
 		<div class="card">
-			<h2 class="card-label mb-3">Contents</h2>
+			<h2 class="card-label mb-3">{t('web.file.contents')}</h2>
 			{#if archiveListing?.loading}
-				<p class="text-sm text-faint">Reading archive contents…</p>
+				<p class="text-sm text-faint">{t('web.files.reading_archive')}</p>
 			{:else if archiveListing?.error}
 				<p class="text-sm text-red-400">{archiveListing.error}</p>
 			{:else if archiveListing?.preview?.kind === 'archive'}
@@ -207,7 +207,7 @@
 										class="text-xs text-faint transition-colors hover:text-accent"
 										onclick={() => openEntryPreview(entry.name)}
 									>
-										Preview
+										{t('web.files.preview')}
 									</button>
 								{/if}
 							</div>
@@ -215,7 +215,7 @@
 					{/each}
 				</ul>
 				{#if archiveListing.preview.entries_truncated}
-					<p class="mt-2 text-xs text-faint">List truncated.</p>
+					<p class="mt-2 text-xs text-faint">{t('web.files.truncated')}</p>
 				{/if}
 			{/if}
 		</div>

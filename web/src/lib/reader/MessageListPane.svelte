@@ -2,6 +2,7 @@
 	// One area's messages, oldest first, opened at the first unread;
 	// "Read" starts there. New writes a message, "All read" marks the
 	// whole area read (for areas like FSX_DAT nobody reads one by one).
+	import { t } from '$lib/i18n.svelte';
 	import {
 		listBBSMessages,
 		listBBSMessageAreas,
@@ -59,7 +60,7 @@
 			error = null;
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, 'Could not load the messages.');
+			error = errorText(err, t('web.msgs.load_failed'));
 		} finally {
 			loaded = true;
 		}
@@ -81,22 +82,22 @@
 			total = p.total;
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, 'Could not load more.');
+			error = errorText(err, t('web.reader.more_failed'));
 		}
 	}
 
 	async function markAllRead() {
-		if (!confirm(`Mark all of ${title || 'this area'} as read?`)) return;
+		if (!confirm(t('web.reader.mark_read_confirm', { AREA: title || t('web.search.this_area') }))) return;
 		const token = await readerToken();
 		if (!token) return;
 		try {
 			const res = await markBBSAreaRead(token, areaId);
 			messages = messages.map((m) => ({ ...m, unread: false }));
-			toast.push(`${res.marked} marked as read.`, 'success');
+			toast.push(t('web.reader.marked', { COUNT: res.marked }), 'success');
 			onChanged?.();
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			toast.push(errorText(err, 'Could not mark the area read.'), 'error');
+			toast.push(errorText(err, t('web.reader.mark_failed')), 'error');
 		}
 	}
 
@@ -121,15 +122,15 @@
 			const how = await sendOrQueue(token, { kind: 'echo', areaId, to: to.trim(), subject, body });
 			composing = false;
 			if (how === 'queued') {
-				toast.push("You're offline: the message goes out once you're back online.", 'success');
+				toast.push(t('web.reader.queued_message'), 'success');
 				return;
 			}
-			toast.push('Message posted.', 'success');
+			toast.push(t('web.msgs.posted'), 'success');
 			await load(areaId);
 			onChanged?.();
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			toast.push(errorText(err, 'Could not post the message.'), 'error');
+			toast.push(errorText(err, t('web.msgs.post_failed')), 'error');
 		} finally {
 			sending = false;
 		}
@@ -152,13 +153,13 @@
 <header class="r-bar">
 	{@render headerStart?.()}
 	{#if onBack}
-		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label="Back">‹</button>
+		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('web.common.back')}>‹</button>
 	{/if}
 	<span class="r-title">{title}</span>
-	<button class="r-btn text-sm" onclick={startNew}>New</button>
+	<button class="r-btn text-sm" onclick={startNew}>{t('web.reader.new')}</button>
 	{#if firstUnread}
-		<button class="r-btn text-sm" onclick={markAllRead}>All read</button>
-		<button class="r-btn text-sm font-semibold" onclick={() => firstUnread && onOpen(firstUnread.id)}>Read</button>
+		<button class="r-btn text-sm" onclick={markAllRead}>{t('web.reader.all_read')}</button>
+		<button class="r-btn text-sm font-semibold" onclick={() => firstUnread && onOpen(firstUnread.id)}>{t('web.reader.read')}</button>
 	{/if}
 </header>
 
@@ -166,7 +167,7 @@
 	<p class="r-note text-red-400">{error}</p>
 {:else if loaded}
 	{#if offset > 0}
-		<button class="r-row justify-center text-sm text-accent" onclick={() => more(true)}>Earlier messages</button>
+		<button class="r-row justify-center text-sm text-accent" onclick={() => more(true)}>{t('web.reader.earlier')}</button>
 	{/if}
 	{#each messages as m (m.id)}
 		<button class="r-row {m.id === selectedId ? 'bg-surface' : ''}" onclick={() => onOpen(m.id)}>
@@ -178,16 +179,16 @@
 			<span class="shrink-0 text-xs text-faint">{shortDate(m.posted_at)}</span>
 		</button>
 	{:else}
-		<p class="r-note">No messages.</p>
+		<p class="r-note">{t('web.reader.no_messages')}</p>
 	{/each}
 	{#if offset + messages.length < total}
-		<button class="r-row justify-center text-sm text-accent" onclick={() => more(false)}>More</button>
+		<button class="r-row justify-center text-sm text-accent" onclick={() => more(false)}>{t('web.reader.more')}</button>
 	{/if}
 {/if}
 
 {#if composing}
 	<ComposeSheet
-		heading="New message"
+		heading={t('web.reader.new_message')}
 		bind:to
 		bind:subject
 		bind:body

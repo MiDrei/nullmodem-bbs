@@ -1,5 +1,6 @@
 <script lang="ts">
 	// Netmail received, newest first; New writes one.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { listBBSNetmail, type BBSNetmailSummary } from '$lib/api';
 	import { toast } from '$lib/toast.svelte';
@@ -44,10 +45,10 @@
 		try {
 			const how = await sendOrQueue(token, { kind: 'netmail', to: to.trim(), toName: toName.trim(), subject, body });
 			composing = false;
-			toast.push(how === 'queued' ? "You're offline: the netmail goes out once you're back online." : 'Netmail sent.', 'success');
+			toast.push(how === 'queued' ? t('web.reader.queued_netmail') : t('web.netmail.sent_ok'), 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			toast.push(errorText(err, 'Could not send the netmail.'), 'error');
+			toast.push(errorText(err, t('web.netmail.send_failed')), 'error');
 		} finally {
 			sending = false;
 		}
@@ -60,7 +61,7 @@
 			mails = await listBBSNetmail(token);
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, 'Could not load the netmail.');
+			error = errorText(err, t('web.netmail.load_failed'));
 		} finally {
 			loaded = true;
 		}
@@ -78,10 +79,10 @@
 <header class="r-bar">
 	{@render headerStart?.()}
 	{#if onBack}
-		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label="Back">‹</button>
+		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('web.common.back')}>‹</button>
 	{/if}
-	<span class="r-title">Netmail</span>
-	<button class="r-btn text-sm" onclick={startNew}>New</button>
+	<span class="r-title">{t('web.nav.netmail')}</span>
+	<button class="r-btn text-sm" onclick={startNew}>{t('web.reader.new')}</button>
 </header>
 
 {#if error}
@@ -97,17 +98,17 @@
 			<span class="shrink-0 text-xs text-faint">{shortDate(m.posted_at)}</span>
 		</button>
 	{:else}
-		<p class="r-note">No netmail.</p>
+		<p class="r-note">{t('web.netmail.none')}</p>
 	{/each}
 {/if}
 
 {#if composing}
 	<ComposeSheet
-		heading="New netmail"
+		heading={t('web.netmail.new')}
 		bind:to
 		bind:toName
 		askToName
-		toPlaceholder="Username, or FTN address like 21:3/100"
+		toPlaceholder={t('web.reader.netmail_to')}
 		bind:subject
 		bind:body
 		busy={sending}

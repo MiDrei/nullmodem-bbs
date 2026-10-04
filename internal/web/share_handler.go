@@ -139,9 +139,10 @@ func (s *Server) serveIndex(w http.ResponseWriter, r *http.Request, dir string) 
 		http.NotFound(w, r)
 		return
 	}
-	if meta := s.shareMeta(r); meta != "" {
-		page = bytes.Replace(page, []byte("</head>"), []byte(meta+"</head>"), 1)
-	}
+	lang := s.requestLang(r)
+	page = bytes.Replace(page, []byte(`<html lang="en">`), []byte(`<html lang="`+strings.SplitN(lang, "-", 2)[0]+`">`), 1)
+	head := s.shareMeta(r) + s.textsScript(r)
+	page = bytes.Replace(page, []byte("</head>"), []byte(head+"</head>"), 1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Write(page)

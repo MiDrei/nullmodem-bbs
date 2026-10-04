@@ -2,6 +2,7 @@
 	// Netmail, then the areas by network with their unread counts --
 	// only those with something unread unless "All" is on (remembered
 	// on the device).
+	import { t, tn } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { listBBSMessageAreas, listBBSNetmail, setMyArea, type BBSMessageArea } from '$lib/api';
@@ -50,13 +51,13 @@
 		} catch (err) {
 			a.mine = !a.mine;
 			if (await readerAuthFailed(err)) return;
-			toast.push(errorText(err, 'Could not save it.'), 'error');
+			toast.push(errorText(err, t('web.common.save_failed')), 'error');
 		}
 	}
 	let groups = $derived.by(() => {
 		const out: { network: string; areas: BBSMessageArea[] }[] = [];
 		for (const a of visible) {
-			const net = a.network || 'Local';
+			const net = a.network || t('web.areas.local');
 			let g = out.find((x) => x.network === net);
 			if (!g) out.push((g = { network: net, areas: [] }));
 			g.areas.push(a);
@@ -76,7 +77,7 @@
 			syncAhead();
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, 'Could not load the areas.');
+			error = errorText(err, t('web.reader.areas_failed'));
 		} finally {
 			loaded = true;
 		}
@@ -92,7 +93,7 @@
 	}
 
 	async function logout() {
-		if (!confirm('Log out of the reader?')) return;
+		if (!confirm(t('web.reader.logout_confirm'))) return;
 		// Nothing for this login on this device any more.
 		if (bbsAuth.token) await disablePush(bbsAuth.token).catch(() => {});
 		forgetOffline();
@@ -119,18 +120,18 @@
 </script>
 
 <header class="r-bar">
-	<span class="r-title">Reader</span>
-	<button class="r-btn text-base" onclick={toggleAll}>{showAll ? 'Unread' : 'All'}</button>
-	<button class="r-btn inline-flex items-center justify-center" onclick={() => goto('/reader/search')} aria-label="Search"
+	<span class="r-title">{t('web.home.reader')}</span>
+	<button class="r-btn text-base" onclick={toggleAll}>{showAll ? t('web.reader.unread') : t('web.common.all')}</button>
+	<button class="r-btn inline-flex items-center justify-center" onclick={() => goto('/reader/search')} aria-label={t('web.common.search')}
 		><Icon name="search" size={21} /></button
 	>
-	<button class="r-btn inline-flex items-center justify-center" onclick={load} aria-label="Refresh"><Icon name="refresh" size={21} /></button>
-	<button class="r-btn inline-flex items-center justify-center" onclick={() => (settingsOpen = true)} aria-label="Settings"><Icon name="system" size={21} /></button>
+	<button class="r-btn inline-flex items-center justify-center" onclick={load} aria-label={t('web.reader.refresh')}><Icon name="refresh" size={21} /></button>
+	<button class="r-btn inline-flex items-center justify-center" onclick={() => (settingsOpen = true)} aria-label={t('web.reader.settings')}><Icon name="system" size={21} /></button>
 </header>
 {#if !offline.online || offline.outbox}
 	<p class="border-b border-line bg-surface px-4 py-1.5 text-xs text-muted">
-		{#if !offline.online}Offline -- showing what was fetched ahead.{/if}
-		{#if offline.outbox}{offline.outbox} message(s) waiting to be sent.{/if}
+		{#if !offline.online}{t('web.reader.offline_note')}{/if}
+		{#if offline.outbox}{tn('web.reader.outbox_waiting', offline.outbox)}{/if}
 	</p>
 {/if}
 {#if settingsOpen}
@@ -141,12 +142,12 @@
 	<p class="r-note text-red-400">{error}</p>
 {:else if loaded}
 	<button class="r-row {netmailSelected ? 'bg-surface' : ''}" onclick={onNetmail}>
-		<span class="flex-1 font-medium text-ink-strong">Netmail</span>
+		<span class="flex-1 font-medium text-ink-strong">{t('web.nav.netmail')}</span>
 		{#if netmailUnread > 0}<span class="r-badge">{netmailUnread}</span>{/if}
 		<span class="text-faint">›</span>
 	</button>
 	<button class="r-row" onclick={() => goto('/reader/chat')}>
-		<span class="flex-1 font-medium text-ink-strong">Chat</span>
+		<span class="flex-1 font-medium text-ink-strong">{t('web.nav.chat')}</span>
 		<span class="text-faint">›</span>
 	</button>
 
@@ -157,7 +158,7 @@
 				{#if showAll}
 					<button
 						class="w-11 shrink-0 border-b border-line text-lg {a.mine ? 'text-accent' : 'text-faint'}"
-						aria-label={a.mine ? `Take ${a.name} out of my areas` : `Add ${a.name} to my areas`}
+						aria-label={a.mine ? t('web.areas.take_out', { AREA: a.name }) : t('web.areas.add', { AREA: a.name })}
 						aria-pressed={a.mine}
 						onclick={() => toggleMine(a)}>{a.mine ? '✓' : '+'}</button
 					>
@@ -175,9 +176,9 @@
 			</div>
 		{/each}
 	{:else}
-		<p class="r-note">{showAll ? 'No areas.' : 'Nothing unread.'}</p>
+		<p class="r-note">{showAll ? t('web.reader.no_areas') : t('web.reader.nothing_unread')}</p>
 	{/each}
 	{#if showAll}
-		<p class="r-note text-xs">✓ = your areas: the unread list, fetching ahead for offline, the new scan and QWK include them.</p>
+		<p class="r-note text-xs">{t('web.reader.mine_hint')}</p>
 	{/if}
 {/if}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
@@ -29,7 +30,7 @@
 			areas = await listBBSFileAreas(bbsAuth.token);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load file areas.';
+			loadError = err instanceof ApiError ? err.message : t('web.files.load_failed');
 		} finally {
 			loaded = true;
 		}
@@ -40,7 +41,7 @@
 	let groups = $derived.by(() => {
 		const out: { network: string; areas: BBSFileArea[]; newCount: number }[] = [];
 		for (const area of areas) {
-			const label = area.network || 'Local';
+			const label = area.network || t('web.areas.local');
 			const last = out[out.length - 1];
 			if (last && last.network === label) {
 				last.areas.push(area);
@@ -62,27 +63,27 @@
 </script>
 
 <div class="mb-4">
-	<h1 class="page-title">Files</h1>
-	<p class="page-subtitle">File libraries you can browse and download from</p>
+	<h1 class="page-title">{t('web.nav.files')}</h1>
+	<p class="page-subtitle">{t('web.files.subtitle')}</p>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else if areas.length === 0}
-	<p class="text-sm text-muted">No file areas available to you yet.</p>
+	<p class="text-sm text-muted">{t('web.files.none')}</p>
 {:else}
 	{#if groups.length > 1}
 		<!-- One pill per network, so hundreds of areas aren't one scroll. -->
-		<div class="mb-4 flex flex-wrap gap-1.5" role="tablist" aria-label="Networks">
+		<div class="mb-4 flex flex-wrap gap-1.5" role="tablist" aria-label={t('web.areas.networks')}>
 			<button
 				role="tab"
 				aria-selected={activeNetwork === ALL_TAB}
 				class="pill {activeNetwork === ALL_TAB ? 'pill-active' : ''}"
 				onclick={() => (activeNetwork = ALL_TAB)}
 			>
-				All · {areas.length}{totalNew > 0 ? ` · ${totalNew} new` : ''}
+				{t('web.common.all')} · {areas.length}{totalNew > 0 ? ` · ${t('web.common.n_new', { COUNT: totalNew })}` : ''}
 			</button>
 			{#each groups as group (group.network)}
 				<button
@@ -91,7 +92,7 @@
 					class="pill {activeNetwork === group.network ? 'pill-active' : ''}"
 					onclick={() => (activeNetwork = group.network)}
 				>
-					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${group.newCount} new` : ''}
+					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${t('web.common.n_new', { COUNT: group.newCount })}` : ''}
 				</button>
 			{/each}
 		</div>
@@ -117,7 +118,7 @@
 						</div>
 					</div>
 					{#if area.new > 0}
-						<span class="badge-new">{area.new} NEW</span>
+						<span class="badge-new">{t('web.common.n_new_badge', { COUNT: area.new })}</span>
 					{/if}
 					<span class="list-meta w-10 shrink-0 text-right">{area.total}</span>
 				</a>

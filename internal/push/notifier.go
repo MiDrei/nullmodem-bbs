@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"git.maik.ch/nullmodem/bbs/internal/i18n"
 )
 
 // Logger is what the notifier reports problems to.
@@ -24,6 +26,18 @@ type Notifier struct {
 	Logger Logger
 	// Every defaults to 20 seconds.
 	Every time.Duration
+	// Lang is the language a user reads their notifications in (an
+	// internal/i18n code); nil: English.
+	Lang func(userID int64) string
+}
+
+// t is key's text in user's language.
+func (n *Notifier) t(user int64, key string, args ...any) string {
+	lang := i18n.Fallback
+	if n.Lang != nil {
+		lang = n.Lang(user)
+	}
+	return i18n.T(lang, key, args...)
 }
 
 // Run checks for new mail until ctx ends.
@@ -88,7 +102,7 @@ func (n *Notifier) Check(ctx context.Context) error {
 			return fmt.Errorf("push: looking for new netmail: %w", err)
 		}
 		out = append(out, pending{to, Notification{
-			Title: "Netmail from " + from, Body: subject,
+			Title: n.t(to, "push.netmail", "FROM", from), Body: subject,
 			URL: fmt.Sprintf("/reader/netmail/%d", id), Tag: fmt.Sprintf("netmail-%d", id),
 		}, "netmail"})
 	}
@@ -115,7 +129,7 @@ func (n *Notifier) Check(ctx context.Context) error {
 			return fmt.Errorf("push: looking for new echomail: %w", err)
 		}
 		out = append(out, pending{to, Notification{
-			Title: from + " in " + tag, Body: subject,
+			Title: n.t(to, "push.echomail", "FROM", from, "AREA", tag), Body: subject,
 			URL: fmt.Sprintf("/reader/m/%d", id), Tag: fmt.Sprintf("echo-%d", id),
 		}, "echomail"})
 	}
@@ -148,7 +162,7 @@ func (n *Notifier) Check(ctx context.Context) error {
 			}
 			for _, id := range sysops {
 				out = append(out, pending{id, Notification{
-					Title: "New user waiting for approval", Body: body,
+					Title: n.t(id, "push.new_user"), Body: body,
 					URL: "/admin/users", Tag: "user-" + name,
 				}, "users"})
 			}
@@ -189,7 +203,7 @@ func (n *Notifier) Check(ctx context.Context) error {
 			for _, p := range pages {
 				for _, id := range sysops {
 					out = append(out, pending{id, Notification{
-						Title: p.who + " is paging you", Body: p.why,
+						Title: n.t(id, "push.paging", "USERNAME", p.who), Body: p.why,
 						URL: "/admin/chat?room=" + p.room, Tag: "page-" + p.who,
 					}, "page"})
 				}

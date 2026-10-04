@@ -114,6 +114,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/public/overview", s.handlePublicOverview)
 	mux.HandleFunc("GET /api/public/stats", s.handlePublicStats)
 	mux.HandleFunc("GET /api/public/feeds", s.handlePublicFeeds)
+	mux.HandleFunc("GET /api/i18n-texts/{lang}", s.handlePublicTexts)
 	mux.HandleFunc("GET /feeds/{file}", s.handleFeed)
 	mux.HandleFunc("GET /og-image.png", s.handleOGImage)
 	mux.HandleFunc("GET /api/public/door-bulletins", s.handlePublicDoorBulletins)
@@ -308,7 +309,7 @@ func (s *Server) Routes() http.Handler {
 		}
 	}
 
-	return withCORS(mux)
+	return withCORS(s.localizeErrors(mux))
 }
 
 // spaFileServer serves files from dir, falling back to index.html for
@@ -339,7 +340,7 @@ func withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Lang")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

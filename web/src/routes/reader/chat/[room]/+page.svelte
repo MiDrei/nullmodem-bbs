@@ -1,5 +1,6 @@
 <script lang="ts">
 	// One chat room, full screen.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -24,7 +25,7 @@
 
 <div class="r-full flex h-dvh flex-col">
 	<header class="r-bar">
-		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader/chat')} aria-label="Back">‹</button>
+		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader/chat')} aria-label={t('web.common.back')}>‹</button>
 		<span class="r-title">{info?.title ?? room}</span>
 		{#if info?.bridges.length}<span class="text-xs text-indigo-400">↔ {info.bridges.join(', ')}</span>{/if}
 	</header>

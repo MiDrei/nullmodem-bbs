@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { formatDateTime } from '$lib/datetime';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
@@ -44,7 +45,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load message.';
+			loadError = err instanceof ApiError ? err.message : t('web.msg.load_failed');
 		} finally {
 			loaded = true;
 		}
@@ -86,10 +87,10 @@
 		try {
 			await sendBBSNetmail(bbsAuth.token, to, replySubject, replyBody, toName);
 			replying = false;
-			toast.push('Reply sent.', 'success');
+			toast.push(t('web.netmail.reply_sent'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not send reply.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.netmail.reply_failed'), 'error');
 		} finally {
 			sending = false;
 		}
@@ -104,16 +105,16 @@
 		// copy to lose, so the plain confirmation is enough there).
 		const question =
 			!message.is_recipient && message.to_address === ''
-				? "Delete this message? It'll also disappear from the recipient's inbox."
-				: 'Delete this message?';
+				? t('web.netmail.delete_both')
+				: t('web.netmail.delete');
 		if (!confirm(question)) return;
 		try {
 			await deleteBBSNetmail(bbsAuth.token, message.id);
-			toast.push('Message deleted.', 'success');
+			toast.push(t('web.netmail.deleted'), 'success');
 			await goto('/netmail');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not delete message.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.netmail.delete_failed'), 'error');
 		}
 	}
 </script>
@@ -121,25 +122,25 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else if message}
 	{@const peer = message.is_recipient ? message.from_name : message.to_name}
 	<div class="flex items-center justify-between">
-		<a href="/netmail" class="back-link">&larr; Netmail</a>
+		<a href="/netmail" class="back-link">&larr; {t('web.nav.netmail')}</a>
 		<div class="flex items-center gap-2">
 			<button
 				class="btn-secondary px-3.5 py-2 text-xs"
 				disabled={!message.prev_id}
 				onclick={() => message?.prev_id && goto(`/netmail/${message.prev_id}`, { replaceState: true })}
 			>
-				&larr; Prev
+				&larr; {t('web.common.prev')}
 			</button>
 			<button
 				class="btn-secondary px-3.5 py-2 text-xs"
 				disabled={!message.next_id}
 				onclick={() => message?.next_id && goto(`/netmail/${message.next_id}`, { replaceState: true })}
 			>
-				Next &rarr;
+				{t('web.common.next')} &rarr;
 			</button>
 		</div>
 	</div>
@@ -159,7 +160,7 @@
 						<span class="text-slate-400">{message.from_name}</span>
 						{#if message.from_address}<span class="font-mono text-faint">{message.from_address}</span>{/if}
 					{:else}
-						to <span class="text-slate-400">{message.to_name}</span>
+						{t('web.msg.to_lower')} <span class="text-slate-400">{message.to_name}</span>
 						{#if message.to_address}<span class="font-mono text-faint">{message.to_address}</span>{/if}
 					{/if}
 					&middot; {formatDateTime(message.posted_at)}
@@ -170,7 +171,7 @@
 			class="btn-secondary shrink-0 px-3.5 py-2 text-xs hover:!border-red-400 hover:!text-red-400"
 			onclick={remove}
 		>
-			Delete
+			{t('web.common.delete')}
 		</button>
 	</div>
 
@@ -186,7 +187,7 @@
 	{/if}
 
 	{#if message.is_recipient && !replying}
-		<button class="btn-primary mt-5 px-5" onclick={startReply}>Reply</button>
+		<button class="btn-primary mt-5 px-5" onclick={startReply}>{t('web.msg.reply')}</button>
 	{/if}
 
 	{#if replying}
@@ -198,20 +199,20 @@
 			}}
 		>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">Subject</span>
+				<span class="card-label">{t('web.msg.subject')}</span>
 				<input class="field" bind:value={replySubject} />
 			</label>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">Message</span>
+				<span class="card-label">{t('web.msg.message')}</span>
 				<textarea
 					class="body-panel h-56 resize-y outline-none focus:border-accent"
 					bind:value={replyBody}
 				></textarea>
 			</label>
 			<div class="flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary" onclick={() => (replying = false)}>Cancel</button>
+				<button type="button" class="btn-secondary" onclick={() => (replying = false)}>{t('web.common.cancel')}</button>
 				<button type="submit" class="btn-primary" disabled={sending || !replySubject || !replyBody}>
-					{sending ? 'Sending…' : 'Send reply'}
+					{sending ? t('web.netmail.sending') : t('web.netmail.send_reply')}
 				</button>
 			</div>
 		</form>

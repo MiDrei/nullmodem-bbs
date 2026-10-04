@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { formatDate } from '$lib/datetime';
+	import { t } from '$lib/i18n.svelte';
+	import { relativeTime } from '$lib/datetime';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
@@ -52,7 +53,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load netmail.';
+			loadError = err instanceof ApiError ? err.message : t('web.netmail.load_failed');
 		} finally {
 			loaded = true;
 		}
@@ -65,18 +66,6 @@
 		}
 		await load();
 	});
-
-	function relativeTime(iso: string): string {
-		const diffMs = Date.now() - new Date(iso).getTime();
-		const mins = Math.round(diffMs / 60000);
-		if (mins < 1) return 'just now';
-		if (mins < 60) return `${mins}m ago`;
-		const hours = Math.round(mins / 60);
-		if (hours < 24) return `${hours}h ago`;
-		const days = Math.round(hours / 24);
-		if (days < 7) return `${days}d ago`;
-		return formatDate(iso);
-	}
 
 	async function send() {
 		if (!bbsAuth.token) return;
@@ -96,11 +85,11 @@
 			composeSubject = '';
 			composeBody = '';
 			composeCrash = false;
-			toast.push('Netmail sent.', 'success');
+			toast.push(t('web.netmail.sent_ok'), 'success');
 			await load();
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not send netmail.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.netmail.send_failed'), 'error');
 		} finally {
 			sending = false;
 		}
@@ -109,11 +98,11 @@
 
 <div class="mb-5 flex items-center justify-between gap-4">
 	<div>
-		<h1 class="page-title">Netmail</h1>
-		<p class="page-subtitle">Private mail, local or over FidoNet</p>
+		<h1 class="page-title">{t('web.nav.netmail')}</h1>
+		<p class="page-subtitle">{t('web.netmail.subtitle')}</p>
 	</div>
 	{#if !composing}
-		<button class="btn-primary" onclick={() => (composing = true)}>+ New Netmail</button>
+		<button class="btn-primary" onclick={() => (composing = true)}>+ {t('web.netmail.new')}</button>
 	{/if}
 </div>
 
@@ -126,39 +115,39 @@
 		}}
 	>
 		<label class="flex flex-col gap-2">
-			<span class="card-label">To · username or FTN address, e.g. 1:234/56</span>
+			<span class="card-label">{t('web.netmail.to')}</span>
 			<input class="field" bind:value={composeTo} />
 		</label>
 		{#if composeToIsFTN}
 			<label class="flex flex-col gap-2">
-				<span class="card-label">Recipient name · who at that address?</span>
+				<span class="card-label">{t('web.netmail.recipient')}</span>
 				<input class="field" placeholder={composeTo} bind:value={composeToName} />
 			</label>
 			<label class="flex items-center gap-2 text-[13px] text-muted">
 				<input type="checkbox" class="accent-accent" bind:checked={composeCrash} />
-				Crash priority (immediate delivery)
+				{t('web.netmail.crash')}
 			</label>
 		{/if}
 		<label class="flex flex-col gap-2">
-			<span class="card-label">Subject</span>
+			<span class="card-label">{t('web.msg.subject')}</span>
 			<input class="field" bind:value={composeSubject} />
 		</label>
 		<label class="flex flex-col gap-2">
-			<span class="card-label">Message</span>
+			<span class="card-label">{t('web.msg.message')}</span>
 			<textarea
 				class="body-panel h-64 resize-y outline-none focus:border-accent"
 				bind:value={composeBody}
-				placeholder="Write your message…"
+				placeholder={t('web.msg.body_placeholder')}
 			></textarea>
 		</label>
 		<div class="flex justify-end gap-2.5">
-			<button type="button" class="btn-secondary" onclick={() => (composing = false)}>Cancel</button>
+			<button type="button" class="btn-secondary" onclick={() => (composing = false)}>{t('web.common.cancel')}</button>
 			<button
 				type="submit"
 				class="btn-primary"
 				disabled={sending || !composeTo || !composeSubject || !composeBody}
 			>
-				{sending ? 'Sending…' : 'Send netmail'}
+				{sending ? t('web.netmail.sending') : t('web.netmail.send')}
 			</button>
 		</div>
 	</form>
@@ -171,7 +160,7 @@
 		class="tab {tab === 'inbox' ? 'tab-active' : ''}"
 		onclick={() => (tab = 'inbox')}
 	>
-		Inbox{inbox.some((m) => m.unread) ? ` · ${inbox.filter((m) => m.unread).length} new` : ''}
+		{t('web.netmail.inbox')}{inbox.some((m) => m.unread) ? ` · ${t('web.common.n_new', { COUNT: inbox.filter((m) => m.unread).length })}` : ''}
 	</button>
 	<button
 		role="tab"
@@ -179,17 +168,17 @@
 		class="tab {tab === 'sent' ? 'tab-active' : ''}"
 		onclick={() => (tab = 'sent')}
 	>
-		Sent
+		{t('web.netmail.sent')}
 	</button>
 </div>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="mt-4 text-sm text-muted">Loading…</p>
+	<p class="mt-4 text-sm text-muted">{t('web.common.loading')}</p>
 {:else if (tab === 'inbox' ? inbox : sent).length === 0}
 	<p class="mt-4 text-sm text-muted">
-		{tab === 'inbox' ? 'No netmail yet.' : 'Nothing sent yet.'}
+		{tab === 'inbox' ? t('web.netmail.none') : t('web.netmail.none_sent')}
 	</p>
 {:else}
 	<div class="flex flex-col">
@@ -206,11 +195,11 @@
 						{m.subject}
 					</div>
 					<div class="mt-0.5 truncate text-xs text-faint">
-						{tab === 'inbox' ? m.from_name : `To ${m.to_name}`}
+						{tab === 'inbox' ? m.from_name : t('web.netmail.to_name', { NAME: m.to_name })}
 					</div>
 				</div>
 				{#if unread}
-					<span class="badge-new">NEW</span>
+					<span class="badge-new">{t('web.common.new_badge')}</span>
 				{/if}
 				<span class="list-meta w-16 shrink-0 text-right">{relativeTime(m.posted_at)}</span>
 			</a>

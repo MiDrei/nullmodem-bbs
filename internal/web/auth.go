@@ -62,7 +62,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, user.ErrInvalidCredentials) {
 			s.logWarn("failed admin login attempt for %q from %s", req.Username, ip)
-			s.loginFailed(w, ip, req.Username, "admin")
+			s.loginFailed(w, r, ip, req.Username, "admin")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "authentication failed")
@@ -193,7 +193,7 @@ func (s *Server) handleBBSLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, user.ErrInvalidCredentials) {
 			s.logWarn("failed BBS portal login attempt for %q from %s", req.Username, ip)
-			s.loginFailed(w, ip, req.Username, "web")
+			s.loginFailed(w, r, ip, req.Username, "web")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "authentication failed")
@@ -227,6 +227,7 @@ func (s *Server) handleBBSLogin(w http.ResponseWriter, r *http.Request) {
 		"username":       u.Username,
 		"security_level": u.SecurityLevel,
 		"timezone":       u.Timezone,
+		"language":       u.Language,
 		"expires_at":     now.Add(tokenTTL),
 	})
 }

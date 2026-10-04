@@ -2,6 +2,7 @@
 	// One chat room for a caller (portal, reader): enters on open, polls
 	// for new lines and who's here, leaves on close. The same room as
 	// the teleconference on Telnet -- and Discord/Matrix where bridged.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { getBBSChatRoom, bbsChatAction, ApiError, type ChatLine, type ChatPresence } from '$lib/api';
 
@@ -110,22 +111,22 @@
 <div class="flex min-h-0 flex-1 flex-col">
 	<div class="truncate border-b border-line px-4 py-2 text-xs text-muted">
 		{#if present.length}
-			here: {present.map((p) => `${p.username} (${where(p)})`).join(', ')}
+			{t('web.chat.here', { NAMES: present.map((p) => `${p.username} (${where(p)})`).join(', ') })}
 		{:else}
-			nobody here yet
+			{t('web.chat.nobody')}
 		{/if}
 	</div>
 	<div bind:this={box} class="min-h-0 flex-1 overflow-y-auto px-4 py-3 {compact ? 'text-[15px]' : 'text-[13.5px]'} leading-relaxed">
 		{#if lines.length === 0}
-			<p class="text-sm text-faint">Nothing said yet -- say hello.</p>
+			<p class="text-sm text-faint">{t('web.chat.empty')}</p>
 		{/if}
 		{#each lines as l (l.id)}
 			<div class="break-words">
 				<span class="font-mono text-[11px] text-faint">{time(l.at)}</span>
 				{#if l.kind === 'join'}
-					<span class="text-emerald-500/80">{l.username} came in</span>
+					<span class="text-emerald-500/80">{t('web.chat.came_in', { NAME: l.username })}</span>
 				{:else if l.kind === 'leave'}
-					<span class="text-faint">{l.username} left</span>
+					<span class="text-faint">{t('web.chat.left', { NAME: l.username })}</span>
 				{:else}
 					<span class="font-medium {l.username === me && l.source === 'web' ? 'text-accent' : bridged(l) ? 'text-indigo-400' : 'text-ink-strong'}"
 						>{l.username}{bridged(l) ? `@${l.source}` : ''}:</span
@@ -140,7 +141,7 @@
 		style={compact ? 'padding-bottom: max(0.75rem, env(safe-area-inset-bottom))' : ''}
 		onsubmit={send}
 	>
-		<input class="field min-w-0 flex-1" maxlength="400" placeholder="Say something…" bind:value={text} enterkeyhint="send" />
-		<button type="submit" class="btn-primary btn-sm" disabled={!text.trim() || sending}>Send</button>
+		<input class="field min-w-0 flex-1" maxlength="400" placeholder={t('web.chat.say')} bind:value={text} enterkeyhint="send" />
+		<button type="submit" class="btn-primary btn-sm" disabled={!text.trim() || sending}>{t('web.chat.send')}</button>
 	</form>
 </div>

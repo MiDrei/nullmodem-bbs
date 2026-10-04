@@ -1,6 +1,7 @@
 <script lang="ts">
 	// One echomail message: reading it marks it read on the BBS, as
 	// everywhere else. Prev/Next and swiping move through its area.
+	import { t } from '$lib/i18n.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import { getBBSMessage, getBBSThread, listBBSMessageAreas, type BBSMessage, type ThreadEntry } from '$lib/api';
 	import ThreadTree from '$lib/ThreadTree.svelte';
@@ -55,7 +56,7 @@
 			if (message) onRead?.(message.area_id);
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, 'Could not load the message.');
+			error = errorText(err, t('web.msg.load_failed'));
 		}
 	}
 
@@ -78,10 +79,10 @@
 		try {
 			const how = await sendOrQueue(token, { kind: 'echo', areaId: message.area_id, to, subject, body, replyTo: message.id });
 			replying = false;
-			toast.push(how === 'queued' ? "You're offline: the reply goes out once you're back online." : 'Reply posted.', 'success');
+			toast.push(how === 'queued' ? t('web.reader.queued_reply') : t('web.msg.reply_posted'), 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			toast.push(errorText(err, 'Could not post the reply.'), 'error');
+			toast.push(errorText(err, t('web.msg.reply_failed')), 'error');
 		} finally {
 			sending = false;
 		}

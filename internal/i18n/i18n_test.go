@@ -95,8 +95,11 @@ func TestKeysUsedExist(t *testing.T) {
 		regexp.MustCompile(`\.(?:T|U)\("([a-z0-9_.-]+)"`),
 		regexp.MustCompile(`i18n\.T\([^,()]+(?:\(\))?, "([a-z0-9_.-]+)"`),
 		regexp.MustCompile(`\{T:([a-z0-9_.-]+)`),
+		// The web: t('web.x') in .svelte and .ts, and keys kept in lists.
+		regexp.MustCompile(`\bt\(\s*'([a-z0-9_.-]+)'`),
+		regexp.MustCompile(`'(web\.[a-z0-9_.-]+)'`),
 	}
-	plural := regexp.MustCompile(`\.N\("([a-z0-9_.-]+)"`)
+	plural := regexp.MustCompile(`(?:\.N\("|\btn\(\s*')([a-z0-9_.-]+)['"]`)
 	c := New("")
 	known := map[string]bool{}
 	for _, k := range c.Keys() {
@@ -104,12 +107,15 @@ func TestKeysUsedExist(t *testing.T) {
 	}
 	root := filepath.Join("..", "..")
 	found := 0
-	for _, dir := range []string{"internal", "cmd", "configs/screens"} {
+	for _, dir := range []string{"internal", "cmd", "configs/screens", "web/src"} {
 		filepath.Walk(filepath.Join(root, dir), func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() || strings.HasSuffix(path, "_test.go") {
 				return nil
 			}
-			if !strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".ans") {
+			if strings.Contains(path, "node_modules") {
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".ans") && !strings.HasSuffix(path, ".svelte") && !strings.HasSuffix(path, ".ts") {
 				return nil
 			}
 			data, err := os.ReadFile(path)
@@ -118,11 +124,11 @@ func TestKeysUsedExist(t *testing.T) {
 			}
 			for _, re := range uses {
 				for _, m := range re.FindAllStringSubmatch(string(data), -1) {
-					if m[1] == "key" { // the placeholder's own description
+					if m[1] == "key" || m[1] == "web.x.y" { // examples in comments
 						continue
 					}
 					found++
-					if !known[m[1]] {
+					if !known[m[1]] && !known[m[1]+".one"] {
 						t.Errorf("%s: %q is not in en.yaml", path, m[1])
 					}
 				}
@@ -148,6 +154,9 @@ func TestKeyBarsFit(t *testing.T) {
 	c := New("")
 	for _, l := range Languages {
 		for _, k := range c.Keys() {
+			if strings.HasPrefix(k, "web.") {
+				continue // the web wraps
+			}
 			if !strings.HasSuffix(k, "keys") && !strings.HasSuffix(k, "hint") && !strings.HasSuffix(k, "hint_areas") && !strings.HasSuffix(k, "hint_rooms") && !strings.HasSuffix(k, "keys_reply") && !strings.HasSuffix(k, "keys_post") {
 				continue
 			}

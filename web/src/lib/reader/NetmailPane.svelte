@@ -1,5 +1,6 @@
 <script lang="ts">
 	// One netmail; a reply goes back to its sender.
+	import { t } from '$lib/i18n.svelte';
 	import { toast } from '$lib/toast.svelte';
 	import { getBBSNetmail, type BBSNetmail } from '$lib/api';
 	import { sendOrQueue } from '$lib/reader/offline.svelte';
@@ -39,7 +40,7 @@
 			onRead?.();
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, 'Could not load the netmail.');
+			error = errorText(err, t('web.netmail.load_failed'));
 		}
 	}
 
@@ -65,10 +66,10 @@
 		try {
 			const how = await sendOrQueue(token, { kind: 'netmail', to: target, toName, subject, body });
 			replying = false;
-			toast.push(how === 'queued' ? "You're offline: the reply goes out once you're back online." : 'Reply sent.', 'success');
+			toast.push(how === 'queued' ? t('web.reader.queued_reply') : t('web.netmail.reply_sent'), 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			toast.push(errorText(err, 'Could not send the reply.'), 'error');
+			toast.push(errorText(err, t('web.netmail.reply_failed')), 'error');
 		} finally {
 			sending = false;
 		}
@@ -79,7 +80,7 @@
 	<p class="r-note text-red-400">{error}</p>
 {:else if mail}
 	<ReadView
-		title="Netmail"
+		title={t('web.nav.netmail')}
 		from={mail.from_address ? `${mail.from_name} (${mail.from_address})` : mail.from_name}
 		to={mail.to_name}
 		postedAt={mail.posted_at}

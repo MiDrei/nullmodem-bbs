@@ -148,7 +148,15 @@ func main() {
 		logger.Warn("notifications off: %v", err)
 	} else {
 		srv.Push = push.NewSender(keys, push.NewStore(sqlDB))
-		go (&push.Notifier{DB: sqlDB, Sender: srv.Push, Logger: logger}).Run(context.Background())
+		go (&push.Notifier{DB: sqlDB, Sender: srv.Push, Logger: logger, Lang: func(id int64) string {
+			if u, err := srv.Users.ByID(id); err == nil && i18n.Valid(u.Language) {
+				return u.Language
+			}
+			if c, err := config.Load(cfg.BBSConfigPath); err == nil && i18n.Valid(c.BBS.Language) {
+				return c.BBS.Language
+			}
+			return i18n.Fallback
+		}}).Run(context.Background())
 	}
 
 	// The nightly backup, by the settings in bbs.yaml as they are each

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/i18n.svelte';
 	import { formatDateTime } from '$lib/datetime';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
@@ -62,7 +63,7 @@
 				.catch(() => {});
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : 'Could not load message.';
+			loadError = err instanceof ApiError ? err.message : t('web.msg.load_failed');
 		} finally {
 			loaded = true;
 		}
@@ -100,10 +101,10 @@
 		try {
 			await postBBSMessage(bbsAuth.token, message.area_id, replyTo, replySubject, replyBody, message.id);
 			replying = false;
-			toast.push('Reply posted.', 'success');
+			toast.push(t('web.msg.reply_posted'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : 'Could not post reply.', 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.msg.reply_failed'), 'error');
 		} finally {
 			posting = false;
 		}
@@ -113,7 +114,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">Loading…</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else if message}
 	<div class="flex items-center justify-between">
 		<a
@@ -132,7 +133,7 @@
 				}
 			}}
 		>
-			&larr; Back to area
+			&larr; {t('web.msg.back_to_area')}
 		</a>
 		<div class="flex items-center gap-2">
 			<button
@@ -140,14 +141,14 @@
 				disabled={!message.prev_id}
 				onclick={() => message?.prev_id && goto(`/messages/${message.prev_id}`, { replaceState: true })}
 			>
-				&larr; Prev
+				&larr; {t('web.common.prev')}
 			</button>
 			<button
 				class="btn-secondary px-3.5 py-2 text-xs"
 				disabled={!message.next_id}
 				onclick={() => message?.next_id && goto(`/messages/${message.next_id}`, { replaceState: true })}
 			>
-				Next &rarr;
+				{t('web.common.next')} &rarr;
 			</button>
 		</div>
 	</div>
@@ -162,12 +163,12 @@
 		<div class="min-w-0">
 			<h1 class="text-lg font-semibold text-ink-strong">{message.subject}</h1>
 			<div class="mt-0.5 text-[12.5px] text-muted">
-				<span class="text-slate-400">{message.from_name}</span> to {message.to_name} &middot;
+				<span class="text-slate-400">{message.from_name}</span> {t('web.msg.to_lower')} {message.to_name} &middot;
 				{formatDateTime(message.posted_at)}
 			</div>
 			{#if parent}
 				<a href="/messages/{parent.id}" data-sveltekit-replacestate class="mt-0.5 block truncate text-[12px] text-faint hover:text-accent">
-					↳ in reply to {parent.from_name}{parent.guessed ? ' (by subject)' : ''}
+					↳ {t('web.msg.in_reply_to', { NAME: parent.from_name })}{parent.guessed ? ` ${t('web.msg.by_subject')}` : ''}
 				</a>
 			{/if}
 		</div>
@@ -198,9 +199,9 @@
 	{#if thread.length > 1}
 		<section class="card mt-5 px-3 py-3">
 			<div class="mb-1.5 flex items-center justify-between px-2">
-				<h2 class="card-label">Thread · {thread.length} messages</h2>
+				<h2 class="card-label">{t('web.msg.thread', { COUNT: thread.length })}</h2>
 				{#if nextInThread}
-					<a href="/messages/{nextInThread.id}" data-sveltekit-replacestate class="text-xs text-accent hover:underline" title="T">Next in thread →</a>
+					<a href="/messages/{nextInThread.id}" data-sveltekit-replacestate class="text-xs text-accent hover:underline" title="T">{t('web.msg.next_in_thread')} →</a>
 				{/if}
 			</div>
 			<ThreadTree entries={thread} current={message.id} href={(id) => `/messages/${id}`} />
@@ -208,7 +209,7 @@
 	{/if}
 
 	{#if !replying}
-		<button class="btn-primary mt-5 px-5" onclick={startReply}>Reply</button>
+		<button class="btn-primary mt-5 px-5" onclick={startReply}>{t('web.msg.reply')}</button>
 	{:else}
 		<form
 			class="mt-6 flex flex-col gap-3.5"
@@ -218,24 +219,24 @@
 			}}
 		>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">To</span>
+				<span class="card-label">{t('web.msg.to')}</span>
 				<input class="field" bind:value={replyTo} />
 			</label>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">Subject</span>
+				<span class="card-label">{t('web.msg.subject')}</span>
 				<input class="field" bind:value={replySubject} />
 			</label>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">Message</span>
+				<span class="card-label">{t('web.msg.message')}</span>
 				<textarea
 					class="body-panel h-56 resize-y outline-none focus:border-accent"
 					bind:value={replyBody}
 				></textarea>
 			</label>
 			<div class="flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary" onclick={() => (replying = false)}>Cancel</button>
+				<button type="button" class="btn-secondary" onclick={() => (replying = false)}>{t('web.common.cancel')}</button>
 				<button type="submit" class="btn-primary" disabled={posting || !replySubject || !replyBody}>
-					{posting ? 'Posting…' : 'Post reply'}
+					{posting ? t('web.msg.posting') : t('web.msg.post_reply')}
 				</button>
 			</div>
 		</form>

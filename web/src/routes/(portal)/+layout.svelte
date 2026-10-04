@@ -17,17 +17,19 @@
 	import { site } from '$lib/site.svelte';
 	import Icon from '$lib/Icon.svelte';
 	import Toaster from '$lib/Toaster.svelte';
+	import LanguagePicker from '$lib/LanguagePicker.svelte';
+	import { t, useAccountLang } from '$lib/i18n.svelte';
 
 	let { children } = $props();
 
 	const links = [
-		{ href: '/message-areas', label: 'Areas', icon: 'areas', match: ['/message-areas', '/messages'] },
-		{ href: '/netmail', label: 'Netmail', icon: 'netmail', match: ['/netmail'] },
-		{ href: '/file-areas', label: 'Files', icon: 'files', match: ['/file-areas', '/files'] },
-		{ href: '/qwk', label: 'QWK Mail', icon: 'qwk', match: ['/qwk'] },
-		{ href: '/chat', label: 'Chat', icon: 'chat', match: ['/chat'] },
-		{ href: '/community', label: 'Community', icon: 'users', match: ['/community', '/last-callers'] },
-		{ href: '/profile', label: 'Profile', icon: 'profile', match: ['/profile'] }
+		{ href: '/message-areas', label: 'web.nav.areas', icon: 'areas', match: ['/message-areas', '/messages'] },
+		{ href: '/netmail', label: 'web.nav.netmail', icon: 'netmail', match: ['/netmail'] },
+		{ href: '/file-areas', label: 'web.nav.files', icon: 'files', match: ['/file-areas', '/files'] },
+		{ href: '/qwk', label: 'web.nav.qwk', icon: 'qwk', match: ['/qwk'] },
+		{ href: '/chat', label: 'web.nav.chat', icon: 'chat', match: ['/chat'] },
+		{ href: '/community', label: 'web.nav.community', icon: 'users', match: ['/community', '/last-callers'] },
+		{ href: '/profile', label: 'web.nav.profile', icon: 'profile', match: ['/profile'] }
 	] as const;
 
 	function active(match: readonly string[]): boolean {
@@ -43,6 +45,7 @@
 				const profile = await getBBSProfile(bbsAuth.token);
 				bbsAuth.setTimezone(profile.timezone);
 				bbsAuth.setSecurityLevel(profile.security_level);
+				await useAccountLang(profile.language);
 			} catch {
 				// Non-critical: keep the stored zone; pages handle auth errors.
 			}
@@ -77,7 +80,7 @@
 							: ''}"
 						aria-current={active(l.match) ? 'page' : undefined}
 					>
-						<Icon name={l.icon} />{l.label}
+						<Icon name={l.icon} />{t(l.label)}
 					</a>
 				{/each}
 			</nav>
@@ -85,10 +88,12 @@
 				<span>{bbsAuth.username}</span>
 				{#if bbsAuth.isSysop}
 					<span class="text-line-strong" aria-hidden="true">·</span>
-					<a href="/admin" class="transition-colors hover:text-accent">Admin</a>
+					<a href="/admin" class="transition-colors hover:text-accent">{t('web.nav.admin')}</a>
 				{/if}
 				<span class="text-line-strong" aria-hidden="true">·</span>
-				<button class="transition-colors hover:text-accent" onclick={logout}>Log out</button>
+				<LanguagePicker />
+				<span class="text-line-strong" aria-hidden="true">·</span>
+				<button class="transition-colors hover:text-accent" onclick={logout}>{t('web.nav.logout')}</button>
 			</div>
 		</header>
 	{/if}
@@ -102,7 +107,7 @@
 	>
 		<span>NullModem BBS{site.info.version ? ` v${site.info.version}` : ''}</span>
 		{#if site.telnetAddress}
-			<span>telnet · {site.telnetAddress} · <a href="/terminal" class="hover:text-ink">in the browser</a></span>
+			<span>telnet · {site.telnetAddress} · <a href="/terminal" class="hover:text-ink">{t('web.footer.in_browser')}</a></span>
 		{/if}
 	</footer>
 </div>

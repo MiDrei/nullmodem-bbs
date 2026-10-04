@@ -2,6 +2,7 @@
 	// A dialog over the page: closes on Escape, on a click on the dimmed
 	// backdrop and from its own Close button. Focuses its first field when
 	// it opens so a sysop can start typing straight away.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount, type Snippet } from 'svelte';
 
 	let {
@@ -42,7 +43,7 @@
 	>
 		<div class="mb-5 flex items-center justify-between gap-4">
 			<h2 class="text-base font-semibold text-ink-strong">{title}</h2>
-			<button type="button" class="btn-secondary btn-xs" onclick={onclose}>Close</button>
+			<button type="button" class="btn-secondary btn-xs" onclick={onclose}>{t('web.common.close')}</button>
 		</div>
 		{@render children()}
 	</div>

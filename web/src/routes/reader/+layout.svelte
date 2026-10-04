@@ -3,6 +3,7 @@
 	// screen) for reading and answering echomail and netmail on a
 	// phone or tablet -- just that, none of the portal. Its own
 	// manifest scope is /reader/, so the installed app stays in here.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import Toaster from '$lib/Toaster.svelte';
 	import { startOffline } from '$lib/reader/offline.svelte';
@@ -13,7 +14,7 @@
 </script>
 
 <svelte:head>
-	<title>Reader</title>
+	<title>{t('web.home.reader')}</title>
 	<link rel="manifest" href="/reader/manifest.json" />
 	<link rel="apple-touch-icon" href="/reader/icon-180.png" />
 	<meta name="theme-color" content="#000000" />

@@ -2,6 +2,7 @@
 	// The chat rooms in the portal: the teleconference and the sysop's
 	// rooms -- the same ones Telnet callers (and, where bridged, Discord
 	// and Matrix) are in.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -29,7 +30,7 @@
 			if (!current && rooms.length) open(rooms[0].name);
 		} catch (err) {
 			await failed(err);
-			error = err instanceof ApiError ? err.message : 'Could not load the rooms.';
+			error = err instanceof ApiError ? err.message : t('web.chat.load_failed');
 		}
 	}
 
@@ -52,8 +53,8 @@
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">Chat</h1>
-	<p class="page-subtitle">Talk with whoever is on -- on Telnet, here, in the reader app{rooms.some((r) => r.bridges.length) ? ', and on Discord or Matrix where a room is bridged' : ''}.</p>
+	<h1 class="page-title">{t('web.nav.chat')}</h1>
+	<p class="page-subtitle">{rooms.some((r) => r.bridges.length) ? t('web.chat.subtitle_bridged') : t('web.chat.subtitle')}</p>
 </div>
 
 {#if error}
@@ -61,7 +62,7 @@
 {:else}
 	<div class="grid gap-4 lg:grid-cols-[15rem_1fr]">
 		<section class="card self-start p-0">
-			<h2 class="card-label px-4 pt-4 pb-2">Rooms</h2>
+			<h2 class="card-label px-4 pt-4 pb-2">{t('web.chat.rooms')}</h2>
 			{#each rooms as r (r.name)}
 				<button
 					class="flex w-full flex-col items-start gap-0.5 border-t border-line px-4 py-2.5 text-left hover:bg-surface {current === r.name ? 'bg-surface' : ''}"
@@ -89,7 +90,7 @@
 					<ChatView room={current} token={() => bbsAuth.token} me={bbsAuth.username ?? ''} onFailed={failed} />
 				{/key}
 			{:else}
-				<p class="m-auto text-sm text-muted">Pick a room.</p>
+				<p class="m-auto text-sm text-muted">{t('web.chat.pick')}</p>
 			{/if}
 		</section>
 	</div>

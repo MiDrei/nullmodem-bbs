@@ -1,3 +1,4 @@
+import { i18n } from './i18n.svelte';
 export interface BinkpUplink {
 	/** The uplink's own FTN address, for display/reference only -- not verified against what it claims when connecting. */
 	address: string;
@@ -81,6 +82,8 @@ export interface LoginResponse {
 	security_level: number;
 	/** Portal login only: the caller's profile time zone (IANA name), or "" if not set. */
 	timezone?: string;
+	/** Portal login only: the account's language, "" for the board's own. */
+	language?: string;
 	expires_at: string;
 }
 
@@ -304,6 +307,8 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
 	const headers = new Headers(options.headers);
 	if (options.body !== undefined) headers.set('Content-Type', 'application/json');
 	if (token) headers.set('Authorization', `Bearer ${token}`);
+	// Errors come back in the page's language.
+	headers.set('X-Lang', i18n.lang);
 
 	const res = await fetch(path, { ...options, headers });
 	return handleResponse<T>(res);
@@ -315,7 +320,7 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
 async function requestForm<T>(path: string, formData: FormData, token: string): Promise<T> {
 	const res = await fetch(path, {
 		method: 'POST',
-		headers: { Authorization: `Bearer ${token}` },
+		headers: { Authorization: `Bearer ${token}`, 'X-Lang': i18n.lang },
 		body: formData
 	});
 	return handleResponse<T>(res);
@@ -1542,6 +1547,8 @@ export interface BBSProfile {
 	qwk_routing: boolean;
 	/** Where the caller is ("Neunkirch, Switzerland"), shown on the InterBBS last callers list; "" if not set. */
 	location: string;
+	/** The language the caller reads the board in (Telnet and web); "" for the board's own. */
+	language: string;
 }
 
 export function getBBSProfile(token: string): Promise<BBSProfile> {
@@ -1551,7 +1558,7 @@ export function getBBSProfile(token: string): Promise<BBSProfile> {
 /** Fields left undefined are left unchanged. */
 export function updateBBSProfile(
 	token: string,
-	changes: { real_name?: string; timezone?: string; qwk_routing?: boolean; location?: string }
+	changes: { real_name?: string; timezone?: string; qwk_routing?: boolean; location?: string; language?: string }
 ): Promise<BBSProfile> {
 	return request<BBSProfile>('/api/bbs/profile', { method: 'PUT', body: JSON.stringify(changes) }, token);
 }

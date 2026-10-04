@@ -1,6 +1,7 @@
 <script lang="ts">
 	// What callers share beyond messages: the sysop's polls, the BBS
 	// list callers keep, and the FTN nodelists to look systems up in.
+	import { t, tn, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -51,19 +52,19 @@
 			await goto('/login');
 			return;
 		}
-		const t = bbsAuth.token;
+		const tok = bbsAuth.token;
 		try {
-			[polls, bbs] = await Promise.all([listBBSPolls(t), listBBSList(t)]);
-			imports = (await searchNodelist(t, '__nothing__')).imports;
-			bulletins = await getDoorBulletins(t);
+			[polls, bbs] = await Promise.all([listBBSPolls(tok), listBBSList(tok)]);
+			imports = (await searchNodelist(tok, '__nothing__')).imports;
+			bulletins = await getDoorBulletins(tok);
 		} catch (err) {
-			await failed(err, 'Could not load the page.');
+			await failed(err, t('web.common.page_failed'));
 		}
 	});
 
-	function select(t: Tab) {
-		tab = t;
-		history.replaceState(history.state, '', `?tab=${t}`);
+	function select(which: Tab) {
+		tab = which;
+		history.replaceState(history.state, '', `?tab=${which}`);
 	}
 
 	async function vote(p: Poll, optionId: number) {
@@ -72,7 +73,7 @@
 			const updated = await voteBBSPoll(bbsAuth.token, p.id, optionId);
 			polls = polls.map((x) => (x.id === p.id ? updated : x));
 		} catch (err) {
-			await failed(err, 'Could not vote.');
+			await failed(err, t('web.polls.vote_failed'));
 		}
 	}
 
@@ -86,17 +87,17 @@
 			bbs = editing.id ? bbs.map((x) => (x.id === saved.id ? saved : x)) : [...bbs, saved].sort((a, b) => a.name.localeCompare(b.name));
 			editing = null;
 		} catch (err) {
-			await failed(err, 'Could not save it.');
+			await failed(err, t('web.common.save_failed'));
 		}
 	}
 
 	async function removeEntry(e: BBSListEntry) {
-		if (!bbsAuth.token || !confirm(`Remove ${e.name} from the list?`)) return;
+		if (!bbsAuth.token || !confirm(t('web.bbslist.remove_confirm', { NAME: e.name }))) return;
 		try {
 			await deleteBBSListEntry(bbsAuth.token, e.id);
 			bbs = bbs.filter((x) => x.id !== e.id);
 		} catch (err) {
-			await failed(err, 'Could not remove it.');
+			await failed(err, t('web.common.remove_failed'));
 		}
 	}
 
@@ -109,7 +110,7 @@
 			imports = res.imports;
 			searched = true;
 		} catch (err) {
-			await failed(err, 'Could not search.');
+			await failed(err, t('web.common.search_failed'));
 		}
 	}
 
@@ -119,37 +120,37 @@
 	const seen = (iso: string) => (iso && !iso.startsWith('0001') ? new Date(iso) : null);
 	function status(e: BBSListEntry): { cls: string; label: string; text: string } {
 		const checked = seen(e.checked_at);
-		if (!checked) return { cls: 'bg-line-strong', label: 'not checked yet', text: 'not checked yet' };
-		if (e.online) return { cls: 'bg-emerald-400', label: 'online', text: `online · checked ${checked.toLocaleString()}` };
+		if (!checked) return { cls: 'bg-line-strong', label: t('web.bbslist.not_checked'), text: t('web.bbslist.not_checked') };
+		if (e.online) return { cls: 'bg-emerald-400', label: t('web.bbslist.online'), text: t('web.bbslist.online_checked', { WHEN: checked.toLocaleString(i18n.locale) }) };
 		const up = seen(e.last_up_at);
-		return { cls: 'bg-red-400', label: 'offline', text: up ? `offline · last seen ${up.toLocaleDateString()}` : 'not reachable' };
+		return { cls: 'bg-red-400', label: t('web.bbslist.offline'), text: up ? t('web.bbslist.offline_seen', { WHEN: up.toLocaleDateString(i18n.locale) }) : t('web.bbslist.unreachable') };
 	}
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">Community</h1>
-	<p class="page-subtitle">Polls, the BBS list our callers keep, who called around the network, and the FTN nodelists.</p>
+	<h1 class="page-title">{t('web.nav.community')}</h1>
+	<p class="page-subtitle">{t('web.community.subtitle')}</p>
 </div>
 
 <div class="mb-5 flex gap-1 border-b border-line">
-	{#each [['polls', 'Polls'], ['bbs', 'BBS List'], ['callers', 'Last Callers'], ['nodelist', 'Nodelist']] as [t, label] (t)}
+	{#each [['polls', t('web.community.polls')], ['bbs', t('web.community.bbs')], ['callers', t('web.community.callers')], ['nodelist', t('web.community.nodelist')]] as [k, label] (k)}
 		<button
-			class="border-b-2 px-3 py-2 text-sm font-medium transition {tab === t ? 'border-accent text-ink-strong' : 'border-transparent text-muted hover:text-ink'}"
-			onclick={() => select(t as Tab)}>{label}</button
+			class="border-b-2 px-3 py-2 text-sm font-medium transition {tab === k ? 'border-accent text-ink-strong' : 'border-transparent text-muted hover:text-ink'}"
+			onclick={() => select(k as Tab)}>{label}</button
 		>
 	{/each}
 </div>
 
 {#if tab === 'polls'}
 	{#if polls.length === 0}
-		<p class="text-sm text-muted">No polls yet.</p>
+		<p class="text-sm text-muted">{t('web.polls.none')}</p>
 	{/if}
 	<div class="flex flex-col gap-4">
 		{#each polls as p (p.id)}
 			<section class="card">
 				<div class="mb-3 flex items-baseline justify-between gap-3">
 					<h2 class="font-semibold text-ink-strong">{p.question}</h2>
-					<span class="shrink-0 text-xs text-faint">{p.total} vote{p.total === 1 ? '' : 's'}{p.closed ? ' · closed' : ''}</span>
+					<span class="shrink-0 text-xs text-faint">{tn('web.polls.votes', p.total)}{p.closed ? ` · ${t('web.polls.closed')}` : ''}</span>
 				</div>
 				<div class="flex flex-col gap-2">
 					{#each p.options as o (o.id)}
@@ -171,7 +172,7 @@
 					{/each}
 				</div>
 				{#if !p.closed}
-					<p class="mt-2 text-xs text-faint">{p.my_vote ? 'You can change your vote.' : 'Pick an answer to see the results.'}</p>
+					<p class="mt-2 text-xs text-faint">{p.my_vote ? t('web.polls.change') : t('web.polls.pick')}</p>
 				{/if}
 			</section>
 		{/each}
@@ -179,24 +180,24 @@
 {:else if tab === 'bbs'}
 	<div class="mb-3 flex justify-end">
 		{#if !editing}
-			<button class="btn-primary btn-sm" onclick={() => (editing = { entry: { name: '', address: '', sysop: '', software: '', description: '' } })}>+ Add a BBS</button>
+			<button class="btn-primary btn-sm" onclick={() => (editing = { entry: { name: '', address: '', sysop: '', software: '', description: '' } })}>+ {t('web.bbslist.add')}</button>
 		{/if}
 	</div>
 	{#if editing}
 		<form class="card mb-4 grid gap-3 sm:grid-cols-2" onsubmit={saveEntry}>
-			<input class="field" placeholder="Name" maxlength="40" bind:value={editing.entry.name} required />
-			<input class="field font-mono" placeholder="Address (host:port)" maxlength="60" bind:value={editing.entry.address} required />
-			<input class="field" placeholder="Sysop" maxlength="60" bind:value={editing.entry.sysop} />
-			<input class="field" placeholder="Software" maxlength="60" bind:value={editing.entry.software} />
-			<input class="field sm:col-span-2" placeholder="About it" maxlength="200" bind:value={editing.entry.description} />
+			<input class="field" placeholder={t('web.bbslist.name')} maxlength="40" bind:value={editing.entry.name} required />
+			<input class="field font-mono" placeholder={t('web.bbslist.address')} maxlength="60" bind:value={editing.entry.address} required />
+			<input class="field" placeholder={t('web.bbslist.sysop')} maxlength="60" bind:value={editing.entry.sysop} />
+			<input class="field" placeholder={t('web.bbslist.software')} maxlength="60" bind:value={editing.entry.software} />
+			<input class="field sm:col-span-2" placeholder={t('web.bbslist.about')} maxlength="200" bind:value={editing.entry.description} />
 			<div class="flex justify-end gap-2 sm:col-span-2">
-				<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>Cancel</button>
-				<button type="submit" class="btn-primary btn-sm">Save</button>
+				<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>{t('web.common.cancel')}</button>
+				<button type="submit" class="btn-primary btn-sm">{t('web.common.save')}</button>
 			</div>
 		</form>
 	{/if}
 	{#if bbs.length === 0}
-		<p class="text-sm text-muted">The list is empty so far -- add the boards you call.</p>
+		<p class="text-sm text-muted">{t('web.bbslist.empty')}</p>
 	{/if}
 	<div class="flex flex-col divide-y divide-line">
 		{#each bbs as e (e.id)}
@@ -209,15 +210,15 @@
 					</div>
 					<div class="font-mono text-xs text-accent">{e.address}</div>
 					<div class="mt-0.5 text-xs text-muted">
-						{[e.sysop && `Sysop ${e.sysop}`, e.software].filter(Boolean).join(' · ')}
+						{[e.sysop && t('web.bbslist.sysop_is', { NAME: e.sysop }), e.software].filter(Boolean).join(' · ')}
 					</div>
 					{#if e.description}<p class="mt-1 text-sm text-ink-soft">{e.description}</p>{/if}
-					<div class="mt-0.5 text-[11px] text-faint">added by {e.added_by}</div>
+					<div class="mt-0.5 text-[11px] text-faint">{t('web.bbslist.added_by', { NAME: e.added_by })}</div>
 				</div>
 				{#if mine(e)}
 					<div class="flex gap-1.5">
-						<button class="btn-secondary btn-xs" onclick={() => (editing = { id: e.id, entry: { name: e.name, address: e.address, sysop: e.sysop, software: e.software, description: e.description } })}>Edit</button>
-						<button class="btn-secondary btn-xs" onclick={() => removeEntry(e)}>Remove</button>
+						<button class="btn-secondary btn-xs" onclick={() => (editing = { id: e.id, entry: { name: e.name, address: e.address, sysop: e.sysop, software: e.software, description: e.description } })}>{t('web.common.edit')}</button>
+						<button class="btn-secondary btn-xs" onclick={() => removeEntry(e)}>{t('web.common.remove')}</button>
 					</div>
 				{/if}
 			</div>
@@ -225,27 +226,27 @@
 	</div>
 {:else if tab === 'doors'}
 	{#if bulletins.length === 0}
-		<p class="text-sm text-muted">No scoreboards yet -- the doors write them as they're played.</p>
+		<p class="text-sm text-muted">{t('web.community.no_scoreboards')}</p>
 	{:else}
 		<DoorBulletins list={bulletins} />
 	{/if}
 {:else if tab === 'callers'}
-	<p class="mb-3 text-xs text-muted">Who was on which board of the network lately, newest first.</p>
+	<p class="mb-3 text-xs text-muted">{t('web.community.callers_hint')}</p>
 	<LastCallersList />
 {:else}
 	<p class="mb-3 text-xs text-muted">
 		{#if imports.length}
 			{imports.map((i) => `${i.network} (${i.entries})`).join(' · ')}
 		{:else}
-			No nodelists yet -- they arrive with the networks' file echoes.
+			{t('web.community.no_nodelists')}
 		{/if}
 	</p>
 	<form class="mb-4 flex gap-2" onsubmit={search}>
-		<input class="field min-w-0 flex-1" placeholder="Name, sysop, place or address (21:1/)" bind:value={query} />
-		<button type="submit" class="btn-primary btn-sm" disabled={!query.trim()}>Search</button>
+		<input class="field min-w-0 flex-1" placeholder={t('web.community.nodelist_search')} bind:value={query} />
+		<button type="submit" class="btn-primary btn-sm" disabled={!query.trim()}>{t('web.common.search')}</button>
 	</form>
 	{#if searched && found.length === 0}
-		<p class="text-sm text-muted">Nothing found.</p>
+		<p class="text-sm text-muted">{t('web.common.nothing_found')}</p>
 	{/if}
 	<div class="flex flex-col divide-y divide-line">
 		{#each found as n (n.network + n.address)}

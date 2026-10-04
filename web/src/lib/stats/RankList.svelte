@@ -1,12 +1,13 @@
 <script lang="ts">
 	// A short ranking: name, a bar for its share, the number.
+	import { t, i18n } from '$lib/i18n.svelte';
 	import type { StatsRanked } from '$lib/api';
 
 	let {
 		title,
 		items,
 		unit = '',
-		empty = 'Nothing yet.',
+		empty = t('web.stats.nothing'),
 		detail = true
 	}: {
 		title: string;
@@ -34,7 +35,7 @@
 							{#if detail && x.detail}<span class="text-xs text-faint"> · {x.detail}</span>{/if}
 						</span>
 						<span class="shrink-0 font-mono text-xs text-muted">
-							{x.count.toLocaleString()}{typeof unit === 'string' ? unit : x.count === 1 ? unit[0] : unit[1]}{#if x.minutes}{` · ${x.minutes} min`}{/if}
+							{x.count.toLocaleString(i18n.locale)}{typeof unit === 'string' ? unit : x.count === 1 ? unit[0] : unit[1]}{#if x.minutes}{` · ${x.minutes} min`}{/if}
 						</span>
 					</div>
 					<div class="mt-1 h-1 rounded-full bg-surface">

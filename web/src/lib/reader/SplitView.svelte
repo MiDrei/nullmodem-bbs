@@ -2,6 +2,7 @@
 	// The reader on a wide screen (tablet in landscape, desktop): areas,
 	// the open area's messages and the open message side by side. The
 	// area list folds away for a wider message, remembered on the device.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { replaceState, afterNavigate } from '$app/navigation';
@@ -87,8 +88,8 @@
 	<button
 		class="r-btn text-lg"
 		onclick={toggle}
-		aria-label={collapsed ? 'Show the areas' : 'Hide the areas'}
-		title={collapsed ? 'Show the areas' : 'Hide the areas'}
+		aria-label={collapsed ? t('web.reader.show_areas') : t('web.reader.hide_areas')}
+		title={collapsed ? t('web.reader.show_areas') : t('web.reader.hide_areas')}
 	>
 		{collapsed ? '»' : '«'}
 	</button>
@@ -121,7 +122,7 @@
 				/>
 			{/key}
 		{:else}
-			<p class="r-note">Choose an area.</p>
+			<p class="r-note">{t('web.reader.choose_area')}</p>
 		{/if}
 	</section>
 
@@ -138,7 +139,7 @@
 				}}
 			/>
 		{:else}
-			<p class="r-note pt-24">Choose a message.</p>
+			<p class="r-note pt-24">{t('web.reader.choose_message')}</p>
 		{/if}
 	</section>
 </div>

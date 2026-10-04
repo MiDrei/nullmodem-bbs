@@ -3,6 +3,7 @@
 import { goto } from '$app/navigation';
 import { bbsAuth } from '$lib/bbs-auth.svelte';
 import { ApiError } from '$lib/api';
+import { i18n } from '$lib/i18n.svelte';
 
 /** The session token, or null after sending the reader to its login. */
 export async function readerToken(): Promise<string | null> {
@@ -35,6 +36,6 @@ export function shortDate(iso: string): string {
 	const now = new Date();
 	const sameDay = d.toLocaleDateString('en-CA', { timeZone: tz }) === now.toLocaleDateString('en-CA', { timeZone: tz });
 	return sameDay
-		? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: tz })
-		: d.toLocaleDateString([], { day: 'numeric', month: 'short', timeZone: tz });
+		? d.toLocaleTimeString(i18n.locale, { hour: '2-digit', minute: '2-digit', timeZone: tz })
+		: d.toLocaleDateString(i18n.locale, { day: 'numeric', month: 'short', timeZone: tz });
 }
