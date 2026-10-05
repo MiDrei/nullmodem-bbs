@@ -74,7 +74,8 @@ class Art:
                 if ch==' ' and bg==0 and cur and cur[1]==0: line+=' '; continue
                 if (fg,bg)!=cur: line+=sgr(fg,bg); cur=(fg,bg)
                 line+=ch
-            out.append(line)
+            # a background colour must not run on into the next line
+            out.append(line+(ESC+'0m' if cur and cur[1] else ''))
         return out
 
 VIOLET=[('░',4),('░',5),('▒',5),('░',13),('▒',13)]
@@ -292,12 +293,80 @@ def lists():
     out['filread-footer']=out['msgread-footer']
     return out
 
+# ---------------- welcome ----------------
+# The board's own connect banner: a ringed planet, the name in bold
+# letters with a blue shadow, the sysop's details and networks.
+WELCOME_NAME=('MAIKS','PLACE')
+WELCOME_INFO=[[('Sysop','Mike Dreier'),('Location','Neunkirch, CH')],
+              [('Telnet','bbs.maik.ch:2323'),('E-Mail','maiks.place.bbs@relay.maik.ch')]]
+WELCOME_NETS=[[('fsxNet','21:3/194'),('HobbyNet','954:700/14'),('LovlyNet','227:1/23')],
+              [('tqwNet','1337:1/131'),('SysopNet','23:1/107')]]
+BOLD={
+'M':["##...##","###.###","##.#.##","##...##","##...##","##...##","##...##"],
+'A':[".####.","##..##","##..##","######","##..##","##..##","##..##"],
+'I':["##","##","##","##","##","##","##"],
+'K':["##..##","##.##.","####..","###...","####..","##.##.","##..##"],
+'S':[".#####","##....","##....",".####.","....##","....##","#####."],
+'P':["#####.","##..##","##..##","#####.","##....","##....","##...."],
+'L':["##....","##....","##....","##....","##....","##....","######"],
+'C':[".#####","##....","##....","##....","##....","##....",".#####"],
+'E':["######","##....","##....","#####.","##....","##....","######"],
+}
+def bold_text(a,text,cx,y0,grad,shadow):
+    x=cx-(sum(len(BOLD[c][0])+1 for c in text)-1)//2
+    pts=[]
+    for ch in text:
+        for yy,row in enumerate(BOLD[ch]):
+            for xx,c in enumerate(row):
+                if c=='#': pts.append((x+xx,y0+yy,yy))
+        x+=len(BOLD[ch][0])+1
+    for (px,py,_) in pts:
+        if py+1<len(a.pix) and a.pix[py+1][px+1] is None: a.pix[py+1][px+1]=shadow
+    for (px,py,yy) in pts: a.pix[py][px]=grad[yy]
+def head_welcome():
+    a=Art(9,13)
+    a.stars(40,[(4,0,'*'),(74,7,'*')])
+    for y in range(9):
+        for x in range(27): a.cells[y][x]=(' ',7,0)
+        if 0<y<8:
+            for x in range(30,W): a.cells[y][x]=(' ',7,0)
+    # the ringed planet; the ring passes in front of it at the bottom
+    cx,cy,r=13.0,9.0,6.5
+    for y in range(18):
+        for x in range(28):
+            dx,dy=x+0.5-cx,y+0.5-cy; d=math.hypot(dx,dy)
+            rx,ry=(dx*0.96+dy*0.28),(-dx*0.28+dy*0.96)
+            e=(rx/12.8)**2+(ry/3.3)**2; ring=0.62<e<1.0
+            if d<=r:
+                dot=(-dx*0.7-dy*0.7)/r
+                c=13 if dot>0.4 else (5 if dot>-0.3 else 4)
+                if ring and ry>0: c=14 if rx<0 else 6
+                a.pix[y][x]=c
+            elif ring: a.pix[y][x]=14 if rx<0 else 6
+    for text,y in zip(WELCOME_NAME,(1,10)):
+        bold_text(a,text,54,y,[15,15,14,14,14,6,6],4)
+    return a.lines()
+def welcome_screen():
+    dot=sgr(8)+' \u2219 '
+    def center(t): return sgr(F)+'\u2502{FILL: }'+t+sgr(7)+'{FILL: }'+sgr(F)+'\u2502'
+    L=head_welcome()+['','{FILL: }'+sgr(8)+'.: '+sgr(7)+'Bulletin Board System'+sgr(8)+' :.{FILL: }','']
+    L.append(sgr(F)+'\u250c{FILL:\u2500}\u2510')
+    for row in WELCOME_INFO:
+        L.append(center('     '.join(sgr(6)+k+dot+sgr(15)+v for k,v in row)))
+    L.append(sgr(F)+'\u251c{FILL:\u2500}\u2524')
+    for row in WELCOME_NETS:
+        L.append(center(dot.join(sgr(14)+n+' '+sgr(7)+a for n,a in row)))
+    L.append(sgr(F)+'\u2514{FILL:\u2500}\u2518')
+    L.append(sgr(8)+'{FILL: }{VERSION} '+ESC+'0m')
+    return (ESC+'2J'+ESC+'H'+'\r\n'.join(L)).encode('cp437')
+
 def main():
     for name in MENUS:
         for de in (False,True):
             open(OUT+name+('.de' if de else '')+'.ans','wb').write(menu_screen(name,de))
     for de in (False,True):
         open(OUT+'logoff'+('.de' if de else '')+'.ans','wb').write(logoff_screen(de))
+    open(OUT+'welcome.ans','wb').write(welcome_screen())
     for name,(en,de) in lists().items():
         open(OUT+name+'.ans','wb').write(en.encode('cp437'))
         if de is not None:
