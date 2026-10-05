@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/i18n"
+	"git.maik.ch/nullmodem/bbs/internal/menu"
 	"git.maik.ch/nullmodem/bbs/internal/services"
 	"git.maik.ch/nullmodem/bbs/internal/version"
 	"git.maik.ch/nullmodem/kit/ansi"
@@ -110,6 +111,8 @@ func (s *Server) handlePreviewScreen(w http.ResponseWriter, r *http.Request) {
 	if !i18n.Valid(lang) {
 		lang = i18n.ScreenLang(name)
 	}
+	// As the sysop sees it: with the sysop's lines.
+	raw = menu.SysopLines(raw, menu.SysopMenuSL)
 	rendered := ansi.Render(i18n.FillScreen(lang, raw), previewVars(c.BBS.Name, c.BBS.Sysop))
 	rendered = ansi.Layout(rendered, previewWidth)
 	writeJSON(w, http.StatusOK, screenPreviewDTO{Name: name, HTML: ansi.ToHTML(rendered)})

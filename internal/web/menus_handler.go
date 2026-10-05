@@ -348,7 +348,7 @@ func (s *Server) handlePreviewMenu(w http.ResponseWriter, r *http.Request) {
 		for _, name := range i18n.ScreenNames(m.Screen, lang) {
 			raw, err := ansi.LoadScreen(filepath.Join(c.BBS.ScreensDir, name))
 			if err == nil {
-				text = ansi.Render(i18n.FillScreen(lang, raw), vars)
+				text = ansi.Render(menu.SysopLines(i18n.FillScreen(lang, raw), in.SL), vars)
 				out.HasScreen = true
 				break
 			} else if !errors.Is(err, os.ErrNotExist) {

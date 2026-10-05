@@ -67,6 +67,8 @@ In `configs/web.yaml`, for the web terminal under Docker:
    handshake and on the screens).
 6. **Screens:** Content → Screens → adjust the welcome, main menu etc. in the
    ANSI designer. Build borders with `{FILL:x}` so they close at any width.
+   A line with `{SYSOP_ONLY}` in it is shown to the sysop only (SL 200 and
+   up) and left out for everyone else — the stock main menu's sysop entry.
    Saved means live at once, the welcome screen too.
    **Menus:** Content → Menus — change items (key, text, what it does, from
    which SL), reorder them, create new menus and link them. The preview shows

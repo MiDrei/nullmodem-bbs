@@ -66,7 +66,9 @@ In `configs/web.yaml` für das Web-Terminal im Docker-Betrieb:
 5. **Grunddaten:** System → Settings (Name, Sysop, Ort — erscheint im
    BinkP-Handshake und auf den Bildschirmen).
 6. **Bildschirme:** Content → Screens → Begrüssung, Hauptmenü usw. im ANSI-Designer
-   anpassen. Rahmen mit `{FILL:x}` bauen, damit sie bei jeder Breite schliessen. Gespeichert gilt
+   anpassen. Rahmen mit `{FILL:x}` bauen, damit sie bei jeder Breite schliessen. Eine Zeile mit
+   `{SYSOP_ONLY}` sieht nur der Sysop (ab SL 200), für alle anderen fällt sie weg — so beim
+   Sysop-Eintrag im Standard-Hauptmenü. Gespeichert gilt
    sofort, auch für den Begrüssungsbildschirm.
    **Menüs:** Content → Menus — Punkte (Taste, Text, was er tut, ab welchem
    SL) ändern, umsortieren, neue Menüs anlegen und verknüpfen. Die Vorschau

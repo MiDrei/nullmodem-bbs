@@ -81,3 +81,13 @@ func TestOnlyOnScreen(t *testing.T) {
 		t.Fatalf("only on screen = %v", got)
 	}
 }
+
+func TestSysopLines(t *testing.T) {
+	screen := "top\r\n{SYSOP_ONLY}[S] Sysop\r\nend"
+	if got := SysopLines(screen, 10); got != "top\r\nend" {
+		t.Errorf("caller sees %q", got)
+	}
+	if got := SysopLines(screen, SysopMenuSL); got != "top\r\n[S] Sysop\r\nend" {
+		t.Errorf("sysop sees %q", got)
+	}
+}

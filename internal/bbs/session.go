@@ -648,7 +648,7 @@ func (s *Server) renderMenuDisplay(term *Terminal, m *menu.Menu, u *user.User, n
 		if err != nil {
 			s.logWarn("menu %q: could not load screen %q: %v", m.Name, m.Screen, err)
 		} else {
-			return ansi.Render(raw, vars)
+			return ansi.Render(menu.SysopLines(raw, u.SecurityLevel), vars)
 		}
 	}
 	return renderMenu(m.In(term.Lang), u.SecurityLevel, vars)
@@ -668,7 +668,7 @@ func (s *Server) printLogoffScreen(term *Terminal, u *user.User, node int) error
 	if err != nil {
 		return term.Println("\n" + term.T("logoff.goodbye", "USERNAME", u.Username))
 	}
-	rendered := ansi.Render(raw, s.userVars(term, u, node))
+	rendered := ansi.Render(menu.SysopLines(raw, u.SecurityLevel), s.userVars(term, u, node))
 	return term.Print(ansi.Layout(rendered, term.Width()))
 }
 

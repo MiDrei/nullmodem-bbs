@@ -84,3 +84,27 @@ func OnlyOnScreen(m *Menu, securityLevel int, screenText string) []string {
 	}
 	return out
 }
+
+// SysopOnly marks a line of a screen as the sysop's: SysopLines shows
+// it to those who may open the sysop menu only, so a screen can style
+// that entry as it likes (where {SYSOP_ITEM} brings its own colours)
+// and leaves no empty line for everyone else.
+const SysopOnly = "{SYSOP_ONLY}"
+
+// SysopLines is screen as a caller at securityLevel sees it: the lines
+// marked SysopOnly dropped below SysopMenuSL, the marks gone above.
+func SysopLines(screen string, securityLevel int) string {
+	if !strings.Contains(screen, SysopOnly) {
+		return screen
+	}
+	lines := strings.SplitAfter(screen, "\n")
+	var b strings.Builder
+	for _, line := range lines {
+		if !strings.Contains(line, SysopOnly) {
+			b.WriteString(line)
+		} else if securityLevel >= SysopMenuSL {
+			b.WriteString(strings.ReplaceAll(line, SysopOnly, ""))
+		}
+	}
+	return b.String()
+}
