@@ -199,6 +199,8 @@ func (s *Server) handleGetAreafixListReply(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "could not read inbound netmail")
 		return
 	}
+	// Only the asked robot's answers (Areafix or Filefix), no receipts.
+	msgs = listCandidates(msgs, r.URL.Query().Get("kind"))
 	if len(msgs) == 0 {
 		writeJSON(w, http.StatusOK, map[string]any{"found": false})
 		return

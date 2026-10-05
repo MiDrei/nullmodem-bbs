@@ -100,7 +100,10 @@ FTN → Uplinks:
   was er uns tatsächlich verlinkt hat, die Haken richten sich danach,
   Abweichungen von unserer Aufzeichnung sind markiert, und „Stand des Hubs
   übernehmen“ übernimmt sein Wort in unsere Aufzeichnung (es wird nichts
-  verschickt).
+  verschickt). Areafix (Echomail) und Filefix (File-Echos) antworten von
+  derselben Adresse; jede Antwort zählt nur für den Robot, von dem sie
+  kommt, und der Verlauf unter der Liste zeigt jede Anfrage und Antwort,
+  Ablehnungen eingeschlossen.
 - **Points / eigene Reader-App:** [points.md](points.de.md).
 - **Nodelisten:** kommen von selbst mit den File-Echos (`FSX_NODE` …) und
   werden alle 10 Minuten übernommen; Status unter FTN → Nodelists.

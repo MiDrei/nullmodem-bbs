@@ -512,6 +512,21 @@ export interface AreafixListReply {
 	areas?: ParsedArea[];
 }
 
+/** One request to a hub's Areafix/Filefix robot (outgoing; its password isn't included) or one of the robot's replies. */
+export interface AreafixHistoryEntry {
+	id: number;
+	outgoing: boolean;
+	at: string;
+	subject?: string;
+	body: string;
+	sent?: boolean;
+}
+
+/** Requests to that robot at the hub and its replies, newest first. */
+export function getAreafixHistory(token: string, uplinkAddress: string, kind: AreafixKind): Promise<AreafixHistoryEntry[]> {
+	return request(`/api/binkp/areafix/history?address=${encodeURIComponent(uplinkAddress)}&kind=${kind}`, { method: 'GET' }, token);
+}
+
 /** Asks uplink's Areafix/Filefix robot which areas it has linked to us ("%QUERY"); see getAreafixQueryReply. */
 export function requestAreafixQuery(token: string, uplink: BinkpUplink, kind: AreafixKind): Promise<{ queued_message_id: number }> {
 	return request('/api/binkp/areafix/query', { method: 'POST', body: JSON.stringify({ uplink, kind }) }, token);
@@ -542,9 +557,9 @@ export function adoptAreafixSubscriptions(token: string, uplinkHost: string, kin
 }
 
 /** The most recent inbound netmail from uplinkAddress, parsed as a "%LIST" reply -- found is false if nothing has arrived from that address yet. */
-export function getAreafixListReply(token: string, uplinkAddress: string): Promise<AreafixListReply> {
+export function getAreafixListReply(token: string, uplinkAddress: string, kind: AreafixKind = 'echo'): Promise<AreafixListReply> {
 	return request(
-		`/api/binkp/areafix/list-reply?address=${encodeURIComponent(uplinkAddress)}`,
+		`/api/binkp/areafix/list-reply?address=${encodeURIComponent(uplinkAddress)}&kind=${kind}`,
 		{ method: 'GET' },
 		token
 	);

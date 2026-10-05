@@ -99,7 +99,9 @@ FTN → Uplinks:
   subscribed" sends `%QUERY`: the hub answers with what it has really linked
   to us, the ticks follow that, differences from our own record are marked,
   and "Take over the hub's state" puts its word into our record (nothing is
-  sent).
+  sent). Areafix (echomail) and Filefix (file echos) answer from the same
+  address; each reply counts only for the robot it comes from, and the
+  history below the list shows every request and reply, refusals included.
 - **Points / your own reader app:** [points.md](points.md).
 - **Nodelists:** arrive on their own with the file echos (`FSX_NODE` …) and
   are taken over every 10 minutes; status under FTN → Nodelists.

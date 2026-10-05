@@ -12,6 +12,7 @@
 		requestAreafixQuery,
 		getAreafixQueryReply,
 		adoptAreafixSubscriptions,
+		getAreafixHistory,
 		listAreafixSubscriptions,
 		listAreafixGrants,
 		setAreafixGrants,
@@ -20,6 +21,7 @@
 		type AreafixKind,
 		type AreafixListReply,
 		type AreafixQueryReply,
+		type AreafixHistoryEntry,
 		type AreaGrant
 	} from '$lib/api';
 
@@ -50,6 +52,8 @@
 	let listReply = $state<AreafixListReply | null>(null);
 	let queryReply = $state<AreafixQueryReply | null>(null);
 	let showRawQuery = $state(false);
+	let history = $state<AreafixHistoryEntry[]>([]);
+	let openHistory = $state<number | null>(null);
 	let querying = $state(false);
 	let adopting = $state(false);
 	let manualTags = $state<string[]>([]);
@@ -143,6 +147,7 @@
 		querying = true;
 		try {
 			await requestAreafixQuery(auth.token, uplink, kind);
+			history = await getAreafixHistory(auth.token, uplink.address, kind);
 			toast.push(t('admin.areafix.query_sent'), 'success');
 			await loadQueryReply();
 		} catch (err) {
@@ -192,11 +197,12 @@
 		try {
 			const [subs, reply] = await Promise.all([
 				listAreafixSubscriptions(auth.token, uplink.host, kind),
-				getAreafixListReply(auth.token, uplink.address)
+				getAreafixListReply(auth.token, uplink.address, kind)
 			]);
 			existingSubscriptions = subs.area_tags;
 			listReply = reply;
 			await loadQueryReply();
+			history = await getAreafixHistory(auth.token, uplink.address, kind);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			// Non-fatal: the checkbox list just starts empty/manual-only.
@@ -277,6 +283,7 @@
 		requestingList = true;
 		try {
 			await requestAreafixList(auth.token, uplink, kind);
+			history = await getAreafixHistory(auth.token, uplink.address, kind);
 			toast.push(
 				t('admin.areafix.list_requested'),
 				'success'
@@ -293,8 +300,9 @@
 		if (!auth.token || !uplink) return;
 		refreshingReply = true;
 		try {
-			listReply = await getAreafixListReply(auth.token, uplink.address);
+			listReply = await getAreafixListReply(auth.token, uplink.address, kind);
 			await loadQueryReply();
+			history = await getAreafixHistory(auth.token, uplink.address, kind);
 			if (!listReply.found) {
 				toast.push(t('admin.areafix.no_reply_from_this_uplink'), 'success');
 			}
@@ -580,5 +588,34 @@
 		>
 			{applying ? t('admin.areafix.applying') : t('admin.areafix.apply_changes')}
 		</button>
+
+		<!-- What went to this robot and what it answered: refusals and
+		     password errors show here too. -->
+		<section class="mt-8">
+			<h2 class="card-label mb-2">{t('admin.areafix.history', { ROBOT: kind === 'file' ? 'Filefix' : 'Areafix' })}</h2>
+			{#if history.length === 0}
+				<p class="text-sm text-slate-500">{t('admin.areafix.history_empty')}</p>
+			{:else}
+				<div class="divide-y divide-line rounded-xl border border-line">
+					{#each history as h (h.id)}
+						<div class="px-3 py-2 text-sm">
+							<button type="button" class="flex w-full items-baseline gap-3 text-left" onclick={() => (openHistory = openHistory === h.id ? null : h.id)}>
+								<span class="w-36 shrink-0 text-xs text-faint">{new Date(h.at).toLocaleString(i18n.locale)}</span>
+								<span class="w-20 shrink-0 text-xs {h.outgoing ? 'text-cyan-400' : 'text-emerald-400'}">
+									{h.outgoing ? t('admin.areafix.to_hub') : t('admin.areafix.from_hub')}
+								</span>
+								<span class="min-w-0 flex-1 truncate font-mono text-xs text-slate-300">
+									{h.outgoing ? h.body.replace(/\r/g, ' ').trim() : h.subject || h.body.split(/\r?\n|\r/).find((l) => l.trim()) || ''}
+								</span>
+								{#if h.outgoing && !h.sent}<span class="shrink-0 text-[11px] text-amber-300">{t('admin.areafix.not_sent_yet')}</span>{/if}
+							</button>
+							{#if openHistory === h.id}
+								<pre class="mt-2 max-h-72 overflow-auto rounded-lg bg-slate-950 p-3 font-mono text-xs whitespace-pre-wrap text-slate-300">{h.body.replace(/\r\n?/g, '\n')}</pre>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
 	{/if}
 {/if}

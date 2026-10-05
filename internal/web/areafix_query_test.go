@@ -33,6 +33,8 @@ func TestAreafixQueryAndAdoptingTheHubsWord(t *testing.T) {
 	}
 
 	srv.Netmail.Receive("Areafix", "21:3/100", 0, "Areafix", "", "Re: %QUERY", "Following areas are linked to 21:3/194.1:\r\n\r\n FSX_GEN\r\n fsx_ads  Ads\r\n\r\n--- hpt\r\n", time.Now(), false)
+	// The %LIST answer arriving after it, richer, isn't the query's.
+	srv.Netmail.Receive("Areafix", "21:3/100", 0, "Areafix", "", "AREAFIX response", " FSX_GEN  General\r\n FSX_ADS  Ads\r\n FSX_BOT  Bots\r\n FSX_TST  Test\r\n", time.Now(), false)
 	json.Unmarshal(doJSON(t, h, http.MethodGet, "/api/binkp/areafix/query-reply?address=21:3/100&kind=echo&known=FSX_ADS,FSX_BOT", nil, token).Body.Bytes(), &reply)
 	if !reply.Found || strings.Join(reply.Tags, ",") != "FSX_GEN,fsx_ads" {
 		t.Fatalf("reply %+v", reply)
@@ -54,5 +56,48 @@ func TestAreafixQueryAndAdoptingTheHubsWord(t *testing.T) {
 	}
 	if pending, _ := srv.Netmail.PendingOutbound(); len(pending) != 1 {
 		t.Fatalf("adopting sent something: %d", len(pending))
+	}
+}
+
+func TestAreafixRepliesKeptApartByRobot(t *testing.T) {
+	srv, token := setupAreafixTest(t)
+	h := srv.Routes()
+	now := time.Now()
+	srv.Netmail.Receive("Areafix", "1337:1/100", 0, "Sysop", "", "AREAFIX response", " TQW_GEN  General Chat\r\n TQW_ADS  BBS Adverts\r\n TQW_BOT  roBOT output\r\n", now, false)
+	srv.Netmail.Receive("Filefix", "1337:1/100", 0, "Sysop", "", "FILEFIX response", " TQW_ANSI  ANSI art\r\n TQW_DEMOS  Demos\r\n", now, false)
+	srv.Netmail.Receive("Filefix", "1337:1/100", 0, "Sysop", "", "Result", "<-- COMMAND PROCESSED\r\n+TQW_EBOOKS linked\r\n", now, false)
+
+	tags := func(kind string) string {
+		var resp struct {
+			Areas []struct{ Tag string } `json:"areas"`
+		}
+		json.Unmarshal(doJSON(t, h, http.MethodGet, "/api/binkp/areafix/list-reply?address=1337:1/100&kind="+kind, nil, token).Body.Bytes(), &resp)
+		var out []string
+		for _, a := range resp.Areas {
+			out = append(out, a.Tag)
+		}
+		return strings.Join(out, ",")
+	}
+	if got := tags("echo"); got != "TQW_GEN,TQW_ADS,TQW_BOT" {
+		t.Errorf("echo list = %s", got)
+	}
+	if got := tags("file"); got != "TQW_ANSI,TQW_DEMOS" {
+		t.Errorf("file list = %s", got)
+	}
+
+	// The history: the robot's own replies and our requests, never the
+	// password (a request's subject).
+	doJSON(t, h, http.MethodPost, "/api/binkp/areafix/list", areafixListRequestDTO{
+		Uplink: binkpUplinkDTO{Address: "1337:1/100", Host: "tqw:24554", FilefixPassword: "secret-ff"}, Kind: "file"}, token)
+	rec := doJSON(t, h, http.MethodGet, "/api/binkp/areafix/history?address=1337:1/100&kind=file", nil, token)
+	var hist []areafixHistoryDTO
+	json.Unmarshal(rec.Body.Bytes(), &hist)
+	if len(hist) != 3 || !hist[0].Outgoing || hist[0].Body != "%LIST\r" || strings.Contains(rec.Body.String(), "secret-ff") {
+		t.Fatalf("history %s", rec.Body)
+	}
+	for _, e := range hist {
+		if strings.Contains(e.Body, "TQW_GEN") {
+			t.Errorf("Areafix reply in the Filefix history: %+v", e)
+		}
 	}
 }

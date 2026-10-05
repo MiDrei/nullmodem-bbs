@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -117,16 +118,21 @@ func (s *Server) handleGetAreafixQueryReply(w http.ResponseWriter, r *http.Reque
 			known[strings.ToUpper(k)] = true
 		}
 	}
+	msgs = listCandidates(msgs, r.URL.Query().Get("kind"))
+	// A reply that says it's about what's linked wins over a richer
+	// one that may be the %LIST answer arriving meanwhile.
 	var best *netmail.Message
 	var bestTags []string
+	bestSays := false
 	for i := range msgs {
 		m := &msgs[i]
 		if m.ID <= afterID {
 			continue
 		}
 		tags := linkedTags(m.Body, known)
-		if best == nil || len(tags) > len(bestTags) {
-			best, bestTags = m, tags
+		says := queryWords.MatchString(m.Subject + "\n" + m.Body)
+		if best == nil || (says && !bestSays) || (says == bestSays && len(tags) > len(bestTags)) {
+			best, bestTags, bestSays = m, tags, says
 		}
 	}
 	if best != nil {
@@ -135,6 +141,9 @@ func (s *Server) handleGetAreafixQueryReply(w http.ResponseWriter, r *http.Reque
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+// queryWords mark a reply as the answer to %QUERY.
+var queryWords = regexp.MustCompile(`(?i)query|linked|subscribed|connected to`)
 
 // linkedTags are the areas in a %QUERY reply: every listed one is
 // linked, whatever marker the line has.
