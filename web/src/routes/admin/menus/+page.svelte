@@ -110,7 +110,7 @@
 			toast.push(t('admin.menus.there_s_a_name_menu', { NAME: name }), 'error');
 			return;
 		}
-		current = { name, title: name[0].toUpperCase() + name.slice(1), screen: '', items: [{ key: 'Q', label: t('admin.common.back'), action: 'back', min_sl: 0 }] };
+		current = { name, title: name[0].toUpperCase() + name.slice(1), screen: '', items: [{ key: 'Q', label: t('common.back'), action: 'back', min_sl: 0 }] };
 		saved = '';
 		missing = [];
 		usedBy = [];
@@ -220,7 +220,7 @@
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">{t('admin.menus.menus')}</h1>
+	<h1 class="page-title">{t('admin.common.menus')}</h1>
 	<p class="page-subtitle max-w-3xl leading-relaxed">
 		{t('admin.menus.what_callers_can_do_on')}
 	</p>
@@ -228,7 +228,7 @@
 
 <div class="grid gap-4 lg:grid-cols-[13rem_1fr]">
 	<section class="card self-start p-0">
-		<h2 class="card-label px-4 pt-4 pb-2">{t('admin.menus.menus')}</h2>
+		<h2 class="card-label px-4 pt-4 pb-2">{t('admin.common.menus')}</h2>
 		{#each menus as m (m.name)}
 			<button
 				class="flex w-full items-center justify-between border-t border-line px-4 py-2.5 text-left text-sm hover:bg-surface {current?.name === m.name ? 'bg-surface text-accent' : 'text-ink-strong'}"
@@ -239,7 +239,7 @@
 			</button>
 		{/each}
 		{#if isNew && current}
-			<div class="border-t border-line bg-surface px-4 py-2.5 text-sm text-accent">{current.name} <span class="text-xs text-faint">{t('admin.menus.new')}</span></div>
+			<div class="border-t border-line bg-surface px-4 py-2.5 text-sm text-accent">{current.name} <span class="text-xs text-faint">{t('common.new_3')}</span></div>
 		{/if}
 		<div class="border-t border-line p-3">
 			<button class="btn-secondary btn-sm w-full" onclick={newMenu}>{t('admin.menus.new_menu')}</button>
@@ -313,21 +313,21 @@
 										<option value={'builtin:' + b.name}>{b.label}{b.sysop ? t('admin.menus.sysop') : ''}</option>
 									{/each}
 								</optgroup>
-								<optgroup label={t('admin.menus.menus')}>
+								<optgroup label={t('admin.common.menus')}>
 									{#each menus.filter((m) => m.name !== current?.name) as m (m.name)}
 										<option value={'goto:' + m.name}>{t('admin.menus.open_the_name_menu', { NAME: m.name })}</option>
 									{/each}
 								</optgroup>
-								<optgroup label={t('admin.menus.leave')}>
+								<optgroup label={t('admin.common.leave')}>
 									<option value="back">{t('admin.menus.back_to_the_previous_menu')}</option>
-									<option value="logoff">{t('admin.menus.log_off')}</option>
+									<option value="logoff">{t('admin.common.logoff')}</option>
 								</optgroup>
 							</select>
-							<input class="field" type="number" min="0" max="255" bind:value={it.min_sl} aria-label={t('admin.menus.lowest_security_level')} />
+							<input class="field" type="number" min="0" max="255" bind:value={it.min_sl} aria-label={t('admin.common.lowest_security_level')} />
 							<div class="flex items-center justify-end gap-1">
 								<button class="btn-secondary btn-xs" disabled={i === 0} onclick={() => move(i, -1)} aria-label={t('admin.menus.up')}>↑</button>
 								<button class="btn-secondary btn-xs" disabled={i === current.items.length - 1} onclick={() => move(i, 1)} aria-label={t('admin.menus.down')}>↓</button>
-								<button class="btn-secondary btn-xs" onclick={() => removeItem(i)} aria-label={t('admin.common.remove')}>✕</button>
+								<button class="btn-secondary btn-xs" onclick={() => removeItem(i)} aria-label={t('web.common.remove')}>✕</button>
 							</div>
 							{#if translating}
 								<div class="col-span-2 grid gap-2 sm:grid-cols-2 md:col-span-5 md:mb-2 md:ml-[5rem]">
@@ -370,14 +370,14 @@
 						{#if dirty && !isNew}
 							<button class="btn-secondary btn-sm" onclick={() => current && open(current.name)}>{t('admin.common.revert')}</button>
 						{/if}
-						<button class="btn-primary btn-sm" disabled={saving || !dirty} onclick={save}>{saving ? t('admin.common.saving') : isNew ? t('admin.menus.create_menu') : t('admin.common.save')}</button>
+						<button class="btn-primary btn-sm" disabled={saving || !dirty} onclick={save}>{saving ? t('web.common.saving') : isNew ? t('admin.menus.create_menu') : t('web.common.save')}</button>
 					</div>
 				</div>
 			</section>
 
 			<section class="card">
 				<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-					<h2 class="card-label">{t('admin.menus.preview')}</h2>
+					<h2 class="card-label">{t('web.common.preview')}</h2>
 					<div class="flex flex-wrap gap-1">
 						{#each [[10, t('admin.menus.a_caller')], [255, t('admin.menus.the_sysop')]] as [sl, label] (sl)}
 							<button class="pill {previewSL === sl ? 'pill-active' : ''}" onclick={() => (previewSL = sl as number)}>{label}</button>

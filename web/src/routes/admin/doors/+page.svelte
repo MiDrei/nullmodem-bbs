@@ -279,7 +279,7 @@
 
 <div class="mb-6 flex items-start justify-between gap-4">
 	<div>
-		<h1 class="page-title">{t('admin.doors.doors')}</h1>
+		<h1 class="page-title">{t('common.doors')}</h1>
 		<p class="page-subtitle max-w-2xl leading-relaxed">
 			{t('admin.doors.games_and_programs_callers_start')}
 		</p>
@@ -304,7 +304,7 @@
 				<input class="field field-sm" bind:value={draft.name} required />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">{t('admin.doors.kind')}</span>
+				<span class="text-xs text-muted">{t('admin.common.kind')}</span>
 				<select class="field field-sm" bind:value={draft.kind}>
 					<option value="dosbox">{t('admin.doors.dos_dosbox_x')}</option>
 					<option value="native">{t('admin.doors.native_linux')}</option>
@@ -347,11 +347,11 @@
 			</p>
 			<div class="grid gap-3 sm:grid-cols-[1fr_7rem]">
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">{t('admin.doors.host')}</span>
+					<span class="text-xs text-muted">{t('admin.common.host')}</span>
 					<input class="field field-sm font-mono" bind:value={draft.remote.host} placeholder="doors.example.net" required />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">{t('admin.doors.port')}</span>
+					<span class="text-xs text-muted">{t('admin.common.port')}</span>
 					<input class="field field-sm" type="number" min="1" max="65535" bind:value={draft.remote.port} />
 				</label>
 			</div>
@@ -493,9 +493,9 @@
 		{/if}
 
 		<div class="flex justify-end gap-2.5">
-			<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>{t('admin.common.cancel')}</button>
+			<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>{t('web.common.cancel')}</button>
 			<button type="submit" class="btn-primary btn-sm" disabled={saving}>
-				{saving ? t('admin.common.saving') : t('admin.doors.save_door')}
+				{saving ? t('web.common.saving') : t('admin.doors.save_door')}
 			</button>
 		</div>
 	</form>
@@ -504,7 +504,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	{#if editing === -1}
 		{@render editor()}
@@ -554,9 +554,9 @@
 								<button class="btn-secondary btn-xs" onclick={() => runDaily(d)}>{t('admin.doors.run_maintenance')}</button>
 							{/if}
 							<button class="btn-secondary btn-xs" onclick={() => startEdit(i)} disabled={editing !== null}>
-								{t('admin.common.edit')}
+								{t('web.common.edit')}
 							</button>
-							<button class="btn-danger btn-xs" onclick={() => remove(i)} disabled={saving}>{t('admin.common.remove')}</button>
+							<button class="btn-danger btn-xs" onclick={() => remove(i)} disabled={saving}>{t('web.common.remove')}</button>
 						</div>
 					</div>
 				{/if}
@@ -576,7 +576,7 @@
 					<div class="min-w-0">
 						<div class="text-[14px] font-semibold text-ink-strong">{tpl.name}</div>
 						<div class="mt-0.5 font-mono text-[10.5px] text-faint">
-							{tpl.license} · {tpl.kind === 'native' ? t('admin.doors.linux') : 'DOS'} · {tpl.dir}/
+							{tpl.license} · {tpl.kind === 'native' ? t('admin.common.linux') : 'DOS'} · {tpl.dir}/
 						</div>
 					</div>
 					{#if tpl.configured}
@@ -639,11 +639,11 @@
 			</p>
 			<div class="grid gap-3 sm:grid-cols-2">
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">{t('admin.doors.bbs_name')}</span>
+					<span class="text-xs text-muted">{t('admin.common.bbs_name')}</span>
 					<input class="field field-sm" bind:value={mrc.bbs_name} maxlength="139" required />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">{t('admin.doors.sysop')}</span>
+					<span class="text-xs text-muted">{t('common.sysop')}</span>
 					<input class="field field-sm" bind:value={mrc.sysop} maxlength="139" required />
 				</label>
 				<label class="flex flex-col gap-1.5">
@@ -651,7 +651,7 @@
 					<input class="field field-sm font-mono" bind:value={mrc.website} maxlength="139" placeholder="https://" />
 				</label>
 				<label class="flex flex-col gap-1.5">
-					<span class="text-xs text-muted">{t('admin.doors.software')}</span>
+					<span class="text-xs text-muted">{t('common.software')}</span>
 					<input class="field field-sm" bind:value={mrc.software} maxlength="139" />
 				</label>
 				<label class="flex flex-col gap-1.5">
@@ -675,7 +675,7 @@
 						<input class="field field-sm font-mono" bind:value={mrc.host} maxlength="79" required />
 					</label>
 					<label class="flex flex-col gap-1.5">
-						<span class="text-xs text-muted">{t('admin.doors.port')}</span>
+						<span class="text-xs text-muted">{t('admin.common.port')}</span>
 						<input class="field field-sm font-mono" bind:value={mrc.port} maxlength="5" required />
 					</label>
 				</div>
@@ -696,10 +696,10 @@
 					onclick={() => {
 						mrc = null;
 						mrcTemplate = null;
-					}}>{t('admin.common.cancel')}</button
+					}}>{t('web.common.cancel')}</button
 				>
 				<button type="submit" class="btn-primary btn-sm" disabled={mrcSaving}>
-					{mrcTemplate ? t('admin.doors.install') : mrcSaving ? t('admin.common.saving') : t('admin.common.save')}
+					{mrcTemplate ? t('admin.doors.install') : mrcSaving ? t('web.common.saving') : t('web.common.save')}
 				</button>
 			</div>
 		</form>

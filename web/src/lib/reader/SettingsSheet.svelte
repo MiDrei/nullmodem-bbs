@@ -71,7 +71,7 @@
 	}
 
 	function since(ms: number): string {
-		if (!ms) return t('web.reader.never');
+		if (!ms) return t('common.never');
 		const min = Math.round((Date.now() - ms) / 60000);
 		if (min < 1) return t('web.time.just_now');
 		if (min < 60) return t('web.time.minutes', { N: min });
@@ -81,7 +81,7 @@
 
 <div class="fixed inset-0 z-20 flex flex-col bg-black" style="padding-top: env(safe-area-inset-top)">
 	<header class="r-bar">
-		<span class="r-title">{t('web.reader.settings')}</span>
+		<span class="r-title">{t('web.common.settings')}</span>
 		<button class="r-btn text-base font-semibold" onclick={onClose}>{t('web.reader.done')}</button>
 	</header>
 	<div class="flex-1 overflow-y-auto pb-8">
@@ -94,7 +94,7 @@
 				<input type="checkbox" class="check" checked={enabled} disabled={busy} onchange={(e) => apply(e.currentTarget.checked)} />
 			</label>
 			<label class="r-row">
-				<span class="flex-1 {enabled ? 'text-ink' : 'text-faint'}">{t('web.reader.new_netmail')}</span>
+				<span class="flex-1 {enabled ? 'text-ink' : 'text-faint'}">{t('web.common.new_netmail')}</span>
 				<input type="checkbox" class="check" bind:checked={netmail} disabled={busy || !enabled} onchange={() => apply(true)} />
 			</label>
 			<label class="r-row">
@@ -124,13 +124,13 @@
 			</button>
 		</div>
 
-		<div class="r-section">{t('web.common.language')}</div>
+		<div class="r-section">{t('common.language')}</div>
 		<label class="r-row">
 			<span class="flex-1 text-ink">{t('web.reader.language_hint')}</span>
 			<LanguagePicker class="text-accent" />
 		</label>
 
 		<div class="r-section">{t('web.profile.account')}</div>
-		<button class="r-row text-red-400" onclick={onLogout}>{t('web.nav.logout')}</button>
+		<button class="r-row text-red-400" onclick={onLogout}>{t('web.common.log_out')}</button>
 	</div>
 </div>

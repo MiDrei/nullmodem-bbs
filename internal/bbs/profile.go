@@ -83,20 +83,20 @@ func timezoneLabel(term *Terminal, u *user.User) string {
 func (s *Server) showProfile(term *Terminal, u *user.User) error {
 	for {
 		lines := []string{
-			ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("profile.title") + ansi.Reset,
-			profileField(term, "profile.handle", u.Username),
-			profileField(term, "profile.real_name", u.RealName),
-			profileField(term, "profile.sl", strconv.Itoa(u.SecurityLevel)),
-			profileField(term, "profile.calls", strconv.Itoa(u.TotalCalls)),
-			profileField(term, "profile.since", term.Time(u.CreatedAt).Format("2006-01-02")),
-			profileField(term, "profile.timezone", timezoneLabel(term, u)),
-			profileField(term, "profile.location", placeLabel(term, u)),
-			profileField(term, "profile.language", toCP437(i18n.NameOf(term.Lang))),
+			ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("common.your_profile") + ansi.Reset,
+			profileField(term, "common.handle_2", u.Username),
+			profileField(term, "common.real_name", u.RealName),
+			profileField(term, "common.security_level", strconv.Itoa(u.SecurityLevel)),
+			profileField(term, "common.total_calls", strconv.Itoa(u.TotalCalls)),
+			profileField(term, "common.member_since", term.Time(u.CreatedAt).Format("2006-01-02")),
+			profileField(term, "common.time_zone", timezoneLabel(term, u)),
+			profileField(term, "common.location", placeLabel(term, u)),
+			profileField(term, "common.language", toCP437(i18n.NameOf(term.Lang))),
 			profileField(term, "profile.qwk_seenby", onOffText(term, u.QWKRouting)),
 			profileField(term, "profile.editor", editorText(term, u)),
 		}
 		if s.mayEmail(u) {
-			lines = append(lines, profileField(term, "profile.email", emailgw.Address(s.emailConfig(), u.Username)))
+			lines = append(lines, profileField(term, "common.email", emailgw.Address(s.emailConfig(), u.Username)))
 		}
 		lines = append(lines,
 			"",
@@ -104,8 +104,8 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			profileOption("T", term.T("profile.opt_timezone")),
 			profileOption("L", term.T("profile.opt_location")),
 			profileOption("A", term.T("profile.opt_language")),
-			profileOption("P", term.T("profile.opt_password")),
-			profileOption("K", term.T("profile.opt_areas")),
+			profileOption("P", term.T("common.change_password")),
+			profileOption("K", term.T("common.qwk_area_selection")),
 			profileOption("S", term.T("profile.opt_seenby")),
 			profileOption("E", term.T("profile.opt_editor")),
 			profileOption("Q", term.T("common.back")),
@@ -183,7 +183,7 @@ func (s *Server) toggleQWKRouting(term *Terminal, u *user.User) error {
 	}
 	u.QWKRouting = !u.QWKRouting
 	s.logInfo("%s turned QWK SEEN-BY/PATH lines %s", u.Username, onOff(u.QWKRouting))
-	msg := term.T("profile.seenby_off")
+	msg := term.T("common.qwk_packets_now_leave_seen")
 	if u.QWKRouting {
 		msg = term.T("profile.seenby_on")
 	}
@@ -246,7 +246,7 @@ func (s *Server) changeRealName(term *Terminal, u *user.User) error {
 		}
 		u.RealName = realName
 		s.logInfo("%s changed their real name", u.Username)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.real_name_saved"))
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("common.real_name_saved"))
 	}
 }
 
@@ -255,7 +255,7 @@ func (s *Server) changeRealName(term *Terminal, u *user.User) error {
 func (s *Server) changeTimezone(term *Terminal, u *user.User) error {
 	for {
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("profile.tz_title") + ansi.Reset + " -- " + term.T("profile.tz_current", "ZONE", timezoneLabel(term, u)) + "\n")
+		b.WriteString(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("common.time_zone") + ansi.Reset + " -- " + term.T("profile.tz_current", "ZONE", timezoneLabel(term, u)) + "\n")
 		half := (len(commonTimezones) + 1) / 2
 		for row := 0; row < half; row++ {
 			b.WriteString(timezoneCell(row))
@@ -373,7 +373,7 @@ func (s *Server) changePassword(term *Terminal, u *user.User) error {
 		return err
 	}
 	s.logInfo("%s changed their password", u.Username)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.pw_changed"))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("common.password_changed"))
 }
 
 func placeLabel(term *Terminal, u *user.User) string {
@@ -413,6 +413,6 @@ func (s *Server) changePlace(term *Terminal, u *user.User) error {
 		}
 		u.Place = place
 		s.logInfo("%s set their location", u.Username)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.location_saved"))
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("common.location_saved"))
 	}
 }

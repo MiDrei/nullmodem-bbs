@@ -161,7 +161,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : t('admin.areafix.could_not_load_configuration');
+			loadError = err instanceof ApiError ? err.message : t('admin.common.could_not_load_configuration');
 		} finally {
 			loaded = true;
 		}
@@ -265,7 +265,7 @@
 	}
 </script>
 
-<h1 class="mb-2 page-title">{t('admin.areafix.areafix_filefix')}</h1>
+<h1 class="mb-2 page-title">{t('admin.common.areafix_filefix')}</h1>
 <p class="mb-6 text-sm text-slate-400">
 	{t('admin.areafix.request_echomail_areafix_or_file')}
 </p>
@@ -273,7 +273,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else if !config || config.binkp_uplinks.length === 0}
 	<p class="text-sm text-slate-500">
 		{t('admin.areafix.no_binkp_uplinks_configured_yet')} <a
@@ -334,7 +334,7 @@
 			</select>
 		</label>
 		<label class="flex flex-col gap-1 text-sm">
-			<span class="text-slate-400">{t('admin.areafix.kind')}</span>
+			<span class="text-slate-400">{t('admin.common.kind')}</span>
 			<select
 				class="field field-sm"
 				bind:value={kind}
@@ -359,14 +359,14 @@
 				disabled={refreshingReply}
 				onclick={refreshReply}
 			>
-				{refreshingReply ? t('admin.areafix.refreshing') : t('admin.areafix.refresh_reply')}
+				{refreshingReply ? t('admin.common.refreshing') : t('admin.areafix.refresh_reply')}
 			</button>
 		{/if}
 	</div>
 
 	{#if mode === 'downlink'}
 		{#if loadingGrants}
-			<p class="mb-4 text-sm text-slate-400">{t('admin.common.loading')}</p>
+			<p class="mb-4 text-sm text-slate-400">{t('web.common.loading')}</p>
 		{:else if grantEntries.length === 0}
 			<p class="mb-4 text-sm text-slate-500">
 				{t('admin.areafix.no_local_v_areas_exist', { V: kind === 'file' ? t('admin.areafix.kind_file') : t('admin.areafix.kind_echo') })}
@@ -398,13 +398,13 @@
 			disabled={savingGrants}
 			onclick={saveGrants}
 		>
-			{savingGrants ? t('admin.common.saving') : t('admin.areafix.save_grants')}
+			{savingGrants ? t('web.common.saving') : t('admin.areafix.save_grants')}
 		</button>
 	{:else if listReply?.found}
 		<p class="mb-3 text-xs text-slate-500">
 			{t('admin.areafix.showing_the_reply_received_posted', { POSTED_AT: new Date(listReply.posted_at ?? '').toLocaleString(i18n.locale), SUBJECT: listReply.subject })}
 			<button type="button" class="text-cyan-400 underline" onclick={() => (showRawReply = !showRawReply)}>
-				{t('admin.areafix.v_raw_text', { V: showRawReply ? t('admin.areafix.hide') : t('admin.areafix.show') })}
+				{t('admin.areafix.v_raw_text', { V: showRawReply ? t('web.common.hide') : t('admin.areafix.show') })}
 			</button>
 		</p>
 		{#if showRawReply}

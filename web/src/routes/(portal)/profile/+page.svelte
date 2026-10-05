@@ -91,7 +91,7 @@
 	async function saveName(e: SubmitEvent) {
 		e.preventDefault();
 		savingName = true;
-		await save({ real_name: realName }, t('web.profile.name_saved'));
+		await save({ real_name: realName }, t('common.real_name_saved'));
 		savingName = false;
 	}
 
@@ -105,7 +105,7 @@
 	async function savePlace(e: SubmitEvent) {
 		e.preventDefault();
 		savingPlace = true;
-		await save({ location: place }, place.trim() ? t('web.profile.place_saved') : t('web.profile.place_cleared'));
+		await save({ location: place }, place.trim() ? t('common.location_saved') : t('web.profile.place_cleared'));
 		savingPlace = false;
 	}
 
@@ -113,7 +113,7 @@
 
 	async function saveRouting(on: boolean) {
 		savingRouting = true;
-		await save({ qwk_routing: on }, on ? t('web.profile.seenby_on') : t('web.profile.seenby_off'));
+		await save({ qwk_routing: on }, on ? t('web.profile.seenby_on') : t('common.qwk_packets_now_leave_seen'));
 		savingRouting = false;
 	}
 
@@ -128,7 +128,7 @@
 		try {
 			await changeBBSPassword(bbsAuth.token, currentPassword, newPassword);
 			currentPassword = newPassword = confirmPassword = '';
-			toast.push(t('web.profile.pw_changed'), 'success');
+			toast.push(t('common.password_changed'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			toast.push(err instanceof ApiError ? err.message : t('web.profile.pw_failed'), 'error');
@@ -139,7 +139,7 @@
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">{t('web.profile.title')}</h1>
+	<h1 class="page-title">{t('common.your_profile')}</h1>
 	<p class="page-subtitle">{t('web.profile.subtitle')}</p>
 </div>
 
@@ -149,13 +149,13 @@
 	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	{@const account = [
-		[t('web.profile.handle'), profile.username],
-		[t('web.profile.real_name'), profile.real_name || '—'],
-		[t('web.profile.sl'), String(profile.security_level)],
-		[t('web.profile.calls'), String(profile.total_calls)],
-		[t('web.profile.since'), formatDate(profile.created_at)],
-		[t('web.profile.timezone'), profile.timezone || t('web.profile.zone_unset', { ZONE: browserZone })],
-		[t('web.profile.location'), profile.location || '—'],
+		[t('common.handle_2'), profile.username],
+		[t('common.real_name'), profile.real_name || '—'],
+		[t('common.security_level'), String(profile.security_level)],
+		[t('common.total_calls'), String(profile.total_calls)],
+		[t('common.member_since'), formatDate(profile.created_at)],
+		[t('common.time_zone'), profile.timezone || t('web.profile.zone_unset', { ZONE: browserZone })],
+		[t('common.location'), profile.location || '—'],
 		...(profile.email ? [[t('web.profile.email'), profile.email]] : [])
 	]}
 	<div class="flex flex-col gap-4">
@@ -172,7 +172,7 @@
 		</section>
 
 		<section class="card">
-			<h2 class="card-label mb-1.5">{t('web.common.language')}</h2>
+			<h2 class="card-label mb-1.5">{t('common.language')}</h2>
 			<p class="mb-3.5 text-[13px] text-muted">{t('web.profile.language_hint')}</p>
 			<select
 				class="field min-w-56"
@@ -188,9 +188,9 @@
 		</section>
 
 		<section class="card">
-			<h2 class="card-label mb-3.5">{t('web.profile.real_name')}</h2>
+			<h2 class="card-label mb-3.5">{t('common.real_name')}</h2>
 			<form class="flex flex-wrap gap-2.5" onsubmit={saveName}>
-				<label class="sr-only" for="profile-realname">{t('web.profile.real_name')}</label>
+				<label class="sr-only" for="profile-realname">{t('common.real_name')}</label>
 				<input id="profile-realname" class="field min-w-56 flex-1" bind:value={realName} required />
 				<button class="btn-primary" disabled={savingName || realName.trim() === profile.real_name}>
 					{savingName ? t('web.common.saving') : t('web.common.save')}
@@ -199,12 +199,12 @@
 		</section>
 
 		<section class="card">
-			<h2 class="card-label mb-1.5">{t('web.profile.timezone')}</h2>
+			<h2 class="card-label mb-1.5">{t('common.time_zone')}</h2>
 			<p class="mb-3.5 text-[13px] text-muted">
 				{t('web.profile.zone_hint')}
 			</p>
 			<form class="flex flex-wrap gap-2.5" onsubmit={saveZone}>
-				<label class="sr-only" for="profile-zone">{t('web.profile.timezone')}</label>
+				<label class="sr-only" for="profile-zone">{t('common.time_zone')}</label>
 				<select id="profile-zone" class="field min-w-56 flex-1" bind:value={timezone}>
 					<option value="">{t('web.profile.not_set')}</option>
 					{#each zones as zone (zone)}
@@ -226,12 +226,12 @@
 		</section>
 
 		<section class="card">
-			<h2 class="card-label mb-1.5">{t('web.profile.location')}</h2>
+			<h2 class="card-label mb-1.5">{t('common.location')}</h2>
 			<p class="mb-3.5 text-[13px] text-muted">
 				{t('web.profile.place_hint')}
 			</p>
 			<form class="flex flex-wrap gap-2.5" onsubmit={savePlace}>
-				<label class="sr-only" for="profile-place">{t('web.profile.location')}</label>
+				<label class="sr-only" for="profile-place">{t('common.location')}</label>
 				<input
 					id="profile-place"
 					class="field min-w-56 flex-1"
@@ -246,7 +246,7 @@
 		</section>
 
 		<section class="card">
-			<h2 class="card-label mb-3.5">{t('web.login.password')}</h2>
+			<h2 class="card-label mb-3.5">{t('web.common.password')}</h2>
 			<form class="grid gap-3 sm:grid-cols-3" onsubmit={savePassword}>
 				<label class="flex flex-col gap-1.5">
 					<span class="text-xs text-muted">{t('web.profile.pw_current')}</span>
@@ -281,7 +281,7 @@
 				</label>
 				<div class="flex justify-end sm:col-span-3">
 					<button class="btn-primary" disabled={savingPassword}>
-						{savingPassword ? t('web.profile.pw_changing') : t('web.profile.pw_change')}
+						{savingPassword ? t('web.profile.pw_changing') : t('common.change_password')}
 					</button>
 				</div>
 			</form>
@@ -290,7 +290,7 @@
 		<section class="card">
 			<div class="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h2 class="card-label">{t('web.profile.qwk_areas')}</h2>
+					<h2 class="card-label">{t('common.qwk_area_selection')}</h2>
 					<p class="mt-1.5 text-[13px] text-muted">{t('web.profile.qwk_areas_hint')}</p>
 				</div>
 				<a href="/qwk" class="btn-secondary hover:text-accent">{t('web.profile.qwk_open')}</a>

@@ -100,7 +100,7 @@
 			previewText = await previewArchiveEntry(auth.token, entry.id);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			previewError = err instanceof ApiError ? err.message : t('admin.archive.could_not_load_preview');
+			previewError = err instanceof ApiError ? err.message : t('web.common.could_not_load_preview');
 		}
 	}
 
@@ -172,7 +172,7 @@
 	}
 </script>
 
-<h1 class="mb-2 page-title">{t('admin.archive.packet_analyzer')}</h1>
+<h1 class="mb-2 page-title">{t('admin.common.packet_analyzer')}</h1>
 <p class="mb-6 text-sm text-slate-400">
 	{t('admin.archive.every_inbound_binkp_file_a')}
 </p>
@@ -180,7 +180,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else}
 	<div class="mb-4 flex items-center justify-between">
 		<button
@@ -253,14 +253,14 @@
 								class="btn-secondary btn-xs"
 								onclick={() => download(entry)}
 							>
-								{t('admin.common.download')}
+								{t('web.common.download')}
 							</button>
 							<button
 								class="btn-danger btn-xs"
 								disabled={busyID === entry.id}
 								onclick={() => remove(entry)}
 							>
-								{t('admin.common.delete')}
+								{t('web.common.delete')}
 							</button>
 						</div>
 					</div>
@@ -270,7 +270,7 @@
 							{#if inspectError}
 								<p class="text-sm text-red-400">{inspectError}</p>
 							{:else if inspection === null}
-								<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+								<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 							{:else if inspection.kind === 'packet' || inspection.kind === 'bundle'}
 								<div class="flex flex-col gap-3">
 									{#if inspection.kind === 'bundle'}
@@ -286,17 +286,17 @@
 												).toLocaleString(i18n.locale) })}
 											</div>
 											{#if p.messages.length === 0}
-												<p class="mt-1 text-xs text-slate-500">{t('admin.archive.no_messages')}</p>
+												<p class="mt-1 text-xs text-slate-500">{t('web.common.no_messages')}</p>
 											{:else}
 												<table class="mt-2 w-full text-xs">
 													<thead class="text-slate-500">
 														<tr class="text-left">
-															<th class="py-1 pr-2 font-normal">{t('admin.archive.from')}</th>
-															<th class="py-1 pr-2 font-normal">{t('admin.archive.to')}</th>
-															<th class="py-1 pr-2 font-normal">{t('admin.archive.subject')}</th>
-															<th class="py-1 pr-2 font-normal">{t('admin.archive.area')}</th>
+															<th class="py-1 pr-2 font-normal">{t('common.from')}</th>
+															<th class="py-1 pr-2 font-normal">{t('web.common.to')}</th>
+															<th class="py-1 pr-2 font-normal">{t('common.subject')}</th>
+															<th class="py-1 pr-2 font-normal">{t('common.area')}</th>
 															<th class="py-1 pr-2 font-normal">{t('admin.archive.written')}</th>
-															<th class="py-1 font-normal">{t('admin.archive.size')}</th>
+															<th class="py-1 font-normal">{t('common.size')}</th>
 														</tr>
 													</thead>
 													<tbody>
@@ -320,15 +320,15 @@
 								</div>
 							{:else if inspection.kind === 'tic'}
 								<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-									<dt class="text-slate-500">{t('admin.archive.area')}</dt>
+									<dt class="text-slate-500">{t('common.area')}</dt>
 									<dd class="font-mono text-slate-300">{inspection.tic?.area}</dd>
-									<dt class="text-slate-500">{t('admin.archive.file')}</dt>
+									<dt class="text-slate-500">{t('admin.common.file')}</dt>
 									<dd class="font-mono text-slate-300">{inspection.tic?.file}</dd>
-									<dt class="text-slate-500">{t('admin.common.description')}</dt>
+									<dt class="text-slate-500">{t('web.common.description')}</dt>
 									<dd class="whitespace-pre-wrap text-slate-300">
 										{inspection.tic?.description || t('admin.archive.none_this_is_the_missing')}
 									</dd>
-									<dt class="text-slate-500">{t('admin.archive.size')}</dt>
+									<dt class="text-slate-500">{t('common.size')}</dt>
 									<dd class="text-slate-300">{inspection.tic?.size_bytes} B</dd>
 									{#if inspection.tic?.has_crc32}
 										<dt class="text-slate-500">CRC-32</dt>
@@ -355,7 +355,7 @@
 								{:else if previewError}
 									<p class="text-sm text-red-400">{previewError}</p>
 								{:else if previewText === null}
-									<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+									<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 								{:else}
 									<pre class="max-h-96 overflow-auto rounded bg-slate-950 p-3 font-mono text-xs break-all whitespace-pre-wrap text-slate-300">{previewText}</pre>
 								{/if}

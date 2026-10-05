@@ -91,7 +91,7 @@
 			composeSubject = '';
 			composeBody = '';
 			composeCrash = false;
-			toast.push(t('web.netmail.sent_ok'), 'success');
+			toast.push(t('common.netmail_sent'), 'success');
 			await load();
 		} catch (err) {
 			if (await handleAuthError(err)) return;
@@ -104,7 +104,7 @@
 
 <div class="mb-5 flex items-center justify-between gap-4">
 	<div>
-		<h1 class="page-title">{t('web.nav.netmail')}</h1>
+		<h1 class="page-title">{t('common.netmail')}</h1>
 		<p class="page-subtitle">{t('web.netmail.subtitle')}</p>
 		{#if myEmail}
 			<p class="mt-1 text-[12.5px] text-muted">
@@ -113,7 +113,7 @@
 		{/if}
 	</div>
 	{#if !composing}
-		<button class="btn-primary" onclick={() => (composing = true)}>+ {t('web.netmail.new')}</button>
+		<button class="btn-primary" onclick={() => (composing = true)}>+ {t('web.common.new_netmail')}</button>
 	{/if}
 </div>
 
@@ -140,7 +140,7 @@
 			</label>
 		{/if}
 		<label class="flex flex-col gap-2">
-			<span class="card-label">{t('web.msg.subject')}</span>
+			<span class="card-label">{t('common.subject')}</span>
 			<input class="field" bind:value={composeSubject} />
 		</label>
 		<label class="flex flex-col gap-2">
@@ -171,7 +171,7 @@
 		class="tab {tab === 'inbox' ? 'tab-active' : ''}"
 		onclick={() => (tab = 'inbox')}
 	>
-		{t('web.netmail.inbox')}{inbox.some((m) => m.unread) ? ` · ${t('web.common.n_new', { COUNT: inbox.filter((m) => m.unread).length })}` : ''}
+		{t('web.common.inbox')}{inbox.some((m) => m.unread) ? ` · ${t('common.count_new', { COUNT: inbox.filter((m) => m.unread).length })}` : ''}
 	</button>
 	<button
 		role="tab"
@@ -210,7 +210,7 @@
 					</div>
 				</div>
 				{#if unread}
-					<span class="badge-new">{t('web.common.new_badge')}</span>
+					<span class="badge-new">{t('common.new')}</span>
 				{/if}
 				<span class="list-meta w-16 shrink-0 text-right">{relativeTime(m.posted_at)}</span>
 			</a>

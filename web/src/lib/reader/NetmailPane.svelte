@@ -67,7 +67,7 @@
 		try {
 			const how = await sendOrQueue(token, { kind: 'netmail', to: target, toName, subject, body, replyTo: mail.id });
 			replying = false;
-			toast.push(how === 'queued' ? t('web.reader.queued_reply') : t('web.netmail.reply_sent'), 'success');
+			toast.push(how === 'queued' ? t('web.reader.queued_reply') : t('common.reply_sent'), 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
 			toast.push(errorText(err, t('web.netmail.reply_failed')), 'error');
@@ -81,7 +81,7 @@
 	<p class="r-note text-red-400">{error}</p>
 {:else if mail}
 	<ReadView
-		title={t('web.nav.netmail')}
+		title={t('common.netmail')}
 		from={mail.from_address
 			? `${mail.from_name} (${mail.from_address})`
 			: mail.email && mail.email !== mail.from_name

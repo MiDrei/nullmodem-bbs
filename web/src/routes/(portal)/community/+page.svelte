@@ -120,7 +120,7 @@
 	const seen = (iso: string) => (iso && !iso.startsWith('0001') ? new Date(iso) : null);
 	function status(e: BBSListEntry): { cls: string; label: string; text: string } {
 		const checked = seen(e.checked_at);
-		if (!checked) return { cls: 'bg-line-strong', label: t('web.bbslist.not_checked'), text: t('web.bbslist.not_checked') };
+		if (!checked) return { cls: 'bg-line-strong', label: t('common.not_checked_yet'), text: t('common.not_checked_yet') };
 		if (e.online) return { cls: 'bg-emerald-400', label: t('web.bbslist.online'), text: t('web.bbslist.online_checked', { WHEN: checked.toLocaleString(i18n.locale) }) };
 		const up = seen(e.last_up_at);
 		return { cls: 'bg-red-400', label: t('web.bbslist.offline'), text: up ? t('web.bbslist.offline_seen', { WHEN: up.toLocaleDateString(i18n.locale) }) : t('web.bbslist.unreachable') };
@@ -128,12 +128,12 @@
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">{t('web.nav.community')}</h1>
+	<h1 class="page-title">{t('web.common.community')}</h1>
 	<p class="page-subtitle">{t('web.community.subtitle')}</p>
 </div>
 
 <div class="mb-5 flex gap-1 border-b border-line">
-	{#each [['polls', t('web.community.polls')], ['bbs', t('web.community.bbs')], ['callers', t('web.community.callers')], ['nodelist', t('web.community.nodelist')]] as [k, label] (k)}
+	{#each [['polls', t('web.community.polls')], ['bbs', t('common.bbs_list')], ['callers', t('web.common.last_callers')], ['nodelist', t('common.nodelist')]] as [k, label] (k)}
 		<button
 			class="border-b-2 px-3 py-2 text-sm font-medium transition {tab === k ? 'border-accent text-ink-strong' : 'border-transparent text-muted hover:text-ink'}"
 			onclick={() => select(k as Tab)}>{label}</button
@@ -150,7 +150,7 @@
 			<section class="card">
 				<div class="mb-3 flex items-baseline justify-between gap-3">
 					<h2 class="font-semibold text-ink-strong">{p.question}</h2>
-					<span class="shrink-0 text-xs text-faint">{tn('web.polls.votes', p.total)}{p.closed ? ` · ${t('web.polls.closed')}` : ''}</span>
+					<span class="shrink-0 text-xs text-faint">{tn('common.count_votes', p.total)}{p.closed ? ` · ${t('web.polls.closed')}` : ''}</span>
 				</div>
 				<div class="flex flex-col gap-2">
 					{#each p.options as o (o.id)}
@@ -185,11 +185,11 @@
 	</div>
 	{#if editing}
 		<form class="card mb-4 grid gap-3 sm:grid-cols-2" onsubmit={saveEntry}>
-			<input class="field" placeholder={t('web.bbslist.name')} maxlength="40" bind:value={editing.entry.name} required />
-			<input class="field font-mono" placeholder={t('web.bbslist.address')} maxlength="60" bind:value={editing.entry.address} required />
-			<input class="field" placeholder={t('web.bbslist.sysop')} maxlength="60" bind:value={editing.entry.sysop} />
-			<input class="field" placeholder={t('web.bbslist.software')} maxlength="60" bind:value={editing.entry.software} />
-			<input class="field sm:col-span-2" placeholder={t('web.bbslist.about')} maxlength="200" bind:value={editing.entry.description} />
+			<input class="field" placeholder={t('common.name')} maxlength="40" bind:value={editing.entry.name} required />
+			<input class="field font-mono" placeholder={t('common.address_host_port')} maxlength="60" bind:value={editing.entry.address} required />
+			<input class="field" placeholder={t('common.sysop')} maxlength="60" bind:value={editing.entry.sysop} />
+			<input class="field" placeholder={t('common.software')} maxlength="60" bind:value={editing.entry.software} />
+			<input class="field sm:col-span-2" placeholder={t('common.about_it')} maxlength="200" bind:value={editing.entry.description} />
 			<div class="flex justify-end gap-2 sm:col-span-2">
 				<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>{t('web.common.cancel')}</button>
 				<button type="submit" class="btn-primary btn-sm">{t('web.common.save')}</button>
@@ -246,7 +246,7 @@
 		<button type="submit" class="btn-primary btn-sm" disabled={!query.trim()}>{t('web.common.search')}</button>
 	</form>
 	{#if searched && found.length === 0}
-		<p class="text-sm text-muted">{t('web.common.nothing_found')}</p>
+		<p class="text-sm text-muted">{t('common.nothing_found')}</p>
 	{/if}
 	<div class="flex flex-col divide-y divide-line">
 		{#each found as n (n.network + n.address)}

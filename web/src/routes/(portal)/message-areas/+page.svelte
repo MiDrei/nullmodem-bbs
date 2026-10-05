@@ -68,7 +68,7 @@
 			areas = await listBBSMessageAreas(bbsAuth.token);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : t('web.areas.load_failed');
+			loadError = err instanceof ApiError ? err.message : t('web.common.could_not_load_message_areas');
 		} finally {
 			loaded = true;
 		}
@@ -105,7 +105,7 @@
 
 <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
 	<div>
-		<h1 class="page-title">{t('web.areas.title')}</h1>
+		<h1 class="page-title">{t('common.message_areas')}</h1>
 		<p class="page-subtitle">{t('web.areas.subtitle')}</p>
 	</div>
 	<form action="/search" class="flex gap-2">
@@ -122,7 +122,7 @@
 {:else}
 	<div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line">
 		<div class="flex gap-1">
-			{#each [['mine', `${t('web.areas.mine')} · ${mineCount}`], ['all', `${t('web.areas.all')} · ${areas.length}`]] as [v, label] (v)}
+			{#each [['mine', `${t('common.my_areas')} · ${mineCount}`], ['all', `${t('web.areas.all')} · ${areas.length}`]] as [v, label] (v)}
 				<button
 					class="border-b-2 px-3 py-2 text-sm font-medium transition {scope === v ? 'border-accent text-ink-strong' : 'border-transparent text-muted hover:text-ink'}"
 					onclick={() => setScope(v as 'mine' | 'all')}>{label}</button
@@ -145,7 +145,7 @@
 				class="pill {activeNetwork === ALL_TAB ? 'pill-active' : ''}"
 				onclick={() => (activeNetwork = ALL_TAB)}
 			>
-				{t('web.common.all')} · {shown.length}{totalNew > 0 ? ` · ${t('web.common.n_new', { COUNT: totalNew })}` : ''}
+				{t('web.common.all')} · {shown.length}{totalNew > 0 ? ` · ${t('common.count_new', { COUNT: totalNew })}` : ''}
 			</button>
 			{#each groups as group (group.network)}
 				<button
@@ -154,7 +154,7 @@
 					class="pill {activeNetwork === group.network ? 'pill-active' : ''}"
 					onclick={() => (activeNetwork = group.network)}
 				>
-					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${t('web.common.n_new', { COUNT: group.newCount })}` : ''}
+					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${t('common.count_new', { COUNT: group.newCount })}` : ''}
 				</button>
 			{/each}
 		</div>

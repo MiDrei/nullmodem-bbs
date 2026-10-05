@@ -162,7 +162,7 @@
 	}
 </script>
 
-<h1 class="mb-2 page-title">{t('admin.pending_areas.pending_areas')}</h1>
+<h1 class="mb-2 page-title">{t('admin.common.pending_areas')}</h1>
 <p class="mb-6 text-sm text-slate-400">
 	{t('admin.pending_areas.areas_the_binkp_tosser_auto')}
 </p>
@@ -176,7 +176,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else}
 	<div class="mb-5 flex gap-6 border-b border-line" role="tablist" aria-label={t('admin.pending_areas.area_type')}>
 		<button
@@ -185,7 +185,7 @@
 			class="tab {tab === 'message' ? 'tab-active' : ''}"
 			onclick={() => (tab = 'message')}
 		>
-			{t('admin.pending_areas.message_areas')}
+			{t('common.message_areas')}
 			<span class="ml-1.5 rounded-md px-1.5 py-0.5 font-mono text-[11px] {messageAreas.length > 0
 					? 'bg-accent text-white'
 					: 'text-faint'}">{messageAreas.length}</span
@@ -197,7 +197,7 @@
 			class="tab {tab === 'file' ? 'tab-active' : ''}"
 			onclick={() => (tab = 'file')}
 		>
-			{t('admin.pending_areas.file_areas')}
+			{t('common.file_areas')}
 			<span class="ml-1.5 rounded-md px-1.5 py-0.5 font-mono text-[11px] {fileAreas.length > 0
 					? 'bg-accent text-white'
 					: 'text-faint'}">{fileAreas.length}</span
@@ -217,30 +217,30 @@
 						<div class="mb-3 font-mono text-xs text-slate-500">{area.tag}</div>
 						<div class="grid grid-cols-2 gap-4">
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.common.name')}</span>
+								<span class="text-slate-400">{t('common.name')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.name}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.pending_areas.group')}</span>
+								<span class="text-slate-400">{t('admin.common.group')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.network}
 									list="groups-list"
-									placeholder={t('admin.pending_areas.fsxnet_fidonet_blank_for_ungrouped')}
+									placeholder={t('admin.common.fsxnet_fidonet_blank_for_ungrouped')}
 								/>
 							</label>
 							<label class="col-span-2 flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.common.description')}</span>
+								<span class="text-slate-400">{t('web.common.description')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.description}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.pending_areas.min_sl_to_read')}</span>
+								<span class="text-slate-400">{t('admin.common.min_sl_to_read')}</span>
 								<input
 									type="number"
 									min="0"
@@ -250,7 +250,7 @@
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.pending_areas.min_sl_to_post')}</span>
+								<span class="text-slate-400">{t('admin.common.min_sl_to_post')}</span>
 								<input
 									type="number"
 									min="0"
@@ -294,30 +294,30 @@
 						<div class="mb-3 font-mono text-xs text-slate-500">{area.tag}</div>
 						<div class="grid grid-cols-2 gap-4">
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.common.name')}</span>
+								<span class="text-slate-400">{t('common.name')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.name}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.pending_areas.group')}</span>
+								<span class="text-slate-400">{t('admin.common.group')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.network}
 									list="groups-list"
-									placeholder={t('admin.pending_areas.fsxnet_fidonet_blank_for_ungrouped')}
+									placeholder={t('admin.common.fsxnet_fidonet_blank_for_ungrouped')}
 								/>
 							</label>
 							<label class="col-span-2 flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.common.description')}</span>
+								<span class="text-slate-400">{t('web.common.description')}</span>
 								<input
 									class="field field-sm"
 									bind:value={draft.description}
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.pending_areas.min_sl_to_download')}</span>
+								<span class="text-slate-400">{t('admin.common.min_sl_to_download')}</span>
 								<input
 									type="number"
 									min="0"
@@ -327,7 +327,7 @@
 								/>
 							</label>
 							<label class="flex flex-col gap-1 text-sm">
-								<span class="text-slate-400">{t('admin.pending_areas.min_sl_to_upload')}</span>
+								<span class="text-slate-400">{t('admin.common.min_sl_to_upload')}</span>
 								<input
 									type="number"
 									min="0"

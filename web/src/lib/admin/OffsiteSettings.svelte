@@ -54,7 +54,7 @@
 			sftpPassword = swiftPassword = s3Secret = davPassword = '';
 			return true;
 		} catch (err) {
-			fail(err, t('admin.offsite.could_not_save'));
+			fail(err, t('admin.common.could_not_save'));
 			return false;
 		} finally {
 			busy = null;
@@ -100,7 +100,7 @@
 			remote = r.remote ?? [];
 			toast.push(t('admin.offsite.it_works_written_read_back'), 'success');
 		} catch (err) {
-			fail(err, t('admin.offsite.the_test_failed'));
+			fail(err, t('admin.common.the_test_failed'));
 		} finally {
 			busy = null;
 		}
@@ -131,7 +131,7 @@
 </script>
 
 <section class="card">
-	<h2 class="card-label mb-1">{t('admin.offsite.off_site_copy')}</h2>
+	<h2 class="card-label mb-1">{t('admin.common.off_site_copy')}</h2>
 	<p class="mb-4 text-xs leading-relaxed text-muted">
 		{t('admin.offsite.each_backup_also_goes_to')}
 	</p>
@@ -152,7 +152,7 @@
 						<code class="block break-all select-all text-ink">{privateKey}</code>
 						<div class="mt-2 flex gap-2">
 							<button class="btn-primary btn-xs" onclick={downloadKey}>{t('admin.offsite.download_it')}</button>
-							<button class="btn-secondary btn-xs" onclick={() => { navigator.clipboard?.writeText(privateKey); keySaved = true; }}>{t('admin.offsite.copy')}</button>
+							<button class="btn-secondary btn-xs" onclick={() => { navigator.clipboard?.writeText(privateKey); keySaved = true; }}>{t('web.common.copy')}</button>
 							<button class="btn-secondary btn-xs" disabled={!keySaved} onclick={() => (privateKey = '')}>{t('admin.offsite.i_ve_stored_it')}</button>
 						</div>
 					</div>
@@ -171,9 +171,9 @@
 					<div class="grid gap-2.5 sm:grid-cols-2">
 						<label class="flex flex-col gap-1 text-xs text-muted sm:col-span-2">{t('admin.offsite.auth_url_keystone_v3')}
 							<input class="field field-sm font-mono" bind:value={o.swift_auth_url} placeholder="https://swiss-backup02.infomaniak.com/identity/v3" /></label>
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.user')}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.common.user')}
 							<input class="field field-sm font-mono" bind:value={o.swift_user} autocomplete="off" /></label>
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.password_v', { V: o.swift_has_password ? t('admin.offsite.saved') : '' })}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.password_v', { V: o.swift_has_password ? t('admin.common.saved') : '' })}
 							<input class="field field-sm" type="password" bind:value={swiftPassword} autocomplete="new-password" placeholder={o.swift_has_password ? '••••••••' : ''} /></label>
 						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.project')}
 							<input class="field field-sm font-mono" bind:value={o.swift_project} placeholder="sb_project_…" /></label>
@@ -201,7 +201,7 @@
 							<input class="field field-sm font-mono" bind:value={o.s3_prefix} placeholder="bbs/" /></label>
 						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.access_key')}
 							<input class="field field-sm font-mono" bind:value={o.s3_access_key} autocomplete="off" /></label>
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.secret_key_v', { V: o.s3_has_secret_key ? t('admin.offsite.saved') : '' })}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.secret_key_v', { V: o.s3_has_secret_key ? t('admin.common.saved') : '' })}
 							<input class="field field-sm" type="password" bind:value={s3Secret} autocomplete="new-password" placeholder={o.s3_has_secret_key ? '••••••••' : ''} /></label>
 					</div>
 					<label class="mt-2 flex items-center gap-2 text-xs text-muted"><input type="checkbox" bind:checked={o.s3_path_style} /> {t('admin.offsite.path_style_addressing_minio_and')}</label>
@@ -212,25 +212,25 @@
 					<div class="grid gap-2.5 sm:grid-cols-2">
 						<label class="flex flex-col gap-1 text-xs text-muted sm:col-span-2">{t('admin.offsite.folder_url')}
 							<input class="field field-sm font-mono" bind:value={o.webdav_url} placeholder="https://cloud.example.org/remote.php/dav/files/me/bbs-backups" /></label>
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.user')}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.common.user')}
 							<input class="field field-sm font-mono" bind:value={o.webdav_user} autocomplete="off" /></label>
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.password_v', { V: o.webdav_has_password ? t('admin.offsite.saved') : t('admin.offsite.an_app_password_ideally') })}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.password_v', { V: o.webdav_has_password ? t('admin.common.saved') : t('admin.offsite.an_app_password_ideally') })}
 							<input class="field field-sm" type="password" bind:value={davPassword} autocomplete="new-password" placeholder={o.webdav_has_password ? '••••••••' : ''} /></label>
 					</div>
 					<p class="mt-2 text-[11px] text-faint">{t('admin.offsite.nextcloud_owncloud_settings_webdav_shows')}</p>
 				{:else}
 					<div class="grid gap-2.5 sm:grid-cols-[1fr_6rem]">
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.host')}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.common.host')}
 							<input class="field field-sm font-mono" bind:value={o.sftp_host} placeholder="u123456.your-storagebox.de" /></label>
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.port')}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.common.port')}
 							<input class="field field-sm font-mono" type="number" bind:value={o.sftp_port} placeholder="23" /></label>
 					</div>
 					<div class="mt-2.5 grid gap-2.5 sm:grid-cols-3">
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.user')}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.common.user')}
 							<input class="field field-sm font-mono" bind:value={o.sftp_user} autocomplete="off" /></label>
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.directory')}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.common.directory')}
 							<input class="field field-sm font-mono" bind:value={o.sftp_dir} placeholder="nullmodem-backups" /></label>
-						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.password_v', { V: o.sftp_has_password ? t('admin.offsite.saved') : t('admin.offsite.or_the_key_below') })}
+						<label class="flex flex-col gap-1 text-xs text-muted">{t('admin.offsite.password_v', { V: o.sftp_has_password ? t('admin.common.saved') : t('admin.offsite.or_the_key_below') })}
 							<input class="field field-sm" type="password" bind:value={sftpPassword} autocomplete="new-password" placeholder={o.sftp_has_password ? '••••••••' : ''} /></label>
 					</div>
 					<div class="mt-3 text-xs text-muted">
@@ -279,9 +279,9 @@
 			</div>
 
 			<div class="flex flex-wrap justify-end gap-2">
-				<button class="btn-secondary btn-sm" disabled={busy !== null} onclick={test}>{busy === 'test' ? t('admin.offsite.testing') : t('admin.offsite.save_and_test')}</button>
+				<button class="btn-secondary btn-sm" disabled={busy !== null} onclick={test}>{busy === 'test' ? t('admin.common.testing') : t('admin.offsite.save_and_test')}</button>
 				<button class="btn-secondary btn-sm" disabled={busy !== null || !o.enabled} onclick={copyNow}>{busy === 'run' ? t('admin.offsite.copying') : t('admin.offsite.copy_the_newest_now')}</button>
-				<button class="btn-primary btn-sm" disabled={busy !== null} onclick={async () => (await save()) && toast.push(t('admin.offsite.saved_2'), 'success')}>{t('admin.common.save')}</button>
+				<button class="btn-primary btn-sm" disabled={busy !== null} onclick={async () => (await save()) && toast.push(t('common.saved'), 'success')}>{t('web.common.save')}</button>
 			</div>
 		</div>
 	{/if}

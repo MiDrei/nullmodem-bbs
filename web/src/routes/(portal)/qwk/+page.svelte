@@ -39,7 +39,7 @@
 			areas = await listQWKAreas(bbsAuth.token);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : t('web.areas.load_failed');
+			loadError = err instanceof ApiError ? err.message : t('web.common.could_not_load_message_areas');
 		} finally {
 			loaded = true;
 		}
@@ -73,7 +73,7 @@
 		downloading = true;
 		try {
 			const got = await downloadQWKPacket(bbsAuth.token);
-			toast.push(got ? t('web.qwk.downloaded') : t('web.qwk.no_mail'), 'success');
+			toast.push(got ? t('web.qwk.downloaded') : t('common.no_new_mail_to_download'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			toast.push(err instanceof ApiError ? err.message : t('web.qwk.download_failed'), 'error');
@@ -91,13 +91,13 @@
 		try {
 			const result = await uploadQWKReply(bbsAuth.token, file);
 			toast.push(
-				t('web.qwk.processed', { POSTED: result.posted, SENT: result.sent }) +
-					(result.skipped > 0 ? t('web.qwk.skipped', { COUNT: result.skipped }) : '') +
+				t('common.replies_processed_posted_posted_sent', { POSTED: result.posted, SENT: result.sent }) +
+					(result.skipped > 0 ? t('common.count_skipped', { COUNT: result.skipped }) : '') +
 					'.',
 				'success'
 			);
 			for (const r of result.rejected ?? []) {
-				toast.push(t('web.qwk.not_delivered', { SUBJECT: r.subject, TO: r.to, REASON: r.reason }), 'error');
+				toast.push(t('common.not_delivered_subject_to_to', { SUBJECT: r.subject, TO: r.to, REASON: r.reason }), 'error');
 			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
@@ -119,7 +119,7 @@
 		{downloading ? t('web.qwk.building') : t('web.qwk.download')}
 	</button>
 	<button class="btn-secondary" disabled={uploading} onclick={() => fileInput?.click()}>
-		{uploading ? t('web.files.uploading') : t('web.qwk.upload')}
+		{uploading ? t('web.common.uploading') : t('web.qwk.upload')}
 	</button>
 	<input bind:this={fileInput} type="file" accept=".rep" class="hidden" onchange={handleUpload} />
 </div>

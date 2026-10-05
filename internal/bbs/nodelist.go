@@ -20,7 +20,7 @@ func (s *Server) browseNodelist(term *Terminal, _ *user.User) error {
 		return err
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("nodelist.title") + ansi.Reset + "\r\n")
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("common.nodelists") + ansi.Reset + "\r\n")
 	if len(imps) == 0 {
 		b.WriteString("  " + term.T("nodelist.none") + "\r\n")
 		if err := term.Print(b.String()); err != nil {

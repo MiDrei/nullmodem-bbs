@@ -122,7 +122,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : t('admin.binkp.could_not_load_configuration');
+			loadError = err instanceof ApiError ? err.message : t('admin.common.could_not_load_configuration');
 		}
 	});
 
@@ -151,7 +151,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			saveError = err instanceof ApiError ? err.message : t('admin.binkp.could_not_save_configuration');
+			saveError = err instanceof ApiError ? err.message : t('admin.common.could_not_save_configuration');
 		} finally {
 			saving = false;
 		}
@@ -159,14 +159,14 @@
 </script>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="page-title">{t('admin.binkp.networks_addresses')}</h1>
+	<h1 class="page-title">{t('admin.common.networks_addresses')}</h1>
 	<a href="/admin/binkp/uplinks" class="btn-secondary btn-sm">{t('admin.binkp.uplinks_nodes_points')}</a>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !config}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
@@ -186,8 +186,8 @@
 						<thead class="card-label">
 							<tr>
 								<th class="w-16 pb-2 text-center font-normal">{t('admin.binkp.primary')}</th>
-								<th class="w-44 pr-3 pb-2 font-normal">{t('admin.common.name')}</th>
-								<th class="w-36 pr-3 pb-2 font-normal">{t('admin.binkp.domain')}</th>
+								<th class="w-44 pr-3 pb-2 font-normal">{t('common.name')}</th>
+								<th class="w-36 pr-3 pb-2 font-normal">{t('admin.common.domain')}</th>
 								<th class="pr-3 pb-2 font-normal">{t('admin.binkp.your_address')}</th>
 								<th class="w-20 pb-2"></th>
 							</tr>
@@ -248,7 +248,7 @@
 									</td>
 									<td class="py-2 text-right">
 										<button type="button" class="btn-danger btn-xs mt-1" onclick={() => removeNetwork(i)}
-											>{t('admin.common.remove')}</button
+											>{t('web.common.remove')}</button
 										>
 									</td>
 								</tr>
@@ -277,7 +277,7 @@
 							/>
 						</label>
 						<input class="field field-sm flex-1 font-mono" bind:value={orphans[k]} />
-						<button type="button" class="btn-danger btn-xs" onclick={() => removeOrphan(k)}>{t('admin.common.remove')}</button>
+						<button type="button" class="btn-danger btn-xs" onclick={() => removeOrphan(k)}>{t('web.common.remove')}</button>
 					</div>
 				{/each}
 			</section>
@@ -287,11 +287,11 @@
 			<p class="text-sm text-red-400">{saveError}</p>
 		{/if}
 		{#if saved}
-			<p class="text-sm text-muted">{t('admin.binkp.saved')}</p>
+			<p class="text-sm text-muted">{t('common.saved')}</p>
 		{/if}
 
 		<button type="submit" disabled={saving} class="btn-primary">
-			{saving ? t('admin.common.saving') : t('admin.binkp.save_changes')}
+			{saving ? t('web.common.saving') : t('admin.common.save_changes')}
 		</button>
 	</form>
 {/if}

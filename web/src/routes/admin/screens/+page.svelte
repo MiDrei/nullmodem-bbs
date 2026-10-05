@@ -48,7 +48,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : t('admin.screens.could_not_load_screens');
+			loadError = err instanceof ApiError ? err.message : t('admin.common.could_not_load_screens');
 		} finally {
 			loaded = true;
 		}
@@ -85,7 +85,7 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">{t('admin.screens.screens')}</h1>
+	<h1 class="page-title">{t('admin.common.screens')}</h1>
 	<p class="mt-1 text-sm text-slate-500">
 		{t('admin.screens.live_preview_of_the_ansi', { V: '{BBSNAME}' })}
 	</p>
@@ -94,7 +94,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else if screens.length === 0}
 	<p class="text-sm text-slate-500">{t('admin.screens.no_ans_screens_found')}</p>
 {:else}

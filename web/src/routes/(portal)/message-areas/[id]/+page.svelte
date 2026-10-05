@@ -158,7 +158,7 @@
 			composeTo = 'All';
 			offset = 0;
 			await load();
-			toast.push(t('web.msgs.posted'), 'success');
+			toast.push(t('common.message_posted'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			toast.push(err instanceof ApiError ? err.message : t('web.msgs.post_failed'), 'error');
@@ -168,7 +168,7 @@
 	}
 </script>
 
-<a href="/message-areas" class="back-link">&larr; {t('web.areas.title')}</a>
+<a href="/message-areas" class="back-link">&larr; {t('common.message_areas')}</a>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
@@ -176,7 +176,7 @@
 	<p class="mt-4 text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<div class="mt-1.5 mb-4 flex items-center justify-between gap-4">
-		<h1 class="page-title">{area?.name ?? t('web.msgs.area')}</h1>
+		<h1 class="page-title">{area?.name ?? t('common.area')}</h1>
 		<div class="flex items-center gap-2">
 			{#if area}
 				<form action="/search" class="hidden sm:flex">
@@ -186,7 +186,7 @@
 				</form>
 			{/if}
 			{#if area && area.min_sl_write <= 255 && !composing}
-				<button class="btn-primary" onclick={() => (composing = true)}>+ {t('web.msgs.new')}</button>
+				<button class="btn-primary" onclick={() => (composing = true)}>+ {t('web.common.new_message')}</button>
 			{/if}
 		</div>
 	</div>
@@ -201,11 +201,11 @@
 			}}
 		>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">{t('web.msg.to')}</span>
+				<span class="card-label">{t('web.common.to')}</span>
 				<input class="field" bind:value={composeTo} />
 			</label>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">{t('web.msg.subject')}</span>
+				<span class="card-label">{t('common.subject')}</span>
 				<input class="field" bind:value={composeSubject} placeholder={t('web.msg.subject_placeholder')} />
 			</label>
 			<label class="flex flex-col gap-2">
@@ -276,7 +276,7 @@
 						<div class="mt-0.5 truncate text-xs text-faint">{m.from_name}</div>
 					</div>
 					{#if m.unread}
-						<span class="badge-new">{t('web.common.new_badge')}</span>
+						<span class="badge-new">{t('common.new')}</span>
 					{/if}
 					<span class="list-meta w-16 shrink-0 text-right">{relativeTime(m.posted_at)}</span>
 				</a>

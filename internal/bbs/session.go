@@ -836,7 +836,7 @@ func (s *Server) showWho(term *Terminal, u *user.User) error {
 	if err != nil {
 		return err
 	}
-	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + padCP(term.T("who.col_node"), 6) + padCP(term.T("who.col_handle"), 21) + padCP(term.T("who.col_terminal"), 12) + term.T("who.col_connected") + ansi.Reset); err != nil {
+	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + padCP(term.T("common.node"), 6) + padCP(term.T("common.handle"), 21) + padCP(term.T("common.terminal"), 12) + term.T("common.connected") + ansi.Reset); err != nil {
 		return err
 	}
 	for _, n := range nodes {

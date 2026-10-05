@@ -25,7 +25,7 @@
 			await useAccountLang(res.language);
 			await goto('/reader', { replaceState: true });
 		} catch (err) {
-			error = errorText(err, t('web.login.failed'));
+			error = errorText(err, t('web.common.login_failed'));
 		} finally {
 			busy = false;
 		}
@@ -38,7 +38,7 @@
 	<input
 		class="field py-3 text-base"
 		bind:value={username}
-		placeholder={t('web.login.username')}
+		placeholder={t('web.common.username')}
 		autocomplete="username"
 		autocapitalize="off"
 		required
@@ -47,12 +47,12 @@
 		class="field py-3 text-base"
 		type="password"
 		bind:value={password}
-		placeholder={t('web.login.password')}
+		placeholder={t('web.common.password')}
 		autocomplete="current-password"
 		required
 	/>
 	{#if error}
 		<p class="text-sm text-red-400">{error}</p>
 	{/if}
-	<button class="btn-primary mt-2 py-3 text-base" disabled={busy}>{busy ? t('web.login.signing_in') : t('web.login.sign_in')}</button>
+	<button class="btn-primary mt-2 py-3 text-base" disabled={busy}>{busy ? t('web.common.signing_in') : t('web.common.sign_in')}</button>
 </form>

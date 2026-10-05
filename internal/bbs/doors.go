@@ -40,7 +40,7 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 
 	for {
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + term.T("doors.title") + ansi.Reset + "\r\n")
+		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + term.T("common.doors") + ansi.Reset + "\r\n")
 		for i, d := range available {
 			b.WriteString(fmt.Sprintf("%2d) %s\r\n", i+1, d.Name))
 		}

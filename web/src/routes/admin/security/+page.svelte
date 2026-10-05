@@ -81,7 +81,7 @@
 			apply(await putSecuritySettings(auth.token, s));
 			toast.push(t('admin.security.saved_in_effect_within_half'), 'success');
 		} catch (err) {
-			await failed(err, t('admin.security.could_not_save'));
+			await failed(err, t('admin.common.could_not_save'));
 		} finally {
 			saving = false;
 		}
@@ -115,7 +115,7 @@
 		try {
 			apply(await deleteIPRule(auth.token, pattern), false);
 		} catch (err) {
-			await failed(err, t('admin.security.could_not_remove_it'));
+			await failed(err, t('web.common.remove_failed'));
 		}
 	}
 
@@ -124,7 +124,7 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">{t('admin.security.security')}</h1>
+	<h1 class="page-title">{t('admin.common.security')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
 		{t('admin.security.addresses_that_keep_failing_to')}
 	</p>
@@ -133,7 +133,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !sec || !settings}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<div class="flex flex-col gap-4">
 		<TwoFactorCard onChange={(on) => (myTwoFactor = on)} />
@@ -211,7 +211,7 @@
 				</label>
 			</div>
 			<div class="flex justify-end">
-				<button type="submit" class="btn-primary btn-sm" disabled={saving}>{saving ? t('admin.common.saving') : t('admin.common.save')}</button>
+				<button type="submit" class="btn-primary btn-sm" disabled={saving}>{saving ? t('web.common.saving') : t('web.common.save')}</button>
 			</div>
 		</form>
 
@@ -264,7 +264,7 @@
 								</td>
 								<td class="py-2 font-mono text-ink">{r.pattern}</td>
 								<td class="py-2 text-xs text-muted">{r.note}</td>
-								<td class="py-2 text-right"><button class="btn-secondary btn-xs" onclick={() => removeRule(r.pattern)}>{t('admin.common.remove')}</button></td>
+								<td class="py-2 text-right"><button class="btn-secondary btn-xs" onclick={() => removeRule(r.pattern)}>{t('web.common.remove')}</button></td>
 							</tr>
 						{/each}
 					</tbody>

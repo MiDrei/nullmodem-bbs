@@ -81,7 +81,7 @@
 			expanded = await getUnresolvedNetmail(auth.token, m.id);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			expandError = err instanceof ApiError ? err.message : t('admin.netmail.could_not_load_message');
+			expandError = err instanceof ApiError ? err.message : t('web.common.could_not_load_message');
 		}
 	}
 
@@ -97,10 +97,10 @@
 				expandedID = null;
 				expanded = null;
 			}
-			toast.push(t('admin.netmail.message_deleted'), 'success');
+			toast.push(t('web.common.message_deleted'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : t('admin.netmail.could_not_delete_message'), 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.common.could_not_delete_message'), 'error');
 		} finally {
 			deletingID = null;
 		}
@@ -131,7 +131,7 @@
 	}
 </script>
 
-<h1 class="mb-2 page-title">{t('admin.netmail.undeliverable_netmail')}</h1>
+<h1 class="mb-2 page-title">{t('admin.common.undeliverable_netmail')}</h1>
 <p class="mb-6 text-sm text-slate-400">
 	{t('admin.netmail.netmail_addressed_to_a_name')}
 </p>
@@ -139,7 +139,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else if messages.length === 0}
 	<p class="text-sm text-slate-500">{t('admin.netmail.nothing_undeliverable_right_now')}</p>
 {:else}
@@ -179,9 +179,9 @@
 						<div class="min-w-0">
 							<div class="truncate text-sm font-medium text-slate-100">{m.subject}</div>
 							<div class="mt-0.5 text-xs text-slate-500">
-								{t('admin.netmail.from')} <span class="text-slate-300">{m.from_name}</span>
+								{t('common.from')} <span class="text-slate-300">{m.from_name}</span>
 								{#if m.from_address}<span class="font-mono">({m.from_address})</span>{/if}
-								{t('admin.netmail.to')} <span class="font-mono text-slate-300">{m.to_name}</span>
+								{t('web.common.to_2')} <span class="font-mono text-slate-300">{m.to_name}</span>
 								{t('admin.netmail.tolocalestring', { TOLOCALESTRING: new Date(m.posted_at).toLocaleString(i18n.locale) })}
 							</div>
 						</div>
@@ -194,7 +194,7 @@
 						{#if expandError}
 							<p class="text-sm text-red-400">{expandError}</p>
 						{:else if !expanded}
-							<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+							<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 						{:else}
 							<div class="inline-block font-mono text-sm leading-tight whitespace-pre text-slate-200">
 								{@html expanded.body_html}
@@ -206,7 +206,7 @@
 								disabled={deletingID === m.id}
 								onclick={() => remove(m)}
 							>
-								{deletingID === m.id ? t('admin.netmail.deleting') : t('admin.common.delete')}
+								{deletingID === m.id ? t('admin.netmail.deleting') : t('web.common.delete')}
 							</button>
 						</div>
 					</div>

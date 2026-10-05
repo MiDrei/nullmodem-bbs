@@ -30,7 +30,7 @@
 			areas = await listBBSFileAreas(bbsAuth.token);
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : t('web.files.load_failed');
+			loadError = err instanceof ApiError ? err.message : t('web.common.could_not_load_file_areas');
 		} finally {
 			loaded = true;
 		}
@@ -63,7 +63,7 @@
 </script>
 
 <div class="mb-4">
-	<h1 class="page-title">{t('web.nav.files')}</h1>
+	<h1 class="page-title">{t('common.files')}</h1>
 	<p class="page-subtitle">{t('web.files.subtitle')}</p>
 </div>
 
@@ -83,7 +83,7 @@
 				class="pill {activeNetwork === ALL_TAB ? 'pill-active' : ''}"
 				onclick={() => (activeNetwork = ALL_TAB)}
 			>
-				{t('web.common.all')} · {areas.length}{totalNew > 0 ? ` · ${t('web.common.n_new', { COUNT: totalNew })}` : ''}
+				{t('web.common.all')} · {areas.length}{totalNew > 0 ? ` · ${t('common.count_new', { COUNT: totalNew })}` : ''}
 			</button>
 			{#each groups as group (group.network)}
 				<button
@@ -92,7 +92,7 @@
 					class="pill {activeNetwork === group.network ? 'pill-active' : ''}"
 					onclick={() => (activeNetwork = group.network)}
 				>
-					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${t('web.common.n_new', { COUNT: group.newCount })}` : ''}
+					{group.network} · {group.areas.length}{group.newCount > 0 ? ` · ${t('common.count_new', { COUNT: group.newCount })}` : ''}
 				</button>
 			{/each}
 		</div>

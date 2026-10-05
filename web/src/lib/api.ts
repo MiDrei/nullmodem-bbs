@@ -1005,6 +1005,8 @@ export interface CatalogText {
 	/** The sysop's own text; "" keeps the built-in one. */
 	text: string;
 	placeholders: string[];
+	/** Keys merged into this one: where the text is used besides. */
+	was?: string[];
 }
 
 export function getLanguages(token: string): Promise<Languages> {

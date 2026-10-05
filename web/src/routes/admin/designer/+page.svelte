@@ -247,7 +247,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : t('admin.designer.could_not_load_screens');
+			loadError = err instanceof ApiError ? err.message : t('admin.common.could_not_load_screens');
 			loaded = true;
 			return;
 		}
@@ -724,7 +724,7 @@
 -->
 <div class="mx-[calc(50%-50vw)] px-4 lg:px-8">
 	<div class="mb-4">
-		<h1 class="text-xl font-semibold text-slate-100">{t('admin.designer.ansi_designer')}</h1>
+		<h1 class="text-xl font-semibold text-slate-100">{t('admin.common.ansi_designer')}</h1>
 	<p class="mt-1 text-sm text-slate-500">
 		{t('admin.designer.draw_and_edit_ans_screen')}
 	</p>
@@ -736,7 +736,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else}
 	<div class="mb-4 flex flex-wrap items-center gap-2 rounded border border-slate-800 p-3">
 		<select
@@ -753,7 +753,7 @@
 			disabled={!selectedName || saving}
 			onclick={handleSave}
 		>
-			{saving ? t('admin.common.saving') : t('admin.common.save')}
+			{saving ? t('web.common.saving') : t('web.common.save')}
 		</button>
 		<button
 			class="rounded border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:bg-slate-800"
@@ -779,7 +779,7 @@
 			disabled={!selectedName}
 			onclick={handleDelete}
 		>
-			{t('admin.common.delete')}
+			{t('web.common.delete')}
 		</button>
 		<div class="ml-auto flex items-center gap-2 text-sm text-slate-400">
 			<span>{t('admin.designer.zoom')}</span>
@@ -798,7 +798,7 @@
 	{#if showNewForm}
 		<div class="mb-4 flex flex-wrap items-end gap-2 rounded border border-slate-800 p-3">
 			<label class="text-sm text-slate-400">
-				{t('admin.common.name')}
+				{t('common.name')}
 				<input
 					bind:value={newName}
 					placeholder="myscreen.ans"

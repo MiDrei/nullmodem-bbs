@@ -152,7 +152,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			toast.push(err instanceof ApiError ? err.message : t('admin.sl_matrix.could_not_save'), 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.common.could_not_save'), 'error');
 		} finally {
 			const rest = { ...saving };
 			delete rest[editKey];
@@ -162,7 +162,7 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">{t('admin.sl_matrix.sl_matrix')}</h1>
+	<h1 class="page-title">{t('admin.common.sl_matrix')}</h1>
 	<p class="mt-1 text-sm text-slate-500">
 		{t('admin.sl_matrix.every_sl_gated_resource_in')}
 		<span class="font-mono text-slate-300">{SL_NEW_USER}</span>{t('admin.sl_matrix.sysop_sl_is')}
@@ -173,7 +173,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else}
 	<div class="overflow-x-auto rounded-xl border border-line">
 		<table class="w-full text-left text-sm">
@@ -182,7 +182,7 @@
 					<th class="p-3">{t('admin.sl_matrix.min_sl')}</th>
 					<th class="p-3">{t('admin.common.type')}</th>
 					<th class="p-3">{t('admin.sl_matrix.resource')}</th>
-					<th class="p-3">{t('admin.sl_matrix.detail')}</th>
+					<th class="p-3">{t('admin.common.detail')}</th>
 					<th class="p-3"></th>
 				</tr>
 			</thead>
@@ -226,7 +226,7 @@
 									disabled={saving[row.editKey] || edits[row.editKey] === undefined}
 									onclick={() => saveMenuItem(row.editKey!)}
 								>
-									{saving[row.editKey] ? t('admin.common.saving') : t('admin.common.save')}
+									{saving[row.editKey] ? t('web.common.saving') : t('web.common.save')}
 								</button>
 							{/if}
 						</td>

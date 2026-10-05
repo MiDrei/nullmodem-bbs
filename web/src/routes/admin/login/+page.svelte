@@ -30,7 +30,7 @@
 				setTimeout(() => codeField?.focus(), 0);
 				return;
 			}
-			error = err instanceof ApiError ? err.message : t('admin.login.login_failed');
+			error = err instanceof ApiError ? err.message : t('web.common.login_failed');
 		} finally {
 			submitting = false;
 		}
@@ -44,22 +44,22 @@
 	</div>
 
 	<form class="flex w-full max-w-[340px] flex-col gap-2.5" onsubmit={handleSubmit}>
-		<label class="sr-only" for="admin-user">{t('admin.login.username')}</label>
+		<label class="sr-only" for="admin-user">{t('web.common.username')}</label>
 		<input
 			id="admin-user"
 			class="field py-3 text-sm"
 			bind:value={username}
-			placeholder={t('admin.login.username')}
+			placeholder={t('web.common.username')}
 			autocomplete="username"
 			required
 		/>
-		<label class="sr-only" for="admin-pass">{t('admin.login.password')}</label>
+		<label class="sr-only" for="admin-pass">{t('web.common.password')}</label>
 		<input
 			id="admin-pass"
 			type="password"
 			class="field py-3 text-sm"
 			bind:value={password}
-			placeholder={t('admin.login.password')}
+			placeholder={t('web.common.password')}
 			autocomplete="current-password"
 			required
 		/>
@@ -81,7 +81,7 @@
 			<p class="text-sm text-red-400">{error}</p>
 		{/if}
 		<button type="submit" disabled={submitting} class="btn-primary mt-1.5 w-full py-3 text-sm">
-			{submitting ? t('admin.login.signing_in') : t('admin.login.sign_in')}
+			{submitting ? t('web.common.signing_in') : t('web.common.sign_in')}
 		</button>
 	</form>
 

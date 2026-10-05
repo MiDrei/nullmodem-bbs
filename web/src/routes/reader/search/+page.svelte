@@ -30,7 +30,7 @@
 
 <div class="r-full">
 	<header class="r-bar">
-		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label={t('web.common.back')}>‹</button>
+		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label={t('common.back')}>‹</button>
 		<span class="r-title">{t('web.common.search')}</span>
 	</header>
 	<form class="flex gap-2 p-3" onsubmit={run}>
@@ -41,7 +41,7 @@
 	{#if error}
 		<p class="r-note text-red-400">{error}</p>
 	{:else if hits && hits.length === 0}
-		<p class="r-note">{t('web.common.nothing_found')}</p>
+		<p class="r-note">{t('common.nothing_found')}</p>
 	{:else if hits}
 		{#each hits as h (h.id)}
 			<button class="r-row" onclick={() => goto(`/reader/m/${h.id}`)}>

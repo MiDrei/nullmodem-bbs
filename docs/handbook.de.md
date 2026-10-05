@@ -210,6 +210,9 @@ Deutsch (Sie), was gleich lautet.
   die BBS füllt — ein Text darf einen weglassen, aber keinen erfinden (der
   Editor zeigt, welche gehen). Gespeichert wird nur, was du geändert hast,
   in `data/lang/<sprache>.yaml`; es gilt sofort und übersteht Updates.
+  Die Texte sind nach Bereichen (Telnet/SSH, Screens & Menüs, Web, Admin,
+  Meldungen) und Gruppen geordnet; ein Text, der an mehreren Stellen
+  vorkommt, gibt es nur einmal („Auch verwendet in: …“ sagt, wo sonst).
 - **Screens:** Zu jedem Screen kann es eine Fassung pro Sprache geben:
   `main.de-du.ans`, dann `main.de.ans`, dann `main.ans`. Mitgeliefert sind
   deutsche Fassungen der Standard-Screens; sie holen ihre Texte mit

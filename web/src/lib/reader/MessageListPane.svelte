@@ -125,7 +125,7 @@
 				toast.push(t('web.reader.queued_message'), 'success');
 				return;
 			}
-			toast.push(t('web.msgs.posted'), 'success');
+			toast.push(t('common.message_posted'), 'success');
 			await load(areaId);
 			onChanged?.();
 		} catch (err) {
@@ -153,13 +153,13 @@
 <header class="r-bar">
 	{@render headerStart?.()}
 	{#if onBack}
-		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('web.common.back')}>‹</button>
+		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('common.back')}>‹</button>
 	{/if}
 	<span class="r-title">{title}</span>
-	<button class="r-btn text-sm" onclick={startNew}>{t('web.reader.new')}</button>
+	<button class="r-btn text-sm" onclick={startNew}>{t('common.new_2')}</button>
 	{#if firstUnread}
 		<button class="r-btn text-sm" onclick={markAllRead}>{t('web.reader.all_read')}</button>
-		<button class="r-btn text-sm font-semibold" onclick={() => firstUnread && onOpen(firstUnread.id)}>{t('web.reader.read')}</button>
+		<button class="r-btn text-sm font-semibold" onclick={() => firstUnread && onOpen(firstUnread.id)}>{t('web.common.read')}</button>
 	{/if}
 </header>
 
@@ -179,7 +179,7 @@
 			<span class="shrink-0 text-xs text-faint">{shortDate(m.posted_at)}</span>
 		</button>
 	{:else}
-		<p class="r-note">{t('web.reader.no_messages')}</p>
+		<p class="r-note">{t('web.common.no_messages')}</p>
 	{/each}
 	{#if offset + messages.length < total}
 		<button class="r-row justify-center text-sm text-accent" onclick={() => more(false)}>{t('web.reader.more')}</button>
@@ -188,7 +188,7 @@
 
 {#if composing}
 	<ComposeSheet
-		heading={t('web.reader.new_message')}
+		heading={t('web.common.new_message')}
 		bind:to
 		bind:subject
 		bind:body

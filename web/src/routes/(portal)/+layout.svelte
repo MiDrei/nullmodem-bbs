@@ -24,12 +24,12 @@
 
 	const links = [
 		{ href: '/message-areas', label: 'web.nav.areas', icon: 'areas', match: ['/message-areas', '/messages'] },
-		{ href: '/netmail', label: 'web.nav.netmail', icon: 'netmail', match: ['/netmail'] },
-		{ href: '/file-areas', label: 'web.nav.files', icon: 'files', match: ['/file-areas', '/files'] },
+		{ href: '/netmail', label: 'common.netmail', icon: 'netmail', match: ['/netmail'] },
+		{ href: '/file-areas', label: 'common.files', icon: 'files', match: ['/file-areas', '/files'] },
 		{ href: '/qwk', label: 'web.nav.qwk', icon: 'qwk', match: ['/qwk'] },
-		{ href: '/chat', label: 'web.nav.chat', icon: 'chat', match: ['/chat'] },
-		{ href: '/community', label: 'web.nav.community', icon: 'users', match: ['/community', '/last-callers'] },
-		{ href: '/profile', label: 'web.nav.profile', icon: 'profile', match: ['/profile'] }
+		{ href: '/chat', label: 'common.chat', icon: 'chat', match: ['/chat'] },
+		{ href: '/community', label: 'web.common.community', icon: 'users', match: ['/community', '/last-callers'] },
+		{ href: '/profile', label: 'web.common.profile', icon: 'profile', match: ['/profile'] }
 	] as const;
 
 	function active(match: readonly string[]): boolean {
@@ -88,12 +88,12 @@
 				<span>{bbsAuth.username}</span>
 				{#if bbsAuth.isSysop}
 					<span class="text-line-strong" aria-hidden="true">·</span>
-					<a href="/admin" class="transition-colors hover:text-accent">{t('web.nav.admin')}</a>
+					<a href="/admin" class="transition-colors hover:text-accent">{t('web.common.admin')}</a>
 				{/if}
 				<span class="text-line-strong" aria-hidden="true">·</span>
 				<LanguagePicker />
 				<span class="text-line-strong" aria-hidden="true">·</span>
-				<button class="transition-colors hover:text-accent" onclick={logout}>{t('web.nav.logout')}</button>
+				<button class="transition-colors hover:text-accent" onclick={logout}>{t('web.common.log_out')}</button>
 			</div>
 		</header>
 	{/if}

@@ -55,7 +55,7 @@
 			{/if}
 
 			<div class="flex flex-wrap items-center gap-3">
-				<a class="btn-primary px-6 py-3 text-base" href={f.download} download>{t('web.files.download')}</a>
+				<a class="btn-primary px-6 py-3 text-base" href={f.download} download>{t('web.common.download')}</a>
 				<span class="text-xs text-faint">{t('web.share.no_login')}</span>
 			</div>
 

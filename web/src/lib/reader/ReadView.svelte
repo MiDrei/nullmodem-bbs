@@ -152,7 +152,7 @@
 >
 	<header class="r-bar">
 		{#if onBack}
-			<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('web.common.back')}>‹</button>
+			<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('common.back')}>‹</button>
 		{/if}
 		<span class="r-title text-sm font-normal text-muted">{title}</span>
 		{#if position}<span class="text-xs text-faint">{position}</span>{/if}

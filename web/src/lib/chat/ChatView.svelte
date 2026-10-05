@@ -111,7 +111,7 @@
 <div class="flex min-h-0 flex-1 flex-col">
 	<div class="truncate border-b border-line px-4 py-2 text-xs text-muted">
 		{#if present.length}
-			{t('web.chat.here', { NAMES: present.map((p) => `${p.username} (${where(p)})`).join(', ') })}
+			{t('common.here_names', { NAMES: present.map((p) => `${p.username} (${where(p)})`).join(', ') })}
 		{:else}
 			{t('web.chat.nobody')}
 		{/if}
@@ -141,7 +141,7 @@
 		style={compact ? 'padding-bottom: max(0.75rem, env(safe-area-inset-bottom))' : ''}
 		onsubmit={send}
 	>
-		<input class="field min-w-0 flex-1" maxlength="400" placeholder={t('web.chat.say')} bind:value={text} enterkeyhint="send" />
-		<button type="submit" class="btn-primary btn-sm" disabled={!text.trim() || sending}>{t('web.chat.send')}</button>
+		<input class="field min-w-0 flex-1" maxlength="400" placeholder={t('web.common.say_something')} bind:value={text} enterkeyhint="send" />
+		<button type="submit" class="btn-primary btn-sm" disabled={!text.trim() || sending}>{t('web.common.send')}</button>
 	</form>
 </div>

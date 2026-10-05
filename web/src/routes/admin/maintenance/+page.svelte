@@ -53,9 +53,9 @@
 			const st = await putMaintenance(auth.token, $state.snapshot(settings) as MaintenanceSettings);
 			settings = st.settings;
 			preview = null;
-			toast.push(t('admin.maintenance.saved'), 'success');
+			toast.push(t('common.saved'), 'success');
 		} catch (err) {
-			await failed(err, t('admin.maintenance.could_not_save'));
+			await failed(err, t('admin.common.could_not_save'));
 		} finally {
 			saving = false;
 		}
@@ -89,7 +89,7 @@
 		{ key: 'data_area_keep_days', label: t('admin.maintenance.data_areas_keep_days'), hint: t('admin.maintenance.fsx_dat_and_other_data') },
 		{ key: 'file_keep_days', label: t('admin.maintenance.files_keep_days'), hint: t('admin.maintenance.per_file_area_0_keep') },
 		{ key: 'netmail_keep_days', label: t('admin.maintenance.read_netmail_keep_days'), hint: t('admin.maintenance.0_keep_unread_never_goes') },
-		{ key: 'log_keep_rows', label: t('admin.maintenance.log_keep_entries'), hint: t('admin.maintenance.the_newest_ones') },
+		{ key: 'log_keep_rows', label: t('admin.maintenance.log_keep_entries'), hint: t('admin.common.the_newest_ones') },
 		{ key: 'transcript_keep_days', label: t('admin.maintenance.binkp_transcripts_keep_days'), hint: t('admin.maintenance.session_logs') },
 		{ key: 'archive_keep_days', label: t('admin.maintenance.inbound_archive_keep_days'), hint: t('admin.maintenance.copies_of_received_files') },
 		{ key: 'pending_user_days', label: t('admin.maintenance.unapproved_accounts_days'), hint: t('admin.maintenance.never_approved_bots_0_keep') }
@@ -105,9 +105,9 @@
 		<dl class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[13px] sm:grid-cols-4">
 			<dt class="text-muted">{t('admin.maintenance.echomail')}</dt>
 			<dd class="text-ink">{r.messages}</dd>
-			<dt class="text-muted">{t('admin.maintenance.files')}</dt>
+			<dt class="text-muted">{t('common.files')}</dt>
 			<dd class="text-ink">{r.files} ({mb(r.file_bytes)})</dd>
-			<dt class="text-muted">{t('admin.maintenance.netmail')}</dt>
+			<dt class="text-muted">{t('common.netmail')}</dt>
 			<dd class="text-ink">{r.netmail}</dd>
 			<dt class="text-muted">{t('admin.maintenance.log_entries')}</dt>
 			<dd class="text-ink">{r.logs}</dd>
@@ -138,7 +138,7 @@
 {/snippet}
 
 <div class="mb-6">
-	<h1 class="page-title">{t('admin.maintenance.maintenance')}</h1>
+	<h1 class="page-title">{t('admin.common.maintenance')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
 		{t('admin.maintenance.cleans_up_old_echomail_files')}
 	</p>
@@ -147,7 +147,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !settings}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<div class="flex flex-col gap-4">
 		<form class="card flex flex-col gap-4" onsubmit={save}>
@@ -178,18 +178,18 @@
 			</label>
 			<div class="flex flex-wrap justify-end gap-2.5">
 				<button type="button" class="btn-secondary btn-sm" disabled={running !== null} onclick={() => run(true)}>
-					{running === 'preview' ? t('admin.maintenance.counting') : t('admin.maintenance.preview')}
+					{running === 'preview' ? t('admin.maintenance.counting') : t('web.common.preview')}
 				</button>
 				<button type="button" class="btn-danger btn-sm" disabled={running !== null} onclick={() => run(false)}>
 					{running === 'run' ? t('admin.maintenance.cleaning_up') : t('admin.maintenance.run_now')}
 				</button>
-				<button type="submit" class="btn-primary btn-sm" disabled={saving}>{saving ? t('admin.common.saving') : t('admin.common.save')}</button>
+				<button type="submit" class="btn-primary btn-sm" disabled={saving}>{saving ? t('web.common.saving') : t('web.common.save')}</button>
 			</div>
 			<p class="text-xs text-faint">{t('admin.maintenance.preview_and_run_now_use')}</p>
 		</form>
 
 		{#if preview}
-			{@render report(preview, t('admin.maintenance.preview'))}
+			{@render report(preview, t('web.common.preview'))}
 		{/if}
 		{#if last}
 			{@render report(last, t('admin.maintenance.last_run'))}

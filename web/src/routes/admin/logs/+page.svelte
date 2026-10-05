@@ -23,12 +23,12 @@
 	// session records.
 	type Tab = 'all' | Exclude<LogCategory, ''> | 'binkp';
 	const tabs: [Tab, string][] = [
-		['all', t('admin.common.all')],
+		['all', t('web.common.all')],
 		['mailer', t('admin.logs.tab_mailer')],
-		['system', t('admin.logs.system')],
+		['system', t('admin.common.system')],
 		['telnet', 'Telnet'],
 		['ssh', 'SSH'],
-		['web', t('admin.logs.tab_web')],
+		['web', t('admin.common.web')],
 		['binkp', t('admin.logs.tab_binkp')]
 	];
 	const tabHints: Partial<Record<Tab, string>> = {
@@ -170,11 +170,11 @@
 	/** Which tab an entry belongs to, for the All tab's source column. */
 	function categoryOf(e: LogEntry): string {
 		if (e.source === 'bbs') {
-			if (e.message.startsWith('[telnet]')) return t('admin.logs.telnet');
+			if (e.message.startsWith('[telnet]')) return t('admin.common.telnet');
 			if (e.message.startsWith('[ssh]')) return t('admin.logs.ssh');
-			return t('admin.logs.system');
+			return t('admin.common.system');
 		}
-		return e.source === 'mailer' ? t('admin.logs.tab_mailer') : e.source === 'web' ? t('admin.logs.tab_web') : e.source;
+		return e.source === 'mailer' ? t('admin.logs.tab_mailer') : e.source === 'web' ? t('admin.common.web') : e.source;
 	}
 
 	function shownMessage(e: LogEntry): string {
@@ -277,10 +277,10 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-	<h1 class="page-title">{t('admin.logs.logs')}</h1>
+	<h1 class="page-title">{t('admin.common.logs')}</h1>
 	{#if activeTab === 'binkp'}
 		<button type="button" class="btn-secondary btn-sm" disabled={sessionsLoading} onclick={loadSessions}>
-			{sessionsLoading ? t('admin.logs.refreshing') : t('admin.common.refresh')}
+			{sessionsLoading ? t('admin.common.refreshing') : t('web.common.refresh')}
 		</button>
 	{/if}
 </div>
@@ -324,7 +324,7 @@
 	{#if loadError}
 		<p class="text-sm text-red-400">{loadError}</p>
 	{:else if !loaded && entries.length === 0}
-		<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+		<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 	{:else if entries.length === 0}
 		<p class="text-sm text-slate-500">{t('admin.logs.no_log_entries_v', { V: levelChoice !== 'all' || appliedSearch || door ? t('admin.logs.matching_the_filter') : t('admin.logs.yet') })}</p>
 	{:else}
@@ -351,7 +351,7 @@
 							{#if activeTab === 'all'}<td class="px-3 py-2 text-xs text-muted">{categoryOf(entry)}</td>{/if}
 							<td class="max-w-xl truncate px-3 py-2 font-mono text-xs text-slate-300">{shownMessage(entry)}</td>
 							<td class="px-3 py-2 text-right">
-								<button type="button" class="btn-secondary btn-xs" onclick={() => openLogDetail(entry)}>{t('admin.logs.detail')}</button>
+								<button type="button" class="btn-secondary btn-xs" onclick={() => openLogDetail(entry)}>{t('admin.common.detail')}</button>
 							</td>
 						</tr>
 					{/each}
@@ -361,7 +361,7 @@
 		{#if moreOlder}
 			<div class="mt-3 flex justify-center">
 				<button type="button" class="btn-secondary btn-sm" disabled={loadingOlder} onclick={loadOlder}>
-					{loadingOlder ? t('admin.common.loading') : t('admin.logs.load_older_entries')}
+					{loadingOlder ? t('web.common.loading') : t('admin.logs.load_older_entries')}
 				</button>
 			</div>
 		{/if}
@@ -369,7 +369,7 @@
 {:else if sessionsError}
 	<p class="text-sm text-red-400">{sessionsError}</p>
 {:else if !sessionsLoaded}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else if sessions.length === 0}
 	<p class="text-sm text-slate-500">{t('admin.logs.no_binkp_sessions_recorded_yet')}</p>
 {:else}
@@ -407,7 +407,7 @@
 								class="btn-secondary btn-xs"
 								onclick={() => openSessionDetail(s)}
 							>
-								{t('admin.logs.detail')}
+								{t('admin.common.detail')}
 							</button>
 						</td>
 					</tr>
@@ -439,7 +439,7 @@
 					class="shrink-0 rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800"
 					onclick={closeDetail}
 				>
-					{t('admin.common.close')}
+					{t('web.common.close')}
 				</button>
 			</div>
 

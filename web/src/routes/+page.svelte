@@ -95,7 +95,7 @@
 {#snippet copyable(text: string)}
 	<button
 		class="group inline-flex max-w-full items-center gap-2 rounded-md border border-line px-2.5 py-1 font-mono text-[13px] text-accent transition hover:border-line-strong"
-		title={t('web.home.copy')}
+		title={t('web.common.copy')}
 		onclick={() => copy(text)}
 	>
 		<span class="truncate">{text}</span>
@@ -107,7 +107,7 @@
 	<header class="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-b border-line px-6 py-5 md:px-10">
 		<span class="text-[15px] font-bold tracking-tight text-ink-strong">{o?.name ?? ''}</span>
 		<nav class="flex items-center gap-x-5 text-[13px] text-muted">
-			<a href="/terminal" class="flex items-center gap-1.5 transition-colors hover:text-accent"><Icon name="server" />{t('web.home.terminal')}</a>
+			<a href="/terminal" class="flex items-center gap-1.5 transition-colors hover:text-accent"><Icon name="server" />{t('common.terminal')}</a>
 			<a href="/reader" class="flex items-center gap-1.5 transition-colors hover:text-accent"><Icon name="qwk" />{t('web.home.reader')}</a>
 			<LanguagePicker />
 			{#if bbsAuth.token}
@@ -190,7 +190,7 @@
 				</a>
 
 				<a href="/reader" class="card flex flex-col gap-2 transition hover:border-line-strong">
-					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="netmail" />{t('web.home.reader_app')}</div>
+					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="netmail" />{t('web.common.reader_app')}</div>
 					<p class="text-sm text-ink-soft">
 						{t('web.home.reader_text')}
 					</p>
@@ -246,7 +246,7 @@
 
 				<div class="flex flex-col gap-4">
 					<div class="card">
-						<h2 class="card-label mb-3">{t('web.home.oneliners')}</h2>
+						<h2 class="card-label mb-3">{t('common.one_liners')}</h2>
 						{#if o.oneliners.length === 0}
 							<p class="text-sm text-muted">{t('web.home.wall_empty')}</p>
 						{:else}
@@ -261,7 +261,7 @@
 					</div>
 					{#if o.doors.length}
 						<div class="card">
-							<h2 class="card-label mb-3">{t('web.home.doors')}</h2>
+							<h2 class="card-label mb-3">{t('common.doors')}</h2>
 							<div class="flex flex-wrap gap-1.5">
 								{#each o.doors as d (d)}
 									<span class="rounded-md border border-line px-2 py-0.5 text-xs text-ink-soft">{d}</span>
@@ -345,6 +345,6 @@
 
 	<footer class="flex justify-between gap-4 border-t border-line px-6 py-4 font-mono text-[10.5px] text-dim md:px-10">
 		<span>NullModem BBS{o?.version ? ` v${o.version}` : ''}</span>
-		{#if bbsAuth.isSysop}<a href="/admin" class="hover:text-ink">{t('web.nav.admin')}</a>{/if}
+		{#if bbsAuth.isSysop}<a href="/admin" class="hover:text-ink">{t('web.common.admin')}</a>{/if}
 	</footer>
 </div>

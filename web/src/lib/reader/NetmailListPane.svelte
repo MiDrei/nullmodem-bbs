@@ -47,7 +47,7 @@
 		try {
 			const how = await sendOrQueue(token, { kind: 'netmail', to: to.trim(), toName: toName.trim(), subject, body });
 			composing = false;
-			toast.push(how === 'queued' ? t('web.reader.queued_netmail') : t('web.netmail.sent_ok'), 'success');
+			toast.push(how === 'queued' ? t('web.reader.queued_netmail') : t('common.netmail_sent'), 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
 			toast.push(errorText(err, t('web.netmail.send_failed')), 'error');
@@ -84,10 +84,10 @@
 <header class="r-bar">
 	{@render headerStart?.()}
 	{#if onBack}
-		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('web.common.back')}>‹</button>
+		<button class="r-btn text-3xl leading-none" onclick={onBack} aria-label={t('common.back')}>‹</button>
 	{/if}
-	<span class="r-title">{t('web.nav.netmail')}</span>
-	<button class="r-btn text-sm" onclick={startNew}>{t('web.reader.new')}</button>
+	<span class="r-title">{t('common.netmail')}</span>
+	<button class="r-btn text-sm" onclick={startNew}>{t('common.new_2')}</button>
 </header>
 
 {#if error}
@@ -109,7 +109,7 @@
 
 {#if composing}
 	<ComposeSheet
-		heading={t('web.netmail.new')}
+		heading={t('web.common.new_netmail')}
 		bind:to
 		bind:toName
 		askToName

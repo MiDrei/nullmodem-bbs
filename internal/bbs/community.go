@@ -145,7 +145,7 @@ func (s *Server) showOneliners(term *Terminal, u *user.User) error {
 		return nil
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("oneliners.title") + ansi.Reset + "\r\n")
+	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("common.one_liners") + ansi.Reset + "\r\n")
 	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
 	if len(list) == 0 {
 		b.WriteString(ansi.FG(ansi.White, false) + "  " + term.T("oneliners.empty") + ansi.Reset + "\r\n")
@@ -222,7 +222,7 @@ func (s *Server) teleconference(term *Terminal, u *user.User) error {
 	// The rooms: /join switches, /q leaves.
 	room := chat.Main
 	for {
-		title, intro := term.T("chat.title"), ""
+		title, intro := term.T("common.teleconference"), ""
 		if info, err := s.Chat.RoomByName(room); err == nil {
 			title = info.Title
 			var bridges []string
@@ -326,9 +326,9 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		at := term.Time(l.At).Format("15:04")
 		switch l.Kind {
 		case chat.Join:
-			addRow(ansi.FG(ansi.Green, false), at+"  "+term.U("chat.joined", "USERNAME", l.Username, "SOURCE", l.Source))
+			addRow(ansi.FG(ansi.Green, false), at+"  "+term.U("common.username_joined_source", "USERNAME", l.Username, "SOURCE", l.Source))
 		case chat.Leave:
-			addRow(ansi.FG(ansi.Green, false), at+"  "+term.U("chat.left", "USERNAME", l.Username))
+			addRow(ansi.FG(ansi.Green, false), at+"  "+term.U("common.username_left", "USERNAME", l.Username))
 		case chat.Page:
 			addRow(ansi.FG(ansi.Magenta, true), at+"  "+term.U("chat.paged_line", "USERNAME", l.Username, "TEXT", l.Text))
 		default:
@@ -394,7 +394,7 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 			}
 			names = append(names, n)
 		}
-		present = term.U("chat.here", "NAMES", strings.Join(names, ", "))
+		present = term.U("common.here_names", "NAMES", strings.Join(names, ", "))
 	}
 	refreshPresent()
 	if err := full(); err != nil {

@@ -157,7 +157,7 @@
 				closeModal();
 			}
 		} catch (err) {
-			modalError = err instanceof ApiError ? err.message : t('admin.binkp_uplinks.could_not_save');
+			modalError = err instanceof ApiError ? err.message : t('admin.common.could_not_save');
 		} finally {
 			modalSaving = false;
 		}
@@ -171,7 +171,7 @@
 		try {
 			if (await saveUplinks(list)) toast.push(t('admin.binkp_uplinks.removed_host', { HOST: u.address || u.host }), 'success');
 		} catch (err) {
-			saveError = err instanceof ApiError ? err.message : t('admin.binkp_uplinks.could_not_save');
+			saveError = err instanceof ApiError ? err.message : t('admin.common.could_not_save');
 		}
 	}
 
@@ -243,7 +243,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : t('admin.binkp_uplinks.could_not_load_configuration');
+			loadError = err instanceof ApiError ? err.message : t('admin.common.could_not_load_configuration');
 		}
 		try {
 			groups = await listGroups(auth.token);
@@ -268,7 +268,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			saveError = err instanceof ApiError ? err.message : t('admin.binkp_uplinks.could_not_save_configuration');
+			saveError = err instanceof ApiError ? err.message : t('admin.common.could_not_save_configuration');
 		} finally {
 			saving = false;
 		}
@@ -288,7 +288,7 @@
 </datalist>
 
 <div class="mb-6 flex items-center justify-between">
-	<h1 class="page-title">{t('admin.binkp_uplinks.uplinks_nodes_points')}</h1>
+	<h1 class="page-title">{t('admin.common.uplinks_nodes_points')}</h1>
 	<a href="/admin/binkp" class="btn-secondary btn-sm">
 		{t('admin.binkp_uplinks.networks_addresses')}
 	</a>
@@ -297,7 +297,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !config}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
@@ -378,7 +378,7 @@
 								{/if}
 								{#if u.hold}
 									<span class="rounded-full bg-red-950 px-2 py-0.5 text-[10px] text-red-400">
-										{t('admin.binkp_uplinks.hold')}
+										{t('admin.common.hold')}
 									</span>
 								{/if}
 								{#if u.post_as}
@@ -399,7 +399,7 @@
 								{/if}
 								{#if u.poll_disabled}
 									<span class="rounded-full bg-amber-950 px-2 py-0.5 text-[10px] text-amber-400">
-										{t('admin.binkp_uplinks.crash_only')}
+										{t('admin.common.crash_only')}
 									</span>
 								{/if}
 							</div>
@@ -413,14 +413,14 @@
 								class="btn-secondary btn-xs"
 								onclick={() => openEdit(i)}
 							>
-								{t('admin.common.edit')}
+								{t('web.common.edit')}
 							</button>
 							<button
 								type="button"
 								class="btn-danger btn-xs"
 								onclick={() => removeUplink(i)}
 							>
-								{t('admin.common.remove')}
+								{t('web.common.remove')}
 							</button>
 						</div>
 					</div>
@@ -440,7 +440,7 @@
 			disabled={saving}
 			class="btn-primary"
 		>
-			{saving ? t('admin.common.saving') : t('admin.binkp_uplinks.save_poll_interval')}
+			{saving ? t('web.common.saving') : t('admin.binkp_uplinks.save_poll_interval')}
 		</button>
 	</form>
 
@@ -462,7 +462,7 @@
 			>
 				<div class="mb-4 flex items-center justify-between gap-4">
 					<h2 class="card-label">
-						{editingIndex === null ? t('admin.common.add') : t('admin.common.edit')}
+						{editingIndex === null ? t('admin.common.add') : t('web.common.edit')}
 						{editingUplink.downlink ? t('admin.binkp_uplinks.node_point') : t('admin.binkp_uplinks.hub')}
 					</h2>
 					<button
@@ -470,7 +470,7 @@
 						class="shrink-0 rounded-full border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800"
 						onclick={closeModal}
 					>
-						{t('admin.common.close')}
+						{t('web.common.close')}
 					</button>
 				</div>
 
@@ -664,7 +664,7 @@
 						disabled={testing}
 						onclick={testUplink}
 					>
-						{testing ? t('admin.binkp_uplinks.testing') : t('admin.binkp_uplinks.test_connection')}
+						{testing ? t('admin.common.testing') : t('admin.binkp_uplinks.test_connection')}
 					</button>
 					<button
 						type="button"
@@ -672,7 +672,7 @@
 						disabled={sending}
 						onclick={sendNowUplink}
 					>
-						{sending ? t('admin.binkp_uplinks.sending') : t('admin.binkp_uplinks.send_now')}
+						{sending ? t('admin.common.sending') : t('admin.binkp_uplinks.send_now')}
 					</button>
 					<div class="flex-1"></div>
 					<button
@@ -680,7 +680,7 @@
 						class="btn-secondary btn-sm"
 						onclick={closeModal}
 					>
-						{t('admin.common.cancel')}
+						{t('web.common.cancel')}
 					</button>
 					<button
 						type="button"
@@ -688,7 +688,7 @@
 						disabled={modalSaving}
 						onclick={saveModal}
 					>
-						{modalSaving ? t('admin.common.saving') : editingIndex === null ? t('admin.common.add') : t('admin.common.save')}
+						{modalSaving ? t('web.common.saving') : editingIndex === null ? t('admin.common.add') : t('web.common.save')}
 					</button>
 				</div>
 				{#if modalError}

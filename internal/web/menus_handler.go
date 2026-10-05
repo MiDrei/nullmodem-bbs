@@ -280,7 +280,8 @@ func (s *Server) handleMenuActions(w http.ResponseWriter, r *http.Request) {
 	lang := s.requestLang(r)
 	builtins := make([]menu.Builtin, len(menu.Builtins))
 	for i, b := range menu.Builtins {
-		b.Label = i18n.ByEnglish(lang, "builtin.", b.Label)
+		// A label that's a stock menu item's is translated as that one.
+		b.Label = i18n.ByEnglish(lang, "builtin.", i18n.ByEnglish(lang, "menu.item.", b.Label))
 		b.Description = i18n.ByEnglish(lang, "builtin.", b.Description)
 		builtins[i] = b
 	}

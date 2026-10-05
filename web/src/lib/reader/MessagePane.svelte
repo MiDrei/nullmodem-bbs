@@ -56,7 +56,7 @@
 			if (message) onRead?.(message.area_id);
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, t('web.msg.load_failed'));
+			error = errorText(err, t('web.common.could_not_load_message'));
 		}
 	}
 
@@ -79,7 +79,7 @@
 		try {
 			const how = await sendOrQueue(token, { kind: 'echo', areaId: message.area_id, to, subject, body, replyTo: message.id });
 			replying = false;
-			toast.push(how === 'queued' ? t('web.reader.queued_reply') : t('web.msg.reply_posted'), 'success');
+			toast.push(how === 'queued' ? t('web.reader.queued_reply') : t('common.reply_posted'), 'success');
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
 			toast.push(errorText(err, t('web.msg.reply_failed')), 'error');
@@ -109,7 +109,7 @@
 		{#snippet after()}
 			{#if thread.length > 1 && message}
 				<section class="no-swipe mt-6 border-t border-line pt-3">
-					<h2 class="card-label mb-1.5">{t('web.reader.thread_n', { COUNT: thread.length })}</h2>
+					<h2 class="card-label mb-1.5">{t('web.common.thread_count_messages', { COUNT: thread.length })}</h2>
 					<ThreadTree entries={thread} current={message.id} onselect={(tid) => tid !== message?.id && onOpen(tid)} />
 				</section>
 			{/if}

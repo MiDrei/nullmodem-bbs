@@ -222,11 +222,11 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 	var b strings.Builder
 	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("summary.title") + ansi.Reset + "\r\n")
 	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 40) + ansi.Reset + "\r\n")
-	b.WriteString(label("summary.netmail") + value(netmail, term.N("summary.netmail_count", netmail)))
+	b.WriteString(label("common.netmail") + value(netmail, term.N("summary.netmail_count", netmail)))
 	b.WriteString(label("summary.to_you") + value(len(toMe), term.N("summary.messages", len(toMe))))
-	b.WriteString(label("summary.new") + value(newTotal, term.T("summary.in_areas",
+	b.WriteString(label("common.new_2") + value(newTotal, term.T("summary.in_areas",
 		"MESSAGES", term.N("summary.messages", newTotal), "AREAS", term.N("summary.areas", len(areas)))))
-	b.WriteString(label("summary.files") + value(newFiles, term.N("summary.files_count", newFiles)))
+	b.WriteString(label("common.files") + value(newFiles, term.N("summary.files_count", newFiles)))
 
 	var keys []string
 	if newTotal > 0 {

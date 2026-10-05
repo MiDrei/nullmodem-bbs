@@ -91,7 +91,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : t('admin.message_areas.could_not_load_message_areas');
+			loadError = err instanceof ApiError ? err.message : t('web.common.could_not_load_message_areas');
 		} finally {
 			loaded = true;
 		}
@@ -133,10 +133,10 @@
 			const updated = await updateMessageArea(auth.token, id, draft);
 			areas = areas.map((a) => (a.id === id ? updated : a));
 			editingId = null;
-			toast.push(t('admin.message_areas.saved_name', { NAME: updated.name }), 'success');
+			toast.push(t('admin.common.saved_name', { NAME: updated.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : t('admin.message_areas.could_not_save'), 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.common.could_not_save'), 'error');
 		} finally {
 			saving = false;
 		}
@@ -150,10 +150,10 @@
 			areas = [...areas, created];
 			creating = false;
 			newDraft = emptyDraft();
-			toast.push(t('admin.message_areas.created_name', { NAME: created.name }), 'success');
+			toast.push(t('admin.common.created_name', { NAME: created.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : t('admin.message_areas.could_not_create_area'), 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.common.could_not_create_area'), 'error');
 		} finally {
 			saving = false;
 		}
@@ -165,10 +165,10 @@
 		try {
 			await deleteMessageArea(auth.token, area.id);
 			areas = areas.filter((a) => a.id !== area.id);
-			toast.push(t('admin.message_areas.deleted_name', { NAME: area.name }), 'success');
+			toast.push(t('admin.common.deleted_name', { NAME: area.name }), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : t('admin.message_areas.could_not_delete_area'), 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.common.could_not_delete_area'), 'error');
 		}
 	}
 
@@ -192,12 +192,12 @@
 
 <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
 	<div>
-		<h1 class="page-title">{t('admin.message_areas.message_areas')}</h1>
-		<p class="page-subtitle">{t('admin.message_areas.length_areas', { LENGTH: areas.length })}</p>
+		<h1 class="page-title">{t('common.message_areas')}</h1>
+		<p class="page-subtitle">{t('admin.common.length_areas', { LENGTH: areas.length })}</p>
 	</div>
 	<div class="flex items-center gap-2.5">
-		<input class="field field-sm w-56" type="search" placeholder={t('admin.message_areas.search_tag_name')} bind:value={search} />
-		<button class="btn-primary btn-sm shrink-0" onclick={startCreate}>{t('admin.message_areas.new_area')}</button>
+		<input class="field field-sm w-56" type="search" placeholder={t('admin.common.search_tag_name')} bind:value={search} />
+		<button class="btn-primary btn-sm shrink-0" onclick={startCreate}>{t('admin.common.new_area')}</button>
 	</div>
 </div>
 
@@ -208,43 +208,43 @@
 			{#if isNew}
 				<input class="field field-sm font-mono" bind:value={d.tag} placeholder="general" />
 			{:else}
-				<input class="field field-sm font-mono" value={d.tag} disabled title={t('admin.message_areas.the_tag_can_t_be')} />
+				<input class="field field-sm font-mono" value={d.tag} disabled title={t('admin.common.the_tag_can_t_be')} />
 			{/if}
 		</label>
 		<label class="flex flex-col gap-1.5">
-			<span class="text-xs text-muted">{t('admin.common.name')}</span>
+			<span class="text-xs text-muted">{t('common.name')}</span>
 			<input class="field field-sm" bind:value={d.name} />
 		</label>
 		<label class="col-span-2 flex flex-col gap-1.5">
-			<span class="text-xs text-muted">{t('admin.common.description')}</span>
+			<span class="text-xs text-muted">{t('web.common.description')}</span>
 			<input class="field field-sm" bind:value={d.description} />
 		</label>
 		<label class="col-span-2 flex flex-col gap-1.5">
-			<span class="text-xs text-muted">{t('admin.message_areas.group')}</span>
+			<span class="text-xs text-muted">{t('admin.common.group')}</span>
 			<input
 				class="field field-sm"
 				bind:value={d.network}
 				list="groups-list"
-				placeholder={t('admin.message_areas.fsxnet_fidonet_blank_for_ungrouped')}
+				placeholder={t('admin.common.fsxnet_fidonet_blank_for_ungrouped')}
 			/>
 		</label>
 		<div class="col-span-2 grid grid-cols-3 gap-3.5">
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">{t('admin.message_areas.min_sl_to_read')}</span>
+				<span class="text-xs text-muted">{t('admin.common.min_sl_to_read')}</span>
 				<input type="number" min="0" max="255" class="field field-sm" bind:value={d.min_sl_read} />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">{t('admin.message_areas.min_sl_to_post')}</span>
+				<span class="text-xs text-muted">{t('admin.common.min_sl_to_post')}</span>
 				<input type="number" min="0" max="255" class="field field-sm" bind:value={d.min_sl_write} />
 			</label>
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">{t('admin.message_areas.sort_order')}</span>
+				<span class="text-xs text-muted">{t('admin.common.sort_order')}</span>
 				<input type="number" class="field field-sm" bind:value={d.sort_order} />
 			</label>
 		</div>
 		<div class="col-span-2 grid grid-cols-2 gap-3.5">
 			<label class="flex flex-col gap-1.5">
-				<span class="text-xs text-muted">{t('admin.message_areas.keep_days')}</span>
+				<span class="text-xs text-muted">{t('admin.common.keep_days')}</span>
 				<input type="number" min="-1" class="field field-sm" bind:value={d.keep_days} />
 			</label>
 			<label class="flex flex-col gap-1.5">
@@ -277,9 +277,9 @@
 		>
 			{@render fields(newDraft, true)}
 			<div class="mt-5 flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>{t('admin.common.cancel')}</button>
+				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>{t('web.common.cancel')}</button>
 				<button type="submit" class="btn-primary btn-sm" disabled={saving}>
-					{saving ? t('admin.message_areas.creating') : t('admin.message_areas.create_area')}
+					{saving ? t('admin.common.creating') : t('admin.common.create_area')}
 				</button>
 			</div>
 		</form>
@@ -295,9 +295,9 @@
 		>
 			{@render fields(draft, false)}
 			<div class="mt-5 flex justify-end gap-2.5">
-				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>{t('admin.common.cancel')}</button>
+				<button type="button" class="btn-secondary btn-sm" onclick={closeDialog}>{t('web.common.cancel')}</button>
 				<button type="submit" class="btn-primary btn-sm" disabled={saving}>
-					{saving ? t('admin.common.saving') : t('admin.common.save')}
+					{saving ? t('web.common.saving') : t('web.common.save')}
 				</button>
 			</div>
 		</form>
@@ -307,7 +307,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !loaded}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	{#if networkTabs.length > 1}
 		<div class="mb-3 flex flex-wrap gap-x-6 gap-y-1 border-b border-line" role="tablist">
@@ -317,7 +317,7 @@
 				class="tab {activeNetwork === ALL_TAB ? 'tab-active' : ''}"
 				onclick={() => (activeNetwork = ALL_TAB)}
 			>
-				{t('admin.message_areas.all')} <span class="font-mono text-[11px] text-faint">{areas.length}</span>
+				{t('web.common.all')} <span class="font-mono text-[11px] text-faint">{areas.length}</span>
 			</button>
 			{#each networkTabs as [name, count] (name)}
 				<button
@@ -326,23 +326,23 @@
 					class="tab {activeNetwork === name ? 'tab-active' : ''}"
 					onclick={() => (activeNetwork = name)}
 				>
-					{name === UNGROUPED ? t('admin.message_areas.ungrouped') : name} <span class="font-mono text-[11px] text-faint">{count}</span>
+					{name === UNGROUPED ? t('admin.common.no_network') : name} <span class="font-mono text-[11px] text-faint">{count}</span>
 				</button>
 			{/each}
 		</div>
 	{/if}
 
 	{#if visibleAreas.length === 0}
-		<p class="py-4 text-sm text-muted">{search ? t('admin.message_areas.no_area_matches') : t('admin.message_areas.no_areas_in_this_group')}</p>
+		<p class="py-4 text-sm text-muted">{search ? t('admin.common.no_area_matches') : t('admin.common.no_areas_in_this_group')}</p>
 	{:else}
 		<div class="overflow-x-auto">
 			<table class="w-full min-w-[44rem] table-fixed text-left text-[13px]">
 				<thead class="card-label">
 					<tr class="border-b border-line">
 						<th class="w-52 py-2 pr-3 pl-2 font-normal">{t('admin.common.tag')}</th>
-						<th class="py-2 pr-3 font-normal">{t('admin.common.name')}</th>
-						{#if activeNetwork === ALL_TAB}<th class="w-28 py-2 pr-3 font-normal">{t('admin.message_areas.group')}</th>{/if}
-						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.message_areas.minimum_security_level_to_read')}>{t('admin.message_areas.read')}</th>
+						<th class="py-2 pr-3 font-normal">{t('common.name')}</th>
+						{#if activeNetwork === ALL_TAB}<th class="w-28 py-2 pr-3 font-normal">{t('admin.common.group')}</th>{/if}
+						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.message_areas.minimum_security_level_to_read')}>{t('web.common.read')}</th>
 						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.message_areas.minimum_security_level_to_post')}>{t('admin.message_areas.post')}</th>
 						<th class="w-[8.5rem] py-2"></th>
 					</tr>
@@ -384,14 +384,14 @@
 									onclick={(e) => {
 										e.stopPropagation();
 										startEdit(area);
-									}}>{t('admin.common.edit')}</button
+									}}>{t('web.common.edit')}</button
 								>
 								<button
 									class="btn-danger btn-xs ml-1"
 									onclick={(e) => {
 										e.stopPropagation();
 										remove(area);
-									}}>{t('admin.common.delete')}</button
+									}}>{t('web.common.delete')}</button
 								>
 							</td>
 						</tr>

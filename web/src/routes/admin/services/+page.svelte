@@ -31,7 +31,7 @@
 	function statusOf(s: ServiceStatus): { label: string; tone: string } {
 		if (s.restart_pending) {
 			return s.restart_mode === 'idle' && s.running
-				? { label: t('admin.services.restart_when_idle'), tone: 'amber' }
+				? { label: t('admin.common.restart_when_idle'), tone: 'amber' }
 				: { label: t('admin.services.restarting'), tone: 'amber' };
 		}
 		if (s.running) return { label: t('admin.services.running'), tone: 'green' };
@@ -64,14 +64,14 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">{t('admin.services.services')}</h1>
+	<h1 class="page-title">{t('admin.common.services')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
 		{t('admin.services.the_three_daemons_behind_the')}
 	</p>
 </div>
 
 {#if !servicesState.loaded}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<div class="flex flex-col gap-3">
 		{#each servicesState.list as s (s.name)}
@@ -118,7 +118,7 @@
 							onclick={() => restart(s, 'idle')}
 							title={t('admin.services.restart_as_soon_as_no')}
 						>
-							{t('admin.services.restart_when_idle')}
+							{t('admin.common.restart_when_idle')}
 						</button>
 					{/if}
 					<button

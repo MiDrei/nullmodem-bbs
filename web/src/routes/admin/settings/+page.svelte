@@ -24,7 +24,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			loadError = err instanceof ApiError ? err.message : t('admin.settings.could_not_load_configuration');
+			loadError = err instanceof ApiError ? err.message : t('admin.common.could_not_load_configuration');
 		}
 	});
 
@@ -44,7 +44,7 @@
 				await goto('/admin/login');
 				return;
 			}
-			saveError = err instanceof ApiError ? err.message : t('admin.settings.could_not_save_configuration');
+			saveError = err instanceof ApiError ? err.message : t('admin.common.could_not_save_configuration');
 		} finally {
 			saving = false;
 		}
@@ -56,13 +56,13 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !config}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else}
 	<form class="flex flex-col gap-6" onsubmit={handleSubmit}>
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
 			<h2 class="card-label">{t('admin.settings.general')}</h2>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">{t('admin.settings.bbs_name')}</span>
+				<span class="text-slate-400">{t('admin.common.bbs_name')}</span>
 				<input
 					class="field"
 					bind:value={config.name}
@@ -78,7 +78,7 @@
 				/>
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
-				<span class="text-slate-400">{t('admin.settings.location')}</span>
+				<span class="text-slate-400">{t('common.location')}</span>
 				<input class="field" bind:value={config.location} placeholder={t('admin.settings.neunkirch_switzerland')} />
 				<span class="text-xs text-slate-500">
 					{t('admin.settings.sent_to_other_systems_in')}
@@ -116,7 +116,7 @@
 		</section>
 
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
-			<h2 class="card-label">{t('admin.settings.telnet')}</h2>
+			<h2 class="card-label">{t('admin.common.telnet')}</h2>
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={config.telnet_enabled} />
 				<span class="text-slate-400">{t('admin.common.enabled')}</span>
@@ -148,7 +148,7 @@
 		</section>
 
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
-			<h2 class="card-label">{t('admin.settings.interbbs_last_callers')}</h2>
+			<h2 class="card-label">{t('common.interbbs_last_callers')}</h2>
 			<p class="text-xs leading-relaxed text-slate-500">
 				{t('admin.settings.boards_of_a_network_post')}
 			</p>
@@ -170,8 +170,8 @@
 					<input class="field font-mono" bind:value={config.last_callers.address} placeholder="bbs.example.org:2323" />
 				</label>
 				<label class="flex flex-col gap-1 text-sm">
-					<span class="text-slate-400">{t('admin.settings.system')}</span>
-					<input class="field" bind:value={config.last_callers.system} placeholder={t('admin.settings.linux')} />
+					<span class="text-slate-400">{t('admin.common.system')}</span>
+					<input class="field" bind:value={config.last_callers.system} placeholder={t('admin.common.linux')} />
 				</label>
 			</div>
 			<p class="text-xs leading-relaxed text-slate-500">
@@ -191,7 +191,7 @@
 			disabled={saving}
 			class="btn-primary"
 		>
-			{saving ? t('admin.common.saving') : t('admin.settings.save_changes')}
+			{saving ? t('web.common.saving') : t('admin.common.save_changes')}
 		</button>
 	</form>
 {/if}

@@ -46,7 +46,7 @@
 			if (mx.homeserver) mxLogin.homeserver = mx.homeserver;
 			onchange?.(rooms);
 		} catch (err) {
-			fail(err, t('admin.chatsettings.could_not_load_the_rooms'));
+			fail(err, t('web.common.could_not_load_the_rooms'));
 		}
 	}
 
@@ -105,10 +105,10 @@
 		try {
 			dc = await saveDiscord(auth.token, { enabled, quiet: dc.quiet, ...extra });
 			tokenInput = '';
-			toast.push(enabled ? t('admin.chatsettings.saved_the_bot_connects_in') : t('admin.chatsettings.saved'), 'success');
+			toast.push(enabled ? t('admin.chatsettings.saved_the_bot_connects_in') : t('common.saved'), 'success');
 			setTimeout(load, 3000);
 		} catch (err) {
-			fail(err, t('admin.chatsettings.could_not_save'));
+			fail(err, t('admin.common.could_not_save'));
 		} finally {
 			saving = false;
 		}
@@ -126,10 +126,10 @@
 				...(extra.forget ? { forget: true } : {})
 			});
 			mxLogin.password = '';
-			toast.push(extra.login ? t('admin.chatsettings.logged_in_the_bot_connects') : t('admin.chatsettings.saved'), 'success');
+			toast.push(extra.login ? t('admin.chatsettings.logged_in_the_bot_connects') : t('common.saved'), 'success');
 			setTimeout(load, 3000);
 		} catch (err) {
-			fail(err, t('admin.chatsettings.could_not_save'));
+			fail(err, t('admin.common.could_not_save'));
 		} finally {
 			saving = false;
 		}
@@ -146,7 +146,7 @@
 <div class="grid gap-4 lg:grid-cols-2">
 	<section class="card">
 		<div class="mb-3 flex items-center justify-between">
-			<h2 class="card-label">{t('admin.chatsettings.rooms')}</h2>
+			<h2 class="card-label">{t('web.common.rooms')}</h2>
 			{#if !editing}<button class="btn-primary btn-xs" onclick={() => edit()}>{t('admin.chatsettings.add_a_room')}</button>{/if}
 		</div>
 		<p class="mb-3 text-xs leading-relaxed text-muted">
@@ -172,7 +172,7 @@
 					<input class="field" bind:value={editing.topic} maxlength="200" />
 				</label>
 				<label class="flex flex-col gap-1 text-xs text-muted">
-					{t('admin.chatsettings.lowest_security_level')}
+					{t('admin.common.lowest_security_level')}
 					<input class="field" type="number" min="0" max="255" bind:value={editing.min_sl} />
 				</label>
 				<label class="flex flex-col gap-1 text-xs text-muted">
@@ -209,8 +209,8 @@
 					<input class="field font-mono" bind:value={editing.matrix_room} placeholder={t('admin.chatsettings.room_matrix_org_or_id')} />
 				</label>
 				<div class="flex justify-end gap-2 sm:col-span-2">
-					<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>{t('admin.common.cancel')}</button>
-					<button type="submit" class="btn-primary btn-sm">{t('admin.common.save')}</button>
+					<button type="button" class="btn-secondary btn-sm" onclick={() => (editing = null)}>{t('web.common.cancel')}</button>
+					<button type="submit" class="btn-primary btn-sm">{t('web.common.save')}</button>
 				</div>
 			</form>
 		{/if}
@@ -229,8 +229,8 @@
 							<div class="text-xs text-emerald-500">{t('admin.chatsettings.matrix_v', { V: matrixName(r.matrix_room) })}</div>
 						{/if}
 					</div>
-					<button class="btn-secondary btn-xs" onclick={() => edit(r)}>{t('admin.common.edit')}</button>
-					{#if r.name !== 'main'}<button class="btn-secondary btn-xs" onclick={() => removeRoom(r)}>{t('admin.common.remove')}</button>{/if}
+					<button class="btn-secondary btn-xs" onclick={() => edit(r)}>{t('web.common.edit')}</button>
+					{#if r.name !== 'main'}<button class="btn-secondary btn-xs" onclick={() => removeRoom(r)}>{t('web.common.remove')}</button>{/if}
 				</div>
 			{/each}
 		</div>
@@ -244,7 +244,7 @@
 				{#if dc.status.connected}
 					<span>{t('admin.chatsettings.connected_as')} <span class="text-ink-strong">{dc.status.bot}</span>{#if dc.status.guilds?.length}{t('admin.chatsettings.on_v', { V: dc.status.guilds.join(', ') })}{/if}</span>
 				{:else if dc.enabled}
-					<span class="text-amber-300">{dc.status.error || t('admin.chatsettings.connecting')}</span>
+					<span class="text-amber-300">{dc.status.error || t('web.common.connecting')}</span>
 				{:else}
 					<span class="text-muted">{t('admin.chatsettings.off')}</span>
 				{/if}
@@ -276,10 +276,10 @@
 						<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveBot(false, { clear_token: true })}>{t('admin.chatsettings.forget_the_token')}</button>
 					{/if}
 					{#if dc.enabled}
-						<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveBot(false, tokenInput ? { token: tokenInput } : {})}>{t('admin.chatsettings.turn_off')}</button>
+						<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveBot(false, tokenInput ? { token: tokenInput } : {})}>{t('admin.common.turn_off')}</button>
 					{/if}
 					<button class="btn-primary btn-sm" disabled={saving || (!dc.has_token && !tokenInput.trim())} onclick={() => saveBot(true, tokenInput ? { token: tokenInput } : {})}>
-						{dc.enabled ? t('admin.common.save') : t('admin.chatsettings.turn_on_2')}
+						{dc.enabled ? t('web.common.save') : t('admin.common.turn_on')}
 					</button>
 				</div>
 			</div>
@@ -293,7 +293,7 @@
 						→ <b>{t('admin.chatsettings.new_application')}</b> {t('admin.chatsettings.the_name_is_the_bot')}
 					</li>
 					<li><b>{t('admin.chatsettings.bot')}</b> {t('admin.chatsettings.turn_on')} <b>{t('admin.chatsettings.message_content_intent')}</b> {t('admin.chatsettings.save')}</li>
-					<li><b>{t('admin.chatsettings.bot')}</b> → <b>{t('admin.chatsettings.reset_token')}</b> {t('admin.chatsettings.copy_it_into_the_field')} <b>{t('admin.chatsettings.turn_on_2')}</b>.</li>
+					<li><b>{t('admin.chatsettings.bot')}</b> → <b>{t('admin.chatsettings.reset_token')}</b> {t('admin.chatsettings.copy_it_into_the_field')} <b>{t('admin.common.turn_on')}</b>.</li>
 					<li>{t('admin.chatsettings.once_it_says_connected')} <b>{t('admin.chatsettings.add_it_to_your_server')}</b> {t('admin.chatsettings.the_link_above_it_asks')}</li>
 					<li>{t('admin.chatsettings.give_each_room_its_channel')}</li>
 				</ol>
@@ -309,7 +309,7 @@
 				{#if mx.status.connected}
 					<span>{t('admin.chatsettings.connected_as')} <span class="text-ink-strong">{mx.status.user_id}</span>{#if mx.rooms.length}{t('admin.chatsettings.in_length_room_s', { LENGTH: mx.rooms.length })}{/if}</span>
 				{:else if mx.enabled}
-					<span class="text-amber-300">{mx.status.error || t('admin.chatsettings.connecting')}</span>
+					<span class="text-amber-300">{mx.status.error || t('web.common.connecting')}</span>
 				{:else if mx.has_token}
 					<span class="text-muted">{t('admin.chatsettings.off_logged_in_as_user', { USER_ID: mx.user_id })}</span>
 				{:else}
@@ -339,15 +339,15 @@
 			</label>
 			<div class="mt-3 flex flex-wrap justify-end gap-2">
 				{#if mx.has_token && !mx.enabled}
-					<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveMx(false, { forget: true })}>{t('admin.chatsettings.log_out')}</button>
+					<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveMx(false, { forget: true })}>{t('web.common.log_out')}</button>
 				{/if}
 				{#if mx.enabled}
-					<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveMx(false)}>{t('admin.chatsettings.turn_off')}</button>
+					<button class="btn-secondary btn-sm" disabled={saving} onclick={() => saveMx(false)}>{t('admin.common.turn_off')}</button>
 				{/if}
 				{#if mxLogin.password}
 					<button class="btn-primary btn-sm" disabled={saving || !mxLogin.user.trim()} onclick={() => saveMx(true, { login: true })}>{t('admin.chatsettings.log_in_and_turn_on')}</button>
 				{:else}
-					<button class="btn-primary btn-sm" disabled={saving || !mx.has_token} onclick={() => saveMx(true)}>{mx.enabled ? t('admin.common.save') : t('admin.chatsettings.turn_on_2')}</button>
+					<button class="btn-primary btn-sm" disabled={saving || !mx.has_token} onclick={() => saveMx(true)}>{mx.enabled ? t('web.common.save') : t('admin.common.turn_on')}</button>
 				{/if}
 			</div>
 			<details class="mt-4 text-xs leading-relaxed text-muted">

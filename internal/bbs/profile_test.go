@@ -131,7 +131,7 @@ func TestStatsBuiltinOpensProfile(t *testing.T) {
 	if err := builtins["stats"](s, NewTerminal(conn), u); err != nil {
 		t.Fatalf("stats builtin: %v", err)
 	}
-	if !strings.Contains(conn.out.String(), "Your profile") {
+	if !strings.Contains(conn.out.String(), "Your Profile") {
 		t.Fatalf("builtin:stats did not show the profile:\n%s", conn.out.String())
 	}
 }

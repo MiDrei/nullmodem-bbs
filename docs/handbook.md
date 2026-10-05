@@ -208,7 +208,9 @@ What a language lacks comes in English; German (Du) first takes from German
   language; empty means "as shipped". `{NAME}` are placeholders the BBS fills
   in — a text may leave one out but not invent one (the editor shows which
   work). Only what you changed is saved, in `data/lang/<language>.yaml`; it
-  applies at once and survives updates.
+  applies at once and survives updates. The texts are in sections (Telnet/SSH,
+  screens & menus, web, admin, messages) and groups; a text used in several
+  places exists once ("Also used in: …" says where else it shows).
 - **Screens:** every screen can have a version per language:
   `main.de-du.ans`, then `main.de.ans`, then `main.ans`. German versions of
   the stock screens are shipped; they take their texts from the catalog with

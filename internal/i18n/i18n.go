@@ -93,11 +93,22 @@ type Catalog struct {
 	overrides map[string]map[string]string
 	stamps    map[string]time.Time
 	checked   time.Time
+	// aliases are keys merged into another (lang/aliases.yaml, old:
+	// new): looked up as the new one, and a sysop's change saved under
+	// the old one still counts.
+	aliases map[string]string
 }
 
 // New is the catalog with the sysop's changes in dir ("" for none).
 func New(dir string) *Catalog {
-	c := &Catalog{dir: dir, defaults: map[string]map[string]string{}, overrides: map[string]map[string]string{}, stamps: map[string]time.Time{}}
+	c := &Catalog{dir: dir, defaults: map[string]map[string]string{}, overrides: map[string]map[string]string{}, stamps: map[string]time.Time{}, aliases: map[string]string{}}
+	if data, err := builtin.ReadFile("lang/aliases.yaml"); err == nil {
+		m, _, err := parse(data)
+		if err != nil {
+			panic(fmt.Sprintf("i18n: lang/aliases.yaml: %v", err))
+		}
+		c.aliases = m
+	}
 	for _, l := range Languages {
 		data, err := builtin.ReadFile("lang/" + l.Code + ".yaml")
 		if err != nil {
@@ -169,6 +180,14 @@ func (c *Catalog) refresh() {
 		if err != nil {
 			continue // a broken file: the built-in texts until it's fixed
 		}
+		for old, v := range m {
+			if key, ok := c.aliases[old]; ok {
+				if _, set := m[key]; !set {
+					m[key] = v
+				}
+				delete(m, old)
+			}
+		}
 		c.overrides[l.Code] = m
 		c.stamps[l.Code] = info.ModTime()
 	}
@@ -177,6 +196,7 @@ func (c *Catalog) refresh() {
 // Text is key's text in lang, along the fallbacks, with its
 // placeholders as they are. ok is false when no language has it.
 func (c *Catalog) Text(lang, key string) (string, bool) {
+	key = c.Resolve(key)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.refresh()
@@ -219,8 +239,29 @@ func (c *Catalog) Keys() []string { return append([]string(nil), c.keys...) }
 
 // Default is key's built-in text in exactly lang (no fallback).
 func (c *Catalog) Default(lang, key string) (string, bool) {
-	v, ok := c.defaults[lang][key]
+	v, ok := c.defaults[lang][c.Resolve(key)]
 	return v, ok
+}
+
+// MergedInto are, for each key, the keys merged into it (see
+// aliases), sorted.
+func (c *Catalog) MergedInto() map[string][]string {
+	out := map[string][]string{}
+	for old, key := range c.aliases {
+		out[key] = append(out[key], old)
+	}
+	for _, v := range out {
+		sort.Strings(v)
+	}
+	return out
+}
+
+// Resolve is the key a merged key became (itself if it wasn't).
+func (c *Catalog) Resolve(key string) string {
+	if k, ok := c.aliases[key]; ok {
+		return k
+	}
+	return key
 }
 
 // Overrides are the sysop's changed texts for exactly lang.
@@ -250,6 +291,7 @@ func (c *Catalog) SetOverrides(lang string, texts map[string]string) error {
 	}
 	keep := map[string]string{}
 	for k, v := range texts {
+		k = c.Resolve(k)
 		if !known[k] {
 			return fmt.Errorf("no text %q", k)
 		}

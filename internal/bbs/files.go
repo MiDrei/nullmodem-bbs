@@ -32,7 +32,7 @@ outer:
 			return err
 		}
 		if len(stats) == 0 {
-			header := s.renderAreaHeader(term, u, "filareas.ans", term.T("files.areas_title"))
+			header := s.renderAreaHeader(term, u, "filareas.ans", term.T("common.file_areas"))
 			return term.Print(header + ansi.Reset + term.T("files.no_areas") + ansi.CRLF)
 		}
 		if selected >= len(stats) {
@@ -102,7 +102,7 @@ const (
 	fallbackFileAreaNetwork     = "\x1b[1;35m-- {NETWORK} {FILL:-}\x1b[0m"
 )
 
-var fallbackFileAreaColumns = "{T:col.area:-63}{T:col.total:5}{T:col.new:7}{T:col.yours:7}\r\n" + strings.Repeat("-", 79)
+var fallbackFileAreaColumns = "{T:common.area:-63}{T:col.total:5}{T:common.new_2:7}{T:col.yours:7}\r\n" + strings.Repeat("-", 79)
 
 // fileAreaDisplayRow mirrors messages.go's areaDisplayRow exactly,
 // against file.AreaWithStats instead of message.AreaWithStats -- see
@@ -139,7 +139,7 @@ func buildFileAreaDisplayRows(stats []file.AreaWithStats, selected int, networkT
 // column/row screen files and file.AreaWithStats instead of
 // message.AreaWithStats.
 func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file.AreaWithStats, selected, scrollOffset int) (int, error) {
-	header := s.renderAreaHeader(term, u, "filareas.ans", term.T("files.areas_title"))
+	header := s.renderAreaHeader(term, u, "filareas.ans", term.T("common.file_areas"))
 
 	rowTemplate := s.loadOptionalScreen(term, fileAreaRowScreen, fallbackFileAreaRow)
 	rowSelectedTemplate := s.loadOptionalScreen(term, fileAreaRowSelectedScreen, fallbackFileAreaRowSelected)
@@ -191,7 +191,7 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 		}
 		newFlag := ""
 		if st.New > 0 {
-			newFlag = term.T("list.new_flag")
+			newFlag = term.T("common.new")
 		}
 		vars := ansi.Vars{
 			"AREANAME": st.Area.Name,
@@ -257,7 +257,7 @@ const (
 	fallbackFileListRowSelected = "\x1b[47m\x1b[30m{NEWFLAG:-3} {FILENAME:-30} {BY:-16} {SIZE:10} {DATE:16}\x1b[0m"
 )
 
-var fallbackFileListColumns = "    {T:col.filename:-31}{T:col.by:-23}{T:col.size:-16}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
+var fallbackFileListColumns = "    {T:common.filename:-31}{T:col.by:-23}{T:common.size:-16}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
 
 // firstUnreadFileIndex mirrors messages.go's firstUnreadIndex exactly,
 // against a file area's per-file read state instead of a message
@@ -444,7 +444,7 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 		}
 		newFlag := ""
 		if !readIDs[f.ID] {
-			newFlag = term.T("list.new_flag")
+			newFlag = term.T("common.new")
 		}
 		vars := ansi.Vars{
 			"FILENAME": f.Filename,
@@ -886,7 +886,7 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 		return term.Println(ansi.Reset + "\n" + term.T("sysop.no_file_areas"))
 	}
 
-	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("files.areas_title") + ansi.Reset); err != nil {
+	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("common.file_areas") + ansi.Reset); err != nil {
 		return err
 	}
 	for i, a := range areas {

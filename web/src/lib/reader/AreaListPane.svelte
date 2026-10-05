@@ -125,8 +125,8 @@
 	<button class="r-btn inline-flex items-center justify-center" onclick={() => goto('/reader/search')} aria-label={t('web.common.search')}
 		><Icon name="search" size={21} /></button
 	>
-	<button class="r-btn inline-flex items-center justify-center" onclick={load} aria-label={t('web.reader.refresh')}><Icon name="refresh" size={21} /></button>
-	<button class="r-btn inline-flex items-center justify-center" onclick={() => (settingsOpen = true)} aria-label={t('web.reader.settings')}><Icon name="system" size={21} /></button>
+	<button class="r-btn inline-flex items-center justify-center" onclick={load} aria-label={t('web.common.refresh')}><Icon name="refresh" size={21} /></button>
+	<button class="r-btn inline-flex items-center justify-center" onclick={() => (settingsOpen = true)} aria-label={t('web.common.settings')}><Icon name="system" size={21} /></button>
 </header>
 {#if !offline.online || offline.outbox}
 	<p class="border-b border-line bg-surface px-4 py-1.5 text-xs text-muted">
@@ -142,12 +142,12 @@
 	<p class="r-note text-red-400">{error}</p>
 {:else if loaded}
 	<button class="r-row {netmailSelected ? 'bg-surface' : ''}" onclick={onNetmail}>
-		<span class="flex-1 font-medium text-ink-strong">{t('web.nav.netmail')}</span>
+		<span class="flex-1 font-medium text-ink-strong">{t('common.netmail')}</span>
 		{#if netmailUnread > 0}<span class="r-badge">{netmailUnread}</span>{/if}
 		<span class="text-faint">›</span>
 	</button>
 	<button class="r-row" onclick={() => goto('/reader/chat')}>
-		<span class="flex-1 font-medium text-ink-strong">{t('web.nav.chat')}</span>
+		<span class="flex-1 font-medium text-ink-strong">{t('common.chat')}</span>
 		<span class="text-faint">›</span>
 	</button>
 

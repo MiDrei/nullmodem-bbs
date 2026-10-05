@@ -24,7 +24,7 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 			return err
 		}
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("bbslist.title") + ansi.Reset + "\r\n")
+		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("common.bbs_list") + ansi.Reset + "\r\n")
 		if len(list) == 0 {
 			b.WriteString("  " + term.T("bbslist.empty") + "\r\n")
 		}
@@ -81,7 +81,7 @@ func (s *Server) mayChangeBBS(u *user.User, e community.BBS) bool {
 func (s *Server) showBBS(term *Terminal, u *user.User, e community.BBS) error {
 	var b strings.Builder
 	// The labels as wide as the widest; a long value wraps under itself.
-	labels := []string{"bbslist.address", "bbslist.sysop", "bbslist.software", "bbslist.about", "bbslist.added_by", "bbslist.online"}
+	labels := []string{"common.address", "common.sysop", "common.software", "bbslist.about", "bbslist.added_by", "bbslist.online"}
 	labelWidth := 0
 	for _, k := range labels {
 		labelWidth = max(labelWidth, len(term.T(k)))
@@ -102,14 +102,14 @@ func (s *Server) showBBS(term *Terminal, u *user.User, e community.BBS) error {
 		}
 	}
 	b.WriteString(ansi.Reset + "\r\n  " + ansi.FG(ansi.White, true) + toCP437(e.Name) + ansi.Reset + "\r\n")
-	row("bbslist.address", toCP437(e.Address))
-	row("bbslist.sysop", toCP437(e.Sysop))
-	row("bbslist.software", toCP437(e.Software))
+	row("common.address", toCP437(e.Address))
+	row("common.sysop", toCP437(e.Sysop))
+	row("common.software", toCP437(e.Software))
 	row("bbslist.about", toCP437(e.Description))
 	row("bbslist.added_by", toCP437(e.AddedBy))
 	switch {
 	case e.CheckedAt.IsZero():
-		row("bbslist.online", term.T("bbslist.not_checked"))
+		row("bbslist.online", term.T("common.not_checked_yet"))
 	case e.Online:
 		row("bbslist.online", term.T("bbslist.up", "WHEN", term.Time(e.CheckedAt).Format("2006-01-02 15:04")))
 	case !e.LastUpAt.IsZero():
@@ -167,19 +167,19 @@ func (s *Server) editBBS(term *Terminal, u *user.User, e community.BBS) error {
 	if err = term.Print(ansi.Reset + "\r\n"); err != nil {
 		return err
 	}
-	if e.Name, err = ask(term.T("bbslist.name"), e.Name, community.MaxBBSName); err != nil {
+	if e.Name, err = ask(term.T("common.name"), e.Name, community.MaxBBSName); err != nil {
 		return err
 	}
-	if e.Address, err = ask(term.T("bbslist.address_hint"), e.Address, community.MaxBBSField); err != nil {
+	if e.Address, err = ask(term.T("common.address_host_port"), e.Address, community.MaxBBSField); err != nil {
 		return err
 	}
-	if e.Sysop, err = ask(term.T("bbslist.sysop"), e.Sysop, community.MaxBBSField); err != nil {
+	if e.Sysop, err = ask(term.T("common.sysop"), e.Sysop, community.MaxBBSField); err != nil {
 		return err
 	}
-	if e.Software, err = ask(term.T("bbslist.software"), e.Software, community.MaxBBSField); err != nil {
+	if e.Software, err = ask(term.T("common.software"), e.Software, community.MaxBBSField); err != nil {
 		return err
 	}
-	if e.Description, err = ask(term.T("bbslist.about_it"), e.Description, community.MaxBBSDesc); err != nil {
+	if e.Description, err = ask(term.T("common.about_it"), e.Description, community.MaxBBSDesc); err != nil {
 		return err
 	}
 	if e.ID == 0 {

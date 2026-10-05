@@ -173,7 +173,7 @@ const netmailListScreen = "netmail.ans"
 func (s *Server) renderNetmailListHeader(term *Terminal, u *user.User) string {
 	raw, err := s.loadScreen(term.Lang, netmailListScreen)
 	if err != nil {
-		return ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.title") + ansi.Reset + "\n"
+		return ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("common.netmail") + ansi.Reset + "\n"
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
@@ -204,7 +204,7 @@ const (
 	fallbackNetmailListRowSelected = "\x1b[47m\x1b[30m{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}\x1b[0m"
 )
 
-var fallbackNetmailListColumns = "    {T:col.subject:-40}{T:col.from:-30}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
+var fallbackNetmailListColumns = "    {T:common.subject:-40}{T:common.from:-30}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
 
 // drawNetmailList redraws the header banner plus the Subject/From/
 // Date table, with the row at selected highlighted and any unread
@@ -263,7 +263,7 @@ func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Me
 		}
 		newFlag := ""
 		if !m.IsRead() {
-			newFlag = term.T("list.new_flag")
+			newFlag = term.T("common.new")
 		}
 		vars := ansi.Vars{
 			"SUBJECT": m.Subject,
@@ -393,7 +393,7 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 		return err
 	}
 
-	lines, saved, err := s.runEditor(term, editorHeader(term, term.T("netmail.title"), original.FromName, subject),
+	lines, saved, err := s.runEditor(term, editorHeader(term, term.T("common.netmail"), original.FromName, subject),
 		quoteForReply(original.Body, original.FromName, original.ToName), u.LineEditor)
 	if err != nil {
 		return err
@@ -416,7 +416,7 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 	if _, err := s.Netmail.Send(u.ID, s.FTNAddress, toUserID, original.FromName, toAddress, subject, strings.Join(lines, "\n"), false); err != nil {
 		return err
 	}
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("msg.reply_sent"))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("common.reply_sent"))
 }
 
 // renderNetmailReaderHeader returns netread.ans (with MSGNUM/MSGCOUNT
@@ -428,7 +428,7 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 func (s *Server) renderNetmailReaderHeader(term *Terminal, idx, total int) string {
 	raw, err := s.loadScreen(term.Lang, netmailReadScreen)
 	if err != nil {
-		return ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.title") + ansi.Reset + "\n"
+		return ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("common.netmail") + ansi.Reset + "\n"
 	}
 	vars := ansi.Vars{
 		"BBSNAME":  s.BBSName,
@@ -588,7 +588,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 					return err
 				}
 				defaultName = toCP437(e.Sysop)
-			} else if err := term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "  " + term.T("netmail.not_in_nodelist") + ansi.Reset); err != nil {
+			} else if err := term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "  " + term.T("common.not_in_the_nodelists_here") + ansi.Reset); err != nil {
 				return err
 			}
 		}
@@ -639,7 +639,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 	if toAddress != "" {
 		label += " (" + toAddress + ")"
 	}
-	lines, saved, err := s.runEditor(term, editorHeader(term, term.T("netmail.title"), label, subject), nil, u.LineEditor)
+	lines, saved, err := s.runEditor(term, editorHeader(term, term.T("common.netmail"), label, subject), nil, u.LineEditor)
 	if err != nil {
 		return err
 	}
@@ -651,7 +651,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		return err
 	}
 	if toUserID > 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("netmail.sent"))
+		return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("common.netmail_sent"))
 	}
 	return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) +
 		term.T("netmail.queued_no_mailer", "NAME", toName, "ADDRESS", toAddress))

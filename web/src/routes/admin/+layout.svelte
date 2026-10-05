@@ -64,56 +64,56 @@
 			label: t('admin.nav.content'),
 			icon: 'content',
 			links: [
-				{ href: '/admin/message-areas', label: t('admin.nav.message_areas'), icon: 'areas' },
-				{ href: '/admin/file-areas', label: t('admin.nav.file_areas'), icon: 'files' },
-				{ href: '/admin/pending-areas', label: t('admin.nav.pending_areas'), icon: 'pending' },
-				{ href: '/admin/doors', label: t('admin.nav.doors'), icon: 'doors' },
-				{ href: '/admin/menus', label: t('admin.nav.menus'), icon: 'menu' },
-				{ href: '/admin/screens', label: t('admin.nav.screens'), icon: 'screens' },
-				{ href: '/admin/languages', label: t('admin.nav.languages'), icon: 'language' },
-				{ href: '/admin/designer', label: t('admin.nav.ansi_designer'), icon: 'designer' }
+				{ href: '/admin/message-areas', label: t('common.message_areas'), icon: 'areas' },
+				{ href: '/admin/file-areas', label: t('common.file_areas'), icon: 'files' },
+				{ href: '/admin/pending-areas', label: t('admin.common.pending_areas'), icon: 'pending' },
+				{ href: '/admin/doors', label: t('common.doors'), icon: 'doors' },
+				{ href: '/admin/menus', label: t('admin.common.menus'), icon: 'menu' },
+				{ href: '/admin/screens', label: t('admin.common.screens'), icon: 'screens' },
+				{ href: '/admin/languages', label: t('admin.common.languages'), icon: 'language' },
+				{ href: '/admin/designer', label: t('admin.common.ansi_designer'), icon: 'designer' }
 			]
 		},
 		{
-			label: t('admin.nav.community'),
+			label: t('web.common.community'),
 			icon: 'chat',
 			links: [
-				{ href: '/admin/chat', label: t('admin.nav.chat_one_liners'), icon: 'chat' },
-				{ href: '/admin/email', label: t('admin.nav.email_gateway'), icon: 'email' },
-				{ href: '/admin/polls', label: t('admin.nav.polls_bbs_list'), icon: 'poll' }
+				{ href: '/admin/chat', label: t('admin.common.chat_one_liners'), icon: 'chat' },
+				{ href: '/admin/email', label: t('common.email_gateway'), icon: 'email' },
+				{ href: '/admin/polls', label: t('admin.common.polls_bbs_list'), icon: 'poll' }
 			]
 		},
 		{
 			label: 'FTN',
 			icon: 'binkp',
 			links: [
-				{ href: '/admin/binkp', label: t('admin.nav.networks_addresses'), icon: 'binkp', exact: true },
-				{ href: '/admin/binkp/uplinks', label: t('admin.nav.uplinks_nodes_points'), icon: 'uplink' },
-				{ href: '/admin/areafix', label: t('admin.nav.areafix_filefix'), icon: 'areafix' },
-				{ href: '/admin/nodelists', label: t('admin.nav.nodelists'), icon: 'nodelist' },
-				{ href: '/admin/netmail', label: t('admin.nav.undeliverable_netmail'), icon: 'undeliverable' },
-				{ href: '/admin/archive', label: t('admin.nav.packet_analyzer'), icon: 'archive' }
+				{ href: '/admin/binkp', label: t('admin.common.networks_addresses'), icon: 'binkp', exact: true },
+				{ href: '/admin/binkp/uplinks', label: t('admin.common.uplinks_nodes_points'), icon: 'uplink' },
+				{ href: '/admin/areafix', label: t('admin.common.areafix_filefix'), icon: 'areafix' },
+				{ href: '/admin/nodelists', label: t('common.nodelists'), icon: 'nodelist' },
+				{ href: '/admin/netmail', label: t('admin.common.undeliverable_netmail'), icon: 'undeliverable' },
+				{ href: '/admin/archive', label: t('admin.common.packet_analyzer'), icon: 'archive' }
 			]
 		},
 		{
-			label: t('admin.nav.users'),
+			label: t('admin.common.users'),
 			icon: 'users',
 			links: [
-				{ href: '/admin/users', label: t('admin.nav.users'), icon: 'users' },
-				{ href: '/admin/security', label: t('admin.nav.security'), icon: 'lock' },
-				{ href: '/admin/sl-matrix', label: t('admin.nav.sl_matrix'), icon: 'matrix' }
+				{ href: '/admin/users', label: t('admin.common.users'), icon: 'users' },
+				{ href: '/admin/security', label: t('admin.common.security'), icon: 'lock' },
+				{ href: '/admin/sl-matrix', label: t('admin.common.sl_matrix'), icon: 'matrix' }
 			]
 		},
 		{
-			label: t('admin.nav.system'),
+			label: t('admin.common.system'),
 			icon: 'system',
 			links: [
-				{ href: '/admin/stats', label: t('admin.nav.statistics'), icon: 'chart' },
-				{ href: '/admin/settings', label: t('admin.nav.settings'), icon: 'system' },
-				{ href: '/admin/services', label: t('admin.nav.services_2'), icon: 'server' },
-				{ href: '/admin/maintenance', label: t('admin.nav.maintenance'), icon: 'wrench' },
-				{ href: '/admin/backups', label: t('admin.nav.backups'), icon: 'backup' },
-				{ href: '/admin/logs', label: t('admin.nav.logs'), icon: 'logs' }
+				{ href: '/admin/stats', label: t('admin.common.statistics'), icon: 'chart' },
+				{ href: '/admin/settings', label: t('web.common.settings'), icon: 'system' },
+				{ href: '/admin/services', label: t('admin.common.services'), icon: 'server' },
+				{ href: '/admin/maintenance', label: t('admin.common.maintenance'), icon: 'wrench' },
+				{ href: '/admin/backups', label: t('admin.common.backups'), icon: 'backup' },
+				{ href: '/admin/logs', label: t('admin.common.logs'), icon: 'logs' }
 			]
 		}
 	]);
@@ -244,7 +244,7 @@
 				<span class="text-line-strong" aria-hidden="true">·</span>
 				<span>{auth.username}</span>
 				<span class="text-line-strong" aria-hidden="true">·</span>
-				<button class="transition-colors hover:text-accent" onclick={logout}>{t('admin.nav.log_out')}</button>
+				<button class="transition-colors hover:text-accent" onclick={logout}>{t('web.common.log_out')}</button>
 			</div>
 		{/if}
 	</header>
@@ -265,7 +265,7 @@
 							onclick={() => restartFromBanner(svc.name)}
 							title={svc.name === 'bbs' ? t('admin.nav.restarts_as_soon_as_no') : ''}
 						>
-							{svc.name === 'bbs' ? t('admin.nav.restart_when_idle') : t('admin.common.restart')}
+							{svc.name === 'bbs' ? t('admin.common.restart_when_idle') : t('admin.common.restart')}
 						</button>
 					</span>
 				{/each}

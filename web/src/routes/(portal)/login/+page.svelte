@@ -39,7 +39,7 @@
 			await useAccountLang(res.language);
 			await goto('/message-areas');
 		} catch (err) {
-			error = err instanceof ApiError ? err.message : t('web.login.failed');
+			error = err instanceof ApiError ? err.message : t('web.common.login_failed');
 		} finally {
 			submitting = false;
 		}
@@ -70,22 +70,22 @@
 	</div>
 
 	<form class="flex w-full max-w-[340px] flex-col gap-2.5" onsubmit={handleSubmit}>
-		<label class="sr-only" for="login-user">{t('web.login.username')}</label>
+		<label class="sr-only" for="login-user">{t('web.common.username')}</label>
 		<input
 			id="login-user"
 			class="field py-3 text-sm"
 			bind:value={username}
-			placeholder={t('web.login.username')}
+			placeholder={t('web.common.username')}
 			autocomplete="username"
 			required
 		/>
-		<label class="sr-only" for="login-pass">{t('web.login.password')}</label>
+		<label class="sr-only" for="login-pass">{t('web.common.password')}</label>
 		<input
 			id="login-pass"
 			type="password"
 			class="field py-3 text-sm"
 			bind:value={password}
-			placeholder={t('web.login.password')}
+			placeholder={t('web.common.password')}
 			autocomplete="current-password"
 			required
 		/>
@@ -93,7 +93,7 @@
 			<p class="text-sm text-red-400">{error}</p>
 		{/if}
 		<button type="submit" disabled={submitting} class="btn-primary mt-1.5 w-full py-3 text-sm">
-			{submitting ? t('web.login.signing_in') : t('web.login.sign_in')}
+			{submitting ? t('web.common.signing_in') : t('web.common.sign_in')}
 		</button>
 	</form>
 

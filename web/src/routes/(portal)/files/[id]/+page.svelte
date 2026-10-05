@@ -114,7 +114,7 @@
 			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			modalError = err instanceof ApiError ? err.message : t('web.files.preview_failed');
+			modalError = err instanceof ApiError ? err.message : t('web.common.could_not_load_preview');
 		} finally {
 			modalLoading = false;
 		}
@@ -137,14 +137,14 @@
 			}
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			modalError = err instanceof ApiError ? err.message : t('web.files.preview_failed');
+			modalError = err instanceof ApiError ? err.message : t('web.common.could_not_load_preview');
 		} finally {
 			modalLoading = false;
 		}
 	}
 </script>
 
-<a href={file ? `/file-areas/${file.area_id}` : '/file-areas'} class="back-link">&larr; {t('web.nav.files')}</a>
+<a href={file ? `/file-areas/${file.area_id}` : '/file-areas'} class="back-link">&larr; {t('common.files')}</a>
 
 {#if loadError}
 	<p class="mt-4 text-sm text-red-400">{loadError}</p>
@@ -167,9 +167,9 @@
 	</div>
 
 	<div class="mb-7 flex gap-2.5">
-		<button class="btn-primary px-5" onclick={download}>{t('web.files.download')}</button>
+		<button class="btn-primary px-5" onclick={download}>{t('web.common.download')}</button>
 		{#if kind === 'image' || kind === 'text'}
-			<button class="btn-secondary" onclick={openPreview}>{t('web.files.preview')}</button>
+			<button class="btn-secondary" onclick={openPreview}>{t('web.common.preview')}</button>
 		{/if}
 		{#if file.share_page}
 			<button
@@ -207,7 +207,7 @@
 										class="text-xs text-faint transition-colors hover:text-accent"
 										onclick={() => openEntryPreview(entry.name)}
 									>
-										{t('web.files.preview')}
+										{t('web.common.preview')}
 									</button>
 								{/if}
 							</div>

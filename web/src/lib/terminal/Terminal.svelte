@@ -163,7 +163,7 @@
 		{#if status !== 'connected'}
 			<div class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-sm text-ink">
 				{#if status === 'connecting'}
-					{t('web.terminal.connecting')}
+					{t('web.common.connecting')}
 				{:else}
 					<span>{closeReason}</span>
 					<button class="btn-primary btn-sm" onclick={connect}>{t('web.terminal.connect_again')}</button>

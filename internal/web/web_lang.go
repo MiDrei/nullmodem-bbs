@@ -48,12 +48,13 @@ func (s *Server) requestLang(r *http.Request) string {
 }
 
 // webTexts are the web's texts in lang, fallbacks and the sysop's
-// changes applied -- with the admin's (admin.*) too for its pages.
+// changes applied: web.* and the ones shared with Telnet (common.*) --
+// with the admin's (admin.*) too for its pages.
 func webTexts(lang string, admin bool) map[string]string {
 	cat := i18n.Global()
 	out := map[string]string{}
 	for _, k := range cat.Keys() {
-		if strings.HasPrefix(k, "web.") || admin && strings.HasPrefix(k, "admin.") {
+		if strings.HasPrefix(k, "web.") || strings.HasPrefix(k, "common.") || admin && strings.HasPrefix(k, "admin.") {
 			out[k], _ = cat.Text(lang, k)
 		}
 	}

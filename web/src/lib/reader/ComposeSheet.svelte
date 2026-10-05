@@ -21,7 +21,7 @@
 		to = $bindable(),
 		toName = $bindable(''),
 		askToName = false,
-		toPlaceholder = t('web.msg.to'),
+		toPlaceholder = t('web.common.to'),
 		subject = $bindable(),
 		body = $bindable(),
 		quote = '',
@@ -74,7 +74,7 @@
 		<button class="r-btn text-base" onclick={onCancel}>{t('web.common.cancel')}</button>
 		<span class="r-title text-center">{heading}</span>
 		<button class="r-btn text-base font-semibold" disabled={busy || !to.trim() || !subject || !body.trim()} onclick={onSend}>
-			{busy ? t('web.netmail.sending') : t('web.chat.send')}
+			{busy ? t('web.netmail.sending') : t('web.common.send')}
 		</button>
 	</header>
 	<div class="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
@@ -89,11 +89,11 @@
 			{#if node}
 				<p class="px-1 text-sm text-emerald-400">→ {node.name}, {node.location} · {t('web.reader.sysop_of', { NAME: node.sysop })}</p>
 			{:else if unknown}
-				<p class="px-1 text-sm text-amber-400">{t('web.reader.not_in_nodelist')}</p>
+				<p class="px-1 text-sm text-amber-400">{t('common.not_in_the_nodelists_here')}</p>
 			{/if}
 			<input class="field py-2.5 text-base" bind:value={toName} placeholder={t('web.reader.name_at_address')} />
 		{/if}
-		<input class="field py-2.5 text-base" bind:value={subject} placeholder={t('web.msg.subject')} />
+		<input class="field py-2.5 text-base" bind:value={subject} placeholder={t('common.subject')} />
 		<textarea
 			bind:this={area}
 			class="field min-h-[40vh] flex-1 py-2.5 font-mono text-base leading-relaxed"

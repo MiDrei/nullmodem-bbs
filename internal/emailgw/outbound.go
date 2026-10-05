@@ -119,7 +119,7 @@ func (g *Gateway) giveUp(m netmail.OutgoingEmail, u *user.User, reason string) {
 	lang := g.Lang(u)
 	subject := ansi.DecodeCP437([]byte(m.Subject))
 	body := i18n.T(lang, "email.bounce_body", "TO", m.Email, "SUBJECT", subject, "REASON", reason)
-	if _, err := g.Netmail.Receive(i18n.T(lang, "email.gateway_name"), "", u.ID, u.Username, "",
+	if _, err := g.Netmail.Receive(i18n.T(lang, "common.email_gateway"), "", u.ID, u.Username, "",
 		string(ansi.EncodeCP437(i18n.T(lang, "email.bounce_subject", "SUBJECT", subject))),
 		string(ansi.EncodeCP437(body)), time.Now(), false); err != nil {
 		g.logWarn("email gateway: telling %s: %v", u.Username, err)

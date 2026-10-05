@@ -19,7 +19,6 @@ lang.prompt: "Deine Wahl (Enter behält die markierte):"
 
 sysop.no_file_areas: "Es gibt noch keine Dateibereiche. Leg zuerst einen an."
 
-profile.title: "Dein Profil"
 
 polls.not_approved: "Du kannst abstimmen, sobald der Sysop dein Konto freigeschaltet hat."
 polls.your_vote: "Deine Stimme"
@@ -51,13 +50,13 @@ chat.page_note: "{USERNAME} (Node {NODE}) ruft dich: {REASON} -- [C] Chat zum An
 chat.paged: "Der Sysop weiss Bescheid. Warte hier auf eine Antwort, oder /q zum Gehen."
 chat.in_it: "Da bist du schon."
 
-netmail.not_in_nodelist: "Nicht in den Nodelisten hier -- prüf die Adresse."
+common.not_in_the_nodelists_here: "Nicht in den Nodelisten hier -- prüf die Adresse."
 
 menu.item.tome: "Nachrichten an dich"
 menu.item.profile: "Dein Profil"
 
 screen.main.tome: "Nachrichten an dich"
-screen.main.profile: "Dein Profil"
+common.your_profile: "Dein Profil"
 screen.logoff.thanks: "Danke für deinen Anruf!"
 
 push.paging: "{USERNAME} ruft dich"
@@ -85,14 +84,13 @@ web.files.preview_truncated: "Vorschau gekürzt -- lade die Datei herunter, um a
 web.qwk.subtitle: "Wähle, welche Bereiche deine QWK-Pakete enthalten, lade deine Post herunter und lade ein Antwortpaket aus deinem Offline-Reader hoch."
 web.chat.subtitle: "Plaudere mit allen, die da sind -- per Telnet, hier oder in der Reader-App."
 web.chat.subtitle_bridged: "Plaudere mit allen, die da sind -- per Telnet, hier, in der Reader-App und auf Discord oder Matrix, wo ein Raum verbunden ist."
-web.chat.pick: "Wähle einen Raum."
+web.common.pick_a_room: "Wähle einen Raum."
 web.chat.empty: "Noch hat niemand etwas gesagt -- sag Hallo."
-web.chat.say: "Sag etwas…"
+web.common.say_something: "Sag etwas…"
 web.polls.change: "Du kannst deine Stimme ändern."
 web.polls.pick: "Wähle eine Antwort, um die Ergebnisse zu sehen."
 web.bbslist.empty: "Die Liste ist noch leer -- trag die Boards ein, die du anrufst."
 web.profile.load_failed: "Dein Profil konnte nicht geladen werden."
-web.profile.title: "Dein Profil"
 web.profile.subtitle: "Dein Konto und deine Einstellungen — dieselben, die du auch über Telnet/SSH ändern kannst"
 web.profile.place_hint: "Wo du bist, zusammen mit deinen Anrufen auf der InterBBS-Last-Callers-Liste der Boards im Netz. Leer zeigt nur die Stadt deiner Zeitzone."
 web.profile.qwk_areas_hint: "Welche Nachrichtenbereiche deine QWK-Pakete enthalten."
@@ -110,7 +108,6 @@ web.home.sysops_text: "Point werden oder verbinden? Schreib dem Sysop eine Netma
 web.push.setting_up: "Der Reader richtet sich noch ein; versuch es gleich nochmal."
 web.reader.echomail_hint: "an deinen Namen, in den Bereichen, die du lesen darfst"
 web.reader.offline_hint: "Ungelesene Post wird vorab geholt, solange der Reader offen ist, um sie ohne Netz zu lesen. Offline geschriebene Antworten gehen raus, sobald du wieder online bist."
-web.reader.not_in_nodelist: "Nicht in den Nodelisten hier -- prüf die Adresse."
 web.reader.your_reply: "Deine Antwort"
 web.reader.your_message: "Deine Nachricht"
 web.reader.mine_hint: "✓ = deine Bereiche: die Ungelesen-Liste, das Vorabholen für offline, der Newscan und QWK nehmen sie mit."
@@ -142,9 +139,7 @@ admin.binkp_uplinks.restrict_to_these_of_your: "Auf diese deiner Adressen beschr
 admin.binkp_uplinks.no_addresses_configured_yet_add: "Noch keine Adressen eingerichtet -- leg eine unter FTN → Netze & Adressen an."
 admin.chat.talk_with_the_callers_on: "Mit den Anrufern über Telnet und SSH plaudern -- und über einen verbundenen Raum mit Discord und Matrix. Wer dich ruft, wartet in seinem eigenen Raum -- du bekommst eine Benachrichtigung, und er steht hier oben."
 admin.chat.waiting_for_you: "wartet auf dich"
-admin.chat.pick_a_room: "Wähl einen Raum."
 admin.chat.username_paged_you_text: "{USERNAME} ruft dich: {TEXT}"
-admin.chat.say_something: "Sag etwas…"
 admin.dashboard.v_is_paging_you_answer: "{V} ruft dich -- im Chat antworten →"
 admin.designer.select_the_text_tool_and: "Wähl zuerst das Text-Werkzeug und klick in eine Zelle."
 admin.designer.clipboard_is_empty_select_a: "Die Zwischenablage ist leer. Markier zuerst einen Bereich und kopier ihn."
@@ -212,8 +207,6 @@ api.turn_on_two_factor_login_for: "Schalte zuerst die Zwei-Faktor-Anmeldung für
 api.turn_the_off_site_copy_on: "Schalte zuerst die Kopie ausser Haus ein"
 api.two_factor_login_is_on_already: "Die Zwei-Faktor-Anmeldung ist schon an -- schalte sie zuerst aus"
 
-builtin.tome.label: "Nachrichten an dich"
-builtin.profile.label: "Dein Profil"
 builtin.stats.label: "Dein Profil (Statistik)"
 doortpl.umrc.setup: "Sein Hintergrundprogramm umrc-bridge hält die Verbindung zum Chat-Netz und läuft, solange die Door eingerichtet ist (siehe Dienste). Pro Board ist nur eine solche Verbindung erlaubt: lass uMRC für dasselbe Board nirgends sonst laufen."
 doortpl.immortal_barons.description: "Bau ein Reich und erobere deine Nachbarn: eine treue Neuauflage von Barren Realms Elite, mit Inter-BBS-Ligen."

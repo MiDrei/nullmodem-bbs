@@ -1,18 +1,18 @@
 [2J[H[1;36;40m…{FILL:Õ}ª
 ∫{FILL: }[1;37;40m{BBSNAME}[1;36;40m{FILL: }∫
-∫{FILL: }{T:screen.main.title}{FILL: }∫
+∫{FILL: }{T:common.main_menu}{FILL: }∫
 [1;36;40mÃ{FILL:Õ}π
 [1;36;40m∫{FILL: }∫
 [1;36;40m∫  [1;33;40m[R][1;32;40m {T:screen.main.newscan:-34}[1;33;40m[T][1;32;40m {T:screen.main.tome}[1;36;40m{FILL: }∫
-[1;36;40m∫  [1;33;40m[M][1;32;40m {T:screen.main.areas:-34}[1;33;40m[F][1;32;40m {T:screen.main.files}[1;36;40m{FILL: }∫
-[1;36;40m∫  [1;33;40m[N][1;32;40m {T:screen.main.netmail:-34}[1;33;40m[I][1;32;40m {T:screen.main.nodelist}[1;36;40m{FILL: }∫
-[1;36;40m∫  [1;33;40m[C][1;32;40m {T:screen.main.chat:-34}[1;33;40m[P][1;32;40m {T:screen.main.page}[1;36;40m{FILL: }∫
-[1;36;40m∫  [1;33;40m[L][1;32;40m {T:screen.main.oneliners:-34}[1;33;40m[V][1;32;40m {T:screen.main.polls}[1;36;40m{FILL: }∫
-[1;36;40m∫  [1;33;40m[W][1;32;40m {T:screen.main.who:-34}[1;33;40m[B][1;32;40m {T:screen.main.bbslist}[1;36;40m{FILL: }∫
-[1;36;40m∫  [1;33;40m[D][1;32;40m {T:screen.main.doors:-34}[1;33;40m[Y][1;32;40m {T:screen.main.profile}[1;36;40m{FILL: }∫
+[1;36;40m∫  [1;33;40m[M][1;32;40m {T:common.message_areas:-34}[1;33;40m[F][1;32;40m {T:common.file_areas}[1;36;40m{FILL: }∫
+[1;36;40m∫  [1;33;40m[N][1;32;40m {T:common.netmail:-34}[1;33;40m[I][1;32;40m {T:common.nodelist}[1;36;40m{FILL: }∫
+[1;36;40m∫  [1;33;40m[C][1;32;40m {T:common.chat:-34}[1;33;40m[P][1;32;40m {T:screen.main.page}[1;36;40m{FILL: }∫
+[1;36;40m∫  [1;33;40m[L][1;32;40m {T:common.one_liners:-34}[1;33;40m[V][1;32;40m {T:screen.main.polls}[1;36;40m{FILL: }∫
+[1;36;40m∫  [1;33;40m[W][1;32;40m {T:common.who_s_online:-34}[1;33;40m[B][1;32;40m {T:screen.main.bbslist}[1;36;40m{FILL: }∫
+[1;36;40m∫  [1;33;40m[D][1;32;40m {T:common.doors:-34}[1;33;40m[Y][1;32;40m {T:common.your_profile}[1;36;40m{FILL: }∫
 [1;36;40m∫  [1;33;40m[O][1;32;40m {T:screen.main.qwk:-34}[1;33;40m[U][1;32;40m {T:screen.main.qwkrep}[1;36;40m{FILL: }∫
-[1;36;40m∫  [1;33;40m[K][1;32;40m {T:screen.main.qwkareas:-34}[1;33;40m[?][1;32;40m {T:screen.main.version}[1;36;40m{FILL: }∫
-[1;36;40m∫  [1;33;40m[Q][1;32;40m {T:screen.main.quit:-34}{SYSOP_ITEM}[1;36;40m{FILL: }∫
+[1;36;40m∫  [1;33;40m[K][1;32;40m {T:screen.main.qwkareas:-34}[1;33;40m[?][1;32;40m {T:menu.item.version}[1;36;40m{FILL: }∫
+[1;36;40m∫  [1;33;40m[Q][1;32;40m {T:menu.item.quit:-34}{SYSOP_ITEM}[1;36;40m{FILL: }∫
 [1;36;40m∫{FILL: }∫
 [1;36;40m»{FILL:Õ}º
 

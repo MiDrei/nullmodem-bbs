@@ -63,7 +63,7 @@
 				.catch(() => {});
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : t('web.msg.load_failed');
+			loadError = err instanceof ApiError ? err.message : t('web.common.could_not_load_message');
 		} finally {
 			loaded = true;
 		}
@@ -101,7 +101,7 @@
 		try {
 			await postBBSMessage(bbsAuth.token, message.area_id, replyTo, replySubject, replyBody, message.id);
 			replying = false;
-			toast.push(t('web.msg.reply_posted'), 'success');
+			toast.push(t('common.reply_posted'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			toast.push(err instanceof ApiError ? err.message : t('web.msg.reply_failed'), 'error');
@@ -163,7 +163,7 @@
 		<div class="min-w-0">
 			<h1 class="text-lg font-semibold text-ink-strong">{message.subject}</h1>
 			<div class="mt-0.5 text-[12.5px] text-muted">
-				<span class="text-slate-400">{message.from_name}</span> {t('web.msg.to_lower')} {message.to_name} &middot;
+				<span class="text-slate-400">{message.from_name}</span> {t('web.common.to_2')} {message.to_name} &middot;
 				{formatDateTime(message.posted_at)}
 			</div>
 			{#if parent}
@@ -199,7 +199,7 @@
 	{#if thread.length > 1}
 		<section class="card mt-5 px-3 py-3">
 			<div class="mb-1.5 flex items-center justify-between px-2">
-				<h2 class="card-label">{t('web.msg.thread', { COUNT: thread.length })}</h2>
+				<h2 class="card-label">{t('web.common.thread_count_messages', { COUNT: thread.length })}</h2>
 				{#if nextInThread}
 					<a href="/messages/{nextInThread.id}" data-sveltekit-replacestate class="text-xs text-accent hover:underline" title="T">{t('web.msg.next_in_thread')} →</a>
 				{/if}
@@ -219,11 +219,11 @@
 			}}
 		>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">{t('web.msg.to')}</span>
+				<span class="card-label">{t('web.common.to')}</span>
 				<input class="field" bind:value={replyTo} />
 			</label>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">{t('web.msg.subject')}</span>
+				<span class="card-label">{t('common.subject')}</span>
 				<input class="field" bind:value={replySubject} />
 			</label>
 			<label class="flex flex-col gap-2">

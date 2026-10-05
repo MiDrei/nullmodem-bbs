@@ -1,5 +1,5 @@
 [2J[H[1;36;40m…{FILL:Õ}ª
-∫{FILL: }[1;37;40m{T:screen.sysop.title}[1;36;40m{FILL: }∫
+∫{FILL: }[1;37;40m{T:common.sysop_menu}[1;36;40m{FILL: }∫
 ∫{FILL: }{T:screen.sysop.node}{FILL: }∫
 Ã{FILL:Õ}π
 ∫{FILL: }∫
@@ -7,7 +7,7 @@
 ∫[1;33;40m  [C][1;32;40m {T:screen.sysop.createarea:-24}[1;33;40m[F][1;32;40m {T:screen.sysop.createfilearea}[1;36;40m{FILL: }∫
 ∫[1;33;40m  [I][1;32;40m {T:screen.sysop.importfile}[1;36;40m{FILL: }∫
 ∫{FILL: }∫
-∫[1;33;40m  [M][1;32;40m {T:screen.sysop.back:-24}[1;33;40m[Q][1;32;40m {T:screen.main.quit}[1;36;40m{FILL: }∫
+∫[1;33;40m  [M][1;32;40m {T:screen.sysop.back:-24}[1;33;40m[Q][1;32;40m {T:menu.item.quit}[1;36;40m{FILL: }∫
 ∫{FILL: }∫
 »{FILL:Õ}º
 

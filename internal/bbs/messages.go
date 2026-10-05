@@ -27,7 +27,7 @@ outer:
 			return err
 		}
 		if len(stats) == 0 {
-			header := s.renderAreaHeader(term, u, "msgareas.ans", term.T("areas.title"))
+			header := s.renderAreaHeader(term, u, "msgareas.ans", term.T("common.message_areas"))
 			return term.Print(header + ansi.Reset + term.T("areas.none") + ansi.CRLF)
 		}
 		if selected >= len(stats) {
@@ -92,7 +92,7 @@ const (
 	fallbackAreaNetwork     = "\x1b[1;35m-- {NETWORK} {FILL:-}\x1b[0m"
 )
 
-var fallbackAreaColumns = "{T:col.area:-63}{T:col.total:5}{T:col.new:7}{T:col.yours:7}\r\n" + strings.Repeat("-", 79)
+var fallbackAreaColumns = "{T:common.area:-63}{T:col.total:5}{T:common.new_2:7}{T:col.yours:7}\r\n" + strings.Repeat("-", 79)
 
 // loadOptionalScreen returns screenFile's raw content from ScreensDir,
 // or fallback if it doesn't exist / can't be read. Every caller uses
@@ -170,7 +170,7 @@ func buildAreaDisplayRows(stats []message.AreaWithStats, selected int, networkTe
 // edge, like a normal pager. The returned value is what the caller
 // should pass back in on the next call.
 func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.AreaWithStats, selected, scrollOffset int) (int, error) {
-	header := s.renderAreaHeader(term, u, "msgareas.ans", term.T("areas.title"))
+	header := s.renderAreaHeader(term, u, "msgareas.ans", term.T("common.message_areas"))
 
 	rowTemplate := s.loadOptionalScreen(term, msgAreaRowScreen, fallbackAreaRow)
 	rowSelectedTemplate := s.loadOptionalScreen(term, msgAreaRowSelectedScreen, fallbackAreaRowSelected)
@@ -229,7 +229,7 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 		}
 		newFlag := ""
 		if st.New > 0 {
-			newFlag = term.T("list.new_flag")
+			newFlag = term.T("common.new")
 		}
 		vars := ansi.Vars{
 			"AREANAME": st.Area.Name,
@@ -296,7 +296,7 @@ const (
 	fallbackMsgListRowSelected = "\x1b[47m\x1b[30m{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}\x1b[0m"
 )
 
-var fallbackMsgListColumns = "    {T:col.subject:-40}{T:col.from:-30}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
+var fallbackMsgListColumns = "    {T:common.subject:-40}{T:common.from:-30}{T:col.date:5}\r\n" + strings.Repeat("-", 79)
 
 // firstUnreadIndex returns the index of the first message (in msgs'
 // own, chronological order) not present in readIDs -- where
@@ -591,7 +591,7 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 		}
 		newFlag := ""
 		if !readIDs[m.ID] {
-			newFlag = term.T("list.new_flag")
+			newFlag = term.T("common.new")
 		}
 		vars := ansi.Vars{
 			"SUBJECT": m.Subject,
@@ -928,7 +928,7 @@ func (s *Server) replyToMessage(term *Terminal, u *user.User, area *message.Area
 	if err := s.Messages.SetReplyTo(m.ID, original.ID); err != nil {
 		return err
 	}
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("msgs.reply_posted"))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("common.reply_posted"))
 }
 
 // attemptPostMessage is the lightbar's P handler: it rejects the
@@ -999,7 +999,7 @@ func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) e
 	if _, err := s.Messages.PostMessage(area.ID, u.ID, "All", subject, strings.Join(lines, "\n")); err != nil {
 		return err
 	}
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("msgs.posted"))
+	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("common.message_posted"))
 }
 
 // sysopCreateArea is the "builtin:createarea" command: it prompts for

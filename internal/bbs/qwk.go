@@ -54,7 +54,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 		return fmt.Errorf("qwk download: %w", err)
 	}
 	if count == 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + term.T("qwk.no_mail"))
+		return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + term.T("common.no_new_mail_to_download"))
 	}
 
 	info, err := os.Stat(packetPath)
@@ -140,9 +140,9 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	s.logInfo("%s uploaded a QWK reply packet: %d posted, %d netmail sent, %d skipped", u.Username, res.Posted, res.Sent, len(res.Rejected))
 
 	msg := ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) +
-		term.T("qwk.processed", "POSTED", res.Posted, "SENT", res.Sent)
+		term.T("common.replies_processed_posted_posted_sent", "POSTED", res.Posted, "SENT", res.Sent)
 	if len(res.Rejected) > 0 {
-		msg += term.T("qwk.skipped", "COUNT", len(res.Rejected))
+		msg += term.T("common.count_skipped", "COUNT", len(res.Rejected))
 	}
 	if err := term.Println(msg); err != nil {
 		return err
@@ -151,7 +151,7 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	// caller hears about it, and the offline reader has already
 	// dropped them from its queue.
 	for _, r := range res.Rejected {
-		line := "  " + term.T("qwk.not_delivered", "SUBJECT", r.Subject, "TO", r.To, "REASON", r.Reason)
+		line := "  " + term.T("common.not_delivered_subject_to_to", "SUBJECT", r.Subject, "TO", r.To, "REASON", r.Reason)
 		if err := term.Println(ansi.FG(ansi.Red, true) + line + ansi.Reset); err != nil {
 			return err
 		}

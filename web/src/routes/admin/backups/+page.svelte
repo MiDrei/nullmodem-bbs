@@ -59,9 +59,9 @@
 		saving = true;
 		try {
 			apply(await putBackupSettings(auth.token, $state.snapshot(settings) as BackupSettings));
-			toast.push(t('admin.backups.saved'), 'success');
+			toast.push(t('common.saved'), 'success');
 		} catch (err) {
-			await failed(err, t('admin.backups.could_not_save'));
+			await failed(err, t('admin.common.could_not_save'));
 		} finally {
 			saving = false;
 		}
@@ -115,7 +115,7 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">{t('admin.backups.backups')}</h1>
+	<h1 class="page-title">{t('admin.common.backups')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
 		{t('admin.backups.every_night_a_copy_of')}
 	</p>
@@ -124,7 +124,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !settings}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<div class="flex flex-col gap-4">
 		{#if settings.enabled && newestAge > 26 && backups.length}
@@ -153,7 +153,7 @@
 				<label class="flex flex-col gap-1">
 					<span class="text-xs text-muted">{t('admin.backups.keep_daily')}</span>
 					<input type="number" min="1" class="field field-sm" bind:value={settings.keep_daily} />
-					<span class="text-[11px] text-faint">{t('admin.backups.the_newest_ones')}</span>
+					<span class="text-[11px] text-faint">{t('admin.common.the_newest_ones')}</span>
 				</label>
 				<label class="flex flex-col gap-1">
 					<span class="text-xs text-muted">{t('admin.backups.keep_weekly')}</span>
@@ -161,7 +161,7 @@
 					<span class="text-[11px] text-faint">{t('admin.backups.plus_the_newest_of_each')}</span>
 				</label>
 				<label class="flex flex-col gap-1">
-					<span class="text-xs text-muted">{t('admin.backups.directory')}</span>
+					<span class="text-xs text-muted">{t('admin.common.directory')}</span>
 					<input class="field field-sm font-mono" bind:value={settings.dir} />
 					<span class="text-[11px] text-faint">{t('admin.backups.inside_the_container_data_backups')}</span>
 				</label>
@@ -174,13 +174,13 @@
 				<button type="button" class="btn-secondary btn-sm" disabled={running} onclick={runNow}>
 					{running ? t('admin.backups.backing_up') : t('admin.backups.back_up_now')}
 				</button>
-				<button type="submit" class="btn-primary btn-sm" disabled={saving}>{saving ? t('admin.common.saving') : t('admin.common.save')}</button>
+				<button type="submit" class="btn-primary btn-sm" disabled={saving}>{saving ? t('web.common.saving') : t('web.common.save')}</button>
 			</div>
 		</form>
 
 		<section class="card">
 			<div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-				<h2 class="card-label">{t('admin.backups.backups')}</h2>
+				<h2 class="card-label">{t('admin.common.backups')}</h2>
 				<span class="text-xs text-faint">
 					{backups.length} · {mb(total)}{freeBytes ? t('admin.backups.v_free', { V: mb(freeBytes) }) : ''}
 				</span>
@@ -196,9 +196,9 @@
 								<td class="py-2 text-right font-mono text-xs text-muted">{mb(b.size)}</td>
 								<td class="py-2 text-right whitespace-nowrap">
 									<button type="button" class="btn-secondary btn-xs" disabled={downloading !== null} onclick={() => download(b)}>
-										{downloading === b.name ? t('admin.common.loading') : t('admin.common.download')}
+										{downloading === b.name ? t('web.common.loading') : t('web.common.download')}
 									</button>
-									<button type="button" class="btn-secondary btn-xs" onclick={() => remove(b)}>{t('admin.common.delete')}</button>
+									<button type="button" class="btn-secondary btn-xs" onclick={() => remove(b)}>{t('web.common.delete')}</button>
 								</td>
 							</tr>
 						{/each}

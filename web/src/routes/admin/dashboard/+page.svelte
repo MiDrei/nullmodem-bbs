@@ -58,7 +58,7 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !dashboard}
-	<p class="text-sm text-slate-400">{t('admin.common.loading')}</p>
+	<p class="text-sm text-slate-400">{t('web.common.loading')}</p>
 {:else}
 	<div class="mb-6">
 		<h1 class="page-title">{dashboard.bbs_name}</h1>
@@ -118,15 +118,15 @@
 		</div>
 		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.user_count}</div>
-			<div class="card-label">{t('admin.dashboard.users')}</div>
+			<div class="card-label">{t('admin.common.users')}</div>
 		</div>
 		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.message_area_count}</div>
-			<div class="card-label">{t('admin.dashboard.message_areas')}</div>
+			<div class="card-label">{t('common.message_areas')}</div>
 		</div>
 		<div class="rounded-xl border border-line p-4">
 			<div class="text-2xl font-semibold text-slate-100">{dashboard.file_area_count}</div>
-			<div class="card-label">{t('admin.dashboard.file_areas')}</div>
+			<div class="card-label">{t('common.file_areas')}</div>
 		</div>
 	</div>
 
@@ -155,11 +155,11 @@
 				<div class="text-lg font-semibold text-ink-strong">
 					{dashboard.binkp.crash_only_uplink_count}
 				</div>
-				<div class="card-label">{t('admin.dashboard.crash_only')}</div>
+				<div class="card-label">{t('admin.common.crash_only')}</div>
 			</div>
 			<div class="rounded-xl border border-line p-3">
 				<div class="text-lg font-semibold text-ink-strong">{dashboard.binkp.hold_uplink_count}</div>
-				<div class="card-label">{t('admin.dashboard.hold')}</div>
+				<div class="card-label">{t('admin.common.hold')}</div>
 			</div>
 			<div class="rounded-xl border border-line p-3">
 				<div class="text-lg font-semibold text-ink-strong">{dashboard.binkp.pending_outbound}</div>
@@ -179,7 +179,7 @@
 	</section>
 
 	<section class="rounded-xl border border-line p-4">
-		<h2 class="mb-4 card-label">{t('admin.dashboard.who_s_online')}</h2>
+		<h2 class="mb-4 card-label">{t('common.who_s_online')}</h2>
 		{#if dashboard.nodes.length === 0}
 			<p class="text-sm text-slate-500">{t('admin.dashboard.no_active_sessions')}</p>
 		{:else}
@@ -187,11 +187,11 @@
 				<table class="w-full text-left text-sm">
 					<thead class="card-label">
 						<tr class="border-b border-slate-800">
-							<th class="py-2 pr-4">{t('admin.dashboard.node')}</th>
-							<th class="py-2 pr-4">{t('admin.dashboard.handle')}</th>
-							<th class="py-2 pr-4">{t('admin.dashboard.terminal')}</th>
+							<th class="py-2 pr-4">{t('common.node')}</th>
+							<th class="py-2 pr-4">{t('common.handle')}</th>
+							<th class="py-2 pr-4">{t('common.terminal')}</th>
 							<th class="py-2 pr-4">{t('admin.dashboard.remote')}</th>
-							<th class="py-2">{t('admin.dashboard.connected')}</th>
+							<th class="py-2">{t('common.connected')}</th>
 						</tr>
 					</thead>
 					<tbody>

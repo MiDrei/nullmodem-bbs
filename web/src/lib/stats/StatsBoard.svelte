@@ -77,7 +77,7 @@
 			<div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-4">
 				<h2 class="card-label">{t('web.stats.echomail')}</h2>
 				<span class="flex items-center gap-3 text-xs text-muted">
-					<span class="flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-sm bg-accent"></span>{t('web.stats.received')}</span>
+					<span class="flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-sm bg-accent"></span>{t('web.common.received')}</span>
 					<span class="flex items-center gap-1"><span class="inline-block h-2 w-2 rounded-sm bg-accent/40"></span>{t('web.stats.written_here')}</span>
 				</span>
 			</div>

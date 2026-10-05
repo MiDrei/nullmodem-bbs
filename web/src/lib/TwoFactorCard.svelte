@@ -82,7 +82,7 @@
 <section class="card flex flex-col gap-3">
 	<h2 class="card-label">{t('admin.twofactor.your_account_two_factor_login')}</h2>
 	{#if !status}
-		<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+		<p class="text-sm text-muted">{t('web.common.loading')}</p>
 	{:else if codes}
 		<p class="text-sm text-ink">
 			{t('admin.twofactor.two_factor_login_is_on')} <b>{t('admin.twofactor.recovery_codes')}</b> {t('admin.twofactor.each_works_once_in_place')}
@@ -104,8 +104,8 @@
 				<code class="font-mono text-sm break-all text-ink">{setup.secret}</code>
 				<form class="mt-2 flex gap-2" onsubmit={(e) => { e.preventDefault(); confirm(); }}>
 					<input class="field w-36 text-center font-mono tracking-widest" bind:value={code} placeholder="123456" inputmode="numeric" autocomplete="one-time-code" />
-					<button type="submit" class="btn-primary btn-sm" disabled={busy || code.trim().length !== 6}>{t('admin.twofactor.turn_on')}</button>
-					<button type="button" class="btn-secondary btn-sm" onclick={() => (setup = null)}>{t('admin.common.cancel')}</button>
+					<button type="submit" class="btn-primary btn-sm" disabled={busy || code.trim().length !== 6}>{t('admin.common.turn_on')}</button>
+					<button type="button" class="btn-secondary btn-sm" onclick={() => (setup = null)}>{t('web.common.cancel')}</button>
 				</form>
 			</div>
 		</div>
@@ -116,7 +116,7 @@
 		<form class="flex flex-wrap items-center gap-2" onsubmit={(e) => e.preventDefault()}>
 			<input class="field w-36 text-center font-mono tracking-widest" bind:value={code} placeholder={t('admin.twofactor.code')} autocomplete="one-time-code" />
 			<button class="btn-secondary btn-sm" disabled={busy || !code.trim()} onclick={renew}>{t('admin.twofactor.new_recovery_codes')}</button>
-			<button class="btn-secondary btn-sm" disabled={busy || !code.trim()} onclick={turnOff}>{t('admin.twofactor.turn_off')}</button>
+			<button class="btn-secondary btn-sm" disabled={busy || !code.trim()} onclick={turnOff}>{t('admin.common.turn_off')}</button>
 		</form>
 	{:else}
 		<p class="text-sm text-muted">

@@ -43,11 +43,11 @@
 		<table class="w-full min-w-[40rem] text-left text-[13px]">
 			<thead class="card-label">
 				<tr>
-					<th class="pr-3 pb-2 font-normal">{t('web.callers.caller')}</th>
-					<th class="pr-3 pb-2 font-normal">{t('web.callers.bbs')}</th>
-					<th class="pr-3 pb-2 font-normal">{t('web.callers.when')}</th>
-					<th class="pr-3 pb-2 font-normal">{t('web.callers.from')}</th>
-					<th class="pb-2 font-normal">{t('web.callers.address')}</th>
+					<th class="pr-3 pb-2 font-normal">{t('common.caller')}</th>
+					<th class="pr-3 pb-2 font-normal">{t('common.bbs')}</th>
+					<th class="pr-3 pb-2 font-normal">{t('common.when')}</th>
+					<th class="pr-3 pb-2 font-normal">{t('common.from_2')}</th>
+					<th class="pb-2 font-normal">{t('common.address')}</th>
 				</tr>
 			</thead>
 			<tbody>

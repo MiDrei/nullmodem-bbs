@@ -43,7 +43,7 @@
 
 <div class="mb-6 flex items-start justify-between gap-4">
 	<div>
-		<h1 class="page-title">{t('admin.nodelists.nodelists')}</h1>
+		<h1 class="page-title">{t('common.nodelists')}</h1>
 		<p class="page-subtitle max-w-2xl leading-relaxed">
 			{t('admin.nodelists.each_network_s_directory_of')}
 		</p>
@@ -59,7 +59,7 @@
 			<thead class="card-label">
 				<tr class="border-b border-line">
 					<th class="p-3">{t('admin.common.network')}</th>
-					<th class="p-3">{t('admin.nodelists.file')}</th>
+					<th class="p-3">{t('admin.common.file')}</th>
 					<th class="p-3">{t('admin.nodelists.systems')}</th>
 					<th class="p-3">{t('admin.nodelists.imported')}</th>
 				</tr>

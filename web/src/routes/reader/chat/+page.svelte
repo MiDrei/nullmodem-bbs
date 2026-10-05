@@ -18,7 +18,7 @@
 			error = null;
 		} catch (err) {
 			if (await readerAuthFailed(err)) return;
-			error = errorText(err, t('web.chat.load_failed'));
+			error = errorText(err, t('web.common.could_not_load_the_rooms'));
 		}
 	}
 
@@ -31,8 +31,8 @@
 
 <div class="r-full">
 	<header class="r-bar">
-		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label={t('web.common.back')}>‹</button>
-		<span class="r-title">{t('web.nav.chat')}</span>
+		<button class="r-btn text-3xl leading-none" onclick={() => goto('/reader')} aria-label={t('common.back')}>‹</button>
+		<span class="r-title">{t('common.chat')}</span>
 	</header>
 	{#if error}
 		<p class="r-note text-red-400">{error}</p>

@@ -85,7 +85,7 @@
 		try {
 			testResult = await testEmailSettings(auth.token, $state.snapshot(e) as EmailSettings);
 		} catch (err) {
-			await failed(err, t('admin.email.the_test_failed'));
+			await failed(err, t('admin.common.the_test_failed'));
 		} finally {
 			busy = null;
 		}
@@ -128,7 +128,7 @@
 				<input class="field field-sm font-mono" bind:value={s.host} placeholder={kind === 'imap' ? 'imap.example.com' : 'smtp.example.com'} />
 			</label>
 			<label class="flex flex-col gap-1 text-xs text-muted">
-				{t('admin.email.security')}
+				{t('admin.common.security')}
 				<select class="field field-sm" bind:value={s.security}>
 					<option value="tls">{t('admin.email.security_tls')}</option>
 					<option value="starttls">STARTTLS</option>
@@ -136,21 +136,21 @@
 				</select>
 			</label>
 			<label class="flex flex-col gap-1 text-xs text-muted">
-				{t('admin.email.port')}
+				{t('admin.common.port')}
 				<input type="number" min="0" class="field field-sm" bind:value={s.port} placeholder={String(defaultPort(kind, s.security))} />
 			</label>
 			<label class="flex flex-col gap-1 text-xs text-muted">
-				{t('admin.email.user')}
+				{t('admin.common.user')}
 				<input class="field field-sm font-mono" bind:value={s.user} autocomplete="off" />
 			</label>
 			<label class="flex flex-col gap-1 text-xs text-muted">
-				{t('admin.email.password')}
+				{t('web.common.password')}
 				<input
 					type="password"
 					class="field field-sm font-mono"
 					bind:value={s.password}
 					autocomplete="new-password"
-					placeholder={s.has_password ? t('admin.email.password_kept') : ''}
+					placeholder={s.has_password ? t('admin.common.saved') : ''}
 				/>
 			</label>
 			{#if kind === 'imap'}
@@ -164,14 +164,14 @@
 {/snippet}
 
 <div class="mb-6">
-	<h1 class="page-title">{t('admin.nav.email_gateway')}</h1>
+	<h1 class="page-title">{t('common.email_gateway')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">{t('admin.email.subtitle')}</p>
 </div>
 
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !e}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<div class="flex flex-col gap-4">
 		{#if e.enabled}
@@ -214,7 +214,7 @@
 			</label>
 			<div class="grid gap-3 sm:grid-cols-3">
 				<label class="flex flex-col gap-1">
-					<span class="text-xs text-muted">{t('admin.email.domain')}</span>
+					<span class="text-xs text-muted">{t('admin.common.domain')}</span>
 					<input class="field field-sm font-mono" bind:value={e.domain} placeholder="bbs.example.com" />
 					{#if example}
 						<span class="text-[11px] text-faint">{t('admin.email.domain_example', { ADDRESS: example })}</span>
@@ -250,10 +250,10 @@
 			{/if}
 			<div class="flex flex-wrap justify-end gap-2.5">
 				<button type="button" class="btn-secondary btn-sm" disabled={busy !== null} onclick={test}>
-					{busy === 'test' ? t('admin.email.testing') : t('admin.email.test')}
+					{busy === 'test' ? t('admin.common.testing') : t('admin.email.test')}
 				</button>
 				<button type="submit" class="btn-primary btn-sm" disabled={busy !== null}>
-					{busy === 'save' ? t('admin.common.saving') : t('admin.common.save')}
+					{busy === 'save' ? t('web.common.saving') : t('web.common.save')}
 				</button>
 			</div>
 		</form>
@@ -281,12 +281,12 @@
 												: 'text-faint'}"
 									>
 										{m.status === 'received'
-											? t('admin.email.st_received')
+											? t('web.common.received')
 											: m.status === 'sent'
-												? t('admin.email.st_sent')
+												? t('web.common.sent')
 												: m.status === 'failed'
-													? t('admin.email.st_failed')
-													: t('admin.email.st_queued')}
+													? t('web.common.not_delivered')
+													: t('admin.common.waiting')}
 									</td>
 								</tr>
 							{/each}

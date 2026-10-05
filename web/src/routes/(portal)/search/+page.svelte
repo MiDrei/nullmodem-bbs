@@ -68,7 +68,7 @@
 {#if error}
 	<p class="text-sm text-red-400">{error}</p>
 {:else if hits && hits.length === 0}
-	<p class="text-sm text-muted">{t('web.common.nothing_found')}</p>
+	<p class="text-sm text-muted">{t('common.nothing_found')}</p>
 {:else if hits}
 	<p class="mb-2 text-xs text-faint">{hits.length === 100 ? t('web.search.newest_100') : t('web.search.found', { COUNT: hits.length })}</p>
 	<div class="flex flex-col divide-y divide-line">

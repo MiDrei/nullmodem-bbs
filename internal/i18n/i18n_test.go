@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestChain(t *testing.T) {
@@ -169,5 +170,40 @@ func TestKeyBarsFit(t *testing.T) {
 				t.Errorf("%s %s is %d wide: %q", l.Code, k, n, text)
 			}
 		}
+	}
+}
+
+// A merged key still reads as the key it went into, and a sysop's
+// change saved under it still counts.
+func TestMergedKeys(t *testing.T) {
+	dir := t.TempDir()
+	c := New(dir)
+	var old, key string
+	for o, k := range c.aliases {
+		old, key = o, k
+		break
+	}
+	if old == "" {
+		t.Skip("no merged keys")
+	}
+	want, _ := c.Text("de", key)
+	if got, ok := c.Text("de", old); !ok || got != want {
+		t.Fatalf("Text(%s) = %q, want %q (as %s)", old, got, want, key)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "de.yaml"), []byte(old+": \"Eigener Text\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	c.checked = time.Time{}
+	if got, _ := c.Text("de", key); got != "Eigener Text" {
+		t.Fatalf("override under the old key lost: %q", got)
+	}
+	if _, ok := c.Default(Fallback, old); !ok {
+		t.Fatal("Default of an old key")
+	}
+	if err := c.SetOverrides("de", map[string]string{old: "Noch einer"}); err != nil {
+		t.Fatalf("saving under the old key: %v", err)
+	}
+	if got := c.Overrides("de"); got[key] != "Noch einer" {
+		t.Fatalf("saved %v", got)
 	}
 }

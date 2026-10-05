@@ -30,7 +30,7 @@
 		class="cursor-pointer bg-transparent text-inherit outline-none hover:text-accent {cls}"
 		value={i18n.lang}
 		onchange={(e) => change(e.currentTarget.value)}
-		aria-label={t('web.common.language')}
+		aria-label={t('common.language')}
 	>
 		{#each i18n.languages as l (l.code)}<option value={l.code} class="bg-ground text-ink" title={l.name}>{compact ? l.code.toUpperCase() : l.name}</option>{/each}
 	</select>

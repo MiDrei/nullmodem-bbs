@@ -45,7 +45,7 @@
 			const r = await sendRecap(auth.token);
 			toast.push(t('admin.stats.recap_sent_to_sent_sysop', { SENT: r.sent }), 'success');
 		} catch (err) {
-			toast.push(err instanceof ApiError ? err.message : t('admin.stats.could_not_send_it'), 'error');
+			toast.push(err instanceof ApiError ? err.message : t('admin.common.could_not_send_it'), 'error');
 		} finally {
 			sending = false;
 		}
@@ -59,7 +59,7 @@
 
 <div class="mb-5 flex flex-wrap items-end justify-between gap-4">
 	<div>
-		<h1 class="page-title">{t('admin.stats.statistics')}</h1>
+		<h1 class="page-title">{t('admin.common.statistics')}</h1>
 		<p class="page-subtitle">{t('admin.stats.calls_messages_doors_and_traffic')}</p>
 	</div>
 	<div class="flex gap-1">
@@ -72,12 +72,12 @@
 {#if loadError}
 	<p class="text-sm text-red-400">{loadError}</p>
 {:else if !report}
-	<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+	<p class="text-sm text-muted">{t('web.common.loading')}</p>
 {:else}
 	<StatsBoard r={report} full />
 	<div class="mt-4 flex flex-wrap items-center justify-between gap-3">
 		<p class="text-xs text-faint">{t('admin.stats.on_the_1st_a_recap')}</p>
-		<button class="btn-secondary btn-sm" disabled={sending} onclick={recapNow}>{sending ? t('admin.stats.sending') : t('admin.stats.send_a_recap_now')}</button>
+		<button class="btn-secondary btn-sm" disabled={sending} onclick={recapNow}>{sending ? t('admin.common.sending') : t('admin.stats.send_a_recap_now')}</button>
 	</div>
 	<p class="mt-2 text-xs text-faint">
 		{t('admin.stats.calls_are_counted_since_this')}

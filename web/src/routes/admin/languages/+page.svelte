@@ -32,8 +32,8 @@
 		({
 			telnet: t('admin.languages.section.telnet'),
 			screens: t('admin.languages.section.screens'),
-			web: t('admin.languages.section.web'),
-			admin: t('admin.languages.section.admin'),
+			web: t('admin.common.web'),
+			admin: t('web.common.admin'),
 			notices: t('admin.languages.section.notices')
 		})[s];
 
@@ -46,6 +46,32 @@
 		if (first === 'admin') return 'a:' + second;
 		return telnetMerge[first] ?? first;
 	}
+	// Where a text shows in the editor: a shared one (common.*,
+	// web.common.*, admin.common.*) in the place of a key merged into
+	// it -- by topic, not in one big "shared" pile.
+	function homeKey(x: CatalogText): string {
+		if (!x.was?.length) return x.key;
+		let mine: (k: string) => boolean;
+		const area = x.key.match(/^(?:(web|admin)\.)?common\./);
+		if (!area) return x.key;
+		if (area[1]) mine = (k) => k.startsWith(area[1] + '.');
+		else mine = (k) => !/^(web|admin)\./.test(k);
+		return x.was.find(mine) ?? x.was[0];
+	}
+	// The other places a shared text shows up.
+	function alsoIn(x: CatalogText): string {
+		const home = groupOf(homeKey(x));
+		const seen = new Set<string>([home]);
+		const out: string[] = [];
+		for (const k of [x.key, ...(x.was ?? [])]) {
+			const g = groupOf(k);
+			if (seen.has(g) || /^(common|w:common|a:common)$/.test(g)) continue;
+			seen.add(g);
+			out.push(sectionLabel(sectionOf(g)) + ' · ' + groupLabel(g));
+		}
+		return out.join(', ');
+	}
+
 	function sectionOf(group: string): Section {
 		if (group.startsWith('w:')) return 'web';
 		if (group.startsWith('a:') || group === 'doortpl') return 'admin';
@@ -69,88 +95,88 @@
 			login: t('admin.languages.group.login'),
 			register: t('admin.languages.group.registration'),
 			lang: t('admin.languages.group.choosing_a_language'),
-			menu: t('admin.languages.group.menus'),
+			menu: t('admin.common.menus'),
 			builtin: t('admin.languages.group.menu_commands'),
-			logoff: t('admin.languages.group.logoff'),
+			logoff: t('admin.common.logoff'),
 			who: t('admin.languages.group.whos_online'),
 			sysop: t('admin.languages.group.sysop_functions'),
-			profile: t('admin.languages.group.profile'),
-			doors: t('admin.languages.group.doors'),
-			polls: t('admin.languages.group.voting_booth'),
-			files: t('admin.languages.group.files'),
+			profile: t('web.common.profile'),
+			doors: t('common.doors'),
+			polls: t('common.voting_booth'),
+			files: t('common.files'),
 			transfer: t('admin.languages.group.file_transfers'),
 			qwk: t('admin.languages.group.qwk'),
 			msg: t('admin.languages.group.writing_messages'),
 			editor: t('admin.languages.group.line_editor'),
 			fse: t('admin.languages.group.full_screen_editor'),
-			areas: t('admin.languages.group.message_areas'),
-			myareas: t('admin.languages.group.my_areas'),
-			bbslist: t('admin.languages.group.bbs_list'),
+			areas: t('admin.common.message_areas'),
+			myareas: t('common.my_areas'),
+			bbslist: t('common.bbs_list'),
 			scan: t('admin.languages.group.new_scan'),
 			summary: t('admin.languages.group.after_login'),
 			search: t('admin.languages.group.message_search'),
-			oneliners: t('admin.languages.group.one_liners'),
-			chat: t('admin.languages.group.chat'),
-			netmail: t('admin.languages.group.netmail'),
-			nodelist: t('admin.languages.group.nodelist'),
-			lastcallers: t('admin.languages.group.last_callers'),
+			oneliners: t('common.one_liners'),
+			chat: t('common.chat'),
+			netmail: t('common.netmail'),
+			nodelist: t('common.nodelist'),
+			lastcallers: t('web.common.last_callers'),
 			screen: t('admin.languages.group.screens_t_key_in_ans'),
 			api: t('admin.languages.group.web_error_messages'),
 			push: t('admin.languages.push_notifications'),
 			health: t('admin.languages.group.health'),
-			email: t('admin.nav.email_gateway'),
+			email: t('common.email_gateway'),
 			restart: t('admin.languages.group.restart_reasons'),
 			doortpl: t('admin.languages.group.door_templates'),
 			'w:common': t('admin.languages.group.shared'),
 			'w:nav': t('admin.languages.group.navigation'),
 			'w:login': t('admin.languages.group.login'),
-			'w:areas': t('admin.languages.group.message_areas'),
+			'w:areas': t('admin.common.message_areas'),
 			'w:msg': t('admin.languages.group.reading_writing'),
-			'w:netmail': t('admin.languages.group.netmail'),
-			'w:files': t('admin.languages.group.files'),
+			'w:netmail': t('common.netmail'),
+			'w:files': t('common.files'),
 			'w:share': t('admin.languages.group.public_downloads'),
 			'w:qwk': t('admin.languages.group.qwk'),
-			'w:chat': t('admin.languages.group.chat'),
-			'w:community': t('admin.languages.group.community'),
-			'w:profile': t('admin.languages.group.profile'),
+			'w:chat': t('common.chat'),
+			'w:community': t('web.common.community'),
+			'w:profile': t('web.common.profile'),
 			'w:search': t('admin.languages.group.message_search'),
 			'w:terminal': t('admin.languages.group.web_terminal'),
 			'w:home': t('admin.languages.group.front_page_2'),
-			'w:stats': t('admin.languages.group.statistics'),
-			'w:reader': t('admin.languages.group.reader_app_2'),
-			'a:archive': t('admin.nav.packet_analyzer'),
-			'a:areafix': t('admin.nav.areafix_filefix'),
-			'a:backups': t('admin.nav.backups'),
-			'a:binkp': t('admin.nav.networks_addresses'),
-			'a:binkp_uplinks': t('admin.nav.uplinks_nodes_points'),
-			'a:chat': t('admin.nav.chat_one_liners'),
+			'w:stats': t('admin.common.statistics'),
+			'w:reader': t('web.common.reader_app'),
+			'a:archive': t('admin.common.packet_analyzer'),
+			'a:areafix': t('admin.common.areafix_filefix'),
+			'a:backups': t('admin.common.backups'),
+			'a:binkp': t('admin.common.networks_addresses'),
+			'a:binkp_uplinks': t('admin.common.uplinks_nodes_points'),
+			'a:chat': t('admin.common.chat_one_liners'),
 			'a:chatsettings': t('admin.languages.group.chat_rooms_bridges'),
 			'a:common': t('admin.languages.group.shared'),
 			'a:dashboard': t('admin.nav.dashboard'),
-			'a:designer': t('admin.nav.ansi_designer'),
-			'a:doors': t('admin.nav.doors'),
-			'a:email': t('admin.nav.email_gateway'),
-			'a:file_areas': t('admin.nav.file_areas'),
-			'a:languages': t('admin.nav.languages'),
+			'a:designer': t('admin.common.ansi_designer'),
+			'a:doors': t('common.doors'),
+			'a:email': t('common.email_gateway'),
+			'a:file_areas': t('common.file_areas'),
+			'a:languages': t('admin.common.languages'),
 			'a:login': t('admin.languages.group.login'),
-			'a:logs': t('admin.nav.logs'),
-			'a:maintenance': t('admin.nav.maintenance'),
-			'a:menus': t('admin.nav.menus'),
-			'a:message_areas': t('admin.nav.message_areas'),
+			'a:logs': t('admin.common.logs'),
+			'a:maintenance': t('admin.common.maintenance'),
+			'a:menus': t('admin.common.menus'),
+			'a:message_areas': t('common.message_areas'),
 			'a:nav': t('admin.languages.group.navigation'),
-			'a:netmail': t('admin.nav.undeliverable_netmail'),
-			'a:nodelists': t('admin.nav.nodelists'),
-			'a:offsite': t('admin.languages.group.offsite'),
-			'a:pending_areas': t('admin.nav.pending_areas'),
-			'a:polls': t('admin.nav.polls_bbs_list'),
-			'a:screens': t('admin.nav.screens'),
-			'a:security': t('admin.nav.security'),
-			'a:services': t('admin.nav.services_2'),
-			'a:settings': t('admin.nav.settings'),
-			'a:sl_matrix': t('admin.nav.sl_matrix'),
-			'a:stats': t('admin.nav.statistics'),
-			'a:twofactor': t('admin.languages.group.two_factor'),
-			'a:users': t('admin.nav.users')
+			'a:netmail': t('admin.common.undeliverable_netmail'),
+			'a:nodelists': t('common.nodelists'),
+			'a:offsite': t('admin.common.off_site_copy'),
+			'a:pending_areas': t('admin.common.pending_areas'),
+			'a:polls': t('admin.common.polls_bbs_list'),
+			'a:screens': t('admin.common.screens'),
+			'a:security': t('admin.common.security'),
+			'a:services': t('admin.common.services'),
+			'a:settings': t('web.common.settings'),
+			'a:sl_matrix': t('admin.common.sl_matrix'),
+			'a:stats': t('admin.common.statistics'),
+			'a:twofactor': t('admin.common.two_factor_login'),
+			'a:users': t('admin.common.users')
 		};
 		return labels[g] ?? g.replace(/^[wa]:/, '').replace(/_/g, ' ');
 	}
@@ -262,7 +288,7 @@
 	function grouped(list: CatalogText[]): Group[] {
 		const by = new Map<string, Group>();
 		for (const x of list) {
-			const id = groupOf(x.key);
+			const id = groupOf(homeKey(x));
 			let g = by.get(id);
 			if (!g) by.set(id, (g = { id, label: groupLabel(id), items: [], changed: 0 }));
 			g.items.push(x);
@@ -278,7 +304,7 @@
 	// Each section's groups (for the tabs' counts and the group list).
 	const bySection = $derived.by(() => {
 		const out = Object.fromEntries(sections.map((s) => [s, [] as CatalogText[]])) as Record<Section, CatalogText[]>;
-		for (const x of filtered) out[sectionOf(groupOf(x.key))].push(x);
+		for (const x of filtered) out[sectionOf(groupOf(homeKey(x)))].push(x);
 		return out;
 	});
 	const sectionGroups = $derived(grouped(bySection[section]));
@@ -329,7 +355,7 @@
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">{t('admin.languages.languages')}</h1>
+	<h1 class="page-title">{t('admin.common.languages')}</h1>
 	<p class="page-subtitle max-w-3xl leading-relaxed">
 		{t('admin.languages.the_bbs_speaks_v_a', { V: langs ? langs.languages.map((l) => l.name).join(', ') : '…' })} <span class="font-mono">main.de.ans</span>{t('admin.languages.then')}
 		<span class="font-mono">main.ans</span> {t('admin.languages.deutsch_du_tries')} <span class="font-mono">main.de-du.ans</span> {t('admin.languages.first')}
@@ -374,7 +400,7 @@
 			{/each}
 		</div>
 		<div class="mb-4 flex flex-wrap items-center gap-1 text-xs">
-			<button class="pill {filter === 'all' ? 'pill-active' : ''}" onclick={() => (filter = 'all')}>{t('admin.languages.all')}</button>
+			<button class="pill {filter === 'all' ? 'pill-active' : ''}" onclick={() => (filter = 'all')}>{t('web.common.all')}</button>
 			<button class="pill {filter === 'changed' ? 'pill-active' : ''}" onclick={() => (filter = 'changed')}>{t('admin.languages.changed_by_you')}</button>
 			{#if texts.some((x) => x.from)}
 				<button class="pill {filter === 'inherited' ? 'pill-active' : ''}" onclick={() => (filter = 'inherited')}>{t('admin.languages.taken_from_another_language')}</button>
@@ -389,7 +415,7 @@
 		</div>
 
 		{#if loading}
-			<p class="text-sm text-muted">{t('admin.common.loading')}</p>
+			<p class="text-sm text-muted">{t('web.common.loading')}</p>
 		{:else if !groups.length}
 			<p class="text-sm text-muted">{t('admin.languages.no_text_matches')}</p>
 		{:else}
@@ -451,6 +477,9 @@
 									<button class="btn-secondary btn-xs mt-1 shrink-0" title={t('admin.languages.back_to_the_built_in')} onclick={() => (own[x.key] = '')}>{t('admin.languages.reset')}</button>
 								{/if}
 							</div>
+							{#if alsoIn(x)}
+								<div class="mt-1 text-[11px] text-faint">{t('admin.languages.also_used_in', { WHERE: alsoIn(x) })}</div>
+							{/if}
 							{#if x.from && !mine.trim()}
 								<div class="mt-1 text-[11px] text-faint">{t('admin.languages.taken_from_v', { V: langName(x.from) })}</div>
 							{/if}
@@ -474,7 +503,7 @@
 			<div class="card flex items-center gap-3 px-4 py-3 shadow-lg">
 				<span class="text-sm text-muted">{t('admin.languages.unsaved_changes_in_v', { V: langName(lang) })}</span>
 				<button class="btn-secondary btn-sm" onclick={load}>{t('admin.common.revert')}</button>
-				<button class="btn-primary btn-sm" disabled={saving} onclick={save}>{saving ? t('admin.common.saving') : t('admin.common.save')}</button>
+				<button class="btn-primary btn-sm" disabled={saving} onclick={save}>{saving ? t('web.common.saving') : t('web.common.save')}</button>
 			</div>
 		</div>
 	{/if}

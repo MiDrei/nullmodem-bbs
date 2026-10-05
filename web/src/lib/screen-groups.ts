@@ -48,9 +48,9 @@ function groupTitle(g: string): string {
 	return (
 		{
 			login: t('admin.screens.group.login'),
-			msgs: t('admin.screens.group.msgs'),
-			files: t('admin.screens.group.files'),
-			netmail: t('admin.screens.group.netmail'),
+			msgs: t('admin.common.message_areas'),
+			files: t('common.file_areas'),
+			netmail: t('common.netmail'),
 			other: t('admin.screens.group.other')
 		}[g] ?? g
 	);
@@ -60,16 +60,16 @@ function screenLabel(k: string): string {
 	return (
 		{
 			welcome: t('admin.screens.label.welcome'),
-			main: t('admin.screens.label.main'),
-			sysop: t('admin.screens.label.sysop'),
-			logoff: t('admin.screens.label.logoff'),
+			main: t('common.main_menu'),
+			sysop: t('common.sysop_menu'),
+			logoff: t('admin.common.logoff'),
 			area_list: t('admin.screens.label.area_list'),
 			msg_list: t('admin.screens.label.msg_list'),
 			msg_read: t('admin.screens.label.msg_read'),
 			msg_post: t('admin.screens.label.msg_post'),
 			file_list: t('admin.screens.label.file_list'),
 			file_read: t('admin.screens.label.file_read'),
-			inbox: t('admin.screens.label.inbox'),
+			inbox: t('web.common.inbox'),
 			net_read: t('admin.screens.label.net_read'),
 			columns: t('admin.screens.label.columns'),
 			row: t('admin.screens.label.row'),

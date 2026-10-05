@@ -30,7 +30,7 @@
 			if (!current && rooms.length) open(rooms[0].name);
 		} catch (err) {
 			await failed(err);
-			error = err instanceof ApiError ? err.message : t('web.chat.load_failed');
+			error = err instanceof ApiError ? err.message : t('web.common.could_not_load_the_rooms');
 		}
 	}
 
@@ -53,7 +53,7 @@
 </script>
 
 <div class="mb-5">
-	<h1 class="page-title">{t('web.nav.chat')}</h1>
+	<h1 class="page-title">{t('common.chat')}</h1>
 	<p class="page-subtitle">{rooms.some((r) => r.bridges.length) ? t('web.chat.subtitle_bridged') : t('web.chat.subtitle')}</p>
 </div>
 
@@ -62,7 +62,7 @@
 {:else}
 	<div class="grid gap-4 lg:grid-cols-[15rem_1fr]">
 		<section class="card self-start p-0">
-			<h2 class="card-label px-4 pt-4 pb-2">{t('web.chat.rooms')}</h2>
+			<h2 class="card-label px-4 pt-4 pb-2">{t('web.common.rooms')}</h2>
 			{#each rooms as r (r.name)}
 				<button
 					class="flex w-full flex-col items-start gap-0.5 border-t border-line px-4 py-2.5 text-left hover:bg-surface {current === r.name ? 'bg-surface' : ''}"
@@ -90,7 +90,7 @@
 					<ChatView room={current} token={() => bbsAuth.token} me={bbsAuth.username ?? ''} onFailed={failed} />
 				{/key}
 			{:else}
-				<p class="m-auto text-sm text-muted">{t('web.chat.pick')}</p>
+				<p class="m-auto text-sm text-muted">{t('web.common.pick_a_room')}</p>
 			{/if}
 		</section>
 	</div>

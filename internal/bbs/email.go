@@ -67,7 +67,7 @@ func (s *Server) composeEmail(term *Terminal, u *user.User, to string) error {
 	if subject == "" {
 		return term.Println(ansi.Reset + term.T("common.cancelled"))
 	}
-	lines, saved, err := s.runEditor(term, editorHeader(term, term.T("netmail.email_title"), to, subject), nil, u.LineEditor)
+	lines, saved, err := s.runEditor(term, editorHeader(term, term.T("common.email"), to, subject), nil, u.LineEditor)
 	if err != nil {
 		return err
 	}

@@ -83,7 +83,7 @@
 			await deletePoll(auth.token, p.id);
 			await load();
 		} catch (err) {
-			await failed(err, t('admin.polls.could_not_delete_it'));
+			await failed(err, t('admin.common.could_not_delete_it'));
 		}
 	}
 
@@ -93,7 +93,7 @@
 			await adminDeleteBBSListEntry(auth.token, e.id);
 			bbs = bbs.filter((x) => x.id !== e.id);
 		} catch (err) {
-			await failed(err, t('admin.polls.could_not_remove_it'));
+			await failed(err, t('web.common.remove_failed'));
 		}
 	}
 
@@ -101,7 +101,7 @@
 </script>
 
 <div class="mb-6">
-	<h1 class="page-title">{t('admin.polls.polls_bbs_list')}</h1>
+	<h1 class="page-title">{t('admin.common.polls_bbs_list')}</h1>
 	<p class="page-subtitle max-w-2xl leading-relaxed">
 		{t('admin.polls.ask_your_callers_something_they')}
 	</p>
@@ -127,8 +127,8 @@
 			<div class="mb-2 flex flex-wrap items-baseline gap-3">
 				<h3 class="min-w-0 flex-1 font-semibold text-ink-strong">{p.question}</h3>
 				<span class="text-xs text-faint">{t('admin.polls.total_votes_v', { TOTAL: p.total, V: p.closed ? t('admin.polls.closed') : '' })}</span>
-				<button class="btn-secondary btn-xs" onclick={() => toggle(p)}>{p.closed ? t('admin.polls.reopen') : t('admin.common.close')}</button>
-				<button class="btn-secondary btn-xs" onclick={() => remove(p)}>{t('admin.common.delete')}</button>
+				<button class="btn-secondary btn-xs" onclick={() => toggle(p)}>{p.closed ? t('admin.polls.reopen') : t('web.common.close')}</button>
+				<button class="btn-secondary btn-xs" onclick={() => remove(p)}>{t('web.common.delete')}</button>
 			</div>
 			{#each p.options as o (o.id)}
 				<div class="relative mb-1 overflow-hidden rounded border border-line px-3 py-1.5 text-sm">
@@ -152,7 +152,7 @@
 					<td class="py-2 text-ink-strong">{e.name}</td>
 					<td class="py-2 font-mono text-xs text-accent">{e.address}</td>
 					<td class="py-2 text-xs text-muted">{e.added_by}</td>
-					<td class="py-2 text-right"><button class="btn-secondary btn-xs" onclick={() => removeBBS(e)}>{t('admin.common.remove')}</button></td>
+					<td class="py-2 text-right"><button class="btn-secondary btn-xs" onclick={() => removeBBS(e)}>{t('web.common.remove')}</button></td>
 				</tr>
 			{/each}
 		</tbody>

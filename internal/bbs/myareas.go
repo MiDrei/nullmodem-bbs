@@ -58,7 +58,7 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 			}
 		}
 		var b strings.Builder
-		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + term.T("myareas.title") + ansi.Reset +
+		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + term.T("common.my_areas") + ansi.Reset +
 			" -- " + term.T("myareas.count", "COUNT", n, "TOTAL", len(stats)) + "\r\n\r\n")
 		nameW := max(20, width-30)
 		for i := top; i < min(top+rows, len(stats)); i++ {
@@ -158,5 +158,5 @@ func newCount(term *Terminal, n int) string {
 	if n == 0 {
 		return ""
 	}
-	return term.T("myareas.new", "COUNT", n)
+	return term.T("common.count_new", "COUNT", n)
 }

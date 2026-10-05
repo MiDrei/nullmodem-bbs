@@ -80,6 +80,9 @@ type textDTO struct {
 	// Text is the sysop's own text, "" for the built-in one.
 	Text         string   `json:"text"`
 	Placeholders []string `json:"placeholders"`
+	// Was are the keys merged into this one: where the text is used
+	// besides (the editor shows it in their place).
+	Was []string `json:"was,omitempty"`
 }
 
 // handleGetTexts: GET /api/i18n/{lang} -- every text in that language.
@@ -91,10 +94,11 @@ func (s *Server) handleGetTexts(w http.ResponseWriter, r *http.Request) {
 	}
 	cat := i18n.Global()
 	own := cat.Overrides(lang)
+	merged := cat.MergedInto()
 	out := make([]textDTO, 0, len(cat.Keys()))
 	for _, k := range cat.Keys() {
 		en, _ := cat.Default(i18n.Fallback, k)
-		d := textDTO{Key: k, English: en, Text: own[k], Placeholders: i18n.Placeholders(en)}
+		d := textDTO{Key: k, English: en, Text: own[k], Placeholders: i18n.Placeholders(en), Was: merged[k]}
 		for _, code := range i18n.Chain(lang) {
 			if v, ok := cat.Default(code, k); ok {
 				d.Builtin = v

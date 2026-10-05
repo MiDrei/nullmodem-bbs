@@ -45,7 +45,7 @@
 			loadError = null;
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			loadError = err instanceof ApiError ? err.message : t('web.msg.load_failed');
+			loadError = err instanceof ApiError ? err.message : t('web.common.could_not_load_message');
 		} finally {
 			loaded = true;
 		}
@@ -88,7 +88,7 @@
 		try {
 			await sendBBSNetmail(bbsAuth.token, to, replySubject, replyBody, toName, false, message.id);
 			replying = false;
-			toast.push(t('web.netmail.reply_sent'), 'success');
+			toast.push(t('common.reply_sent'), 'success');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			toast.push(err instanceof ApiError ? err.message : t('web.netmail.reply_failed'), 'error');
@@ -111,11 +111,11 @@
 		if (!confirm(question)) return;
 		try {
 			await deleteBBSNetmail(bbsAuth.token, message.id);
-			toast.push(t('web.netmail.deleted'), 'success');
+			toast.push(t('web.common.message_deleted'), 'success');
 			await goto('/netmail');
 		} catch (err) {
 			if (await handleAuthError(err)) return;
-			toast.push(err instanceof ApiError ? err.message : t('web.netmail.delete_failed'), 'error');
+			toast.push(err instanceof ApiError ? err.message : t('web.common.could_not_delete_message'), 'error');
 		}
 	}
 </script>
@@ -127,7 +127,7 @@
 {:else if message}
 	{@const peer = message.is_recipient ? message.from_name : message.to_name}
 	<div class="flex items-center justify-between">
-		<a href="/netmail" class="back-link">&larr; {t('web.nav.netmail')}</a>
+		<a href="/netmail" class="back-link">&larr; {t('common.netmail')}</a>
 		<div class="flex items-center gap-2">
 			<button
 				class="btn-secondary px-3.5 py-2 text-xs"
@@ -162,7 +162,7 @@
 						{#if message.from_address}<span class="font-mono text-faint">{message.from_address}</span>{/if}
 						{#if message.email && message.email !== message.from_name}<span class="font-mono text-faint">&lt;{message.email}&gt;</span>{/if}
 					{:else}
-						{t('web.msg.to_lower')} <span class="text-slate-400">{message.to_name}</span>
+						{t('web.common.to_2')} <span class="text-slate-400">{message.to_name}</span>
 						{#if message.to_address}<span class="font-mono text-faint">{message.to_address}</span>{/if}
 						{#if message.email_status}
 							<span
@@ -172,9 +172,9 @@
 										? 'bg-emerald-500/15 text-emerald-400'
 										: 'bg-amber-500/15 text-amber-400'}"
 								title={message.email_error || ''}>{message.email_status === 'failed'
-									? t('web.netmail.email_failed')
+									? t('web.common.not_delivered')
 									: message.email_status === 'sent'
-										? t('web.netmail.email_sent')
+										? t('web.common.sent')
 										: t('web.netmail.email_queued')}</span
 							>
 						{/if}
@@ -215,7 +215,7 @@
 			}}
 		>
 			<label class="flex flex-col gap-2">
-				<span class="card-label">{t('web.msg.subject')}</span>
+				<span class="card-label">{t('common.subject')}</span>
 				<input class="field" bind:value={replySubject} />
 			</label>
 			<label class="flex flex-col gap-2">
