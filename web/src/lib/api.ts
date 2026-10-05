@@ -512,6 +512,35 @@ export interface AreafixListReply {
 	areas?: ParsedArea[];
 }
 
+/** Asks uplink's Areafix/Filefix robot which areas it has linked to us ("%QUERY"); see getAreafixQueryReply. */
+export function requestAreafixQuery(token: string, uplink: BinkpUplink, kind: AreafixKind): Promise<{ queued_message_id: number }> {
+	return request('/api/binkp/areafix/query', { method: 'POST', body: JSON.stringify({ uplink, kind }) }, token);
+}
+
+/** The hub's answer to the last "%QUERY": asked is when it went out (zero time: never), tags the areas it says are linked. */
+export interface AreafixQueryReply {
+	asked: string;
+	found: boolean;
+	posted_at?: string;
+	subject?: string;
+	raw_body?: string;
+	tags: string[];
+}
+
+/** known: area tags the page knows (the hub's list, our record), so a reply's prose isn't taken for areas. */
+export function getAreafixQueryReply(token: string, uplinkAddress: string, kind: AreafixKind, known: string[]): Promise<AreafixQueryReply> {
+	return request(
+		`/api/binkp/areafix/query-reply?address=${encodeURIComponent(uplinkAddress)}&kind=${kind}&known=${encodeURIComponent(known.join(','))}`,
+		{ method: 'GET' },
+		token
+	);
+}
+
+/** Makes our record of what we're subscribed to at uplinkHost exactly tags (the hub's word); nothing is sent. */
+export function adoptAreafixSubscriptions(token: string, uplinkHost: string, kind: AreafixKind, tags: string[]): Promise<{ added: number; removed: number }> {
+	return request('/api/binkp/areafix/subscriptions', { method: 'PUT', body: JSON.stringify({ host: uplinkHost, kind, area_tags: tags }) }, token);
+}
+
 /** The most recent inbound netmail from uplinkAddress, parsed as a "%LIST" reply -- found is false if nothing has arrived from that address yet. */
 export function getAreafixListReply(token: string, uplinkAddress: string): Promise<AreafixListReply> {
 	return request(

@@ -26,6 +26,12 @@ const (
 // almost everywhere.
 const areaListCommand = "%LIST"
 
+// areaQueryCommand asks the robot which areas it has linked to us --
+// the hub's own word on what we're subscribed to, which our record of
+// what we asked for may not match (a refused request, a change made
+// by the hub's sysop).
+const areaQueryCommand = "%QUERY"
+
 // AreaChange is one area a RequestEchoAreaChanges/
 // RequestFileAreaChanges caller wants added (Subscribe true) or
 // dropped (false) -- batched into a single netmail so requesting
@@ -74,6 +80,19 @@ func RequestEchoAreaChanges(netmailStore *netmail.Store, subs *areafix.EchoStore
 // into a pickable list.
 func RequestEchoAreaList(netmailStore *netmail.Store, ourAddresses []string, bbsName string, uplink config.BinkpUplink) (*netmail.Message, error) {
 	return requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultAreafixRobotName, uplink.AreafixPassword, []string{areaListCommand})
+}
+
+// RequestEchoAreaQuery queues a Crash-priority netmail asking
+// uplink's Areafix robot which echo areas it has linked to us (see
+// areaQueryCommand); the reply arrives as ordinary inbound netmail.
+func RequestEchoAreaQuery(netmailStore *netmail.Store, ourAddresses []string, bbsName string, uplink config.BinkpUplink) (*netmail.Message, error) {
+	return requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultAreafixRobotName, uplink.AreafixPassword, []string{areaQueryCommand})
+}
+
+// RequestFileAreaQuery is RequestEchoAreaQuery for file echos, asked
+// of uplink's Filefix robot.
+func RequestFileAreaQuery(netmailStore *netmail.Store, ourAddresses []string, bbsName string, uplink config.BinkpUplink) (*netmail.Message, error) {
+	return requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultFilefixRobotName, uplink.FilefixPassword, []string{areaQueryCommand})
 }
 
 // RequestFileAreaSubscription is RequestEchoAreaSubscription's exact

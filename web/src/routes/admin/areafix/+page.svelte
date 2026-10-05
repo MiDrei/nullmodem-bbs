@@ -9,6 +9,9 @@
 		requestAreafixChanges,
 		requestAreafixList,
 		getAreafixListReply,
+		requestAreafixQuery,
+		getAreafixQueryReply,
+		adoptAreafixSubscriptions,
 		listAreafixSubscriptions,
 		listAreafixGrants,
 		setAreafixGrants,
@@ -16,6 +19,7 @@
 		type BBSConfig,
 		type AreafixKind,
 		type AreafixListReply,
+		type AreafixQueryReply,
 		type AreaGrant
 	} from '$lib/api';
 
@@ -25,6 +29,10 @@
 		checked: boolean;
 		/** Whether this entry came from the hub's own %LIST reply, vs. one we already have recorded or typed in by hand -- purely informational, shown as a hint. */
 		fromReply: boolean;
+		/** On our own record of what we asked for. */
+		recorded: boolean;
+		/** What the hub's %QUERY answer says (undefined: no answer yet). */
+		hub?: boolean;
 	};
 
 	/** "outbound": areas we request from an uplink's own Areafix/Filefix robot. "downlink": which of our own local areas a downlink is permitted to request from ours (see internal/tosser's handleAreafixRequest -- default-deny until granted here). */
@@ -40,6 +48,10 @@
 
 	let existingSubscriptions = $state<string[]>([]);
 	let listReply = $state<AreafixListReply | null>(null);
+	let queryReply = $state<AreafixQueryReply | null>(null);
+	let showRawQuery = $state(false);
+	let querying = $state(false);
+	let adopting = $state(false);
 	let manualTags = $state<string[]>([]);
 	let checkedOverrides = $state<Record<string, boolean>>({});
 	let manualTagInput = $state('');
@@ -76,7 +88,7 @@
 	let entries = $derived.by((): Entry[] => {
 		const byTag = new Map<string, Entry>();
 		for (const tag of existingSubscriptions) {
-			byTag.set(tag.toUpperCase(), { tag, description: '', checked: true, fromReply: false });
+			byTag.set(tag.toUpperCase(), { tag, description: '', checked: true, fromReply: false, recorded: true });
 		}
 		for (const area of listReply?.areas ?? []) {
 			const key = area.Tag.toUpperCase();
@@ -85,13 +97,26 @@
 				tag: area.Tag,
 				description: area.Description,
 				checked: existing ? existing.checked : area.Subscribed,
-				fromReply: true
+				fromReply: true,
+				recorded: !!existing?.recorded
 			});
+		}
+		// The hub's own word, when it answered %QUERY: it's what's linked.
+		if (queryReply?.found) {
+			const linked = new Set(queryReply.tags.map((x) => x.toUpperCase()));
+			for (const tag of queryReply.tags) {
+				const key = tag.toUpperCase();
+				if (!byTag.has(key)) byTag.set(key, { tag, description: '', checked: true, fromReply: false, recorded: false });
+			}
+			for (const [key, entry] of byTag) {
+				entry.hub = linked.has(key);
+				entry.checked = entry.hub;
+			}
 		}
 		for (const tag of manualTags) {
 			const key = tag.toUpperCase();
 			if (!byTag.has(key)) {
-				byTag.set(key, { tag, description: '', checked: true, fromReply: false });
+				byTag.set(key, { tag, description: '', checked: true, fromReply: false, recorded: false });
 			}
 		}
 		for (const [key, entry] of byTag) {
@@ -99,6 +124,51 @@
 		}
 		return [...byTag.values()].sort((a, b) => a.tag.localeCompare(b.tag));
 	});
+
+	// Areas where our record and the hub's answer disagree.
+	let disagreements = $derived(entries.filter((e) => e.hub !== undefined && e.hub !== e.recorded).length);
+
+	async function loadQueryReply() {
+		if (!auth.token || !uplink || !uplink.address.trim()) return;
+		const known = [...existingSubscriptions, ...(listReply?.areas ?? []).map((a) => a.Tag)];
+		queryReply = await getAreafixQueryReply(auth.token, uplink.address, kind, known);
+	}
+
+	async function askHub() {
+		if (!auth.token || !uplink) return;
+		if (!uplink.host.trim() || !uplink.address.trim()) {
+			toast.push(t('admin.areafix.this_uplink_needs_a_host_2'), 'error');
+			return;
+		}
+		querying = true;
+		try {
+			await requestAreafixQuery(auth.token, uplink, kind);
+			toast.push(t('admin.areafix.query_sent'), 'success');
+			await loadQueryReply();
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : t('admin.areafix.query_failed'), 'error');
+		} finally {
+			querying = false;
+		}
+	}
+
+	// Our record becomes what the hub says; nothing is sent.
+	async function adoptHub() {
+		if (!auth.token || !uplink || !queryReply?.found) return;
+		adopting = true;
+		try {
+			const r = await adoptAreafixSubscriptions(auth.token, uplink.host, kind, queryReply.tags);
+			toast.push(t('admin.areafix.adopted', { ADDED: r.added, REMOVED: r.removed }), 'success');
+			const subs = await listAreafixSubscriptions(auth.token, uplink.host, kind);
+			existingSubscriptions = subs.area_tags;
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : t('admin.areafix.adopt_failed'), 'error');
+		} finally {
+			adopting = false;
+		}
+	}
 
 	function toggleEntry(tag: string) {
 		const key = tag.toUpperCase();
@@ -126,6 +196,7 @@
 			]);
 			existingSubscriptions = subs.area_tags;
 			listReply = reply;
+			await loadQueryReply();
 		} catch (err) {
 			if (await handleAuthError(err)) return;
 			// Non-fatal: the checkbox list just starts empty/manual-only.
@@ -223,6 +294,7 @@
 		refreshingReply = true;
 		try {
 			listReply = await getAreafixListReply(auth.token, uplink.address);
+			await loadQueryReply();
 			if (!listReply.found) {
 				toast.push(t('admin.areafix.no_reply_from_this_uplink'), 'success');
 			}
@@ -357,6 +429,15 @@
 			<button
 				type="button"
 				class="btn-secondary btn-sm"
+				disabled={querying}
+				onclick={askHub}
+				title={t('admin.areafix.query_hint')}
+			>
+				{querying ? t('admin.areafix.requesting') : t('admin.areafix.ask_hub')}
+			</button>
+			<button
+				type="button"
+				class="btn-secondary btn-sm"
 				disabled={refreshingReply}
 				onclick={refreshReply}
 			>
@@ -418,6 +499,27 @@
 		</p>
 	{/if}
 
+	{#if mode === 'outbound' && queryReply && !queryReply.asked.startsWith('0001')}
+		<div class="mb-3 text-xs text-slate-500">
+			{#if queryReply.found}
+				{t('admin.areafix.query_answer', { POSTED_AT: new Date(queryReply.posted_at ?? '').toLocaleString(i18n.locale), COUNT: queryReply.tags.length })}
+				<button type="button" class="text-cyan-400 underline" onclick={() => (showRawQuery = !showRawQuery)}>
+					{t('admin.areafix.v_raw_text', { V: showRawQuery ? t('web.common.hide') : t('admin.areafix.show') })}
+				</button>
+				{#if disagreements}
+					<span class="ml-2 text-amber-300">{t('admin.areafix.disagreements', { COUNT: disagreements })}</span>
+					<button type="button" class="btn-secondary btn-xs ml-2" disabled={adopting} onclick={adoptHub}>{t('admin.areafix.adopt')}</button>
+				{/if}
+			{:else}
+				{t('admin.areafix.query_waiting', { ASKED: new Date(queryReply.asked).toLocaleString(i18n.locale) })}
+			{/if}
+		</div>
+		{#if showRawQuery && queryReply.found}
+			<pre
+				class="mb-4 max-h-64 overflow-auto rounded-xl border border-line bg-slate-950 p-3 font-mono text-xs whitespace-pre-wrap text-slate-300">{queryReply.raw_body}</pre>
+		{/if}
+	{/if}
+
 	{#if mode === 'outbound'}
 		<div class="mb-4 flex items-end gap-2">
 			<label class="flex flex-col gap-1 text-sm">
@@ -455,7 +557,14 @@
 									/>
 								</td>
 								<td class="px-1 py-1.5 font-mono text-slate-200">{entry.tag}</td>
-								<td class="px-3 py-1.5 text-slate-400">{entry.description}</td>
+								<td class="px-3 py-1.5 text-slate-400">
+									{entry.description}
+									{#if entry.hub !== undefined && entry.hub !== entry.recorded}
+										<span class="ml-1 text-[11px] text-amber-300">
+											{entry.hub ? t('admin.areafix.hub_only') : t('admin.areafix.record_only')}
+										</span>
+									{/if}
+								</td>
 							</tr>
 						{/each}
 					</tbody>

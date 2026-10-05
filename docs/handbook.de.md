@@ -96,6 +96,11 @@ FTN → Uplinks:
 - **Areas abonnieren:** FTN → Areafix / Filefix — Liste beim Hub anfordern,
   ankreuzen, senden. Neue Echos aus eingehender Post landen erst unter
   „Pending areas“ und werden sichtbar, sobald du sie freigibst.
+  „Hub fragen, was abonniert ist“ schickt `%QUERY`: Der Hub antwortet mit dem,
+  was er uns tatsächlich verlinkt hat, die Haken richten sich danach,
+  Abweichungen von unserer Aufzeichnung sind markiert, und „Stand des Hubs
+  übernehmen“ übernimmt sein Wort in unsere Aufzeichnung (es wird nichts
+  verschickt).
 - **Points / eigene Reader-App:** [points.md](points.de.md).
 - **Nodelisten:** kommen von selbst mit den File-Echos (`FSX_NODE` …) und
   werden alle 10 Minuten übernommen; Status unter FTN → Nodelists.
