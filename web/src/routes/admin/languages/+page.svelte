@@ -24,80 +24,139 @@
 
 	const dirty = $derived(JSON.stringify(clean(own)) !== saved);
 
-	// The groups, by the keys' first part.
-	const groupNames: Record<string, string> = {
-		common: t('admin.languages.group.shared'),
-		list: t('admin.languages.group.lists'),
-		read: t('admin.languages.group.lists'),
-		col: t('admin.languages.group.column_heads'),
-		approval: t('admin.languages.group.new_accounts'),
-		guard: t('admin.languages.group.refused_before_login'),
-		login: t('admin.languages.group.login'),
-		register: t('admin.languages.group.registration'),
-		lang: t('admin.languages.group.choosing_a_language'),
-		menu: t('admin.languages.group.menus'),
-		logoff: t('admin.languages.group.logoff'),
-		who: "Who's online, node messages",
-		sysop: t('admin.languages.group.sysop_functions'),
-		profile: t('admin.languages.group.profile'),
-		doors: t('admin.languages.group.doors'),
-		polls: t('admin.languages.group.voting_booth'),
-		files: t('admin.languages.group.files'),
-		transfer: t('admin.languages.group.file_transfers'),
-		qwk: t('admin.languages.group.qwk'),
-		msg: t('admin.languages.group.writing_messages'),
-		editor: t('admin.languages.group.line_editor'),
-		fse: t('admin.languages.group.full_screen_editor'),
-		areas: t('admin.languages.group.message_areas'),
-		msgs: t('admin.languages.group.message_areas'),
-		myareas: t('admin.languages.group.my_areas'),
-		bbslist: t('admin.languages.group.bbs_list'),
-		scan: t('admin.languages.group.new_scan'),
-		summary: t('admin.languages.group.after_login'),
-		search: t('admin.languages.group.message_search'),
-		oneliners: t('admin.languages.group.one_liners'),
-		chat: t('admin.languages.group.chat'),
-		netmail: t('admin.languages.group.netmail'),
-		nodelist: t('admin.languages.group.nodelist'),
-		lastcallers: t('admin.languages.group.last_callers'),
-		screen: t('admin.languages.group.screens_t_key_in_ans'),
-		api: t('admin.languages.group.web_error_messages'),
-		push: t('admin.languages.push_notifications')
-	};
-	// The web's texts (web.<part>.<name>), by their part.
-	const webNames: Record<string, string> = {
-		common: 'shared',
-		nav: 'navigation',
-		footer: 'navigation',
-		time: 'shared',
-		login: 'login',
-		areas: t('admin.languages.group.message_areas_2'),
-		msgs: t('admin.languages.group.message_areas_2'),
-		msg: 'messages',
-		netmail: 'netmail',
-		files: 'files',
-		file: 'files',
-		qwk: t('admin.languages.group.qwk'),
-		chat: 'chat',
-		community: 'community',
-		polls: 'community',
-		bbslist: 'community',
-		callers: 'community',
-		profile: 'profile',
-		search: 'search',
-		share: t('admin.languages.group.shared_files'),
-		terminal: 'terminal',
-		home: t('admin.languages.group.front_page'),
-		stats: 'statistics',
-		push: t('admin.languages.group.reader_app'),
-		reader: t('admin.languages.group.reader_app')
-	};
-	function groupOf(key: string) {
+	// The texts in sections (where they show up) and, in each, groups
+	// (what they're about) -- one group on screen at a time.
+	type Section = 'telnet' | 'screens' | 'web' | 'admin' | 'notices';
+	const sections: Section[] = ['telnet', 'screens', 'web', 'admin', 'notices'];
+	const sectionLabel = (s: Section) =>
+		({
+			telnet: t('admin.languages.section.telnet'),
+			screens: t('admin.languages.section.screens'),
+			web: t('admin.languages.section.web'),
+			admin: t('admin.languages.section.admin'),
+			notices: t('admin.languages.section.notices')
+		})[s];
+
+	// A key's group: telnet "netmail", web "w:reader", admin "a:doors".
+	const telnetMerge: Record<string, string> = { read: 'list', msgs: 'areas' };
+	const webMerge: Record<string, string> = { msgs: 'areas', footer: 'nav', time: 'common', file: 'files', polls: 'community', bbslist: 'community', callers: 'community', push: 'reader' };
+	function groupOf(key: string): string {
 		const [first, second] = key.split('.');
-		if (first === 'web') return t('admin.languages.web_v', { V: webNames[second] ?? second });
-		if (first === 'admin') return t('admin.languages.admin_v', { V: second.replace(/_/g, ' ') });
-		return groupNames[first] ?? first;
+		if (first === 'web') return 'w:' + (webMerge[second] ?? second);
+		if (first === 'admin') return 'a:' + second;
+		return telnetMerge[first] ?? first;
 	}
+	function sectionOf(group: string): Section {
+		if (group.startsWith('w:')) return 'web';
+		if (group.startsWith('a:') || group === 'doortpl') return 'admin';
+		const first = group;
+		if (['screen', 'col', 'menu', 'builtin'].includes(first)) return 'screens';
+		if (['api', 'push', 'health', 'email', 'restart'].includes(first)) return 'notices';
+		return 'telnet';
+	}
+
+	// The telnet groups in the order a caller meets them; the others
+	// follow their names.
+	const telnetOrder = ['common', 'guard', 'login', 'register', 'approval', 'lang', 'summary', 'scan', 'list', 'areas', 'myareas', 'msg', 'editor', 'fse', 'search', 'netmail', 'files', 'transfer', 'qwk', 'chat', 'oneliners', 'who', 'polls', 'bbslist', 'lastcallers', 'nodelist', 'doors', 'profile', 'sysop', 'logoff'];
+
+	function groupLabel(g: string): string {
+		const labels: Record<string, string> = {
+			common: t('admin.languages.group.shared'),
+			list: t('admin.languages.group.lists'),
+			col: t('admin.languages.group.column_heads'),
+			approval: t('admin.languages.group.new_accounts'),
+			guard: t('admin.languages.group.refused_before_login'),
+			login: t('admin.languages.group.login'),
+			register: t('admin.languages.group.registration'),
+			lang: t('admin.languages.group.choosing_a_language'),
+			menu: t('admin.languages.group.menus'),
+			builtin: t('admin.languages.group.menu_commands'),
+			logoff: t('admin.languages.group.logoff'),
+			who: t('admin.languages.group.whos_online'),
+			sysop: t('admin.languages.group.sysop_functions'),
+			profile: t('admin.languages.group.profile'),
+			doors: t('admin.languages.group.doors'),
+			polls: t('admin.languages.group.voting_booth'),
+			files: t('admin.languages.group.files'),
+			transfer: t('admin.languages.group.file_transfers'),
+			qwk: t('admin.languages.group.qwk'),
+			msg: t('admin.languages.group.writing_messages'),
+			editor: t('admin.languages.group.line_editor'),
+			fse: t('admin.languages.group.full_screen_editor'),
+			areas: t('admin.languages.group.message_areas'),
+			myareas: t('admin.languages.group.my_areas'),
+			bbslist: t('admin.languages.group.bbs_list'),
+			scan: t('admin.languages.group.new_scan'),
+			summary: t('admin.languages.group.after_login'),
+			search: t('admin.languages.group.message_search'),
+			oneliners: t('admin.languages.group.one_liners'),
+			chat: t('admin.languages.group.chat'),
+			netmail: t('admin.languages.group.netmail'),
+			nodelist: t('admin.languages.group.nodelist'),
+			lastcallers: t('admin.languages.group.last_callers'),
+			screen: t('admin.languages.group.screens_t_key_in_ans'),
+			api: t('admin.languages.group.web_error_messages'),
+			push: t('admin.languages.push_notifications'),
+			health: t('admin.languages.group.health'),
+			email: t('admin.nav.email_gateway'),
+			restart: t('admin.languages.group.restart_reasons'),
+			doortpl: t('admin.languages.group.door_templates'),
+			'w:common': t('admin.languages.group.shared'),
+			'w:nav': t('admin.languages.group.navigation'),
+			'w:login': t('admin.languages.group.login'),
+			'w:areas': t('admin.languages.group.message_areas'),
+			'w:msg': t('admin.languages.group.reading_writing'),
+			'w:netmail': t('admin.languages.group.netmail'),
+			'w:files': t('admin.languages.group.files'),
+			'w:share': t('admin.languages.group.public_downloads'),
+			'w:qwk': t('admin.languages.group.qwk'),
+			'w:chat': t('admin.languages.group.chat'),
+			'w:community': t('admin.languages.group.community'),
+			'w:profile': t('admin.languages.group.profile'),
+			'w:search': t('admin.languages.group.message_search'),
+			'w:terminal': t('admin.languages.group.web_terminal'),
+			'w:home': t('admin.languages.group.front_page_2'),
+			'w:stats': t('admin.languages.group.statistics'),
+			'w:reader': t('admin.languages.group.reader_app_2'),
+			'a:archive': t('admin.nav.packet_analyzer'),
+			'a:areafix': t('admin.nav.areafix_filefix'),
+			'a:backups': t('admin.nav.backups'),
+			'a:binkp': t('admin.nav.networks_addresses'),
+			'a:binkp_uplinks': t('admin.nav.uplinks_nodes_points'),
+			'a:chat': t('admin.nav.chat_one_liners'),
+			'a:chatsettings': t('admin.languages.group.chat_rooms_bridges'),
+			'a:common': t('admin.languages.group.shared'),
+			'a:dashboard': t('admin.nav.dashboard'),
+			'a:designer': t('admin.nav.ansi_designer'),
+			'a:doors': t('admin.nav.doors'),
+			'a:email': t('admin.nav.email_gateway'),
+			'a:file_areas': t('admin.nav.file_areas'),
+			'a:languages': t('admin.nav.languages'),
+			'a:login': t('admin.languages.group.login'),
+			'a:logs': t('admin.nav.logs'),
+			'a:maintenance': t('admin.nav.maintenance'),
+			'a:menus': t('admin.nav.menus'),
+			'a:message_areas': t('admin.nav.message_areas'),
+			'a:nav': t('admin.languages.group.navigation'),
+			'a:netmail': t('admin.nav.undeliverable_netmail'),
+			'a:nodelists': t('admin.nav.nodelists'),
+			'a:offsite': t('admin.languages.group.offsite'),
+			'a:pending_areas': t('admin.nav.pending_areas'),
+			'a:polls': t('admin.nav.polls_bbs_list'),
+			'a:screens': t('admin.nav.screens'),
+			'a:security': t('admin.nav.security'),
+			'a:services': t('admin.nav.services_2'),
+			'a:settings': t('admin.nav.settings'),
+			'a:sl_matrix': t('admin.nav.sl_matrix'),
+			'a:stats': t('admin.nav.statistics'),
+			'a:twofactor': t('admin.languages.group.two_factor'),
+			'a:users': t('admin.nav.users')
+		};
+		return labels[g] ?? g.replace(/^[wa]:/, '').replace(/_/g, ' ');
+	}
+
+	let section = $state<Section>('telnet');
+	let group = $state('');
 
 	function clean(m: Record<string, string>) {
 		const out: Record<string, string> = {};
@@ -123,6 +182,9 @@
 			langs = await getLanguages(auth.token);
 			const want = page.url.searchParams.get('lang');
 			lang = want && langs.languages.some((l) => l.code === want) ? want : langs.languages.find((l) => l.code !== langs!.fallback)?.code ?? langs.fallback;
+			const sec = page.url.searchParams.get('section') as Section | null;
+			if (sec && sections.includes(sec)) section = sec;
+			group = page.url.searchParams.get('group') ?? '';
 			await load();
 		} catch (err) {
 			await failed(err, t('admin.languages.could_not_load_the_languages'));
@@ -140,7 +202,7 @@
 			texts = await getCatalog(auth.token, lang);
 			own = Object.fromEntries(texts.filter((x) => x.text !== '').map((x) => [x.key, x.text]));
 			saved = JSON.stringify(clean(own));
-			history.replaceState(history.state, '', `?lang=${encodeURIComponent(lang)}`);
+			remember();
 		} finally {
 			loading = false;
 		}
@@ -185,7 +247,8 @@
 
 	const langName = (code: string) => langs?.languages.find((l) => l.code === code)?.name ?? code;
 
-	const shown = $derived.by(() => {
+	// The texts the filter lets through, anywhere.
+	const filtered = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		return texts.filter((x) => {
 			if (filter === 'changed' && !(own[x.key] ?? '').trim()) return false;
@@ -195,16 +258,65 @@
 		});
 	});
 
-	const groups = $derived.by(() => {
-		const out: { name: string; items: CatalogText[] }[] = [];
-		for (const x of shown) {
-			const name = groupOf(x.key);
-			let g = out.find((x) => x.name === name);
-			if (!g) out.push((g = { name, items: [] }));
+	type Group = { id: string; label: string; items: CatalogText[]; changed: number };
+	function grouped(list: CatalogText[]): Group[] {
+		const by = new Map<string, Group>();
+		for (const x of list) {
+			const id = groupOf(x.key);
+			let g = by.get(id);
+			if (!g) by.set(id, (g = { id, label: groupLabel(id), items: [], changed: 0 }));
 			g.items.push(x);
+			if ((own[x.key] ?? '').trim()) g.changed++;
 		}
+		return [...by.values()].sort((a, b) => {
+			const ia = telnetOrder.indexOf(a.id), ib = telnetOrder.indexOf(b.id);
+			if (ia >= 0 || ib >= 0) return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+			return a.label.localeCompare(b.label);
+		});
+	}
+
+	// Each section's groups (for the tabs' counts and the group list).
+	const bySection = $derived.by(() => {
+		const out = Object.fromEntries(sections.map((s) => [s, [] as CatalogText[]])) as Record<Section, CatalogText[]>;
+		for (const x of filtered) out[sectionOf(groupOf(x.key))].push(x);
 		return out;
 	});
+	const sectionGroups = $derived(grouped(bySection[section]));
+	const searching = $derived(query.trim() !== '');
+	// What's on screen: the search's hits (capped), else the one group.
+	const SEARCH_CAP = 150;
+	const groups = $derived.by(() => {
+		if (searching) {
+			const hits = grouped(filtered.slice(0, SEARCH_CAP)).sort(
+				(a, b) => sections.indexOf(sectionOf(a.id)) - sections.indexOf(sectionOf(b.id))
+			);
+			for (const g of hits) g.label = sectionLabel(sectionOf(g.id)) + ' · ' + g.label;
+			return hits;
+		}
+		const g = sectionGroups.find((x) => x.id === group) ?? sectionGroups[0];
+		return g ? [g] : [];
+	});
+	const shown = $derived(groups.reduce((n, g) => n + g.items.length, 0));
+
+	function pickSection(s: Section) {
+		section = s;
+		group = '';
+		remember();
+	}
+	function pickGroup(id: string) {
+		group = id;
+		remember();
+		document.getElementById('texts')?.scrollIntoView({ block: 'nearest' });
+	}
+	// Where you are, in the address: a reload stays there.
+	function remember() {
+		const u = new URL(location.href);
+		u.searchParams.set('lang', lang);
+		u.searchParams.set('section', section);
+		if (group) u.searchParams.set('group', group);
+		else u.searchParams.delete('group');
+		history.replaceState(history.state, '', u);
+	}
 
 	// Placeholders a text uses that its English one doesn't fill.
 	function unknownPlaceholders(x: CatalogText, text: string) {
@@ -248,24 +360,68 @@
 			{/each}
 			<input class="field ml-auto w-full sm:w-64" type="search" placeholder={t('admin.languages.search_key_or_text')} bind:value={query} />
 		</div>
+
+		<div class="mb-3 flex flex-wrap gap-1 border-b border-line pb-3">
+			{#each sections as sec (sec)}
+				<button
+					class="pill {!searching && section === sec ? 'pill-active' : ''}"
+					disabled={searching}
+					onclick={() => pickSection(sec)}
+				>
+					{sectionLabel(sec)}
+					<span class="ml-1 text-[10px] opacity-70">{bySection[sec].length}</span>
+				</button>
+			{/each}
+		</div>
 		<div class="mb-4 flex flex-wrap items-center gap-1 text-xs">
 			<button class="pill {filter === 'all' ? 'pill-active' : ''}" onclick={() => (filter = 'all')}>{t('admin.languages.all')}</button>
 			<button class="pill {filter === 'changed' ? 'pill-active' : ''}" onclick={() => (filter = 'changed')}>{t('admin.languages.changed_by_you')}</button>
 			{#if texts.some((x) => x.from)}
 				<button class="pill {filter === 'inherited' ? 'pill-active' : ''}" onclick={() => (filter = 'inherited')}>{t('admin.languages.taken_from_another_language')}</button>
 			{/if}
-			<span class="ml-auto text-faint">{t('admin.languages.length_of_length2_texts', { LENGTH: shown.length, LENGTH2: texts.length })}</span>
+			<span class="ml-auto text-faint">
+				{#if searching && filtered.length > SEARCH_CAP}
+					{t('admin.languages.search_capped', { SHOWN: SEARCH_CAP, FOUND: filtered.length })}
+				{:else}
+					{t('admin.languages.length_of_length2_texts', { LENGTH: searching ? filtered.length : shown, LENGTH2: texts.length })}
+				{/if}
+			</span>
 		</div>
 
 		{#if loading}
 			<p class="text-sm text-muted">{t('admin.common.loading')}</p>
 		{:else if !groups.length}
 			<p class="text-sm text-muted">{t('admin.languages.no_text_matches')}</p>
-		{/if}
-
-		{#each groups as g (g.name)}
-			<h2 class="card-label mt-5 mb-2 first:mt-0">{g.name}</h2>
-			<div class="flex flex-col divide-y divide-line">
+		{:else}
+			<div class="grid gap-4 {searching ? '' : 'md:grid-cols-[13rem_minmax(0,1fr)]'}">
+				{#if !searching}
+					<!-- The section's groups: a list beside the texts, a menu on a phone. -->
+					<select class="field md:hidden" value={groups[0]?.id} onchange={(e) => pickGroup(e.currentTarget.value)}>
+						{#each sectionGroups as sg (sg.id)}
+							<option value={sg.id}>{sg.label} ({sg.items.length}){sg.changed ? ' •' : ''}</option>
+						{/each}
+					</select>
+					<nav class="hidden md:block">
+						<div class="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col overflow-y-auto">
+							{#each sectionGroups as sg (sg.id)}
+								<button
+									class="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] {groups[0]?.id === sg.id
+										? 'bg-surface font-medium text-ink-strong'
+										: 'text-muted hover:text-ink'}"
+									onclick={() => pickGroup(sg.id)}
+								>
+									<span class="min-w-0 flex-1 truncate">{sg.label}</span>
+									{#if sg.changed}<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" title={t('admin.languages.v_changed', { V: sg.changed })}></span>{/if}
+									<span class="shrink-0 text-[11px] text-faint">{sg.items.length}</span>
+								</button>
+							{/each}
+						</div>
+					</nav>
+				{/if}
+				<div id="texts" class="min-w-0">
+					{#each groups as g (g.id)}
+						<h2 class="card-label mt-5 mb-2 first:mt-0">{g.label}</h2>
+						<div class="flex flex-col divide-y divide-line">
 				{#each g.items as x (x.key)}
 					{@const mine = own[x.key] ?? ''}
 					{@const bad = unknownPlaceholders(x, mine)}
@@ -306,8 +462,11 @@
 						</div>
 					</div>
 				{/each}
+						</div>
+					{/each}
+				</div>
 			</div>
-		{/each}
+		{/if}
 	</section>
 
 	{#if dirty}
