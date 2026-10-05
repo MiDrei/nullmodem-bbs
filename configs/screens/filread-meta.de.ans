@@ -1,4 +1,4 @@
-[1;32m{T:files.filename:-11}[1;37m{FILENAME:-40}[1;32m {T:files.size} [1;37m{SIZE}
-[1;32m{T:files.uploaded:-11}[1;37m{DATE}[1;32m {T:files.by} [1;37m{BY}
-[1;32m{T:files.downloads:-11}[1;37m{DOWNLOADS}
-[32m{FILL:-}[0m
+[0;32;40m{T:files.filename:-11}[1;37;40m{FILENAME:-40}[0;32;40m {T:files.size} [0;37;40m{SIZE}
+[0;32;40m{T:files.uploaded:-11}[0;37;40m{DATE}[0;32;40m {T:files.by} [1;37;40m{BY}
+[0;32;40m{T:files.downloads:-11}[0;37;40m{DOWNLOADS}
+[0;34;40mÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ[0m

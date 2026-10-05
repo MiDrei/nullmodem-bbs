@@ -232,7 +232,7 @@ def title_line(title):
 def list_head(head,title):
     return (ESC+'2J'+ESC+'H'+'\r\n'.join(head+[title_line(title)])+'\r\n')
 def rule(): return sgr(F)+'\u2500'*W+ESC+'0m'
-def divider(var): return sgr(F)+'\u2500\u2500 '+sgr(6)+'{'+var+'}'+sgr(F)+' {FILL:\u2500}'+ESC+'0m'
+def divider(var,fg=6): return sgr(F)+'\u2500\u2500 '+sgr(fg)+'{'+var+'}'+sgr(F)+' {FILL:\u2500}'+ESC+'0m'
 SELECTED=ESC+'1;37;44m'
 
 def lists():
@@ -269,6 +269,27 @@ def lists():
     both('netread-meta',lambda de: sgr(5)+T('msg.from',-9,de)+sgr(15)+'{FROM:-40}'+sgr(5)+' '+T('msg.date',None,de)+' '+sgr(7)+'{DATE}\r\n'
         +sgr(5)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(5)+T('msg.subject',-9,de)+sgr(13)+'{SUBJECT}\r\n'+rule())
     out['netread-footer']=out['msgread-footer']
+
+    # Files: green, with the files menu's asteroids.
+    def rocks(a):
+        a.disc(66.0,3.0,2.7,(7,8,8),light=(-0.7,-0.7)); a.disc(72.5,1.5,1.0,(7,8,8))
+        for (x,y,ch,fg) in [(60,0,'\u25a0',8),(71,1,'\u25a0',7),(74,2,'\u2219',8),(62,2,'\u2219',7)]: a.cells[y][x]=(ch,fg,0)
+    filhead=lambda: strip(GREEN,23,9,motif=rocks)
+    GSEL=ESC+'1;37;42m'
+    both('filareas',lambda de: list_head(filhead(),T('common.file_areas',None,de)))
+    both('filareas-columns',lambda de: sgr(7)+'    '+T('common.area',-53,de)+' '+T('col.total',6,de)+' '+T('common.new_2',6,de)+' '+T('col.yours',7,de)+ESC+'0m\r\n'+rule())
+    out['filareas-row']=(sgr(10)+'{NEWFLAG:-3} '+sgr(15)+'{AREANAME:-53} '+sgr(8)+'{TOTAL:6} '+sgr(10)+'{NEW:6} '+sgr(7)+'{YOURS:7}'+ESC+'0m',None)
+    out['filareas-row-selected']=(GSEL+'{NEWFLAG:-3} {AREANAME:-53} {TOTAL:6} {NEW:6} {YOURS:7}'+ESC+'0m',None)
+    out['filareas-network']=(divider('NETWORK',2),None)
+    out['fillist']=(list_head(filhead(),'{AREANAME}'),None)
+    both('fillist-columns',lambda de: sgr(7)+'    '+T('common.filename',-30,de)+' '+T('col.by',-16,de)+' '+T('common.size',10,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
+    out['fillist-row']=(sgr(10)+'{NEWFLAG:-3} '+sgr(15)+'{FILENAME:-30} '+sgr(7)+'{BY:-16} '+sgr(2)+'{SIZE:10} '+sgr(8)+'{DATE:16}'+ESC+'0m',None)
+    out['fillist-row-selected']=(GSEL+'{NEWFLAG:-3} {FILENAME:-30} {BY:-16} {SIZE:10} {DATE:16}'+ESC+'0m',None)
+    both('filread',lambda de: list_head(filhead(),sgr(14)+'{AREANAME}'+sgr(8)+' \u00b7 '+sgr(7)+T('screen.filread_pos',None,de)))
+    both('filread-meta',lambda de: sgr(2)+T('files.filename',-11,de)+sgr(15)+'{FILENAME:-40}'+sgr(2)+' '+T('files.size',None,de)+' '+sgr(7)+'{SIZE}\r\n'
+        +sgr(2)+T('files.uploaded',-11,de)+sgr(7)+'{DATE}'+sgr(2)+' '+T('files.by',None,de)+' '+sgr(15)+'{BY}\r\n'
+        +sgr(2)+T('files.downloads',-11,de)+sgr(7)+'{DOWNLOADS}\r\n'+rule())
+    out['filread-footer']=out['msgread-footer']
     return out
 
 def main():

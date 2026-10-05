@@ -2,9 +2,12 @@
 
 `space.py` erzeugt die Standard-Screens im Weltraum-Stil in
 `configs/screens`: das Hauptmenü, seine Untermenüs (Nachrichten, Dateien,
-Treffpunkt), das Sysop-Menü und den Abmelde-Screen — jeweils als
+Treffpunkt), das Sysop-Menü, den Abmelde-Screen sowie die Listen und
+Ansichten für Nachrichtenbereiche, Nachrichten, Netmail, Dateibereiche und
+Dateien — jeweils als
 `name.ans` (englischer Text) und `name.de.ans` (`{T:key}`-Platzhalter,
-für Deutsch und Du gefüllt).
+für Deutsch und Du gefüllt); Teile ohne eigenen Text (Listenzeilen) gibt
+es nur als `name.ans`.
 
 ```sh
 python3 scripts/screens/space.py            # schreibt configs/screens

@@ -1,9 +1,11 @@
 # Stock screens
 
 `space.py` generates the stock space-themed screens in `configs/screens`:
-the main menu, its submenus (messages, files, community), the sysop menu
-and the logoff screen — each as `name.ans` (English text) and
-`name.de.ans` (`{T:key}` placeholders, filled in for German and Du).
+the main menu, its submenus (messages, files, community), the sysop menu,
+the logoff screen, and the lists and views of message areas, messages,
+netmail, file areas and files — each as `name.ans` (English text) and
+`name.de.ans` (`{T:key}` placeholders, filled in for German and Du);
+parts without text of their own (list rows) come as `name.ans` only.
 
 ```sh
 python3 scripts/screens/space.py            # writes configs/screens
