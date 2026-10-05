@@ -1,12 +1,12 @@
 package bbs
 
 import (
-	"unicode/utf8"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"git.maik.ch/nullmodem/kit/ansi"
 
@@ -34,7 +34,7 @@ func fromCP437(s string) string {
 	}
 	return ansi.DecodeCP437([]byte(s))
 }
-func toCP437(s string) string   { return string(ansi.EncodeCP437(s)) }
+func toCP437(s string) string { return string(ansi.EncodeCP437(s)) }
 
 // nodeMessages are messages waiting for a node's next prompt.
 type nodeMessages struct {
