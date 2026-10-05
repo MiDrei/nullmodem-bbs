@@ -329,7 +329,8 @@
 				onchange={loadForMode}
 			>
 				{#each config.binkp_uplinks as u, i (i)}
-					<option value={i}>{u.address || u.host || t('admin.areafix.uplink_v', { V: i + 1 })}</option>
+					<!-- The network first: with several hubs, the address alone doesn't say which net it is. -->
+					<option value={i}>{u.network ? `${u.network} · ` : ''}{u.address || u.host || t('admin.areafix.uplink_v', { V: i + 1 })}</option>
 				{/each}
 			</select>
 		</label>
