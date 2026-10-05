@@ -34,6 +34,13 @@
 	// Areas without a network; never a network's own name.
 	const UNGROUPED = '\u0000';
 	const ALL_TAB = '__all__';
+	// The buttons' column as wide as its widest buttons, in whatever
+	// language: a fixed width cut German ones off (and scrolled the table).
+	let actionsWidth = $state(0);
+	function fitActions(node: HTMLElement) {
+		const w = Math.ceil(node.getBoundingClientRect().width) + 12;
+		if (w > actionsWidth) actionsWidth = w;
+	}
 
 	let areas = $state<MessageArea[]>([]);
 	let groups = $state<string[]>([]);
@@ -344,7 +351,7 @@
 						{#if activeNetwork === ALL_TAB}<th class="w-28 py-2 pr-3 font-normal">{t('admin.common.group')}</th>{/if}
 						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.message_areas.minimum_security_level_to_read')}>{t('web.common.read')}</th>
 						<th class="w-14 py-2 pr-3 text-right font-normal" title={t('admin.message_areas.minimum_security_level_to_post')}>{t('admin.message_areas.post')}</th>
-						<th class="w-[8.5rem] py-2"></th>
+						<th class="py-2" style:width={actionsWidth ? `${actionsWidth}px` : '8.5rem'}></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -379,6 +386,7 @@
 							<td class="py-1.5 pr-3 text-right font-mono text-xs text-muted">{area.min_sl_read}</td>
 							<td class="py-1.5 pr-3 text-right font-mono text-xs text-muted">{area.min_sl_write}</td>
 							<td class="py-1.5 pr-2 text-right whitespace-nowrap">
+								<span class="inline-block" use:fitActions>
 								<button
 									class="btn-secondary btn-xs"
 									onclick={(e) => {
@@ -393,6 +401,7 @@
 										remove(area);
 									}}>{t('web.common.delete')}</button
 								>
+								</span>
 							</td>
 						</tr>
 					{/each}
