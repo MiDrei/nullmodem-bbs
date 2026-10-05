@@ -259,6 +259,10 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
 - **Chat-Räume:** ebenda unter „Rooms“. Neben der Teleconference (`main`)
   beliebig viele, je mit Thema und Mindest-SL. Anrufer sehen sie in der
   Teleconference mit `/rooms` und wechseln mit `/join name`.
+  Sysops kommen und gehen still (alle anderen werden gemeldet); „Say in the
+  rooms when a sysop enters or leaves“ ändert das. **Leeren** in einem
+  offenen Raum löscht alles, was darin gesagt wurde; sonst verschwinden die
+  Zeilen nach 30 Tagen.
 - **Discord-Brücke:** Ein Raum kann mit einem Discord-Kanal verbunden werden:
   Was in der BBS gesagt wird, erscheint dort unter dem Namen des Anrufers, was
   in Discord geschrieben wird, in der BBS als `name@discord`. Die BBS baut nur

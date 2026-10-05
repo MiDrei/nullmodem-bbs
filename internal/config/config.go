@@ -24,6 +24,9 @@ type Config struct {
 		PublicFeeds bool `yaml:"public_feeds,omitempty"`
 		// MonthlyRecapOff stops the monthly recap netmail to the sysops.
 		MonthlyRecapOff bool `yaml:"monthly_recap_off,omitempty"`
+		// ChatAnnounceSysops says in the chat rooms when a sysop enters
+		// or leaves; off, they come and go without a word.
+		ChatAnnounceSysops bool `yaml:"chat_announce_sysops,omitempty"`
 		// Language is the board's language (an internal/i18n code):
 		// what callers read before they log in, and after if they never
 		// chose one. "" is English.

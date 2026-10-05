@@ -1991,6 +1991,24 @@ export function chatAction(token: string, room: string, action: 'enter' | 'say' 
 	return request(`/api/chat/rooms/${encodeURIComponent(room)}`, { method: 'POST', body: JSON.stringify({ action, text }) }, token);
 }
 
+/** Deletes everything said in room; who's in it stays. */
+export function clearChatRoom(token: string, room: string): Promise<{ deleted: number }> {
+	return request<{ deleted: number }>(`/api/chat/rooms/${encodeURIComponent(room)}/lines`, { method: 'DELETE' }, token);
+}
+
+/** announce_sysops: the rooms say when a sysop enters or leaves (off: they come and go without a word). */
+export interface ChatSettingsState {
+	announce_sysops: boolean;
+}
+
+export function getChatSettings(token: string): Promise<ChatSettingsState> {
+	return request<ChatSettingsState>('/api/chat/settings', { method: 'GET' }, token);
+}
+
+export function saveChatSettings(token: string, s: ChatSettingsState): Promise<ChatSettingsState> {
+	return request<ChatSettingsState>('/api/chat/settings', { method: 'PUT', body: JSON.stringify(s) }, token);
+}
+
 /** A room callers may enter; discord_channel bridges it (a channel ID). */
 export interface ChatRoomSettings {
 	name: string;

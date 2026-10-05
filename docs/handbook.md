@@ -259,6 +259,10 @@ NullModem Reader.
 - **Chat rooms:** same place, under "Rooms". Besides the teleconference
   (`main`) as many as you like, each with a topic and minimum SL. Callers see
   them in the teleconference with `/rooms` and switch with `/join name`.
+  Sysops come and go without a word (everyone else is announced); "Say in
+  the rooms when a sysop enters or leaves" changes that. **Clear** in an
+  open room deletes everything said in it; otherwise lines go after 30
+  days.
 - **Discord bridge:** a room can be linked to a Discord channel: what's said
   on the BBS appears there under the caller's name, what's written in Discord
   appears on the BBS as `name@discord`. The BBS makes outgoing connections

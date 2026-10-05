@@ -14,6 +14,7 @@
 		listChatRooms,
 		getChatRoom,
 		chatAction,
+		clearChatRoom,
 		listOneliners,
 		deleteOneliner,
 		ApiError,
@@ -98,6 +99,17 @@
 			const room = current;
 			current = null;
 			await chatAction(auth.token, room, 'leave').catch(() => {});
+		}
+	}
+
+	async function clearRoom() {
+		if (!auth.token || !current || !confirm(t('admin.chat.clear_confirm', { ROOM: label(current) }))) return;
+		try {
+			await clearChatRoom(auth.token, current);
+			lines = [];
+			toast.push(t('admin.chat.cleared'), 'success');
+		} catch (err) {
+			await failed(err, t('admin.chat.could_not_clear'));
 		}
 	}
 
@@ -187,7 +199,8 @@
 		{:else}
 			<div class="flex items-baseline gap-3 border-b border-line px-4 py-3">
 				<h2 class="font-semibold text-ink-strong">{label(current)}</h2>
-				<span class="min-w-0 flex-1 truncate text-xs text-muted">{present.length ? 'here: ' + who(present) : 'nobody here'}</span>
+				<span class="min-w-0 flex-1 truncate text-xs text-muted">{present.length ? t('admin.chat.here', { NAMES: who(present) }) : t('admin.chat.nobody_here')}</span>
+				<button class="btn-secondary btn-xs hover:!border-red-400 hover:!text-red-400" onclick={clearRoom} title={t('admin.chat.clear_hint')}>{t('admin.chat.clear')}</button>
 				<button class="btn-secondary btn-xs" onclick={leave}>{t('admin.chat.leave')}</button>
 			</div>
 			<div bind:this={box} class="h-[24rem] flex-1 overflow-y-auto px-4 py-3 font-mono text-[13px] leading-relaxed">

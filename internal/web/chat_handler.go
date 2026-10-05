@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 	"net/http"
 	"strconv"
 
@@ -157,4 +158,59 @@ func (s *Server) handleDeleteOneliner(w http.ResponseWriter, r *http.Request) {
 		s.logInfo("%s deleted a one-liner", claims.Subject)
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleClearChatRoom: DELETE /api/chat/rooms/{room}/lines -- deletes
+// everything said in the room (callers in it stay).
+func (s *Server) handleClearChatRoom(w http.ResponseWriter, r *http.Request) {
+	if !s.chatReady(w) {
+		return
+	}
+	room, ok := s.chatRoomParam(w, r)
+	if !ok {
+		return
+	}
+	n, err := s.Chat.Clear(room)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not clear the room")
+		return
+	}
+	claims, _ := claimsFromContext(r.Context())
+	s.logInfo("%s cleared chat room %s (%d lines)", claims.Subject, room, n)
+	writeJSON(w, http.StatusOK, map[string]int64{"deleted": n})
+}
+
+type chatSettingsDTO struct {
+	// AnnounceSysops says in the rooms when a sysop enters or leaves.
+	AnnounceSysops bool `json:"announce_sysops"`
+}
+
+// handleGetChatSettings: GET /api/chat/settings.
+func (s *Server) handleGetChatSettings(w http.ResponseWriter, r *http.Request) {
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	writeJSON(w, http.StatusOK, chatSettingsDTO{AnnounceSysops: c.BBS.ChatAnnounceSysops})
+}
+
+// handlePutChatSettings: PUT /api/chat/settings.
+func (s *Server) handlePutChatSettings(w http.ResponseWriter, r *http.Request) {
+	var in chatSettingsDTO
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	c.BBS.ChatAnnounceSysops = in.AnnounceSysops
+	if err := config.Save(s.BBSConfigPath, c); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save config")
+		return
+	}
+	writeJSON(w, http.StatusOK, in)
 }

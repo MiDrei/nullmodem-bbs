@@ -13,6 +13,8 @@
 		saveDiscord,
 		getMatrix,
 		saveMatrix,
+		getChatSettings,
+		saveChatSettings,
 		ApiError,
 		type ChatRoomSettings,
 		type DiscordState,
@@ -29,6 +31,7 @@
 	let mxLogin = $state({ homeserver: 'https://matrix.org', user: '', password: '' });
 	let tokenInput = $state('');
 	let saving = $state(false);
+	let announceSysops = $state(false);
 	let timer: ReturnType<typeof setInterval> | undefined;
 
 	const fail = (err: unknown, fallback: string) => toast.push(err instanceof ApiError ? err.message : fallback, 'error');
@@ -37,6 +40,9 @@
 		if (!auth.token) return;
 		try {
 			[rooms, dc, mx] = await Promise.all([listChatRoomSettings(auth.token), getDiscord(auth.token), getMatrix(auth.token)]);
+			getChatSettings(auth.token)
+				.then((s) => (announceSysops = s.announce_sysops))
+				.catch(() => {});
 			if (mx.homeserver) mxLogin.homeserver = mx.homeserver;
 			onchange?.(rooms);
 		} catch (err) {
@@ -53,6 +59,17 @@
 		}, 5000);
 	});
 	onDestroy(() => clearInterval(timer));
+
+	async function saveAnnounce() {
+		if (!auth.token) return;
+		try {
+			await saveChatSettings(auth.token, { announce_sysops: announceSysops });
+			toast.push(announceSysops ? t('admin.chatsettings.sysops_announced') : t('admin.chatsettings.sysops_quiet'), 'success');
+		} catch (err) {
+			announceSysops = !announceSysops;
+			fail(err, t('admin.chatsettings.could_not_save_that'));
+		}
+	}
 
 	function edit(r?: ChatRoomSettings) {
 		isNew = !r;
@@ -136,6 +153,10 @@
 			{t('admin.chatsettings.in_the_teleconference_callers_see')} <span class="font-mono">/rooms</span> {t('admin.chatsettings.and_change_with')}
 			<span class="font-mono">{t('admin.chatsettings.join_name')}</span>.
 		</p>
+		<label class="mb-3 flex items-center gap-2 text-xs text-muted">
+			<input type="checkbox" class="check" bind:checked={announceSysops} onchange={saveAnnounce} />
+			{t('admin.chatsettings.announce_sysops')}
+		</label>
 		{#if editing}
 			<form class="mb-4 grid gap-2.5 sm:grid-cols-2" onsubmit={saveRoom}>
 				<label class="flex flex-col gap-1 text-xs text-muted">

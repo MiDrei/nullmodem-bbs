@@ -138,6 +138,7 @@ func main() {
 	// Login protection, shared with the bbs daemon through the database;
 	// its settings re-read every half minute.
 	current := config.Cached(cfg.BBSConfigPath, 30*time.Second, bbsCfg)
+	srv.Chat.Quiet = chat.QuietSysops(srv.Users, func() bool { return current().BBS.ChatAnnounceSysops })
 	srv.Guard = guard.New(sqlDB, func() guard.Settings {
 		on, max, window, lockout, maxLockout := current().Security.GuardSettings()
 		return guard.Settings{Enabled: on, MaxFailures: max, Window: window, Lockout: lockout, MaxLockout: maxLockout}

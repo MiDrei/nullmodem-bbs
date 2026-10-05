@@ -112,6 +112,8 @@ func main() {
 	// Login protection and new-user approval, as set in the web admin
 	// (re-read every half minute).
 	current := config.Cached(*configPath, 30*time.Second, cfg)
+	chatStore := chat.NewStore(sqlDB)
+	chatStore.Quiet = chat.QuietSysops(users, func() bool { return current().BBS.ChatAnnounceSysops })
 	security := func() config.SecurityConfig { return current().Security }
 	loginGuard := guard.New(sqlDB, func() guard.Settings {
 		on, max, window, lockout, maxLockout := security().GuardSettings()
@@ -137,7 +139,7 @@ func main() {
 		LastCallers:      cfg.InterBBS.LastCallers,
 		Guard:            loginGuard,
 		FullScreenEditor: true,
-		Chat:             chat.NewStore(sqlDB),
+		Chat:             chatStore,
 		Nodelist:         nodelist.NewStore(sqlDB),
 		Community:        community.NewStore(sqlDB),
 		Stats:            stats.NewStore(sqlDB),

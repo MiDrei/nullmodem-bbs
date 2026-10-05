@@ -67,6 +67,10 @@ type Store struct {
 
 	mu        sync.Mutex
 	lastPrune time.Time
+
+	// Quiet, if set, names who enters and leaves rooms without a word
+	// (the sysops, unless the board wants them announced).
+	Quiet func(username string) bool
 }
 
 func NewStore(db *sql.DB) *Store { return &Store{db: db, now: time.Now} }
@@ -133,8 +137,15 @@ func (s *Store) Enter(room, username, source string) error {
 	if err := s.Touch(room, username, source); err != nil {
 		return err
 	}
+	if s.quiet(username) {
+		return nil
+	}
 	_, err := s.Post(room, username, source, Join, "")
 	return err
+}
+
+func (s *Store) quiet(username string) bool {
+	return s.Quiet != nil && s.Quiet(username)
 }
 
 // Touch marks username as still in room.
@@ -156,8 +167,20 @@ func (s *Store) Exit(room, username, source string) error {
 	if _, err := s.db.Exec(`DELETE FROM chat_presence WHERE room = ? AND username = ? AND source = ?`, room, username, source); err != nil {
 		return fmt.Errorf("chat: %w", err)
 	}
+	if s.quiet(username) {
+		return nil
+	}
 	_, err := s.Post(room, username, source, Leave, "")
 	return err
+}
+
+// Clear deletes everything said in room; who's in it stays.
+func (s *Store) Clear(room string) (int64, error) {
+	res, err := s.db.Exec(`DELETE FROM chat_lines WHERE room = ?`, room)
+	if err != nil {
+		return 0, fmt.Errorf("chat: %w", err)
+	}
+	return res.RowsAffected()
 }
 
 // Presence is someone in a room.
