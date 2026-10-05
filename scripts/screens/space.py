@@ -242,19 +242,19 @@ def lists():
         out[name]=(fn(False),fn(True))
     msghead=lambda: strip(BLUE,5,21,motif=lambda a: satellite(a,66,1))
     both('msgareas',lambda de: list_head(msghead(),T('common.message_areas',None,de)))
-    both('msgareas-columns',lambda de: sgr(7)+'    '+T('common.area',-53,de)+' '+T('col.total',6,de)+' '+T('common.new_2',6,de)+' '+T('col.yours',7,de)+ESC+'0m\r\n'+rule())
+    both('msgareas-columns',lambda de: sgr(7)+T('common.new',-3,de)+' '+T('common.area',-53,de)+' '+T('col.total',6,de)+' '+T('common.new_2',6,de)+' '+T('col.yours',7,de)+ESC+'0m\r\n'+rule())
     out['msgareas-row']=(sgr(14)+'{NEWFLAG:-3} '+sgr(15)+'{AREANAME:-53} '+sgr(8)+'{TOTAL:6} '+sgr(14)+'{NEW:6} '+sgr(7)+'{YOURS:7}'+ESC+'0m',None)
     out['msgareas-row-selected']=(SELECTED+'{NEWFLAG:-3} {AREANAME:-53} {TOTAL:6} {NEW:6} {YOURS:7}'+ESC+'0m',None)
     out['msgareas-network']=(divider('NETWORK'),None)
 
     out['msglist']=(list_head(msghead(),'{AREANAME}'),None)
-    both('msglist-columns',lambda de: sgr(7)+'    '+T('common.subject',-39,de)+' '+T('common.from',-18,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
+    both('msglist-columns',lambda de: sgr(7)+T('common.new',-3,de)+' '+T('common.subject',-39,de)+' '+T('common.from',-18,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
     out['msglist-row']=(sgr(14)+'{NEWFLAG:-3} '+sgr(15)+'{SUBJECT:-39} '+sgr(7)+'{FROM:-18} '+sgr(8)+'{DATE:16}'+ESC+'0m',None)
     out['msglist-row-selected']=(SELECTED+'{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}'+ESC+'0m',None)
 
     both('msgread',lambda de: list_head(msghead(),sgr(14)+'{AREANAME}'+sgr(8)+' \u00b7 '+sgr(7)+T('screen.msg_pos',None,de)))
     both('msgread-meta',lambda de: sgr(6)+T('msg.from',-9,de)+sgr(15)+'{FROM:-40}'+sgr(6)+' '+T('msg.date',None,de)+' '+sgr(7)+'{DATE}\r\n'
-        +sgr(6)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(6)+T('msg.subject',-9,de)+sgr(14)+'{SUBJECT}\r\n'+rule())
+        +sgr(6)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(6)+T('msg.subject',-9,de)+sgr(14)+'{SUBJECT:-70}\r\n'+rule())
     out['msgread-footer']=(sgr(8)+'{SCROLLSTATUS}'+ESC+'0m\r\n'+sgr(7)+'{HINT}'+ESC+'0m',None)
     both('msgpost',lambda de: list_head(msghead(),sgr(14)+T('screen.msgpost',None,de)+sgr(8)+' \u00b7 '+sgr(7)+'{AREANAME}'))
 
@@ -262,12 +262,12 @@ def lists():
     def comet(a): a.put(58,1,[('\u00b7',8),('\u00b7',8),('-',8),('-',5),('\u2500',13),('\u2500',15),('*',15)])
     nethead=lambda: strip(VIOLET,7,33,motif=comet)
     both('netmail',lambda de: list_head(nethead(),T('common.netmail',None,de)))
-    both('netmail-columns',lambda de: sgr(7)+'    '+T('common.subject',-39,de)+' '+T('common.from',-18,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
+    both('netmail-columns',lambda de: sgr(7)+T('common.new',-3,de)+' '+T('common.subject',-39,de)+' '+T('common.from',-18,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
     out['netmail-row']=(sgr(13)+'{NEWFLAG:-3} '+sgr(15)+'{SUBJECT:-39} '+sgr(7)+'{FROM:-18} '+sgr(8)+'{DATE:16}'+ESC+'0m',None)
     out['netmail-row-selected']=(ESC+'1;37;45m{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}'+ESC+'0m',None)
     both('netread',lambda de: list_head(nethead(),sgr(14)+T('screen.netread',None,de)+sgr(8)+' \u00b7 '+sgr(7)+T('screen.msg_pos',None,de)))
     both('netread-meta',lambda de: sgr(5)+T('msg.from',-9,de)+sgr(15)+'{FROM:-40}'+sgr(5)+' '+T('msg.date',None,de)+' '+sgr(7)+'{DATE}\r\n'
-        +sgr(5)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(5)+T('msg.subject',-9,de)+sgr(13)+'{SUBJECT}\r\n'+rule())
+        +sgr(5)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(5)+T('msg.subject',-9,de)+sgr(13)+'{SUBJECT:-70}\r\n'+rule())
     out['netread-footer']=out['msgread-footer']
 
     # Files: green, with the files menu's asteroids.
@@ -277,12 +277,12 @@ def lists():
     filhead=lambda: strip(GREEN,23,9,motif=rocks)
     GSEL=ESC+'1;37;42m'
     both('filareas',lambda de: list_head(filhead(),T('common.file_areas',None,de)))
-    both('filareas-columns',lambda de: sgr(7)+'    '+T('common.area',-53,de)+' '+T('col.total',6,de)+' '+T('common.new_2',6,de)+' '+T('col.yours',7,de)+ESC+'0m\r\n'+rule())
+    both('filareas-columns',lambda de: sgr(7)+T('common.new',-3,de)+' '+T('common.area',-53,de)+' '+T('col.total',6,de)+' '+T('common.new_2',6,de)+' '+T('col.yours',7,de)+ESC+'0m\r\n'+rule())
     out['filareas-row']=(sgr(10)+'{NEWFLAG:-3} '+sgr(15)+'{AREANAME:-53} '+sgr(8)+'{TOTAL:6} '+sgr(10)+'{NEW:6} '+sgr(7)+'{YOURS:7}'+ESC+'0m',None)
     out['filareas-row-selected']=(GSEL+'{NEWFLAG:-3} {AREANAME:-53} {TOTAL:6} {NEW:6} {YOURS:7}'+ESC+'0m',None)
     out['filareas-network']=(divider('NETWORK',2),None)
     out['fillist']=(list_head(filhead(),'{AREANAME}'),None)
-    both('fillist-columns',lambda de: sgr(7)+'    '+T('common.filename',-30,de)+' '+T('col.by',-16,de)+' '+T('common.size',10,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
+    both('fillist-columns',lambda de: sgr(7)+T('common.new',-3,de)+' '+T('common.filename',-30,de)+' '+T('col.by',-16,de)+' '+T('common.size',10,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
     out['fillist-row']=(sgr(10)+'{NEWFLAG:-3} '+sgr(15)+'{FILENAME:-30} '+sgr(7)+'{BY:-16} '+sgr(2)+'{SIZE:10} '+sgr(8)+'{DATE:16}'+ESC+'0m',None)
     out['fillist-row-selected']=(GSEL+'{NEWFLAG:-3} {FILENAME:-30} {BY:-16} {SIZE:10} {DATE:16}'+ESC+'0m',None)
     both('filread',lambda de: list_head(filhead(),sgr(14)+'{AREANAME}'+sgr(8)+' \u00b7 '+sgr(7)+T('screen.filread_pos',None,de)))
