@@ -257,6 +257,18 @@ def lists():
         +sgr(6)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(6)+T('msg.subject',-9,de)+sgr(14)+'{SUBJECT}\r\n'+rule())
     out['msgread-footer']=(sgr(8)+'{SCROLLSTATUS}'+ESC+'0m\r\n'+sgr(7)+'{HINT}'+ESC+'0m',None)
     both('msgpost',lambda de: list_head(msghead(),sgr(14)+T('screen.msgpost',None,de)+sgr(8)+' \u00b7 '+sgr(7)+'{AREANAME}'))
+
+    # Netmail is private mail, not echomail: violet, as it always was.
+    def comet(a): a.put(58,1,[('\u00b7',8),('\u00b7',8),('-',8),('-',5),('\u2500',13),('\u2500',15),('*',15)])
+    nethead=lambda: strip(VIOLET,7,33,motif=comet)
+    both('netmail',lambda de: list_head(nethead(),T('common.netmail',None,de)))
+    both('netmail-columns',lambda de: sgr(7)+'    '+T('common.subject',-39,de)+' '+T('common.from',-18,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
+    out['netmail-row']=(sgr(13)+'{NEWFLAG:-3} '+sgr(15)+'{SUBJECT:-39} '+sgr(7)+'{FROM:-18} '+sgr(8)+'{DATE:16}'+ESC+'0m',None)
+    out['netmail-row-selected']=(ESC+'1;37;45m{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}'+ESC+'0m',None)
+    both('netread',lambda de: list_head(nethead(),sgr(14)+T('screen.netread',None,de)+sgr(8)+' \u00b7 '+sgr(7)+T('screen.msg_pos',None,de)))
+    both('netread-meta',lambda de: sgr(5)+T('msg.from',-9,de)+sgr(15)+'{FROM:-40}'+sgr(5)+' '+T('msg.date',None,de)+' '+sgr(7)+'{DATE}\r\n'
+        +sgr(5)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(5)+T('msg.subject',-9,de)+sgr(13)+'{SUBJECT}\r\n'+rule())
+    out['netread-footer']=out['msgread-footer']
     return out
 
 def main():
