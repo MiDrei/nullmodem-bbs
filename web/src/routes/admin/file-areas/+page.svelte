@@ -34,7 +34,8 @@
 		};
 	}
 
-	const UNGROUPED = 'Ungrouped';
+	// Areas without a network; never a network's own name.
+	const UNGROUPED = '\u0000';
 	const ALL_TAB = '__all__';
 
 	let areas = $state<FileArea[]>([]);
@@ -360,7 +361,7 @@
 	</Modal>
 {:else if filesArea}
 	{@const area = filesArea}
-	<Modal title="Files in {area.name}" wide onclose={() => (expandedAreaId = null)}>
+	<Modal title={t('admin.file_areas.files_in', { NAME: area.name })} wide onclose={() => (expandedAreaId = null)}>
 		<div class="mb-4 flex flex-wrap items-center gap-2.5">
 			<input
 				type="file"
@@ -431,7 +432,7 @@
 					class="tab {activeNetwork === name ? 'tab-active' : ''}"
 					onclick={() => (activeNetwork = name)}
 				>
-					{name} <span class="font-mono text-[11px] text-faint">{count}</span>
+					{name === UNGROUPED ? t('admin.file_areas.ungrouped') : name} <span class="font-mono text-[11px] text-faint">{count}</span>
 				</button>
 			{/each}
 		</div>

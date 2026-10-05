@@ -64,7 +64,7 @@
 	</div>
 	<div class="flex gap-1">
 		{#each [7, 30, 90, 365] as d (d)}
-			<button class="pill {days === d ? 'pill-active' : ''}" onclick={() => pick(d)}>{d === 365 ? '1 year' : t('admin.stats.d_days', { D: d })}</button>
+			<button class="pill {days === d ? 'pill-active' : ''}" onclick={() => pick(d)}>{d === 365 ? t('admin.stats.one_year') : t('admin.stats.d_days', { D: d })}</button>
 		{/each}
 	</div>
 </div>

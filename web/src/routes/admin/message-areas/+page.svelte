@@ -31,7 +31,8 @@
 		};
 	}
 
-	const UNGROUPED = 'Ungrouped';
+	// Areas without a network; never a network's own name.
+	const UNGROUPED = '\u0000';
 	const ALL_TAB = '__all__';
 
 	let areas = $state<MessageArea[]>([]);
@@ -325,7 +326,7 @@
 					class="tab {activeNetwork === name ? 'tab-active' : ''}"
 					onclick={() => (activeNetwork = name)}
 				>
-					{name} <span class="font-mono text-[11px] text-faint">{count}</span>
+					{name === UNGROUPED ? t('admin.message_areas.ungrouped') : name} <span class="font-mono text-[11px] text-faint">{count}</span>
 				</button>
 			{/each}
 		</div>

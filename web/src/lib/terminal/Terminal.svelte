@@ -4,6 +4,7 @@
 	// drawn with the same pixel CP437 font as the ANSI art elsewhere.
 	// A hidden text field takes the keys, so phones bring up their
 	// keyboard; the key bar has what a phone keyboard lacks.
+	import { t } from '$lib/i18n.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { VT, keyBytes } from '$lib/terminal/vt';
 	import { drawGlyphCell } from '$lib/cp437-bitmap';
@@ -154,7 +155,7 @@
 			autocapitalize="off"
 			autocomplete="off"
 			spellcheck="false"
-			aria-label="Terminal input"
+			aria-label={t('web.terminal.input')}
 			onkeydown={onKeydown}
 			oninput={onInput}
 			onpaste={onPaste}
@@ -162,10 +163,10 @@
 		{#if status !== 'connected'}
 			<div class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-sm text-ink">
 				{#if status === 'connecting'}
-					Connecting…
+					{t('web.terminal.connecting')}
 				{:else}
 					<span>{closeReason}</span>
-					<button class="btn-primary btn-sm" onclick={connect}>Connect again</button>
+					<button class="btn-primary btn-sm" onclick={connect}>{t('web.terminal.connect_again')}</button>
 				{/if}
 			</div>
 		{/if}

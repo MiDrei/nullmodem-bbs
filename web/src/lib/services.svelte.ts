@@ -2,22 +2,24 @@
 // the admin is open -- the Services page and the "restart needed"
 // banner in the admin layout both read it.
 import { auth } from '$lib/auth.svelte';
+import { t } from '$lib/i18n.svelte';
 import { listServices, restartService, type ServiceStatus } from '$lib/api';
 
 const REFRESH_MS = 5000;
 
-export const SERVICE_INFO: Record<string, { title: string; description: string }> = {
-	bbs: { title: 'BBS', description: 'Telnet and SSH: menus, message and file areas, doors' },
-	mailer: { title: 'Mailer', description: 'BinkP polls and the tosser: echomail, netmail, file echoes' },
-	web: { title: 'Web', description: 'This admin and the web portal' }
-};
-
 /** Title and description of a daemon or a door's background program ("door:<door name>"). */
 export function serviceInfo(name: string): { title: string; description: string } {
-	if (SERVICE_INFO[name]) return SERVICE_INFO[name];
+	switch (name) {
+		case 'bbs':
+			return { title: 'BBS', description: t('admin.services.desc_bbs') };
+		case 'mailer':
+			return { title: 'Mailer', description: t('admin.services.desc_mailer') };
+		case 'web':
+			return { title: 'Web', description: t('admin.services.desc_web') };
+	}
 	if (name.startsWith('door:')) {
 		const door = name.slice('door:'.length);
-		return { title: door, description: `Background program of the door ${door}` };
+		return { title: door, description: t('admin.services.desc_door', { DOOR: door }) };
 	}
 	return { title: name, description: '' };
 }

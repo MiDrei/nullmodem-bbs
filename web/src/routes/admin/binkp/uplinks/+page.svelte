@@ -384,7 +384,7 @@
 								{#if u.post_as}
 									<span
 										class="rounded-full bg-sky-950 px-2 py-0.5 text-[10px] text-sky-300"
-										title="Its mail goes out as if {u.post_as} wrote it on the BBS"
+										title={t('admin.binkp_uplinks.post_as_title', { USER: u.post_as })}
 									>
 										{t('admin.binkp_uplinks.posts_as_post_as', { POST_AS: u.post_as })}
 									</span>

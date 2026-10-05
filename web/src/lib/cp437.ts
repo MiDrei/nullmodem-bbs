@@ -1,3 +1,4 @@
+import { t } from '$lib/i18n.svelte';
 // CP437 code-point table, ported byte-for-byte from
 // internal/ansi/cp437.go's cp437ToRune so the designer renders
 // exactly the same glyph the Go backend encodes/decodes for a given
@@ -53,12 +54,15 @@ export const DOS_PALETTE: string[] = [
 	'#5555FF', '#FF55FF', '#55FFFF', '#FFFFFF'
 ];
 
-export const COLOR_NAMES: string[] = [
-	'Black', 'Red', 'Green', 'Brown',
-	'Blue', 'Magenta', 'Cyan', 'Light gray',
-	'Dark gray', 'Bright red', 'Bright green', 'Yellow',
-	'Bright blue', 'Bright magenta', 'Bright cyan', 'White'
-];
+/** The name of DOS palette colour i, in the page's language. */
+export function colorName(i: number): string {
+	return [
+		t('admin.designer.color.black'), t('admin.designer.color.red'), t('admin.designer.color.green'), t('admin.designer.color.brown'),
+		t('admin.designer.color.blue'), t('admin.designer.color.magenta'), t('admin.designer.color.cyan'), t('admin.designer.color.light_gray'),
+		t('admin.designer.color.dark_gray'), t('admin.designer.color.bright_red'), t('admin.designer.color.bright_green'), t('admin.designer.color.yellow'),
+		t('admin.designer.color.bright_blue'), t('admin.designer.color.bright_magenta'), t('admin.designer.color.bright_cyan'), t('admin.designer.color.white')
+	][i] ?? '';
+}
 
 // Single- and double-line CP437 box-drawing sets, keyed the way the
 // Box tool needs them: four corners, then horizontal and vertical

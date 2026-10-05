@@ -17,7 +17,7 @@
 		type Grid,
 		type GridCell
 	} from '$lib/api';
-	import { charToCp437, DOS_PALETTE, COLOR_NAMES, BOX_SINGLE, BOX_DOUBLE } from '$lib/cp437';
+	import { charToCp437, DOS_PALETTE, colorName, BOX_SINGLE, BOX_DOUBLE } from '$lib/cp437';
 	import { drawGlyphCell, drawGlyphOnly } from '$lib/cp437-bitmap';
 	import { bresenhamLine, rectCells, boxCells, type StampedCell } from '$lib/designer-shapes';
 
@@ -1007,7 +1007,7 @@
 							<button
 								class="h-6 w-6 rounded border {currentFG === i ? 'border-cyan-400' : 'border-slate-700'}"
 								style="background-color:{color}"
-								title={COLOR_NAMES[i]}
+								title={colorName(i)}
 								onclick={() => (currentFG = i)}
 							></button>
 						{/each}
@@ -1018,7 +1018,7 @@
 							<button
 								class="h-6 w-6 rounded border {currentBG === i ? 'border-cyan-400' : 'border-slate-700'}"
 								style="background-color:{color}"
-								title={COLOR_NAMES[i]}
+								title={colorName(i)}
 								onclick={() => (currentBG = i)}
 							></button>
 						{/each}

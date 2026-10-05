@@ -27,7 +27,7 @@
 				values={r.calls_per_day.map((d) => d.count)}
 				titles={dayTitles(r.calls_per_day, 'web.stats.n_calls')}
 				first={r.calls_per_day.length ? day(r.calls_per_day[0].date) : ''}
-				last="today"
+				last={t('web.stats.today')}
 			/>
 		</div>
 		<RankList title={t('web.stats.top_callers')} items={r.top_callers} detail={full} />
@@ -41,9 +41,9 @@
 				</div>
 				<Bars
 					values={(r.posts_per_day ?? []).map((d) => d.count)}
-					titles={dayTitles(r.posts_per_day ?? [], 'messages')}
+					titles={dayTitles(r.posts_per_day ?? [], 'web.stats.n_messages')}
 					first={r.posts_per_day?.length ? day(r.posts_per_day[0].date) : ''}
-					last="today"
+					last={t('web.stats.today')}
 				/>
 			</div>
 			<div class="card">
@@ -108,7 +108,7 @@
 			<RankList
 				title={t('web.stats.binkp')}
 				items={(r.uplinks ?? []).map((u) => ({ ...u, detail: Number(u.detail) ? t('web.stats.failed', { COUNT: u.detail ?? '' }) : '' }))}
-				empty="No sessions."
+				empty={t('web.stats.no_sessions')}
 			/>
 			<RankList title={t('web.stats.new_users')} items={r.new_users ?? null} empty={t('web.stats.no_new_users')} />
 		{/if}

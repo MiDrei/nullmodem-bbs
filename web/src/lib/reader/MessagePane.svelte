@@ -109,7 +109,7 @@
 		{#snippet after()}
 			{#if thread.length > 1 && message}
 				<section class="no-swipe mt-6 border-t border-line pt-3">
-					<h2 class="card-label mb-1.5">Thread · {thread.length} messages</h2>
+					<h2 class="card-label mb-1.5">{t('web.reader.thread_n', { COUNT: thread.length })}</h2>
 					<ThreadTree entries={thread} current={message.id} onselect={(tid) => tid !== message?.id && onOpen(tid)} />
 				</section>
 			{/if}

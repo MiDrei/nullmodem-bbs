@@ -1,3 +1,4 @@
+import { t } from '$lib/i18n.svelte';
 // Orders the BBS's .ans screens for the admin: by what they belong to
 // (login and menus, message areas, file areas, netmail), each main
 // screen with its parts (column header, rows, ...) under it, labelled
@@ -16,31 +17,68 @@ export interface ScreenGroup {
 }
 
 // file stem -> [group, label]; a stem's parts ("-row", ...) follow it.
+// Groups and labels are catalog keys (shown in the admin's language).
 const KNOWN: Record<string, [string, string]> = {
-	welcome: ['Login & menus', 'Welcome (before login)'],
-	main: ['Login & menus', 'Main menu'],
-	sysop: ['Login & menus', 'Sysop menu'],
-	logoff: ['Login & menus', 'Logoff'],
-	msgareas: ['Message areas', 'Area list'],
-	msglist: ['Message areas', 'Message list'],
-	msgread: ['Message areas', 'Reading a message'],
-	msgpost: ['Message areas', 'Writing a message'],
-	filareas: ['File areas', 'Area list'],
-	fillist: ['File areas', 'File list'],
-	filread: ['File areas', 'File details'],
-	netmail: ['Netmail', 'Inbox'],
-	netread: ['Netmail', 'Reading netmail']
+	welcome: ['login', 'welcome'],
+	main: ['login', 'main'],
+	sysop: ['login', 'sysop'],
+	logoff: ['login', 'logoff'],
+	msgareas: ['msgs', 'area_list'],
+	msglist: ['msgs', 'msg_list'],
+	msgread: ['msgs', 'msg_read'],
+	msgpost: ['msgs', 'msg_post'],
+	filareas: ['files', 'area_list'],
+	fillist: ['files', 'file_list'],
+	filread: ['files', 'file_read'],
+	netmail: ['netmail', 'inbox'],
+	netread: ['netmail', 'net_read']
 };
 
 const PARTS: Record<string, string> = {
-	columns: 'Column header',
-	row: 'Row',
-	'row-selected': 'Selected row',
-	network: 'Network divider',
-	meta: 'Header details'
+	columns: 'columns',
+	row: 'row',
+	'row-selected': 'row_selected',
+	network: 'network',
+	meta: 'meta'
 };
 
-const ORDER = ['Login & menus', 'Message areas', 'File areas', 'Netmail', 'Other'];
+const ORDER = ['login', 'msgs', 'files', 'netmail', 'other'];
+
+function groupTitle(g: string): string {
+	return (
+		{
+			login: t('admin.screens.group.login'),
+			msgs: t('admin.screens.group.msgs'),
+			files: t('admin.screens.group.files'),
+			netmail: t('admin.screens.group.netmail'),
+			other: t('admin.screens.group.other')
+		}[g] ?? g
+	);
+}
+
+function screenLabel(k: string): string {
+	return (
+		{
+			welcome: t('admin.screens.label.welcome'),
+			main: t('admin.screens.label.main'),
+			sysop: t('admin.screens.label.sysop'),
+			logoff: t('admin.screens.label.logoff'),
+			area_list: t('admin.screens.label.area_list'),
+			msg_list: t('admin.screens.label.msg_list'),
+			msg_read: t('admin.screens.label.msg_read'),
+			msg_post: t('admin.screens.label.msg_post'),
+			file_list: t('admin.screens.label.file_list'),
+			file_read: t('admin.screens.label.file_read'),
+			inbox: t('admin.screens.label.inbox'),
+			net_read: t('admin.screens.label.net_read'),
+			columns: t('admin.screens.label.columns'),
+			row: t('admin.screens.label.row'),
+			row_selected: t('admin.screens.label.row_selected'),
+			network: t('admin.screens.label.network'),
+			meta: t('admin.screens.label.meta')
+		}[k] ?? k
+	);
+}
 
 export function groupScreens(names: string[]): ScreenGroup[] {
 	const byGroup = new Map<string, ScreenItem[]>();
@@ -61,21 +99,21 @@ export function groupScreens(names: string[]): ScreenGroup[] {
 	for (const stem of stems) {
 		const [group, label] = KNOWN[stem];
 		if (names.includes(`${stem}.ans`)) {
-			add(group, { name: `${stem}.ans`, label, part: false });
+			add(group, { name: `${stem}.ans`, label: screenLabel(label), part: false });
 			used.add(`${stem}.ans`);
 			addVariants(group, stem);
 		}
 		for (const [suffix, partLabel] of Object.entries(PARTS)) {
 			const n = `${stem}-${suffix}.ans`;
 			if (names.includes(n)) {
-				add(group, { name: n, label: partLabel, part: true });
+				add(group, { name: n, label: screenLabel(partLabel), part: true });
 				used.add(n);
 				addVariants(group, `${stem}-${suffix}`);
 			}
 		}
 	}
 	for (const n of names.filter((n) => !used.has(n)).sort()) {
-		add('Other', { name: n, label: n.replace(/\.ans$/i, ''), part: false });
+		add('other', { name: n, label: n.replace(/\.ans$/i, ''), part: false });
 	}
-	return ORDER.filter((g) => byGroup.has(g)).map((g) => ({ title: g, items: byGroup.get(g)! }));
+	return ORDER.filter((g) => byGroup.has(g)).map((g) => ({ title: groupTitle(g), items: byGroup.get(g)! }));
 }
