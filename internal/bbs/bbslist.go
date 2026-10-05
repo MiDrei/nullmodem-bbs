@@ -35,10 +35,14 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 			}
 			return string(r) + strings.Repeat(" ", n-len(r))
 		}
+		statusWidth := 0
+		for _, k := range []string{"bbslist.st_up", "bbslist.st_down", "bbslist.st_unknown"} {
+			statusWidth = max(statusWidth, len(term.T(k)))
+		}
 		for i, e := range list {
 			fmt.Fprintf(&b, "  %s%3d%s  %s%s %s%s %s%s\r\n", ansi.FG(ansi.Yellow, true), i+1, ansi.Reset,
 				ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)), ansi.FG(ansi.Cyan, false), toCP437(cut(e.Address, 32)),
-				bbsStatus(e), ansi.Reset)
+				bbsStatus(term, e, statusWidth), ansi.Reset)
 		}
 		keys := term.T("bbslist.key_details")
 		if u.Validated {
@@ -76,26 +80,42 @@ func (s *Server) mayChangeBBS(u *user.User, e community.BBS) bool {
 
 func (s *Server) showBBS(term *Terminal, u *user.User, e community.BBS) error {
 	var b strings.Builder
-	row := func(label, v string) {
-		if v != "" {
-			fmt.Fprintf(&b, "  %s%-12s%s %s\r\n", ansi.FG(ansi.Cyan, false), label, ansi.Reset, toCP437(v))
+	// The labels as wide as the widest; a long value wraps under itself.
+	labels := []string{"bbslist.address", "bbslist.sysop", "bbslist.software", "bbslist.about", "bbslist.added_by", "bbslist.online"}
+	labelWidth := 0
+	for _, k := range labels {
+		labelWidth = max(labelWidth, len(term.T(k)))
+	}
+	indent := 2 + labelWidth + 1
+	// row prints v, CP437 already (user data goes through toCP437 first).
+	row := func(key, v string) {
+		if v == "" {
+			return
+		}
+		lines := ansi.WrapText(v, max(20, term.Width()-indent-1))
+		for i, l := range lines {
+			label := ""
+			if i == 0 {
+				label = term.T(key)
+			}
+			fmt.Fprintf(&b, "  %s%s%s %s\r\n", ansi.FG(ansi.Cyan, false), padCP(label, labelWidth), ansi.Reset, l)
 		}
 	}
 	b.WriteString(ansi.Reset + "\r\n  " + ansi.FG(ansi.White, true) + toCP437(e.Name) + ansi.Reset + "\r\n")
-	row(term.T("bbslist.address"), e.Address)
-	row(term.T("bbslist.sysop"), e.Sysop)
-	row(term.T("bbslist.software"), e.Software)
-	row(term.T("bbslist.about"), e.Description)
-	row(term.T("bbslist.added_by"), e.AddedBy)
+	row("bbslist.address", toCP437(e.Address))
+	row("bbslist.sysop", toCP437(e.Sysop))
+	row("bbslist.software", toCP437(e.Software))
+	row("bbslist.about", toCP437(e.Description))
+	row("bbslist.added_by", toCP437(e.AddedBy))
 	switch {
 	case e.CheckedAt.IsZero():
-		row(term.T("bbslist.online"), term.T("bbslist.not_checked"))
+		row("bbslist.online", term.T("bbslist.not_checked"))
 	case e.Online:
-		row(term.T("bbslist.online"), term.T("bbslist.up", "WHEN", term.Time(e.CheckedAt).Format("2006-01-02 15:04")))
+		row("bbslist.online", term.T("bbslist.up", "WHEN", term.Time(e.CheckedAt).Format("2006-01-02 15:04")))
 	case !e.LastUpAt.IsZero():
-		row(term.T("bbslist.online"), term.T("bbslist.down_seen", "WHEN", term.Time(e.LastUpAt).Format("2006-01-02")))
+		row("bbslist.online", term.T("bbslist.down_seen", "WHEN", term.Time(e.LastUpAt).Format("2006-01-02")))
 	default:
-		row(term.T("bbslist.online"), term.T("bbslist.down"))
+		row("bbslist.online", term.T("bbslist.down"))
 	}
 	if !s.mayChangeBBS(u, e) {
 		if err := term.Print(b.String()); err != nil {
@@ -175,13 +195,13 @@ func (s *Server) editBBS(term *Terminal, u *user.User, e community.BBS) error {
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "  " + term.T("common.saved") + ansi.Reset)
 }
 
-// bbsStatus is the online check's verdict, five columns wide.
-func bbsStatus(e community.BBS) string {
+// bbsStatus is the online check's verdict, width columns wide.
+func bbsStatus(term *Terminal, e community.BBS, width int) string {
 	switch {
 	case e.CheckedAt.IsZero():
-		return ansi.FG(ansi.White, false) + "  ?  "
+		return ansi.FG(ansi.White, false) + padCP(term.T("bbslist.st_unknown"), width)
 	case e.Online:
-		return ansi.FG(ansi.Green, true) + " up  "
+		return ansi.FG(ansi.Green, true) + padCP(term.T("bbslist.st_up"), width)
 	}
-	return ansi.FG(ansi.Red, true) + "down "
+	return ansi.FG(ansi.Red, true) + padCP(term.T("bbslist.st_down"), width)
 }

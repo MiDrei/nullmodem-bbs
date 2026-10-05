@@ -1,8 +1,10 @@
 package bbs
 
 import (
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/community"
 	"git.maik.ch/nullmodem/bbs/internal/nodelist"
@@ -60,3 +62,47 @@ func TestNetmailToAnAddressShowsTheNodelistEntry(t *testing.T) {
 		t.Fatalf("no nodelist lookup: %q", out)
 	}
 }
+
+func TestBBSListDetailsInGermanWrapAndKeepUmlauts(t *testing.T) {
+	s := testServer(t)
+	s.Community = community.NewStore(s.Users.DB())
+	s.Users.Register("maik", "password123", user.SLNewUser) // sysop
+	alice, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	// Typed on a UTF-8 terminal: the emoji arrives as UTF-8, not as
+	// four CP437 characters.
+	long := "A regional Swiss BBS that ran over dial-up from 1991 to 1996. Revived from a 30-year-old backup tape. Grüezi 🙂"
+	conn := newFakeConn("A\r\nBUEMA BBS\r\nbbs.buema.ch:2300\r\nMarc\r\nWildcat! v4.11\r\n" + long + "\r\n\r\n")
+	if err := s.bbsList(NewTerminal(conn), alice); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := s.Community.BBSList()
+	if len(list) != 1 || list[0].Description != long {
+		t.Fatalf("stored %q", list[0].Description)
+	}
+	s.Community.RecordCheck(list[0].ID, true, time.Now())
+	list, _ = s.Community.BBSList()
+
+	conn = newFakeConn("\r\n")
+	term := NewTerminal(conn)
+	term.Lang = "de-du"
+	out := &conn.out
+	if err := s.showBBS(term, alice, list[0]); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if !strings.Contains(text, "gepr\x81ft") || strings.Contains(text, "gepr?ft") {
+		t.Errorf("umlaut lost: %q", text)
+	}
+	for _, line := range strings.Split(ansiStrip(text), "\r\n") {
+		if len(line) > 79 {
+			t.Errorf("line too wide (%d): %q", len(line), line)
+		}
+	}
+	if !strings.Contains(ansiStrip(text), "Eingetragen von alice") {
+		t.Errorf("labels not aligned: %q", ansiStrip(text))
+	}
+}
+
+var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
+
+func ansiStrip(s string) string { return ansiSeq.ReplaceAllString(s, "") }

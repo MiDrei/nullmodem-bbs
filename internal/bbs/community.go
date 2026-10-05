@@ -1,6 +1,7 @@
 package bbs
 
 import (
+	"unicode/utf8"
 	"fmt"
 	"strconv"
 	"strings"
@@ -22,7 +23,17 @@ import (
 // with the web admin; they're stored as UTF-8 and turned into CP437
 // for the terminal (and back for what a caller types).
 
-func fromCP437(s string) string { return ansi.DecodeCP437([]byte(s)) }
+// fromCP437 is what a caller typed, as UTF-8: CP437 bytes -- unless
+// they're already UTF-8 (a modern terminal sends that: an emoji typed
+// there must not end up as four CP437 characters). A CP437 byte above
+// 0x7F alone is never valid UTF-8, and real CP437 text forming valid
+// UTF-8 sequences is next to impossible in what people type.
+func fromCP437(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return ansi.DecodeCP437([]byte(s))
+}
 func toCP437(s string) string   { return string(ansi.EncodeCP437(s)) }
 
 // nodeMessages are messages waiting for a node's next prompt.
