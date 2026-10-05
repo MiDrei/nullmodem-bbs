@@ -223,3 +223,4 @@ netmail.email_limit: "Du hast das Tageslimit für E-Mail erreicht ({LIMIT}) -- v
 api.email_not_allowed: "Dein Konto kann keine E-Mail senden"
 api.email_limit: "Du hast das heutige E-Mail-Limit erreicht"
 web.netmail.your_email: "Deine E-Mail-Adresse:"
+email.sent_by: "Diese Nachricht kommt von {USER}, einem Benutzer der {BBS}. Deine Antwort kommt dort an."

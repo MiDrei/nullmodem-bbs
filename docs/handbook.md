@@ -308,7 +308,9 @@ NullModem Reader.
   read, or deleted if you choose so. Mail to unknown addresses, to callers
   below the level or not yet approved, and mail the provider flagged as spam
   is dropped. Text only: HTML mail is turned into text, attachments are
-  listed but not delivered. A daily limit per caller keeps an account from
+  listed but not delivered. Every mail sent starts with a line saying who
+  wrote it on which board (`email.sent_by` in the language editor, e.g. to
+  add the board's web address). A daily limit per caller keeps an account from
   becoming a spam source. Mail the receiving server refuses comes back to the
   writer as netmail with the reason; if the gateway can't fetch or send for
   half an hour, it shows under "Needs attention". The callers see their

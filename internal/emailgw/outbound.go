@@ -150,8 +150,11 @@ func (g *Gateway) compose(cfg config.EmailConfig, u *user.User, m netmail.Outgoi
 	h("X-Mailer", mime.QEncoding.Encode("utf-8", name)+" ("+version.Version+")")
 	h(loopHeader, strings.ToLower(cfg.Domain))
 	b.WriteString("\r\n")
+	// Who wrote it, and where: the recipient may never have heard of
+	// the board (the text is the sysop's to change, language editor).
+	text := i18n.T(g.Lang(u), "email.sent_by", "USER", u.Username, "BBS", name) + "\n\n" + PlainBody(m.Body)
 	qp := quotedprintable.NewWriter(&b)
-	qp.Write([]byte(strings.ReplaceAll(PlainBody(m.Body), "\n", "\r\n")))
+	qp.Write([]byte(strings.ReplaceAll(text, "\n", "\r\n")))
 	qp.Close()
 	return b.Bytes()
 }

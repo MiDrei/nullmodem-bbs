@@ -207,7 +207,7 @@ func setup(t *testing.T) *env {
 	}
 	e.gw = &Gateway{DB: sqlDB, Netmail: e.nm, Users: users,
 		Config: func() config.EmailConfig { return e.cfg },
-		Lang:   func(*user.User) string { return "en" }}
+		Lang:   func(*user.User) string { return "en" }, BBSName: func() string { return "Test BBS" }}
 	return e
 }
 
@@ -280,7 +280,8 @@ AAAA
 		t.Errorf("envelope %+v", s)
 	}
 	for _, want := range []string{"From: SwissMaik <swissmaik@example.ch>", "In-Reply-To: <abc@other.ch>",
-		"Subject: =?utf-8?q?Re:_Gr=C3=BCezi?=", "Gern geschehen.", "X-NullModem-Gateway: example.ch"} {
+		"Subject: =?utf-8?q?Re:_Gr=C3=BCezi?=", "Gern geschehen.", "X-NullModem-Gateway: example.ch",
+		"This message comes from SwissMaik, a caller of Test BBS."} {
 		if !strings.Contains(s.data, want) {
 			t.Errorf("mail lacks %q:\n%s", want, s.data)
 		}

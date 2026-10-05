@@ -310,7 +310,10 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   als gelesen markiert oder, wenn gewünscht, gelöscht. Mail an unbekannte
   Adressen, an Anrufer unter dem Level oder noch nicht freigeschaltete und
   Mail, die der Anbieter als Spam markiert hat, wird verworfen. Nur Text:
-  HTML-Mail wird zu Text, Anhänge werden genannt, aber nicht zugestellt. Ein
+  HTML-Mail wird zu Text, Anhänge werden genannt, aber nicht zugestellt.
+  Jede verschickte Mail beginnt mit einer Zeile, wer sie auf welcher BBS
+  geschrieben hat (`email.sent_by` im Spracheditor, z. B. um die
+  Web-Adresse der BBS zu ergänzen). Ein
   Tageslimit pro Anrufer verhindert, dass ein Konto zur Spamschleuder wird.
   Lehnt der Server des Empfängers eine Mail ab, kommt sie als Netmail mit
   dem Grund zum Schreiber zurück; kann das Gateway eine halbe Stunde lang
