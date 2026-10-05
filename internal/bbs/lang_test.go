@@ -55,11 +55,14 @@ func TestGermanScreensMatchEnglish(t *testing.T) {
 	}
 }
 
-// The stock menu screens fit 80 columns in every language, their
+// The stock menu screens fit an 80-column terminal in every language, their
 // frame closed on every line -- the sysop's entry shown or not.
 func TestMenuScreensFit(t *testing.T) {
 	dir := filepath.Join("..", "..", "configs", "screens")
 	escapes := regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
+	// What Terminal.Width lays screens out to on an 80-column terminal:
+	// a line as wide as the terminal wraps on many clients.
+	width := maxWidth - wrapMargin
 	for _, name := range []string{"main", "messages", "files", "community", "sysop", "logoff"} {
 		for _, lang := range []string{"en", "de", "de-du"} {
 			file := name + ".ans"
@@ -73,13 +76,13 @@ func TestMenuScreensFit(t *testing.T) {
 			for _, sl := range []int{10, 255} {
 				vars := ansi.Vars{"BBSNAME": "Maiks Place BBS", "USERNAME": "SwissMaik", "NODE": "1",
 					"SYSOP_ITEM": menu.SysopItem(sl, toCP437(i18n.T(lang, "menu.sysop_item")))}
-				out := ansi.Layout(ansi.Render(menu.SysopLines(i18n.FillScreen(lang, raw), sl), vars), 80)
+				out := ansi.Layout(ansi.Render(menu.SysopLines(i18n.FillScreen(lang, raw), sl), vars), width)
 				for i, line := range strings.Split(escapes.ReplaceAllString(out, ""), "\r\n") {
-					if n := len(line); n > 80 {
+					if n := len(line); n > width {
 						t.Errorf("%s %s line %d is %d wide: %q", file, lang, i+1, n, line)
 					}
-					if frame := line[:min(1, len(line))]; (frame == "\xba" || frame == "\xb3") && (len(line) != 80 || !strings.HasSuffix(line, frame)) {
-						t.Errorf("%s %s (SL %d) line %d frame not closed at 80: %q", file, lang, sl, i+1, line)
+					if frame := line[:min(1, len(line))]; (frame == "\xba" || frame == "\xb3") && (len(line) != width || !strings.HasSuffix(line, frame)) {
+						t.Errorf("%s %s (SL %d) line %d frame not closed at %d: %q", file, lang, sl, i+1, width, line)
 					}
 				}
 			}
