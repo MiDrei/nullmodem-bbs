@@ -128,8 +128,12 @@ def head_sysop():
 F=4
 KEYS=None
 def T(k,w=None,de=True):
-    if de: return '{T:%s%s}'%(k,'' if w is None else ':-%d'%w)
-    v=EN[k]; return v if w is None else v.ljust(w)
+    """Text k: a {T:key} placeholder for .de screens, the English text
+    for the others; w pads it like {NAME:w} (negative: left-aligned)."""
+    if de: return '{T:%s%s}'%(k,'' if w is None else ':%d'%w)
+    v=EN[k]
+    if w is None: return v
+    return v[:-w].ljust(-w) if w<0 else v[:w].rjust(w)
 def key(k): return sgr(8)+'['+sgr(14)+k+sgr(8)+']'
 class Screen:
     def __init__(s,de): s.de=de; s.L=[]
@@ -139,7 +143,7 @@ class Screen:
     def row(s,content='',prefix=''):
         s.L.append(prefix+sgr(F)+'│'+sgr(7)+content+sgr(7)+'{FILL: }'+sgr(F)+'│')
     def item(s,k,label,desc=None,sub=False,prefix=''):
-        c='  '+key(k)+' '+sgr(15)+s.t(label,24 if desc else None)
+        c='  '+key(k)+' '+sgr(15)+s.t(label,-24 if desc else None)
         if desc: c+=sgr(12)+('» ' if sub else '  ')+sgr(7)+s.t(desc)
         s.row(c,prefix)
     def footer(s,items):
@@ -214,9 +218,47 @@ def logoff_screen(de):
     s.row(); s.bot()
     return s.text(head_main())+(ESC+'0m').encode()
 
-for name in MENUS:
+# ---------------- lists and views ----------------
+# A list's header: a three-row strip of stars and the section's nebula,
+# then a title line with the board's name and the list's title.
+def strip(pal,seed,neb_seed,motif=None):
+    a=Art(3,seed)
+    a.nebula(pal,1.0,0.0,0.7,1.2,0,60,seed=neb_seed,rows=2)
+    a.stars(24)
+    if motif: motif(a)
+    return a.lines()
+def title_line(title):
+    return sgr(F)+'\u2500\u2524 '+sgr(15)+'{BBSNAME}'+sgr(F)+' \u251c{FILL:\u2500}\u2524 '+sgr(14)+title+sgr(F)+' \u251c\u2500'+ESC+'0m'
+def list_head(head,title):
+    return (ESC+'2J'+ESC+'H'+'\r\n'.join(head+[title_line(title)])+'\r\n')
+def rule(): return sgr(F)+'\u2500'*W+ESC+'0m'
+def divider(var): return sgr(F)+'\u2500\u2500 '+sgr(6)+'{'+var+'}'+sgr(F)+' {FILL:\u2500}'+ESC+'0m'
+SELECTED=ESC+'1;37;44m'
+
+def lists():
+    """name -> (en text, de text or None): the list screens and their parts."""
+    out={}
+    def both(name,fn):
+        out[name]=(fn(False),fn(True))
+    msghead=lambda: strip(BLUE,5,21,motif=lambda a: satellite(a,66,1))
+    both('msgareas',lambda de: list_head(msghead(),T('common.message_areas',None,de)))
+    both('msgareas-columns',lambda de: sgr(7)+'    '+T('common.area',-53,de)+' '+T('col.total',6,de)+' '+T('common.new_2',6,de)+' '+T('col.yours',7,de)+ESC+'0m\r\n'+rule())
+    out['msgareas-row']=(sgr(14)+'{NEWFLAG:-3} '+sgr(15)+'{AREANAME:-53} '+sgr(8)+'{TOTAL:6} '+sgr(14)+'{NEW:6} '+sgr(7)+'{YOURS:7}'+ESC+'0m',None)
+    out['msgareas-row-selected']=(SELECTED+'{NEWFLAG:-3} {AREANAME:-53} {TOTAL:6} {NEW:6} {YOURS:7}'+ESC+'0m',None)
+    out['msgareas-network']=(divider('NETWORK'),None)
+    return out
+
+def main():
+    for name in MENUS:
+        for de in (False,True):
+            open(OUT+name+('.de' if de else '')+'.ans','wb').write(menu_screen(name,de))
     for de in (False,True):
-        open(OUT+name+('.de' if de else '')+'.ans','wb').write(menu_screen(name,de))
-for de in (False,True):
-    open(OUT+'logoff'+('.de' if de else '')+'.ans','wb').write(logoff_screen(de))
-print('ok')
+        open(OUT+'logoff'+('.de' if de else '')+'.ans','wb').write(logoff_screen(de))
+    for name,(en,de) in lists().items():
+        open(OUT+name+'.ans','wb').write(en.encode('cp437'))
+        if de is not None:
+            open(OUT+name+'.de.ans','wb').write(de.encode('cp437'))
+    print('ok')
+
+if __name__=='__main__':
+    main()
