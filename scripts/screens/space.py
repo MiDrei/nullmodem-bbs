@@ -246,6 +246,17 @@ def lists():
     out['msgareas-row']=(sgr(14)+'{NEWFLAG:-3} '+sgr(15)+'{AREANAME:-53} '+sgr(8)+'{TOTAL:6} '+sgr(14)+'{NEW:6} '+sgr(7)+'{YOURS:7}'+ESC+'0m',None)
     out['msgareas-row-selected']=(SELECTED+'{NEWFLAG:-3} {AREANAME:-53} {TOTAL:6} {NEW:6} {YOURS:7}'+ESC+'0m',None)
     out['msgareas-network']=(divider('NETWORK'),None)
+
+    out['msglist']=(list_head(msghead(),'{AREANAME}'),None)
+    both('msglist-columns',lambda de: sgr(7)+'    '+T('common.subject',-39,de)+' '+T('common.from',-18,de)+' '+T('col.date',16,de)+ESC+'0m\r\n'+rule())
+    out['msglist-row']=(sgr(14)+'{NEWFLAG:-3} '+sgr(15)+'{SUBJECT:-39} '+sgr(7)+'{FROM:-18} '+sgr(8)+'{DATE:16}'+ESC+'0m',None)
+    out['msglist-row-selected']=(SELECTED+'{NEWFLAG:-3} {SUBJECT:-39} {FROM:-18} {DATE:16}'+ESC+'0m',None)
+
+    both('msgread',lambda de: list_head(msghead(),sgr(14)+'{AREANAME}'+sgr(8)+' \u00b7 '+sgr(7)+T('screen.msg_pos',None,de)))
+    both('msgread-meta',lambda de: sgr(6)+T('msg.from',-9,de)+sgr(15)+'{FROM:-40}'+sgr(6)+' '+T('msg.date',None,de)+' '+sgr(7)+'{DATE}\r\n'
+        +sgr(6)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(6)+T('msg.subject',-9,de)+sgr(14)+'{SUBJECT}\r\n'+rule())
+    out['msgread-footer']=(sgr(8)+'{SCROLLSTATUS}'+ESC+'0m\r\n'+sgr(7)+'{HINT}'+ESC+'0m',None)
+    both('msgpost',lambda de: list_head(msghead(),sgr(14)+T('screen.msgpost',None,de)+sgr(8)+' \u00b7 '+sgr(7)+'{AREANAME}'))
     return out
 
 def main():
