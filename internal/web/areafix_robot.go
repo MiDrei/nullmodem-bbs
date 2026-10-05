@@ -120,6 +120,25 @@ func (s *Server) handleAreafixHistory(w http.ResponseWriter, r *http.Request) {
 	for _, m := range forRobot(msgs, kind) {
 		out = append(out, areafixHistoryDTO{ID: m.ID, At: m.PostedAt, Subject: m.Subject, Body: m.Body})
 	}
+	// The hub's receipts quote our request, password and all: not here.
+	var secrets []string
+	if c, err := s.loadBBSConfig(); err == nil {
+		for _, u := range c.Binkp.Uplinks {
+			if u.Address == address {
+				for _, p := range []string{u.AreafixPassword, u.FilefixPassword, u.Password, u.PacketPassword} {
+					if len(p) >= 3 {
+						secrets = append(secrets, p)
+					}
+				}
+			}
+		}
+	}
+	for i := range out {
+		for _, p := range secrets {
+			out[i].Body = strings.ReplaceAll(out[i].Body, p, "••••••")
+			out[i].Subject = strings.ReplaceAll(out[i].Subject, p, "••••••")
+		}
+	}
 	// In the order they came and went (ids grow as mail is stored).
 	sort.Slice(out, func(i, j int) bool { return out[i].ID > out[j].ID })
 	if len(out) > 20 {

@@ -162,6 +162,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/binkp/areafix/query", s.requireAuth(http.HandlerFunc(s.handleRequestAreafixQuery)))
 	mux.Handle("GET /api/binkp/areafix/query-reply", s.requireAuth(http.HandlerFunc(s.handleGetAreafixQueryReply)))
 	mux.Handle("GET /api/binkp/areafix/history", s.requireAuth(http.HandlerFunc(s.handleAreafixHistory)))
+	mux.Handle("POST /api/binkp/areafix/command", s.requireAuth(http.HandlerFunc(s.handleAreafixCommand)))
 	mux.Handle("GET /api/binkp/areafix/grants", s.requireAuth(http.HandlerFunc(s.handleListAreafixGrants)))
 	mux.Handle("PUT /api/binkp/areafix/grants", s.requireAuth(http.HandlerFunc(s.handleSetAreafixGrants)))
 	mux.Handle("GET /api/netmail/unresolved", s.requireAuth(http.HandlerFunc(s.handleListUnresolvedNetmail)))

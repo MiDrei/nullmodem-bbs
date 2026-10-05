@@ -101,7 +101,11 @@ FTN → Uplinks:
   and "Take over the hub's state" puts its word into our record (nothing is
   sent). Areafix (echomail) and Filefix (file echos) answer from the same
   address; each reply counts only for the robot it comes from, and the
-  history below the list shows every request and reply, refusals included.
+  history below the list shows every request and reply, refusals included
+  (passwords hidden). More commands: `%LINKED` (what some robots call
+  `%QUERY`), `%UNLINKED`, `%HELP`, `%PAUSE`, `%RESUME`. A hub that knows
+  neither `%QUERY` nor `%LINKED` (Clearing Houz, fsxNet's hub) marks what's
+  subscribed with `*` in its `%LIST` -- that's what the ticks show then.
 - **Points / your own reader app:** [points.md](points.md).
 - **Nodelists:** arrive on their own with the file echos (`FSX_NODE` …) and
   are taken over every 10 minutes; status under FTN → Nodelists.

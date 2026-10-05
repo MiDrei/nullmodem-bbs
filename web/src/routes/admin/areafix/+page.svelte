@@ -13,6 +13,7 @@
 		getAreafixQueryReply,
 		adoptAreafixSubscriptions,
 		getAreafixHistory,
+		sendAreafixCommand,
 		listAreafixSubscriptions,
 		listAreafixGrants,
 		setAreafixGrants,
@@ -155,6 +156,37 @@
 			toast.push(err instanceof ApiError ? err.message : t('admin.areafix.query_failed'), 'error');
 		} finally {
 			querying = false;
+		}
+	}
+
+	// The robot's other commands; the answers land in the history.
+	const commands: { cmd: string; hint: () => string; confirm?: () => string }[] = [
+		{ cmd: '%LINKED', hint: () => t('admin.areafix.cmd_linked') },
+		{ cmd: '%UNLINKED', hint: () => t('admin.areafix.cmd_unlinked') },
+		{ cmd: '%HELP', hint: () => t('admin.areafix.cmd_help') },
+		{ cmd: '%PAUSE', hint: () => t('admin.areafix.cmd_pause'), confirm: () => t('admin.areafix.cmd_pause_confirm') },
+		{ cmd: '%RESUME', hint: () => t('admin.areafix.cmd_resume') }
+	];
+	let sendingCommand = $state<string | null>(null);
+
+	async function sendCommand(c: (typeof commands)[number]) {
+		if (!auth.token || !uplink) return;
+		if (!uplink.host.trim() || !uplink.address.trim()) {
+			toast.push(t('admin.areafix.this_uplink_needs_a_host_2'), 'error');
+			return;
+		}
+		if (c.confirm && !confirm(c.confirm())) return;
+		sendingCommand = c.cmd;
+		try {
+			await sendAreafixCommand(auth.token, uplink, kind, c.cmd);
+			toast.push(t('admin.areafix.cmd_sent', { CMD: c.cmd }), 'success');
+			history = await getAreafixHistory(auth.token, uplink.address, kind);
+			if (c.cmd === '%LINKED') await loadQueryReply();
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : t('admin.areafix.query_failed'), 'error');
+		} finally {
+			sendingCommand = null;
 		}
 	}
 
@@ -505,6 +537,16 @@
 		<p class="mb-3 text-xs text-slate-500">
 			{t('admin.areafix.no_area_list_reply_on')}
 		</p>
+	{/if}
+
+	{#if mode === 'outbound'}
+		<div class="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
+			<span class="text-slate-500">{t('admin.areafix.more_commands')}</span>
+			{#each commands as c (c.cmd)}
+				<button type="button" class="btn-secondary btn-xs font-mono" title={c.hint()} disabled={sendingCommand !== null} onclick={() => sendCommand(c)}>{c.cmd}</button>
+			{/each}
+			<span class="text-[11px] text-faint">{t('admin.areafix.no_query_hint')}</span>
+		</div>
 	{/if}
 
 	{#if mode === 'outbound' && queryReply && !queryReply.asked.startsWith('0001')}

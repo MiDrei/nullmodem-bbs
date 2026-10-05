@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 	"net/http"
 	"strings"
 	"testing"
@@ -99,5 +100,43 @@ func TestAreafixRepliesKeptApartByRobot(t *testing.T) {
 		if strings.Contains(e.Body, "TQW_GEN") {
 			t.Errorf("Areafix reply in the Filefix history: %+v", e)
 		}
+	}
+}
+
+func TestAreafixRobotCommands(t *testing.T) {
+	srv, token := setupAreafixTest(t)
+	h := srv.Routes()
+	hub := binkpUplinkDTO{Address: "21:3/100", Host: "hub:24554", AreafixPassword: "a", FilefixPassword: "f"}
+	send := func(kind, cmd string) int {
+		return doJSON(t, h, http.MethodPost, "/api/binkp/areafix/command", map[string]any{"uplink": hub, "kind": kind, "command": cmd}, token).Code
+	}
+	if send("echo", "%HELP") != http.StatusOK || send("file", "%linked") != http.StatusOK {
+		t.Fatal("known commands refused")
+	}
+	if send("echo", "+FSX_GEN") != http.StatusBadRequest || send("echo", "%DELETE ALL") != http.StatusBadRequest {
+		t.Fatal("other commands accepted")
+	}
+	pending, _ := srv.Netmail.PendingOutbound()
+	if len(pending) != 2 || pending[0].Body != "%HELP\r" || pending[0].ToName != "Areafix" || pending[1].Body != "%LINKED\r" || pending[1].ToName != "Filefix" {
+		t.Fatalf("pending %+v", pending)
+	}
+	// %LINKED counts as asking what's linked.
+	var reply queryReplyDTO
+	json.Unmarshal(doJSON(t, h, http.MethodGet, "/api/binkp/areafix/query-reply?address=21:3/100&kind=file", nil, token).Body.Bytes(), &reply)
+	if reply.Asked.IsZero() {
+		t.Fatal("%LINKED didn't count as a query")
+	}
+}
+
+func TestAreafixHistoryHidesPasswords(t *testing.T) {
+	srv, token := setupAreafixTest(t)
+	h := srv.Routes()
+	c, _ := config.Load(srv.BBSConfigPath)
+	c.Binkp.Uplinks = []config.BinkpUplink{{Address: "21:3/100", Host: "hub:24554", AreafixPassword: "GERTSECRET"}}
+	config.Save(srv.BBSConfigPath, c)
+	srv.Netmail.Receive("Clearing Houz", "21:3/100", 0, "Sysop", "", "Areafix - Result", "%LIST <-- COMMAND PROCESSED\r\nSUBJECT: GERTSECRET\r\n", time.Now(), false)
+	rec := doJSON(t, h, http.MethodGet, "/api/binkp/areafix/history?address=21:3/100&kind=echo", nil, token)
+	if strings.Contains(rec.Body.String(), "GERTSECRET") || !strings.Contains(rec.Body.String(), "COMMAND PROCESSED") {
+		t.Fatalf("history %s", rec.Body)
 	}
 }

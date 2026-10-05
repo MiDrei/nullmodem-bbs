@@ -103,7 +103,11 @@ FTN → Uplinks:
   verschickt). Areafix (Echomail) und Filefix (File-Echos) antworten von
   derselben Adresse; jede Antwort zählt nur für den Robot, von dem sie
   kommt, und der Verlauf unter der Liste zeigt jede Anfrage und Antwort,
-  Ablehnungen eingeschlossen.
+  Ablehnungen eingeschlossen (Passwörter ausgeblendet). Weitere Befehle:
+  `%LINKED` (bei manchen Robots heisst `%QUERY` so), `%UNLINKED`, `%HELP`,
+  `%PAUSE`, `%RESUME`. Ein Hub, der weder `%QUERY` noch `%LINKED` kennt
+  (Clearing Houz, der Hub von fsxNet), markiert Abonniertes in seiner
+  `%LIST` mit `*` -- danach richten sich dann die Haken.
 - **Points / eigene Reader-App:** [points.md](points.de.md).
 - **Nodelisten:** kommen von selbst mit den File-Echos (`FSX_NODE` …) und
   werden alle 10 Minuten übernommen; Status unter FTN → Nodelists.

@@ -95,6 +95,28 @@ func RequestFileAreaQuery(netmailStore *netmail.Store, ourAddresses []string, bb
 	return requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultFilefixRobotName, uplink.FilefixPassword, []string{areaQueryCommand})
 }
 
+// RobotCommands are the commands the web admin may send a hub's
+// Areafix/Filefix robot by themselves (not every robot knows every
+// one: Clearing Houz answers neither %QUERY nor %LINKED, but marks
+// what's linked in its %LIST).
+var RobotCommands = []string{"%LIST", "%QUERY", "%LINKED", "%UNLINKED", "%HELP", "%PAUSE", "%RESUME"}
+
+// RequestRobotCommand queues command (one of RobotCommands) to
+// uplink's Areafix robot, or its Filefix one for file.
+func RequestRobotCommand(netmailStore *netmail.Store, ourAddresses []string, bbsName string, uplink config.BinkpUplink, file bool, command string) (*netmail.Message, error) {
+	known := false
+	for _, c := range RobotCommands {
+		known = known || c == command
+	}
+	if !known {
+		return nil, fmt.Errorf("tosser: unknown robot command %q", command)
+	}
+	if file {
+		return requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultFilefixRobotName, uplink.FilefixPassword, []string{command})
+	}
+	return requestAreaCommand(netmailStore, ourAddresses, bbsName, uplink, defaultAreafixRobotName, uplink.AreafixPassword, []string{command})
+}
+
 // RequestFileAreaSubscription is RequestEchoAreaSubscription's exact
 // counterpart for a file-echo (TIC) area, addressed to uplink's
 // Filefix robot instead of Areafix.

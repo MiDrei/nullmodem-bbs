@@ -527,6 +527,11 @@ export function getAreafixHistory(token: string, uplinkAddress: string, kind: Ar
 	return request(`/api/binkp/areafix/history?address=${encodeURIComponent(uplinkAddress)}&kind=${kind}`, { method: 'GET' }, token);
 }
 
+/** Sends one robot command (%LINKED, %UNLINKED, %HELP, %PAUSE, %RESUME, ...); its answer shows in the history. */
+export function sendAreafixCommand(token: string, uplink: BinkpUplink, kind: AreafixKind, command: string): Promise<{ queued_message_id: number }> {
+	return request('/api/binkp/areafix/command', { method: 'POST', body: JSON.stringify({ uplink, kind, command }) }, token);
+}
+
 /** Asks uplink's Areafix/Filefix robot which areas it has linked to us ("%QUERY"); see getAreafixQueryReply. */
 export function requestAreafixQuery(token: string, uplink: BinkpUplink, kind: AreafixKind): Promise<{ queued_message_id: number }> {
 	return request('/api/binkp/areafix/query', { method: 'POST', body: JSON.stringify({ uplink, kind }) }, token);

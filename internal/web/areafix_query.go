@@ -223,3 +223,49 @@ func (s *Server) handleAdoptAreafixQuery(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"added": added, "removed": removed})
 }
+
+// handleAreafixCommand: POST /api/binkp/areafix/command {uplink, kind,
+// command} -- one of tosser.RobotCommands to the robot. %QUERY and
+// %LINKED count as asking what's linked (see the query reply).
+func (s *Server) handleAreafixCommand(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		areafixListRequestDTO
+		Command string `json:"command"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if strings.TrimSpace(req.Uplink.Host) == "" || strings.TrimSpace(req.Uplink.Address) == "" {
+		writeError(w, http.StatusBadRequest, "uplink host and address must not be empty")
+		return
+	}
+	if s.Netmail == nil {
+		writeError(w, http.StatusInternalServerError, "areafix is not configured")
+		return
+	}
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	if len(c.BBS.FTNAddresses) == 0 {
+		writeError(w, http.StatusBadRequest, "set this system's own FTN address above before sending")
+		return
+	}
+	cmd := strings.ToUpper(strings.TrimSpace(req.Command))
+	uplink := areafixUplinkFromDTO(req.Uplink)
+	msg, err := tosser.RequestRobotCommand(s.Netmail, c.BBS.FTNAddresses, c.BBS.Name, uplink, req.Kind == "file", cmd)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "unknown robot command")
+		return
+	}
+	if cmd == "%QUERY" || cmd == "%LINKED" {
+		s.DB.Exec(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+			queryKey(req.Kind, uplink.Address), strconv.FormatInt(msg.ID, 10)+" "+strconv.FormatInt(time.Now().Unix(), 10))
+	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s sent %s to %s's %s robot", claims.Subject, cmd, req.Uplink.Host, robotName(req.Kind))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"queued_message_id": msg.ID})
+}
