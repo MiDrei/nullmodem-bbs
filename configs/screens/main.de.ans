@@ -1,19 +1,18 @@
 [2J[H[1;36;40mÉ{FILL:Í}»
 º{FILL: }[1;37;40m{BBSNAME}[1;36;40m{FILL: }º
-º{FILL: }{T:common.main_menu}{FILL: }º
-[1;36;40mÌ{FILL:Í}¹
-[1;36;40mº{FILL: }º
-[1;36;40mº  [1;33;40m[R][1;32;40m {T:screen.main.newscan:-34}[1;33;40m[T][1;32;40m {T:screen.main.tome}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[M][1;32;40m {T:common.message_areas:-34}[1;33;40m[F][1;32;40m {T:common.file_areas}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[N][1;32;40m {T:common.netmail:-34}[1;33;40m[I][1;32;40m {T:common.nodelist}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[C][1;32;40m {T:common.chat:-34}[1;33;40m[P][1;32;40m {T:screen.main.page}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[L][1;32;40m {T:common.one_liners:-34}[1;33;40m[V][1;32;40m {T:screen.main.polls}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[W][1;32;40m {T:common.who_s_online:-34}[1;33;40m[B][1;32;40m {T:screen.main.bbslist}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[D][1;32;40m {T:common.doors:-34}[1;33;40m[Y][1;32;40m {T:common.your_profile}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[O][1;32;40m {T:screen.main.qwk:-34}[1;33;40m[U][1;32;40m {T:screen.main.qwkrep}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[K][1;32;40m {T:screen.main.qwkareas:-34}[1;33;40m[?][1;32;40m {T:menu.item.version}[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[Q][1;32;40m {T:menu.item.quit:-34}{SYSOP_ITEM}[1;36;40m{FILL: }º
-[1;36;40mº{FILL: }º
-[1;36;40mÈ{FILL:Í}¼
+Ì{FILL:Í}¹
+º{FILL: }[0;36;40m{T:common.main_menu}[1;36;40m{FILL: }º
+º{FILL: }º
+º   [1;33;40m[R] [1;32;40m{T:menu.item.newscan:-24}[1;36;40m  [0;37;40m{T:screen.desc.newscan}[1;36;40m{FILL: }º
+º{FILL: }º
+º   [1;33;40m[M] [1;32;40m{T:menu.item.messages:-24}[1;36;40m¯ [0;37;40m{T:screen.desc.messages}[1;36;40m{FILL: }º
+º   [1;33;40m[F] [1;32;40m{T:menu.item.files_menu:-24}[1;36;40m¯ [0;37;40m{T:screen.desc.files}[1;36;40m{FILL: }º
+º   [1;33;40m[T] [1;32;40m{T:menu.item.community:-24}[1;36;40m¯ [0;37;40m{T:screen.desc.community}[1;36;40m{FILL: }º
+º   [1;33;40m[D] [1;32;40m{T:menu.item.doors:-24}[1;36;40m  [0;37;40m{T:screen.desc.doors}[1;36;40m{FILL: }º
+º   [1;33;40m[P] [1;32;40m{T:menu.item.profile:-24}[1;36;40m  [0;37;40m{T:screen.desc.profile}[1;36;40m{FILL: }º
+º   {SYSOP_ITEM}[1;36;40m{FILL: }º
+º{FILL: }º
+º   [1;33;40m[?] [1;32;40m{T:menu.item.version}     [1;33;40m[Q] [1;32;40m{T:menu.item.quit}[1;36;40m{FILL: }º
+È{FILL:Í}¼
 
 [1;37;40m{USERNAME}[1;36;40m> [0m

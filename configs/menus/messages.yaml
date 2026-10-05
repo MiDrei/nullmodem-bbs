@@ -1,0 +1,40 @@
+name: messages
+title: "{BBSNAME} - Messages"
+screen: messages.ans
+items:
+  - key: R
+    label: "Read new messages"
+    action: "builtin:newscan"
+    min_sl: 0
+  - key: T
+    label: "Messages to you"
+    action: "builtin:tome"
+    min_sl: 0
+  - key: A
+    label: "Message areas"
+    action: "builtin:areas"
+    min_sl: 0
+  - key: N
+    label: "Netmail"
+    action: "builtin:netmail"
+    min_sl: 0
+  - key: I
+    label: "Nodelist (FTN systems)"
+    action: "builtin:nodelist"
+    min_sl: 0
+  - key: K
+    label: "My areas"
+    action: "builtin:qwkareas"
+    min_sl: 0
+  - key: O
+    label: "Download QWK"
+    action: "builtin:qwk"
+    min_sl: 0
+  - key: U
+    label: "Upload QWK replies"
+    action: "builtin:qwkrep"
+    min_sl: 0
+  - key: Q
+    label: "Back"
+    action: "back"
+    min_sl: 0

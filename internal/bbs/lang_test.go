@@ -11,6 +11,7 @@ import (
 	"git.maik.ch/nullmodem/kit/ansi"
 
 	"git.maik.ch/nullmodem/bbs/internal/i18n"
+	"git.maik.ch/nullmodem/bbs/internal/menu"
 )
 
 // A shipped German screen, filled with the English texts, says what
@@ -51,5 +52,37 @@ func TestGermanScreensMatchEnglish(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "main.de.ans")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The stock menu screens fit 80 columns in every language, their
+// frame closed on every line -- the sysop's entry shown or not.
+func TestMenuScreensFit(t *testing.T) {
+	dir := filepath.Join("..", "..", "configs", "screens")
+	escapes := regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
+	for _, name := range []string{"main", "messages", "files", "community", "sysop"} {
+		for _, lang := range []string{"en", "de", "de-du"} {
+			file := name + ".ans"
+			if lang != "en" {
+				file = name + ".de.ans"
+			}
+			raw, err := ansi.LoadScreen(filepath.Join(dir, file))
+			if err != nil {
+				t.Fatalf("%s: %v", file, err)
+			}
+			for _, sl := range []int{10, 255} {
+				vars := ansi.Vars{"BBSNAME": "Maiks Place BBS", "USERNAME": "SwissMaik", "NODE": "1",
+					"SYSOP_ITEM": menu.SysopItem(sl, toCP437(i18n.T(lang, "menu.sysop_item")))}
+				out := ansi.Layout(ansi.Render(i18n.FillScreen(lang, raw), vars), 80)
+				for i, line := range strings.Split(escapes.ReplaceAllString(out, ""), "\r\n") {
+					if n := len(line); n > 80 {
+						t.Errorf("%s %s line %d is %d wide: %q", file, lang, i+1, n, line)
+					}
+					if strings.HasPrefix(line, "\xba") && (len(line) != 80 || !strings.HasSuffix(line, "\xba")) {
+						t.Errorf("%s %s (SL %d) line %d frame not closed at 80: %q", file, lang, sl, i+1, line)
+					}
+				}
+			}
+		}
 	}
 }

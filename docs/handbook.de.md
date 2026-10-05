@@ -175,16 +175,16 @@ erscheinen unter System → Services.
 
 **Telnet / SSH / Web-Terminal (`/terminal`):**
 
-| Taste | |
+Das Hauptmenü ist kurz; der Rest steckt in drei Untermenüs (Q geht zurück):
+
+| Hauptmenü | |
 |---|---|
-| R / T | neue Nachrichten lesen / Nachrichten an mich |
-| M / F | Message-Areas (dort S = Nachrichten suchen) / File-Areas (N = neue Dateien, S = Suche) |
-| N / I | Netmail (und E-Mail, wenn das Gateway an ist) / Nodeliste |
-| C / P | Chat (Teleconference; dort `/rooms`, `/join name`) / Sysop rufen |
-| L / V / B | One-Liner / Abstimmungen / BBS-Liste |
-| W / D | Wer ist online (mit Node-Nachricht) / Doors |
-| O / U / K | QWK holen / QWK-Antworten hochladen / Meine Areas |
-| Y / ? | Profil (u. a. Zeileneditor statt Vollbild) / Version |
+| R | neue Nachrichten lesen |
+| M » | **Nachrichten:** R neue Nachrichten · T Nachrichten an mich · A Nachrichtenbereiche (dort S = suchen) · N Netmail (und E-Mail, wenn das Gateway an ist) · I Nodeliste · K meine Bereiche · O QWK holen · U QWK-Antworten hochladen |
+| F » | **Dateien:** A Dateibereiche · N neue Dateien · S Dateien suchen |
+| T » | **Treffpunkt:** C Chat (Telekonferenz; dort `/rooms`, `/join name`) · P Sysop rufen · L One-Liner · W wer ist online (mit Node-Nachricht) · Z letzte Anrufer · V Abstimmungen · B BBS-Liste |
+| D / P | Doors / Profil (u. a. Zeileneditor statt Vollbild) |
+| S / ? / Q | Sysop-Menü / Version / abmelden |
 
 **Meine Areas** (K, im Portal „My areas / All areas“ mit ✓ pro Area, in der
 Reader-App unter „All“): Was dort drin ist, nehmen New-Scan, QWK-Pakete und die

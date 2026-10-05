@@ -1,0 +1,20 @@
+name: files
+title: "{BBSNAME} - Files"
+screen: files.ans
+items:
+  - key: A
+    label: "File areas"
+    action: "builtin:files"
+    min_sl: 0
+  - key: N
+    label: "New files"
+    action: "builtin:newfiles"
+    min_sl: 0
+  - key: S
+    label: "Search files"
+    action: "builtin:filesearch"
+    min_sl: 0
+  - key: Q
+    label: "Back"
+    action: "back"
+    min_sl: 0

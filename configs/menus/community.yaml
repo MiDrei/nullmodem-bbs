@@ -1,0 +1,36 @@
+name: community
+title: "{BBSNAME} - Community"
+screen: community.ans
+items:
+  - key: C
+    label: "Chat (teleconference)"
+    action: "builtin:chat"
+    min_sl: 0
+  - key: P
+    label: "Page the sysop"
+    action: "builtin:page"
+    min_sl: 0
+  - key: L
+    label: "One-liners"
+    action: "builtin:oneliners"
+    min_sl: 0
+  - key: W
+    label: "Who's online"
+    action: "builtin:who"
+    min_sl: 0
+  - key: Z
+    label: "Last callers"
+    action: "builtin:lastcallers"
+    min_sl: 0
+  - key: V
+    label: "Voting booth"
+    action: "builtin:polls"
+    min_sl: 0
+  - key: B
+    label: "BBS list"
+    action: "builtin:bbslist"
+    min_sl: 0
+  - key: Q
+    label: "Back"
+    action: "back"
+    min_sl: 0

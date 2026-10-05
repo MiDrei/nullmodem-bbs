@@ -173,16 +173,16 @@ show under System → Services.
 
 **Telnet / SSH / web terminal (`/terminal`):**
 
-| Key | |
+The main menu is short; the rest is in three submenus (Q goes back):
+
+| Main menu | |
 |---|---|
-| R / T | read new messages / messages to me |
-| M / F | message areas (there S = search messages) / file areas (N = new files, S = search) |
-| N / I | netmail (and email, when the gateway is on) / nodelist |
-| C / P | chat (teleconference; there `/rooms`, `/join name`) / page the sysop |
-| L / V / B | one-liners / polls / BBS list |
-| W / D | who's online (with node message) / doors |
-| O / U / K | fetch QWK / upload QWK replies / my areas |
-| Y / ? | profile (incl. line editor instead of full screen) / version |
+| R | read new messages |
+| M » | **Messages:** R new messages · T messages to me · A message areas (there S = search) · N netmail (and email, when the gateway is on) · I nodelist · K my areas · O fetch QWK · U upload QWK replies |
+| F » | **Files:** A file areas · N new files · S search files |
+| T » | **Community:** C chat (teleconference; there `/rooms`, `/join name`) · P page the sysop · L one-liners · W who's online (with node message) · Z last callers · V polls · B BBS list |
+| D / P | doors / profile (incl. line editor instead of full screen) |
+| S / ? / Q | sysop menu / version / log off |
 
 **My areas** (K; in the portal "My areas / All areas" with a ✓ per area, in
 the reader app under "All"): whatever is in there is picked up by new scan,

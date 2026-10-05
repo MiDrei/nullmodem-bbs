@@ -6,78 +6,34 @@ items:
     label: "Read new messages"
     action: "builtin:newscan"
     min_sl: 0
-  - key: T
-    label: "Messages to you"
-    action: "builtin:tome"
-    min_sl: 0
   - key: M
-    label: "Message areas"
-    action: "builtin:areas"
+    label: "Messages"
+    action: "goto:messages"
     min_sl: 0
   - key: F
-    label: "File areas"
-    action: "builtin:files"
+    label: "Files"
+    action: "goto:files"
     min_sl: 0
-  - key: N
-    label: "Netmail"
-    action: "builtin:netmail"
-    min_sl: 0
-  - key: C
-    label: "Chat (teleconference)"
-    action: "builtin:chat"
-    min_sl: 0
-  - key: P
-    label: "Page the sysop"
-    action: "builtin:page"
-    min_sl: 0
-  - key: L
-    label: "One-liners"
-    action: "builtin:oneliners"
-    min_sl: 0
-  - key: W
-    label: "Who's online"
-    action: "builtin:who"
+  - key: T
+    label: "Community"
+    action: "goto:community"
     min_sl: 0
   - key: D
     label: "Doors"
     action: "builtin:doors"
     min_sl: 0
-  - key: O
-    label: "Download QWK offline mail"
-    action: "builtin:qwk"
-    min_sl: 0
-  - key: U
-    label: "Upload QWK reply packet"
-    action: "builtin:qwkrep"
-    min_sl: 0
-  - key: K
-    label: "My areas (new scan, QWK, reader)"
-    action: "builtin:qwkareas"
-    min_sl: 0
-  - key: Y
+  - key: P
     label: "Your profile"
     action: "builtin:profile"
-    min_sl: 0
-  - key: V
-    label: "Voting booth"
-    action: "builtin:polls"
-    min_sl: 0
-  - key: B
-    label: "BBS list"
-    action: "builtin:bbslist"
-    min_sl: 0
-  - key: I
-    label: "Nodelist (FTN systems)"
-    action: "builtin:nodelist"
-    min_sl: 0
-  - key: "?"
-    label: "Version"
-    action: "builtin:version"
     min_sl: 0
   - key: S
     label: "Sysop menu"
     action: "goto:sysop"
     min_sl: 200
+  - key: "?"
+    label: "Version"
+    action: "builtin:version"
+    min_sl: 0
   - key: Q
     label: "Quit"
     action: "logoff"

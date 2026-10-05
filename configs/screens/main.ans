@@ -1,19 +1,18 @@
 [2J[H[1;36;40mÉ{FILL:Í}»
 º{FILL: }[1;37;40m{BBSNAME}[1;36;40m{FILL: }º
-º{FILL: }Main Menu{FILL: }º
-[1;36;40mÌ{FILL:Í}¹
-[1;36;40mº{FILL: }º
-[1;36;40mº  [1;33;40m[R][1;32;40m Read New Messages                 [1;33;40m[T][1;32;40m Messages to You[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[M][1;32;40m Message Areas                     [1;33;40m[F][1;32;40m File Areas[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[N][1;32;40m Netmail                           [1;33;40m[I][1;32;40m Nodelist[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[C][1;32;40m Chat                              [1;33;40m[P][1;32;40m Page the Sysop[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[L][1;32;40m One-liners                        [1;33;40m[V][1;32;40m Voting Booth[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[W][1;32;40m Who's Online                      [1;33;40m[B][1;32;40m BBS List[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[D][1;32;40m Doors                             [1;33;40m[Y][1;32;40m Your Profile[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[O][1;32;40m QWK Download                      [1;33;40m[U][1;32;40m QWK Upload[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[K][1;32;40m Area Selection                    [1;33;40m[?][1;32;40m Version[1;36;40m{FILL: }º
-[1;36;40mº  [1;33;40m[Q][1;32;40m Quit                              {SYSOP_ITEM}[1;36;40m{FILL: }º
-[1;36;40mº{FILL: }º
-[1;36;40mÈ{FILL:Í}¼
+Ì{FILL:Í}¹
+º{FILL: }[0;36;40mMain Menu[1;36;40m{FILL: }º
+º{FILL: }º
+º   [1;33;40m[R] [1;32;40mRead new messages       [1;36;40m  [0;37;40mWhat's new in your areas[1;36;40m{FILL: }º
+º{FILL: }º
+º   [1;33;40m[M] [1;32;40mMessages                [1;36;40m¯ [0;37;40mAreas, netmail, QWK offline mail[1;36;40m{FILL: }º
+º   [1;33;40m[F] [1;32;40mFiles                   [1;36;40m¯ [0;37;40mFile areas, new files, search[1;36;40m{FILL: }º
+º   [1;33;40m[T] [1;32;40mCommunity               [1;36;40m¯ [0;37;40mChat, one-liners, polls, BBS list[1;36;40m{FILL: }º
+º   [1;33;40m[D] [1;32;40mDoors                   [1;36;40m  [0;37;40mGames and more[1;36;40m{FILL: }º
+º   [1;33;40m[P] [1;32;40mYour profile            [1;36;40m  [0;37;40mName, password, language, editor[1;36;40m{FILL: }º
+º   {SYSOP_ITEM}[1;36;40m{FILL: }º
+º{FILL: }º
+º   [1;33;40m[?] [1;32;40mVersion     [1;33;40m[Q] [1;32;40mQuit[1;36;40m{FILL: }º
+È{FILL:Í}¼
 
 [1;37;40m{USERNAME}[1;36;40m> [0m
