@@ -12,16 +12,27 @@ import (
 //     writes lines the Unix way, trusting a terminal driver to add the
 //     CR; there's none between it and the caller here, so every line
 //     would otherwise start where the previous one ended.
-//   - ansi16 rewrites 256-colour and true-colour SGR sequences (and the
-//     aixterm bright colours 90-97/100-107) into the 16 classic ANSI
-//     colours, for BBS terminals that only have those -- they'd read
-//     "38;5;130" as three separate attributes, 5 being blink.
+//   - ansi16 rewrites every SGR sequence into the classic form BBS
+//     terminals (ANSI.SYS and its heirs) understand: the 256-colour and
+//     true-colour ones and the aixterm bright colours 90-97/100-107 go
+//     to the nearest of the 16 classic colours -- such a terminal would
+//     read "38;5;130" as three separate attributes, 5 being blink -- and
+//     since it doesn't know 39/49 (default colours) or 22 (normal
+//     intensity) either, the filter keeps the colour state and sends all
+//     of it each time: "ESC[0;1;33;44m". A door's "back to the default
+//     background" otherwise left the last one painting the rest of the
+//     line, stripes across its art.
 //
 // Escape sequences split across reads are held back until complete.
 type outputFilter struct {
 	r      io.Reader
 	crlf   bool
 	ansi16 bool
+
+	// The colour state the caller's terminal is in (ansi16): classic
+	// colours 0-7, bold being bright.
+	fg, bg                int
+	bold, blink, reversed bool
 
 	lastCR  bool   // the previous byte passed on was CR
 	esc     []byte // an escape sequence still being collected
@@ -36,7 +47,7 @@ func newOutputFilter(r io.Reader, crlf, ansi16 bool) io.Reader {
 	if !crlf && !ansi16 {
 		return r
 	}
-	return &outputFilter{r: r, crlf: crlf, ansi16: ansi16}
+	return &outputFilter{r: r, crlf: crlf, ansi16: ansi16, fg: 7}
 }
 
 func (f *outputFilter) Read(p []byte) (int, error) {
@@ -97,13 +108,12 @@ func (f *outputFilter) escapeDone() (bool, []byte) {
 	if last != 'm' {
 		return true, e
 	}
-	return true, rewriteSGR(e[2 : len(e)-1])
+	return true, f.rewriteSGR(e[2 : len(e)-1])
 }
 
-// rewriteSGR returns the SGR sequence for params (between "ESC[" and
-// "m") with every colour beyond the 16 classic ones replaced by the
-// nearest of those.
-func rewriteSGR(params []byte) []byte {
+// rewriteSGR applies params (between "ESC[" and "m") to the colour
+// state and returns the classic SGR sequence for the whole of it.
+func (f *outputFilter) rewriteSGR(params []byte) []byte {
 	parts := strings.Split(strings.ReplaceAll(string(params), ":", ";"), ";")
 	nums := make([]int, len(parts))
 	for i, p := range parts {
@@ -114,37 +124,64 @@ func rewriteSGR(params []byte) []byte {
 		}
 		nums[i] = n
 	}
-	var out []string
+	setFG := func(c int) { f.fg, f.bold = c%8, c >= 8 }
 	for i := 0; i < len(nums); i++ {
-		n := nums[i]
-		switch {
+		switch n := nums[i]; {
+		case n == 0:
+			f.fg, f.bg, f.bold, f.blink, f.reversed = 7, 0, false, false, false
+		case n == 1:
+			f.bold = true
+		case n == 22:
+			f.bold = false
+		case n == 5 || n == 6:
+			f.blink = true
+		case n == 25:
+			f.blink = false
+		case n == 7:
+			f.reversed = true
+		case n == 27:
+			f.reversed = false
+		case n >= 30 && n <= 37:
+			f.fg = n - 30
+		case n == 39:
+			f.fg = 7
+		case n >= 40 && n <= 47:
+			f.bg = n - 40
+		case n == 49:
+			f.bg = 0
+		case n >= 90 && n <= 97:
+			setFG(n - 90 + 8)
+		case n >= 100 && n <= 107:
+			f.bg = n - 100
 		case (n == 38 || n == 48) && i+2 < len(nums) && nums[i+1] == 5:
-			out = append(out, colorSGR(n == 48, nearestANSI(xterm256(nums[i+2]), n == 48)))
+			if c := nearestANSI(xterm256(nums[i+2]), n == 48); n == 48 {
+				f.bg = c
+			} else {
+				setFG(c)
+			}
 			i += 2
 		case (n == 38 || n == 48) && i+4 < len(nums) && nums[i+1] == 2:
-			out = append(out, colorSGR(n == 48, nearestANSI([3]int{nums[i+2], nums[i+3], nums[i+4]}, n == 48)))
+			if c := nearestANSI([3]int{nums[i+2], nums[i+3], nums[i+4]}, n == 48); n == 48 {
+				f.bg = c
+			} else {
+				setFG(c)
+			}
 			i += 4
-		case n >= 90 && n <= 97:
-			out = append(out, colorSGR(false, n-90+8))
-		case n >= 100 && n <= 107:
-			out = append(out, colorSGR(true, n-100))
-		default:
-			out = append(out, parts[i])
 		}
+		// Anything else (underline, italics, ...) a BBS terminal
+		// doesn't have: dropped.
 	}
-	return []byte("\x1b[" + strings.Join(out, ";") + "m")
-}
-
-// colorSGR is the classic SGR for ANSI colour c (0-15): bright
-// foregrounds as bold, backgrounds from the eight non-bright ones.
-func colorSGR(background bool, c int) string {
-	if background {
-		return strconv.Itoa(40 + c%8)
+	out := "\x1b[0"
+	if f.bold {
+		out += ";1"
 	}
-	if c >= 8 {
-		return "1;" + strconv.Itoa(30+c-8)
+	if f.blink {
+		out += ";5"
 	}
-	return "22;" + strconv.Itoa(30+c)
+	if f.reversed {
+		out += ";7"
+	}
+	return []byte(out + ";" + strconv.Itoa(30+f.fg) + ";" + strconv.Itoa(40+f.bg) + "m")
 }
 
 // ansiPalette is the 16 classic colours as a BBS terminal shows them

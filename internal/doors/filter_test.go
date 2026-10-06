@@ -26,19 +26,30 @@ func TestOutputFilterAddsCRToBareLF(t *testing.T) {
 
 func TestOutputFilterReduces256AndTrueColour(t *testing.T) {
 	for in, want := range map[string]string{
-		"\x1b[38;5;196mX":           "\x1b[1;31mX",          // bright red
-		"\x1b[48;5;130mX":           "\x1b[43mX",            // brown background
-		"\x1b[0;38;5;252;48;5;16mX": "\x1b[0;22;37;40mX",    // light grey on black
-		"\x1b[38;2;0;0;170mX":       "\x1b[22;34mX",         // true colour blue
-		"\x1b[38:5:46mX":            "\x1b[1;32mX",          // colon form
-		"\x1b[93;104mX":             "\x1b[1;33;44mX",       // aixterm bright
-		"\x1b[1;31mX":               "\x1b[1;31mX",          // classic: untouched
+		"\x1b[38;5;196mX":           "\x1b[0;1;31;40mX",     // bright red
+		"\x1b[48;5;130mX":           "\x1b[0;37;43mX",       // brown background
+		"\x1b[0;38;5;252;48;5;16mX": "\x1b[0;37;40mX",       // light grey on black
+		"\x1b[38;2;0;0;170mX":       "\x1b[0;34;40mX",       // true colour blue
+		"\x1b[38:5:46mX":            "\x1b[0;1;32;40mX",     // colon form
+		"\x1b[93;104mX":             "\x1b[0;1;33;44mX",     // aixterm bright
+		"\x1b[1;31mX":               "\x1b[0;1;31;40mX",     // classic, as a whole state
 		"\x1b[2J\x1b[10;5HX":        "\x1b[2J\x1b[10;5HX",   // not SGR: untouched
 		"\xdb\xdf\xff\xfb\x01":      "\xdb\xdf\xff\xfb\x01", // CP437 and telnet bytes pass
 	} {
 		if got := filtered(t, in, false, true); got != want {
 			t.Errorf("filter(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// The codes a classic terminal ignores -- default background 49 and
+// foreground 39, normal intensity 22 -- come out as the colour state
+// they leave, so the last background doesn't paint on.
+func TestOutputFilterKeepsTheStateForClassicTerminals(t *testing.T) {
+	in := "\x1b[48;5;30mA\x1b[49mB\x1b[38;5;226mC\x1b[22mD\x1b[39mE\x1b[1;44mF\x1b[38;5;0mG"
+	want := "\x1b[0;37;46mA\x1b[0;37;40mB\x1b[0;1;33;40mC\x1b[0;33;40mD\x1b[0;37;40mE\x1b[0;1;37;44mF\x1b[0;30;44mG"
+	if got := filtered(t, in, false, true); got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
 
