@@ -437,6 +437,10 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		entry.DOSBoxDir = dir
 		entry.DOSBoxLaunchCmd = t.DOSBoxLaunchCmd
 	}
+	if err := enableTemplateBulletins(entry, c.BBS.Name); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	c.Doors = append(c.Doors, entry)
 	if err := config.Save(s.BBSConfigPath, c); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save config")
@@ -538,12 +542,20 @@ func (s *Server) handleRunDoorDaily(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load config")
 		return
 	}
-	found := false
-	for _, d := range c.Doors {
-		found = found || (d.Name == name && d.Daily != "")
+	var door *config.DoorConfig
+	for i := range c.Doors {
+		if c.Doors[i].Name == name && c.Doors[i].Daily != "" {
+			door = &c.Doors[i]
+		}
 	}
-	if !found {
+	if door == nil {
 		writeError(w, http.StatusNotFound, "no such door with a daily maintenance")
+		return
+	}
+	// The maintenance is what writes the bulletins: make sure the game
+	// was told to (a door added from its template before v0.83.5 wasn't).
+	if err := enableTemplateBulletins(*door, c.BBS.Name); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := doors.RequestDaily(s.DB, name); err != nil {
@@ -554,6 +566,23 @@ func (s *Server) handleRunDoorDaily(w http.ResponseWriter, r *http.Request) {
 		s.logInfo("%s asked for %s's daily maintenance now", claims.Subject, name)
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// enableTemplateBulletins tells a door's game to write its bulletins,
+// if the door has bulletins and its template knows how (see
+// doors.Template.EnableBulletins); done already, it changes nothing.
+func enableTemplateBulletins(d config.DoorConfig, bbsName string) error {
+	if len(d.Bulletins) == 0 {
+		return nil
+	}
+	dir := d.Dir
+	if d.Kind == "dosbox" {
+		dir = d.DOSBoxDir
+	}
+	if t, ok := doors.TemplateFor(d.Template, dir); ok && t.EnableBulletins != nil {
+		return t.EnableBulletins(dir, bbsName)
+	}
+	return nil
 }
 
 func templateBulletins(t doors.Template) []config.DoorBulletin {

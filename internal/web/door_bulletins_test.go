@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"git.maik.ch/nullmodem/bbs/internal/config"
@@ -53,5 +54,32 @@ func TestDoorBulletinsAndTemplateDefaults(t *testing.T) {
 	}
 	if len(all) != 2 {
 		t.Fatalf("caller sees %d", len(all))
+	}
+}
+
+// A door added from its template before the game was told to write its
+// bulletins: running the maintenance now tells it, once.
+func TestRunDailyEnablesTheTemplateBulletins(t *testing.T) {
+	srv, users, configPath := newTestServer(t)
+	users.Register("root", "supersecret", user.SLSysop)
+	h := srv.Routes()
+	admin := loginAsSysop(t, h, "root", "supersecret")
+
+	dir := filepath.Join(t.TempDir(), "immortal-barons")
+	os.MkdirAll(filepath.Join(dir, "data"), 0o755)
+	c, _ := config.Load(configPath)
+	c.Doors = append(c.Doors, config.DoorConfig{Name: "Immortal Barons", Dir: dir, Exe: filepath.Join(dir, "immortal-barons"),
+		Template: "immortal-barons", Daily: "immortal-barons -maint -data data",
+		Bulletins: []config.DoorBulletin{{Title: "Immortal Barons: scoreboard", File: "data/bull/scores.ans", Public: true}}})
+	config.Save(configPath, c)
+
+	for range 2 {
+		if rec := doJSON(t, h, http.MethodPost, "/api/door-daily/Immortal%20Barons", nil, admin); rec.Code != http.StatusAccepted {
+			t.Fatalf("run now: %d %s", rec.Code, rec.Body)
+		}
+	}
+	cfg, _ := os.ReadFile(filepath.Join(dir, "data", "bbs.cfg"))
+	if n := strings.Count(string(cfg), "BulletinDir"); n != 1 {
+		t.Fatalf("bbs.cfg has BulletinDir %d times:\n%s", n, cfg)
 	}
 }
