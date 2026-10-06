@@ -1005,7 +1005,7 @@ func (s *Server) postMessage(term *Terminal, u *user.User, area *message.Area) e
 // sysopCreateArea is the "builtin:createarea" command: it prompts for
 // a new area's tag, name, description, and SL gates.
 func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
-	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.area_tag") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.area_tag") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	tag, err := term.ReadLine(false)
@@ -1014,10 +1014,10 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 	}
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
-		return term.Println(ansi.Reset + term.T("common.cancelled"))
+		return term.Println(ansi.Reset + "  " + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + term.T("sysop.area_name") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.area_name") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	name, err := term.ReadLine(false)
@@ -1026,10 +1026,10 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return term.Println(ansi.Reset + term.T("common.cancelled"))
+		return term.Println(ansi.Reset + "  " + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	description, err := term.ReadLine(false)
@@ -1037,7 +1037,7 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 
-	if err := term.Print(ansi.Reset + term.T("sysop.area_network") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.area_network") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	network, err := term.ReadLine(false)
@@ -1051,7 +1051,7 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 	if minRead < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
 	minWrite, err := s.promptSecurityLevel(term, term.T("sysop.min_post"))
@@ -1059,25 +1059,25 @@ func (s *Server) sysopCreateArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 	if minWrite < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
 	area, err := s.Messages.CreateArea(tag, name, description, network, minRead, minWrite)
 	if err != nil {
 		if errors.Is(err, message.ErrTagTaken) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.tag_used"))
+			return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.tag_used"))
 		}
 		return err
 	}
 	s.logInfo("%s created message area %q (%s)", sysop.Username, area.Name, area.Tag)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("sysop.area_created", "NAME", area.Name))
+	return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Green, true) + term.T("sysop.area_created", "NAME", area.Name))
 }
 
 // promptSecurityLevel reads a 0-255 security level, returning -1 for
 // any invalid or out-of-range input rather than an error, since that's
 // treated as sysop input to reject, not a session-ending failure.
 func (s *Server) promptSecurityLevel(term *Terminal, prompt string) (int, error) {
-	if err := term.Print(ansi.Reset + prompt + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + prompt + ansi.FG(ansi.Yellow, true)); err != nil {
 		return -1, err
 	}
 	input, err := term.ReadLine(false)

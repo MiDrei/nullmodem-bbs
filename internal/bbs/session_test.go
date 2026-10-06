@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -250,7 +251,7 @@ func TestSysopMenuSetSecurityLevel(t *testing.T) {
 		t.Fatalf("Register alice: %v", err)
 	}
 
-	conn := newFakeConn("S\r\nS\r\nalice\r\n50\r\nQ\r\n")
+	conn := newFakeConn("S\r\nS\r\nalice\r\n50\r\n\r\nQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, sysop, 1, "main")
@@ -282,7 +283,7 @@ func TestSysopMenuSetSecurityLevelRejectsOutOfRange(t *testing.T) {
 		t.Fatalf("Register alice: %v", err)
 	}
 
-	conn := newFakeConn("S\r\nS\r\nalice\r\n999\r\nQ\r\n")
+	conn := newFakeConn("S\r\nS\r\nalice\r\n999\r\n\r\nQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, sysop, 1, "main")
@@ -309,7 +310,7 @@ func TestSysopMenuSetSecurityLevelRefusesLastSysopDemotion(t *testing.T) {
 		t.Fatalf("Register sysop: %v", err)
 	}
 
-	conn := newFakeConn("S\r\nS\r\nroot\r\n100\r\nQ\r\n")
+	conn := newFakeConn("S\r\nS\r\nroot\r\n100\r\n\r\nQ\r\n")
 	term := NewTerminal(conn)
 
 	err = s.runMenu(term, sysop, 1, "main")
@@ -573,5 +574,22 @@ func TestLoginLanguageChosenFirst(t *testing.T) {
 	}
 	if alice.Language != "en" {
 		t.Errorf("Language = %q, want en", alice.Language)
+	}
+}
+
+func TestSysopListUsersPages(t *testing.T) {
+	s := testServer(t)
+	root, _ := s.Users.Register("root", "password123", user.SLSysop)
+	for i := 1; i <= 40; i++ {
+		s.Users.Register(fmt.Sprintf("user%02d", i), "password123", 10)
+	}
+	// The first page, Enter for the second, then Q.
+	conn := newFakeConn("\r\nq\r\n")
+	if err := s.sysopListUsers(NewTerminal(conn), root); err != nil {
+		t.Fatal(err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "1-") || !strings.Contains(out, "of 41") || strings.Count(out, "\x1b[2J") != 2 {
+		t.Errorf("not two pages: %q", out)
 	}
 }

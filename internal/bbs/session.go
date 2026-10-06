@@ -529,12 +529,12 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"version":        (*Server).showVersion,
 	"lastcallers":    (*Server).showLastCallers,
 	"listusers":      (*Server).sysopListUsers,
-	"setsl":          (*Server).sysopSetSecurityLevel,
+	"setsl":          sysopDialog("syssetsl.ans", "screen.sysop.setsl", (*Server).sysopSetSecurityLevel),
 	"areas":          (*Server).showAreas,
-	"createarea":     (*Server).sysopCreateArea,
+	"createarea":     sysopDialog("sysarea.ans", "screen.sysop.createarea", (*Server).sysopCreateArea),
 	"files":          (*Server).showFileAreas,
-	"createfilearea": (*Server).sysopCreateFileArea,
-	"importfile":     (*Server).sysopImportFile,
+	"createfilearea": sysopDialog("sysfilearea.ans", "screen.sysop.createfilearea", (*Server).sysopCreateFileArea),
+	"importfile":     sysopDialog("sysimport.ans", "screen.sysop.importfile", (*Server).sysopImportFile),
 	"netmail":        (*Server).showNetmail,
 	"doors":          (*Server).showDoors,
 	"qwk":            paused((*Server).downloadQWK),
@@ -560,6 +560,19 @@ func paused(f func(s *Server, term *Terminal, u *user.User) error) func(s *Serve
 			return err
 		}
 		return s.pauseForKey(term)
+	}
+}
+
+// sysopDialog runs one of the sysop's question-and-answer functions
+// on a cleared screen under its banner (screenFile, else the title
+// titleKey names), waiting for a key after it so its result can be
+// read before the menu comes back.
+func sysopDialog(screenFile, titleKey string, f func(s *Server, term *Terminal, u *user.User) error) func(s *Server, term *Terminal, u *user.User) error {
+	return func(s *Server, term *Terminal, u *user.User) error {
+		if err := term.Print(s.featureHeader(term, u, screenFile, term.T(titleKey))); err != nil {
+			return err
+		}
+		return paused(f)(s, term, u)
 	}
 }
 
@@ -798,32 +811,55 @@ func (s *Server) showVersion(term *Terminal, u *user.User) error {
 
 // sysopListUsers is the "builtin:listusers" command, reachable only
 // through a menu item gated at sysop level (see configs/menus/sysop.yaml).
-func (s *Server) sysopListUsers(term *Terminal, _ *user.User) error {
+func (s *Server) sysopListUsers(term *Terminal, u *user.User) error {
 	users, err := s.Users.ListAll()
 	if err != nil {
 		return err
 	}
-	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + padCP(term.T("sysop.users_col_user"), 21) + padCP(term.T("sysop.users_col_sl"), 5) + padCP(term.T("sysop.users_col_calls"), 7) + term.T("sysop.users_col_last") + ansi.Reset); err != nil {
-		return err
-	}
-	for _, listed := range users {
-		lastLogin := term.T("common.never")
-		if listed.LastLoginAt.Valid {
-			lastLogin = term.Time(listed.LastLoginAt.Time).Format("2006-01-02 15:04 MST")
+	// A page at a time, as many as fit under the banner: Enter the
+	// next, Q enough.
+	header := s.featureHeader(term, u, "sysusers.ans", term.T("screen.sysop.listusers"))
+	page := max(3, term.Height()-strings.Count(header, "\n")-5)
+	for start := 0; ; start += page {
+		end := min(start+page, len(users))
+		var b strings.Builder
+		b.WriteString(header)
+		b.WriteString("  " + fgDim(ansi.White) + padCP(term.T("sysop.users_col_user"), 21) + padCP(term.T("sysop.users_col_sl"), 5) + padCP(term.T("sysop.users_col_calls"), 8) + term.T("sysop.users_col_last") + "\r\n" +
+			fgDim(ansi.Blue) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
+		for _, listed := range users[start:end] {
+			lastLogin := term.T("common.never")
+			if listed.LastLoginAt.Valid {
+				lastLogin = term.Time(listed.LastLoginAt.Time).Format("2006-01-02 15:04 MST")
+			}
+			fmt.Fprintf(&b, "  %s%-21s%s%-5d%s%-8d%s%s%s\r\n", ansi.FG(ansi.White, true), listed.Username, ansi.FG(ansi.Cyan, true), listed.SecurityLevel,
+				fgDim(ansi.White), listed.TotalCalls, ansi.FG(ansi.Black, true), lastLogin, ansi.Reset)
 		}
-		line := fmt.Sprintf("%-21s%-5d%-7d%s", listed.Username, listed.SecurityLevel, listed.TotalCalls, lastLogin)
-		if err := term.Println(line); err != nil {
+		b.WriteString("\r\n" + ansi.FG(ansi.Black, true) + "-- " + term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(users)) + " --" + ansi.Reset)
+		if end >= len(users) {
+			if err := term.Print(b.String()); err != nil {
+				return err
+			}
+			return s.pauseForKey(term)
+		}
+		b.WriteString("\r\n" + keyHints(term.T("sysop.users_more")) + ansi.Reset + " ")
+		if err := term.Print(b.String()); err != nil {
 			return err
 		}
+		in, err := term.ReadLine(false)
+		if err != nil {
+			return err
+		}
+		if strings.EqualFold(strings.TrimSpace(in), "q") {
+			return nil
+		}
 	}
-	return s.pauseForKey(term)
 }
 
 // sysopSetSecurityLevel is the "builtin:setsl" command: it prompts for
 // a target username and a new SL (0-255) and applies it via
 // user.Store.SetSecurityLevel.
 func (s *Server) sysopSetSecurityLevel(term *Terminal, sysop *user.User) error {
-	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.setsl_user") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.setsl_user") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	target, err := term.ReadLine(false)
@@ -832,18 +868,18 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, sysop *user.User) error {
 	}
 	target = strings.TrimSpace(target)
 	if target == "" {
-		return term.Println(ansi.Reset + term.T("common.cancelled"))
+		return term.Println(ansi.Reset + "  " + term.T("common.cancelled"))
 	}
 
 	tu, err := s.Users.ByUsername(target)
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("common.no_such_user"))
+			return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("common.no_such_user"))
 		}
 		return err
 	}
 
-	if err := term.Println(ansi.Reset + term.T("sysop.setsl_current", "USERNAME", tu.Username, "SL", tu.SecurityLevel)); err != nil {
+	if err := term.Println(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.setsl_current", "USERNAME", tu.Username, "SL", tu.SecurityLevel)); err != nil {
 		return err
 	}
 	level, err := s.promptSecurityLevel(term, term.T("sysop.setsl_new"))
@@ -851,17 +887,17 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, sysop *user.User) error {
 		return err
 	}
 	if level < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
 	if err := s.Users.SetSecurityLevel(tu.ID, level); err != nil {
 		if errors.Is(err, user.ErrLastSysop) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_last_sysop"))
+			return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_last_sysop"))
 		}
 		return err
 	}
 	s.logInfo("%s set %s's security level to %d", sysop.Username, tu.Username, level)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("sysop.setsl_done", "USERNAME", tu.Username, "SL", level))
+	return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Green, true) + term.T("sysop.setsl_done", "USERNAME", tu.Username, "SL", level))
 }
 
 func (s *Server) showWho(term *Terminal, u *user.User) error {

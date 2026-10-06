@@ -4,8 +4,8 @@
 the main menu, its submenus (messages, files, community), the sysop menu,
 the logoff screen, and the lists and views of message areas, messages,
 netmail, file areas and files, the door list, the banners of the community features, the profile, the summary after
-login, the nodelist, QWK, writing netmail and
-the doors' bulletins and the welcome
+login, the nodelist, QWK, writing netmail,
+the doors' bulletins and the sysop's functions and the welcome
 screen —
 each as `name.ans` (English text) and
 `name.de.ans` (`{T:key}` placeholders, filled in for German and Du);

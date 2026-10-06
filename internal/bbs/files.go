@@ -804,7 +804,7 @@ func (s *Server) uploadFile(term *Terminal, u *user.User, area *file.Area) error
 // sysopCreateFileArea is the "builtin:createfilearea" command: it
 // prompts for a new area's tag, name, description, and SL gates.
 func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
-	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.area_tag") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.area_tag") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	tag, err := term.ReadLine(false)
@@ -813,10 +813,10 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 	}
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
-		return term.Println(ansi.Reset + term.T("common.cancelled"))
+		return term.Println(ansi.Reset + "  " + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + term.T("sysop.area_name") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.area_name") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	name, err := term.ReadLine(false)
@@ -825,10 +825,10 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return term.Println(ansi.Reset + term.T("common.cancelled"))
+		return term.Println(ansi.Reset + "  " + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	description, err := term.ReadLine(false)
@@ -836,7 +836,7 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 
-	if err := term.Print(ansi.Reset + term.T("sysop.area_network") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.area_network") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	network, err := term.ReadLine(false)
@@ -850,7 +850,7 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 	if minDownload < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
 	minUpload, err := s.promptSecurityLevel(term, term.T("sysop.min_upload"))
@@ -858,18 +858,18 @@ func (s *Server) sysopCreateFileArea(term *Terminal, sysop *user.User) error {
 		return err
 	}
 	if minUpload < 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.setsl_invalid"))
 	}
 
 	area, err := s.Files.CreateArea(tag, name, description, network, minDownload, minUpload)
 	if err != nil {
 		if errors.Is(err, file.ErrTagTaken) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.tag_used"))
+			return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.tag_used"))
 		}
 		return err
 	}
 	s.logInfo("%s created file area %q (%s)", sysop.Username, area.Name, area.Tag)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("sysop.area_created", "NAME", area.Name))
+	return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Green, true) + term.T("sysop.area_created", "NAME", area.Name))
 }
 
 // sysopImportFile is the "builtin:importfile" command: an alternative
@@ -883,18 +883,18 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 		return err
 	}
 	if len(areas) == 0 {
-		return term.Println(ansi.Reset + "\n" + term.T("sysop.no_file_areas"))
+		return term.Println(ansi.Reset + "  " + term.T("sysop.no_file_areas"))
 	}
 
-	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("common.file_areas") + ansi.Reset); err != nil {
+	if err := term.Println(ansi.Reset + "  " + ansi.FG(ansi.White, true) + term.T("common.file_areas") + ansi.Reset); err != nil {
 		return err
 	}
 	for i, a := range areas {
-		if err := term.Println(fmt.Sprintf("%2d) %s", i+1, a.Name)); err != nil {
+		if err := term.Println(fmt.Sprintf("  %s%2d%s  %s%s", ansi.FG(ansi.Cyan, true), i+1, ansi.FG(ansi.White, true), toCP437(a.Name), ansi.Reset)); err != nil {
 			return err
 		}
 	}
-	if err := term.Print(ansi.Reset + "\n" + term.T("sysop.import_area") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.import_area") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	choice, err := term.ReadLine(false)
@@ -903,11 +903,11 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 	}
 	idx, convErr := strconv.Atoi(strings.TrimSpace(choice))
 	if convErr != nil || idx < 1 || idx > len(areas) {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("common.invalid_selection"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("common.invalid_selection"))
 	}
 	area := areas[idx-1]
 
-	if err := term.Print(ansi.Reset + term.T("sysop.import_path") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.import_path") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	path, err := term.ReadLine(false)
@@ -916,10 +916,10 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 	}
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return term.Println(ansi.Reset + term.T("common.cancelled"))
+		return term.Println(ansi.Reset + "  " + term.T("common.cancelled"))
 	}
 
-	if err := term.Print(ansi.Reset + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.description") + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	description, err := term.ReadLine(false)
@@ -930,11 +930,11 @@ func (s *Server) sysopImportFile(term *Terminal, u *user.User) error {
 	f, err := s.Files.ImportFile(area.ID, u.ID, path, description)
 	if err != nil {
 		if errors.Is(err, file.ErrDuplicateFilename) {
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.import_exists"))
+			return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.import_exists"))
 		}
 		s.logWarn("%s: import into file area %d failed: %v", u.Username, area.ID, err)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("sysop.import_failed", "ERROR", err))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("sysop.import_failed", "ERROR", err))
 	}
 	s.logInfo("%s imported %s (%s) into file area %d", u.Username, f.Filename, humanize.Bytes(uint64(f.SizeBytes)), f.AreaID)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("sysop.imported", "FILE", f.Filename, "SIZE", humanize.Bytes(uint64(f.SizeBytes))))
+	return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Green, true) + term.T("sysop.imported", "FILE", f.Filename, "SIZE", humanize.Bytes(uint64(f.SizeBytes))))
 }

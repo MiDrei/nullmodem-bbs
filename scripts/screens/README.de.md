@@ -6,7 +6,7 @@ Treffpunkt), das Sysop-Menü, den Abmelde-Screen sowie die Listen und
 Ansichten für Nachrichtenbereiche, Nachrichten, Netmail, Dateibereiche und
 Dateien, die Doors-Liste, die Köpfe der Treffpunkt-Funktionen, des Profils, der Übersicht nach
 dem Login, der Nodeliste, von QWK, vom
-Netmail-Schreiben und von den Bulletins der Doors und den
+Netmail-Schreiben, von den Bulletins der Doors und von den Sysop-Funktionen und den
 Begrüssungs-Screen — jeweils als
 `name.ans` (englischer Text) und `name.de.ans` (`{T:key}`-Platzhalter,
 für Deutsch und Du gefüllt); Teile ohne eigenen Text (Listenzeilen) gibt

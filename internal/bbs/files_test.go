@@ -749,12 +749,12 @@ func TestSysopImportAndBrowseFile(t *testing.T) {
 	src := writeTempUploadFile(t, "hello file area")
 
 	// S -> sysop menu, I -> import file, "1" -> General Files,
-	// <path>, description, M -> back to main, F -> file areas
+	// <path>, description, Enter past the result, M -> back to main, F -> file areas
 	// lightbar, Enter -> General Files (the only area, already
 	// highlighted), Enter again on the file-list lightbar's only row
 	// -> file reader, then Q out of the reader, Q out of the file
 	// list, Q out of the area lightbar, Q to log off from main.
-	input := "S\r\nI\r\n1\r\n" + src + "\r\nA readme file\r\nM\r\nF\r\n\r\n\r\nQQQQ\r\n"
+	input := "S\r\nI\r\n1\r\n" + src + "\r\nA readme file\r\n\r\nM\r\nF\r\n\r\n\r\nQQQQ\r\n"
 	conn := newFakeConn(input)
 	term := NewTerminal(conn)
 
