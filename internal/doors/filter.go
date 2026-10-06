@@ -22,6 +22,11 @@ import (
 //     of it each time: "ESC[0;1;33;44m". A door's "back to the default
 //     background" otherwise left the last one painting the rest of the
 //     line, stripes across its art.
+//     Nor do they know "ESC[?7l" (no automatic wrap): a door drawing
+//     full 80-column lines under it got a wrap after each one there,
+//     plus its own line break -- every other line empty, painted in the
+//     colour at the right edge. So while a door has wrapping off, the
+//     filter keeps the cursor column and never writes the last one.
 //
 // Escape sequences split across reads are held back until complete.
 type outputFilter struct {
@@ -33,11 +38,18 @@ type outputFilter struct {
 	// colours 0-7, bold being bright.
 	fg, bg                int
 	bold, blink, reversed bool
+	// The cursor column (0-based), and whether the door turned the
+	// terminal's automatic wrap off (ansi16).
+	col    int
+	noWrap bool
 
 	lastCR  bool   // the previous byte passed on was CR
 	esc     []byte // an escape sequence still being collected
 	pending []byte // filtered output not yet returned
 }
+
+// classicWidth is the width of the classic terminal ansi16 is for.
+const classicWidth = 80
 
 // maxEscape bounds a held-back escape sequence; anything longer isn't
 // one we rewrite and is passed on as it is.
@@ -82,13 +94,68 @@ func (f *outputFilter) filter(in []byte) []byte {
 			}
 			continue
 		}
+		if f.ansi16 && !f.track(b) {
+			continue
+		}
 		if f.crlf && b == '\n' && !f.lastCR {
 			out = append(out, '\r')
+			f.col = 0
 		}
 		out = append(out, b)
 		f.lastCR = b == '\r'
 	}
 	return out
+}
+
+// track moves the cursor column for b and reports whether b is to be
+// passed on: a character in the last column isn't while the door has
+// wrapping off.
+func (f *outputFilter) track(b byte) bool {
+	switch {
+	case b == '\r':
+		f.col = 0
+	case b == '\b':
+		f.col = max(0, f.col-1)
+	case b == '\t':
+		f.col = min(classicWidth-1, (f.col/8+1)*8)
+	case b >= 0x20 && b != 0x7f:
+		if f.noWrap && f.col >= classicWidth-1 {
+			return false
+		}
+		f.col++
+	}
+	return true
+}
+
+// cursor follows a CSI sequence's effect on the cursor column, and
+// takes "?7l"/"?7h" (wrap off/on) for itself: the classic terminal
+// doesn't know them, the filter does it in their place.
+func (f *outputFilter) cursor(params []byte, final byte) (keep bool) {
+	p := string(params)
+	if p == "?7" && (final == 'l' || final == 'h') {
+		f.noWrap = final == 'l'
+		return false
+	}
+	arg := func(i, def int) int {
+		parts := strings.Split(p, ";")
+		if i < len(parts) {
+			if n, err := strconv.Atoi(parts[i]); err == nil && n > 0 {
+				return n
+			}
+		}
+		return def
+	}
+	switch final {
+	case 'H', 'f':
+		f.col = arg(1, 1) - 1
+	case 'G':
+		f.col = arg(0, 1) - 1
+	case 'C':
+		f.col = min(classicWidth-1, f.col+arg(0, 1))
+	case 'D':
+		f.col = max(0, f.col-arg(0, 1))
+	}
+	return true
 }
 
 // escapeDone reports whether f.esc holds a finished escape sequence,
@@ -106,6 +173,9 @@ func (f *outputFilter) escapeDone() (bool, []byte) {
 		return false, nil
 	}
 	if last != 'm' {
+		if !f.cursor(e[2:len(e)-1], last) {
+			return true, nil
+		}
 		return true, e
 	}
 	return true, f.rewriteSGR(e[2 : len(e)-1])

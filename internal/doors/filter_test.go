@@ -3,6 +3,7 @@ package doors
 import (
 	"bytes"
 	"io"
+	"strings"
 	"testing"
 	"testing/iotest"
 )
@@ -63,5 +64,16 @@ func TestOutputFilterOffIsTheReaderItself(t *testing.T) {
 	r := bytes.NewReader(nil)
 	if newOutputFilter(r, false, false) != io.Reader(r) {
 		t.Fatal("a filter with nothing to do should not wrap the reader")
+	}
+}
+
+// With wrapping off ("?7l", which classic terminals don't know) the
+// last column is never written, so such a terminal doesn't wrap after
+// a full line; with it on, long lines pass for the terminal to wrap.
+func TestOutputFilterKeepsOffTheLastColumnWithoutWrap(t *testing.T) {
+	full := strings.Repeat("A", 80)
+	if got, want := filtered(t, "\x1b[?7l"+full+"\r\n\x1b[1;75HBCDEFG\x1b[?7h"+full+"B", false, true),
+		strings.Repeat("A", 79)+"\r\n\x1b[1;75HBCDEF"+full+"B"; got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
