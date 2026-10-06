@@ -20,8 +20,8 @@ import (
 // Install limits: a door archive is a few MB; anything far bigger is
 // not what we meant to download.
 const (
-	maxDownloadBytes = 64 << 20
-	maxUnpackedBytes = 256 << 20
+	maxDownloadBytes = 128 << 20
+	maxUnpackedBytes = 512 << 20
 	maxArchiveFiles  = 5000
 )
 
@@ -32,9 +32,10 @@ var ErrAlreadyInstalled = errors.New("doors: door directory already exists and i
 
 // Install downloads t into doorsDir/t.Dir and prepares it to run: the
 // DDPlus control file (if any) set to this board's name and sysop, and
-// the template's own Prepare step.
+// the template's own Prepare step. version is the release to install,
+// "" for the template's own.
 // It returns the door's directory.
-func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbsName, sysopName string) (string, error) {
+func Install(ctx context.Context, client *http.Client, t Template, version, doorsDir, bbsName, sysopName string) (string, error) {
 	if t.Download == nil {
 		return "", fmt.Errorf("doors: %s has no download; install it by hand", t.Name)
 	}
@@ -46,15 +47,9 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 		return "", ErrAlreadyInstalled
 	}
 
-	url, subdir, err := t.Download.resolve(runtime.GOARCH)
-	if err != nil {
-		return "", fmt.Errorf("doors: %s: %w", t.Name, err)
+	if version == "" {
+		version = t.Download.Version
 	}
-	data, err := download(ctx, client, url)
-	if err != nil {
-		return "", err
-	}
-
 	// Unpack into a scratch directory next to dest first, so a failed
 	// install leaves nothing half-done behind.
 	if err := os.MkdirAll(doorsDir, 0o755); err != nil {
@@ -72,22 +67,8 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 		return "", fmt.Errorf("doors: %w", err)
 	}
 
-	switch t.Download.Format {
-	case "zip":
-		err = unpackZip(data, tmp, subdir)
-	case "tar.gz":
-		err = unpackTarGz(data, tmp, subdir)
-	default:
-		err = fmt.Errorf("doors: unknown archive format %q", t.Download.Format)
-	}
-	if err != nil {
+	if err := fetch(ctx, client, t, version, tmp); err != nil {
 		return "", err
-	}
-
-	for _, exe := range t.Download.Executables {
-		if err := os.Chmod(filepath.Join(tmp, exe), 0o755); err != nil {
-			return "", fmt.Errorf("doors: %s: %w", t.Name, err)
-		}
 	}
 	if t.Download.CtlFile != "" {
 		if p, ok := findCaseInsensitive(tmp, t.Download.CtlFile); ok {
@@ -103,6 +84,9 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 		}
 	}
 
+	if err := writeVersion(tmp, version); err != nil {
+		return "", err
+	}
 	os.Remove(dest) // an empty leftover directory, if any
 	if err := os.Rename(tmp, dest); err != nil {
 		return "", fmt.Errorf("doors: moving %s into place: %w", t.Name, err)
@@ -110,22 +94,56 @@ func Install(ctx context.Context, client *http.Client, t Template, doorsDir, bbs
 	return dest, nil
 }
 
-// resolve fills "{arch}" in the download's URL and Subdir for goarch,
-// or fails when the door has no build for it.
-func (d *Download) resolve(goarch string) (url, subdir string, err error) {
+// fetch downloads release version of t and unpacks it into dir, its
+// executables made executable.
+func fetch(ctx context.Context, client *http.Client, t Template, version, dir string) error {
+	url, subdir, err := t.Download.resolve(runtime.GOARCH, version)
+	if err != nil {
+		return fmt.Errorf("doors: %s: %w", t.Name, err)
+	}
+	data, err := download(ctx, client, url)
+	if err != nil {
+		return err
+	}
+	switch t.Download.Format {
+	case "zip":
+		err = unpackZip(data, dir, subdir)
+	case "tar.gz":
+		err = unpackTarGz(data, dir, subdir)
+	default:
+		err = fmt.Errorf("doors: unknown archive format %q", t.Download.Format)
+	}
+	if err != nil {
+		return err
+	}
+	for _, exe := range t.Download.Executables {
+		if err := os.Chmod(filepath.Join(dir, exe), 0o755); err != nil {
+			return fmt.Errorf("doors: %s: %w", t.Name, err)
+		}
+	}
+	return nil
+}
+
+// resolve fills "{arch}" and "{version}" in the download's URL and
+// Subdir for goarch, or fails when the door has no build for it.
+func (d *Download) resolve(goarch, version string) (url, subdir string, err error) {
+	if version == "" {
+		version = d.Version
+	}
+	url, subdir = strings.ReplaceAll(d.URL, "{version}", version), strings.ReplaceAll(d.Subdir, "{version}", version)
 	if len(d.Arch) == 0 {
-		return d.URL, d.Subdir, nil
+		return url, subdir, nil
 	}
 	name, ok := d.Arch[goarch]
 	if !ok {
 		return "", "", fmt.Errorf("no build for %s", goarch)
 	}
-	return strings.ReplaceAll(d.URL, "{arch}", name), strings.ReplaceAll(d.Subdir, "{arch}", name), nil
+	return strings.ReplaceAll(url, "{arch}", name), strings.ReplaceAll(subdir, "{arch}", name), nil
 }
 
 // Supports reports whether the download has a build for goarch.
 func (d *Download) Supports(goarch string) bool {
-	_, _, err := d.resolve(goarch)
+	_, _, err := d.resolve(goarch, "")
 	return err == nil
 }
 

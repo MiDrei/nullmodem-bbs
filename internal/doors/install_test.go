@@ -61,7 +61,7 @@ func TestInstallZipSetsCtlNamesAndStaysInsideTheDoorsDir(t *testing.T) {
 	})
 	tmpl := Template{Name: "Game", Dir: "game", Download: &Download{URL: serve(t, archive), Format: "zip", CtlFile: "game.ctl"}}
 	doorsDir := t.TempDir()
-	dir, err := Install(context.Background(), http.DefaultClient, tmpl, doorsDir, "Maiks Place", "Mike Dreier")
+	dir, err := Install(context.Background(), http.DefaultClient, tmpl, "", doorsDir, "Maiks Place", "Mike Dreier")
 	if err != nil {
 		t.Fatalf("Install: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestInstallTarGzTakesOnlyTheSubdir(t *testing.T) {
 	tmpl := Template{Name: "Dredd", Dir: "dredd", Download: &Download{
 		URL: serve(t, archive), Format: "tar.gz", Subdir: "JudgeDredd-main/GAME", Prepare: prepareJudgeDredd,
 	}}
-	dir, err := Install(context.Background(), http.DefaultClient, tmpl, t.TempDir(), "Maiks, Place", "Mike Dreier")
+	dir, err := Install(context.Background(), http.DefaultClient, tmpl, "", t.TempDir(), "Maiks, Place", "Mike Dreier")
 	if err != nil {
 		t.Fatalf("Install: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestInstallNeverOverwritesAnInstalledDoor(t *testing.T) {
 	os.MkdirAll(filepath.Join(doorsDir, "dredd"), 0o755)
 	os.WriteFile(filepath.Join(doorsDir, "dredd", "SAVEGAME.DAT"), []byte("precious"), 0o644)
 	tmpl := Template{Name: "Dredd", Dir: "dredd", Download: &Download{URL: "http://127.0.0.1:1/never", Format: "zip"}}
-	_, err := Install(context.Background(), http.DefaultClient, tmpl, doorsDir, "B", "S")
+	_, err := Install(context.Background(), http.DefaultClient, tmpl, "", doorsDir, "B", "S")
 	if !errors.Is(err, ErrAlreadyInstalled) {
 		t.Fatalf("err = %v, want ErrAlreadyInstalled", err)
 	}
@@ -134,7 +134,7 @@ func TestInstallNeverOverwritesAnInstalledDoor(t *testing.T) {
 func TestInstallLeavesNothingBehindOnABadArchive(t *testing.T) {
 	doorsDir := t.TempDir()
 	tmpl := Template{Name: "Broken", Dir: "broken", Download: &Download{URL: serve(t, []byte("not a zip")), Format: "zip"}}
-	if _, err := Install(context.Background(), http.DefaultClient, tmpl, doorsDir, "B", "S"); err == nil {
+	if _, err := Install(context.Background(), http.DefaultClient, tmpl, "", doorsDir, "B", "S"); err == nil {
 		t.Fatal("Install accepted a broken archive")
 	}
 	entries, _ := os.ReadDir(doorsDir)
@@ -176,7 +176,7 @@ func TestTemplatesAreValid(t *testing.T) {
 
 func TestDownloadResolvesArch(t *testing.T) {
 	d := &Download{URL: "https://x/game-{arch}.tgz", Subdir: "game-{arch}", Arch: map[string]string{"amd64": "x86_64"}}
-	url, sub, err := d.resolve("amd64")
+	url, sub, err := d.resolve("amd64", "")
 	if err != nil || url != "https://x/game-x86_64.tgz" || sub != "game-x86_64" {
 		t.Fatalf("resolve(amd64) = %q, %q, %v", url, sub, err)
 	}
@@ -202,7 +202,7 @@ func TestInstallKeepsExecutablesExecutable(t *testing.T) {
 	tmpl := Template{Name: "Game", Dir: "game", Download: &Download{
 		URL: serve(t, buf.Bytes()), Format: "tar.gz", Subdir: "pkg", Executables: []string{"tool"},
 	}}
-	dir, err := Install(context.Background(), http.DefaultClient, tmpl, t.TempDir(), "B", "S")
+	dir, err := Install(context.Background(), http.DefaultClient, tmpl, "", t.TempDir(), "B", "S")
 	if err != nil {
 		t.Fatal(err)
 	}

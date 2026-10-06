@@ -82,8 +82,19 @@ func TemplateFor(id, dir string) (Template, bool) {
 
 // Download says how Install fetches and unpacks a door.
 type Download struct {
-	// URL may contain "{arch}", filled from Arch.
+	// URL may contain "{arch}", filled from Arch, and "{version}", the
+	// release's tag.
 	URL string `json:"url"`
+	// Version is the release Install fetches unless told otherwise --
+	// the newest known when the template was written.
+	Version string `json:"version,omitempty"`
+	// GitHub is the door's "owner/repo" on GitHub, for the update
+	// check: its latest release's tag is the newest version.
+	GitHub string `json:"-"`
+	// LegacyVersion is what an install without a version file (one
+	// from before they were written) has: the version the template
+	// installed then.
+	LegacyVersion string `json:"-"`
 	// Arch maps Go's GOARCH to the name the door's releases use for it
 	// ("amd64" -> "x86_64"), for URL and Subdir. Empty for a download
 	// that's the same everywhere (DOS doors); a GOARCH missing from a
@@ -125,10 +136,13 @@ var Templates = []Template{
 		Program: []string{"umrc-bridge"},
 		MRC:     true,
 		Download: &Download{
-			URL:         "https://github.com/codefenix-dev/uMRC/releases/download/106/umrc-106-linux-{arch}.tar.gz",
-			Arch:        map[string]string{"amd64": "x64", "arm64": "arm64"},
-			Format:      "tar.gz",
-			Executables: []string{"umrc-client", "umrc-bridge", "setup"},
+			URL:           "https://github.com/codefenix-dev/uMRC/releases/download/{version}/umrc-{version}-linux-{arch}.tar.gz",
+			Version:       "106",
+			GitHub:        "codefenix-dev/uMRC",
+			LegacyVersion: "106",
+			Arch:          map[string]string{"amd64": "x64", "arm64": "arm64"},
+			Format:        "tar.gz",
+			Executables:   []string{"umrc-client", "umrc-bridge", "setup"},
 		},
 		Setup:     `Its background program umrc-bridge keeps the connection to the chat network and runs as long as the door is set up (see Services). Only one such connection per board is allowed: don't run uMRC for the same board anywhere else.`,
 		SourceURL: "https://github.com/codefenix-dev/uMRC",
@@ -146,11 +160,14 @@ var Templates = []Template{
 		// terminals turn into stripes.
 		ANSI16: true,
 		Download: &Download{
-			URL:     "https://github.com/andy5995/immortal-barons/releases/download/v0.2.0/immortal-barons-v0.2.0-linux-{arch}.tar.gz",
-			Arch:    map[string]string{"amd64": "amd64", "arm64": "arm64"},
-			Format:  "tar.gz",
-			Subdir:  "immortal-barons-v0.2.0-linux-{arch}",
-			Prepare: prepareImmortalBarons,
+			URL:           "https://github.com/andy5995/immortal-barons/releases/download/{version}/immortal-barons-{version}-linux-{arch}.tar.gz",
+			Version:       "v0.2.3",
+			GitHub:        "andy5995/immortal-barons",
+			LegacyVersion: "v0.2.0",
+			Arch:          map[string]string{"amd64": "amd64", "arm64": "arm64"},
+			Format:        "tar.gz",
+			Subdir:        "immortal-barons-{version}-linux-{arch}",
+			Prepare:       prepareImmortalBarons,
 		},
 		Setup:     `Installed with the default game settings. To change them later (turns per day and so on), run "immortal-barons -reset -data data" in the door's directory -- that also starts a new game.`,
 		SourceURL: "https://github.com/andy5995/immortal-barons",
@@ -177,12 +194,15 @@ var Templates = []Template{
 		// redirected, so it's run that way.
 		Stdio: true,
 		Download: &Download{
-			URL:         "https://github.com/binary-knight/usurper-reborn/releases/download/v1.1.14/UsurperReborn-v1.1.14-Linux-{arch}.zip",
-			Arch:        map[string]string{"amd64": "x64", "arm64": "ARM64"},
-			Format:      "zip",
-			Executables: []string{"UsurperReborn"},
+			URL:           "https://github.com/binary-knight/usurper-reborn/releases/download/{version}/UsurperReborn-{version}-Linux-{arch}.zip",
+			Version:       "v1.2.7",
+			GitHub:        "binary-knight/usurper-reborn",
+			LegacyVersion: "v1.1.14",
+			Arch:          map[string]string{"amd64": "x64", "arm64": "ARM64"},
+			Format:        "zip",
+			Executables:   []string{"UsurperReborn"},
 		},
-		Setup:     `A large download (about 55 MB). Players can also reach the game's public online server from its menu.`,
+		Setup:     `A large download (about 60 MB). Players can also reach the game's public online server from its menu.`,
 		SourceURL: "https://github.com/binary-knight/usurper-reborn",
 		Bulletins: []Bulletin{{Title: "Usurper Reborn: news", File: "SCORES/NEWS.txt", Public: true}},
 	},

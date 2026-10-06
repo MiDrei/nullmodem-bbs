@@ -222,3 +222,4 @@ admin.news.subtitle: "Schreib News für deine Anrufer, auf Deutsch und Englisch:
 admin.levels.subtitle: "Gib den Security Levels, die du verwendest, einen Namen: Überall, wo im Admin ein Level gewählt wird, erscheint er als „20 – Regulärer Benutzer“, und das Telnet-Sysop-Menü zeigt sie beim Setzen eines Levels."
 admin.levels.defaults_note: "Das sind die Levels, die die BBS selbst verwendet. Ändere oder ergänze sie und speichere, um eigene festzulegen."
 admin.levels.reset_confirm: "Eigene Namen verwerfen und zu den Standard-Levels zurück?"
+admin.doors.update_confirm: "{NAME} auf {VERSION} aktualisieren?\n\nSpielstände und Einstellungen bleiben, die ersetzten Dateien werden neben dem Door gesichert. Lies vorher die Release-Notes, falls die Version etwas Besonderes verlangt."

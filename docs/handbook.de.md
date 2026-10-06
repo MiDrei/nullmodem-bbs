@@ -159,6 +159,18 @@ scores. Für Immortal Barons und Usurper Reborn kennt die BBS die Dateien:
 `BulletinDir` in `data/bbs.cfg` ein und setzt die tägliche Wartung
 (`immortal-barons -maint`), die sie jeden Tag neu schreibt.
 
+**Updates:** Für MRC Chat, Immortal Barons und Usurper Reborn schaut die BBS
+zweimal täglich nach neuen Versionen („Check for updates“ fragt sofort). Eine
+neue erscheint beim Door mit ihren Release-Notes, unter „Needs attention“ und
+als Push. „Update to …“ ersetzt nur die Dateien, die die Version mitbringt —
+Spielstände, Einstellungen und Logs bleiben; die ersetzten Dateien liegen in
+`.backup-<door>` neben dem Door-Verzeichnis (nur die vom letzten Update). Wer
+gerade im Door spielt, behält die alte Version bis zum Verlassen; ein
+Hintergrundprogramm startet von selbst neu. Lies vorher die Release-Notes:
+manche Versionen verlangen etwas, z. B. dass alle Boards einer
+Inter-BBS-Liga gemeinsam aktualisieren. Neu aus einer Vorlage installierte
+Doors bekommen die neueste Version.
+
 Hintergrundprogramme (z. B. die MRC-Bridge) laufen als eigener Dienst und
 erscheinen unter System → Services.
 

@@ -121,10 +121,16 @@
 			</h2>
 			<div class="flex flex-col gap-2 text-sm">
 				{#each dashboard.problems as p (p.key)}
+					{#if p.key.startsWith('door-update:')}
+						<a href="/admin/doors" class="text-cyan-500 hover:text-cyan-300">
+							<span class="font-semibold">⬆ {p.title}</span>{#if p.detail}<span class="opacity-70"> -- {p.detail}</span>{/if} →
+						</a>
+					{:else}
 					<div class="text-red-300">
 						<span class="font-semibold">⚠ {p.title}</span>{#if p.detail}<span class="text-red-300/70"> -- {p.detail}</span>{/if}
 						<span class="text-xs text-faint"> {t('admin.dashboard.since_tolocalestring', { TOLOCALESTRING: new Date(p.since).toLocaleString(i18n.locale) })}</span>
 					</div>
+					{/if}
 				{/each}
 				{#each dashboard.paging as room (room)}
 					<a href="/admin/chat?room={room}" class="font-semibold text-fuchsia-300 hover:text-fuchsia-200">

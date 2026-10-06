@@ -157,6 +157,17 @@ Door scores. For Immortal Barons and Usurper Reborn the BBS knows the files:
 `BulletinDir` in `data/bbs.cfg` and sets the daily maintenance
 (`immortal-barons -maint`), which rewrites them every day.
 
+**Updates:** for MRC Chat, Immortal Barons and Usurper Reborn the BBS looks
+for new releases twice a day ("Check for updates" asks right away). A new one
+shows at the door with its release notes, under "Needs attention" and as a
+push notification. "Update to …" replaces only the files the release ships —
+save games, settings and logs stay; the replaced files are kept in
+`.backup-<door>` next to the door's directory (the last update's only). A
+player still in the door keeps the old version until they leave; a background
+program restarts by itself. Read the release notes first: some releases want
+something done, e.g. every board in an inter-BBS league updating together.
+New installs from a template get the newest release.
+
 Background programs (e.g. the MRC bridge) run as a service of their own and
 show under System → Services.
 

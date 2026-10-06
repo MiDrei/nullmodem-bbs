@@ -8,6 +8,8 @@
 	import {
 		listDoors,
 		putDoors,
+		checkDoorUpdates,
+		updateDoor,
 		runDoorDaily,
 		applyDoorTemplateBulletins,
 		listDoorTemplates,
@@ -67,7 +69,8 @@
 			daily_at: '',
 			bulletins: [],
 			program: [],
-			installed: false
+			installed: false,
+			update_available: false
 		};
 	}
 
@@ -253,6 +256,41 @@
 			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_add_name', { NAME: tpl.name }), 'error');
 		} finally {
 			installing = null;
+		}
+	}
+
+	let checking = $state(false);
+	let updating = $state<string | null>(null);
+
+	async function checkUpdates() {
+		if (!auth.token) return;
+		checking = true;
+		try {
+			const res = await checkDoorUpdates(auth.token);
+			doors = res.doors;
+			const n = res.doors.filter((d) => d.update_available).length;
+			toast.push(n ? t('admin.doors.updates_found', { COUNT: n }) : t('admin.doors.all_up_to_date'), 'success');
+		} catch (err) {
+			if (await authFailed(err)) return;
+			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_do_that'), 'error');
+		} finally {
+			checking = false;
+		}
+	}
+
+	async function update(d: Door) {
+		if (!auth.token || !d.latest_version) return;
+		if (!confirm(t('admin.doors.update_confirm', { NAME: d.name, VERSION: d.latest_version }))) return;
+		updating = d.name;
+		try {
+			const res = await updateDoor(auth.token, d.name);
+			doors = res.doors;
+			toast.push(t('admin.doors.updated_to', { NAME: d.name, VERSION: d.latest_version }), 'success');
+		} catch (err) {
+			if (await authFailed(err)) return;
+			toast.push(err instanceof ApiError ? err.message : t('admin.doors.could_not_do_that'), 'error');
+		} finally {
+			updating = null;
 		}
 	}
 
@@ -511,7 +549,14 @@
 		{@render editor()}
 	{/if}
 
-	<h2 class="card-label mb-2 px-1">{t('admin.doors.configured_length', { LENGTH: doors.length })}</h2>
+	<div class="mb-2 flex items-center justify-between gap-3 px-1">
+		<h2 class="card-label">{t('admin.doors.configured_length', { LENGTH: doors.length })}</h2>
+		{#if doors.some((d) => d.version)}
+			<button class="btn-secondary btn-xs" onclick={checkUpdates} disabled={checking}>
+				{checking ? t('admin.doors.checking') : t('admin.doors.check_for_updates')}
+			</button>
+		{/if}
+	</div>
 	{#if doors.length === 0}
 		<p class="mb-8 px-1 text-sm text-muted">{t('admin.doors.no_doors_yet_add_one')}</p>
 	{:else}
@@ -537,6 +582,9 @@
 										{t('admin.doors.not_installed')}
 									</span>
 								{/if}
+								{#if d.version}
+									<span class="font-mono text-[10.5px] text-faint">{d.version}</span>
+								{/if}
 							</div>
 							<div class="mt-1 truncate font-mono text-[11px] text-faint">
 								{t('admin.doors.v_v2_v3_v4_v5', { V: doorDir(d) || '—', V2: d.kind === 'rlogin' ? '' : ` · ${dropfileLabel(d)}`, V3: d.daily ? t('admin.doors.daily_v', { V: d.daily_at || '00:05' }) : '', V4: d.dropfile_in_door_dir ? t('admin.doors.door_dir') : '', V5: d.stdio ? t('admin.doors.stdio') : '', V6: d.ansi16 ? t('admin.doors.16_colours') : '', V7: d.program.length ? t('admin.doors.runs_v', { V: d.program[0] }) : '', MIN_SL: d.min_sl })}
@@ -546,8 +594,21 @@
 									{t('admin.doors.daily_maintenance_v_tolocalestring_v2', { V: d.daily_state.ok ? t('admin.doors.daily_ran') : t('admin.doors.daily_failed'), TOLOCALESTRING: new Date(d.daily_state.last_at).toLocaleString(i18n.locale), V2: d.daily_state.ok ? '' : ` -- ${d.daily_state.detail.split('\n')[0]}` })}
 								</div>
 							{/if}
+							{#if d.update_available}
+								<div class="mt-0.5 text-[11px] text-cyan-500">
+									{t('admin.doors.new_version', { VERSION: d.latest_version ?? '' })}
+									{#if d.release_url}
+										· <a href={d.release_url} target="_blank" rel="noopener" class="underline hover:text-cyan-300">{t('admin.doors.whats_new')} ↗</a>
+									{/if}
+								</div>
+							{/if}
 						</div>
 						<div class="flex shrink-0 gap-1.5">
+							{#if d.update_available}
+								<button class="btn-primary btn-xs" onclick={() => update(d)} disabled={updating !== null}>
+									{updating === d.name ? t('admin.doors.updating') : t('admin.doors.update_to', { VERSION: d.latest_version ?? '' })}
+								</button>
+							{/if}
 							{#if d.template === 'umrc'}
 								<button class="btn-secondary btn-xs" onclick={() => openMRC(null)}>{t('admin.doors.chat_settings')}</button>
 							{/if}

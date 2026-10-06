@@ -1694,6 +1694,11 @@ export interface Door {
 	program: string[];
 	/** Read-only: the door's directory exists and has files. */
 	installed: boolean;
+	/** Read-only, for a door from a template with a release feed: the release installed, the newest one and its notes. */
+	version?: string;
+	latest_version?: string;
+	release_url?: string;
+	update_available: boolean;
 }
 
 export interface DoorsResponse {
@@ -1747,6 +1752,16 @@ export function addDoorFromTemplate(token: string, id: string, mrc?: MRCConfig):
 		{ method: 'POST', body: mrc ? JSON.stringify({ mrc }) : undefined },
 		token
 	);
+}
+
+/** Asks the doors' projects for new releases now. */
+export function checkDoorUpdates(token: string): Promise<DoorsResponse> {
+	return request<DoorsResponse>('/api/doors/check-updates', { method: 'POST' }, token);
+}
+
+/** Brings a door to its newest release; save games and settings stay. */
+export function updateDoor(token: string, name: string): Promise<DoorsResponse> {
+	return request<DoorsResponse>(`/api/doors/update/${encodeURIComponent(name)}`, { method: 'POST' }, token);
 }
 
 /** uMRC's mrc.cfg: the Multi-Relay Chat host, and what the chat network shows about this board. */

@@ -149,6 +149,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/services/{name}/restart", s.requireAuth(http.HandlerFunc(s.handleRestartService)))
 	mux.Handle("GET /api/doors", s.requireAuth(http.HandlerFunc(s.handleListDoors)))
 	mux.Handle("PUT /api/doors", s.requireAuth(http.HandlerFunc(s.handlePutDoors)))
+	mux.Handle("POST /api/doors/check-updates", s.requireAuth(http.HandlerFunc(s.handleCheckDoorUpdates)))
+	mux.Handle("POST /api/doors/update/{name}", s.requireAuth(http.HandlerFunc(s.handleUpdateDoor)))
 	mux.Handle("GET /api/doors/templates", s.requireAuth(http.HandlerFunc(s.handleListDoorTemplates)))
 	mux.Handle("POST /api/doors/templates/{id}", s.requireAuth(http.HandlerFunc(s.handleAddDoorFromTemplate)))
 	mux.Handle("GET /api/doors/mrc", s.requireAuth(http.HandlerFunc(s.handleGetMRCConfig)))

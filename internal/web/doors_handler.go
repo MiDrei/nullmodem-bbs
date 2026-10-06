@@ -55,6 +55,12 @@ type doorDTO struct {
 	// Installed reports whether the door's directory exists and has
 	// files in it. Read-only.
 	Installed bool `json:"installed"`
+	// For a door from a template with a release feed (read-only): the
+	// release installed, the newest one and its notes.
+	Version         string `json:"version,omitempty"`
+	LatestVersion   string `json:"latest_version,omitempty"`
+	ReleaseURL      string `json:"release_url,omitempty"`
+	UpdateAvailable bool   `json:"update_available"`
 }
 
 type doorsDTO struct {
@@ -259,6 +265,7 @@ func (s *Server) doorsResponse(c *config.Config) doorsDTO {
 			list[i].DailyState = &st
 		}
 	}
+	s.addDoorVersions(c, list)
 	return doorsDTO{Doors: list, DropFileFormats: doors.DropFileFormats, DoorsDir: c.BBS.DoorsDir}
 }
 
@@ -383,7 +390,7 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		// removed from the list) -- keep it as it is.
 	case t.Download != nil && t.Download.Supports(runtime.GOARCH):
 		client := &http.Client{Timeout: doorInstallTimeout}
-		if _, err := doors.Install(r.Context(), client, t, c.BBS.DoorsDir, c.BBS.Name, c.BBS.Sysop); err != nil {
+		if _, err := doors.Install(r.Context(), client, t, s.latestDoorVersion(t), c.BBS.DoorsDir, c.BBS.Name, c.BBS.Sysop); err != nil {
 			if errors.Is(err, doors.ErrAlreadyInstalled) {
 				writeError(w, http.StatusConflict, err.Error())
 				return

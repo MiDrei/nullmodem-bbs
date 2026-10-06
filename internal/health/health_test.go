@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/db"
+	"git.maik.ch/nullmodem/bbs/internal/doors"
 )
 
 func TestChecksAndTracking(t *testing.T) {
@@ -70,5 +72,45 @@ func TestChecksAndTracking(t *testing.T) {
 	}
 	if cur, _ := Current(sqlDB); len(cur) != 4 {
 		t.Fatalf("current %d", len(cur))
+	}
+}
+
+// A door from a template with a newer release than the installed one
+// shows up, once per release.
+func TestDoorUpdateProblem(t *testing.T) {
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	ib := filepath.Join(dir, "doors", "immortal-barons")
+	os.MkdirAll(ib, 0o755)
+	os.WriteFile(filepath.Join(ib, "immortal-barons"), []byte("x"), 0o755)
+	cfg := config.Default()
+	cfg.Doors = []config.DoorConfig{{Name: "Immortal Barons", Template: "immortal-barons", Dir: ib, Exe: filepath.Join(ib, "immortal-barons")}}
+	env := Env{DB: sqlDB, Config: func() *config.Config { return cfg }, Self: "web", StartedAt: time.Now()}
+
+	check := func() []string {
+		found, err := Check(context.Background(), env)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var keys []string
+		for _, p := range found {
+			keys = append(keys, p.Key)
+		}
+		return keys
+	}
+	if keys := check(); len(keys) != 0 {
+		t.Fatalf("before any check: %v", keys)
+	}
+	doors.SaveRelease(sqlDB, "immortal-barons", doors.Release{Version: "v0.2.3"}, nil, time.Now())
+	if keys := check(); strings.Join(keys, " ") != "door-update:Immortal Barons:v0.2.3" {
+		t.Fatalf("with a newer release: %v", keys)
+	}
+	os.WriteFile(filepath.Join(ib, doors.VersionFile), []byte("v0.2.3\n"), 0o644)
+	if keys := check(); len(keys) != 0 {
+		t.Fatalf("after updating: %v", keys)
 	}
 }

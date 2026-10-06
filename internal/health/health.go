@@ -16,6 +16,7 @@ import (
 
 	"git.maik.ch/nullmodem/bbs/internal/backup"
 	"git.maik.ch/nullmodem/bbs/internal/config"
+	"git.maik.ch/nullmodem/bbs/internal/doors"
 	"git.maik.ch/nullmodem/bbs/internal/i18n"
 	"git.maik.ch/nullmodem/bbs/internal/offsite"
 	"git.maik.ch/nullmodem/bbs/internal/services"
@@ -168,6 +169,28 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 			add("door-daily:"+door, i18n.Ref("health.door_daily_failed", "DOOR", door), detail)
 		}
 		rows.Close()
+	}
+
+	// Doors with a newer release than the one installed: the key holds
+	// the version, so each new release is announced once.
+	if known, err := doors.LatestReleases(e.DB); err == nil {
+		for _, d := range cfg.Doors {
+			dir := d.Dir
+			if d.Kind == "dosbox" {
+				dir = d.DOSBoxDir
+			}
+			t, ok := doors.TemplateFor(d.Template, dir)
+			if !ok {
+				continue
+			}
+			k, ok := known[t.ID]
+			installed := doors.InstalledVersion(t, dir)
+			if !ok || !doors.UpdateAvailable(installed, k.Version) {
+				continue
+			}
+			add("door-update:"+d.Name+":"+k.Version, i18n.Ref("health.door_update", "DOOR", d.Name, "VERSION", k.Version),
+				i18n.Ref("health.door_update_detail", "INSTALLED", installed))
+		}
 	}
 
 	// Netmail waiting to go out.

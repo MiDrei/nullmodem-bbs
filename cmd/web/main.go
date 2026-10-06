@@ -246,6 +246,7 @@ func main() {
 		BBSName: func() string { return current().BBS.Name },
 	}
 	go srv.EmailGateway.Run(context.Background())
+	go srv.RunDoorUpdateCheck(context.Background())
 
 	// Watching that everything keeps working: problems go to the
 	// sysops' phones (when they have the reader's notifications on)
@@ -270,7 +271,8 @@ func main() {
 			return out
 		},
 	}, 5*time.Minute, logger, func(p health.Problem, ok bool) {
-		if srv.Push == nil {
+		// A door brought up to date needs no "fixed" message.
+		if srv.Push == nil || (ok && strings.HasPrefix(p.Key, "door-update:")) {
 			return
 		}
 		// In the board's language: it goes to every sysop's devices.
@@ -279,7 +281,11 @@ func main() {
 			lang = c.BBS.Language
 		}
 		title := i18n.Resolve(lang, p.Title)
-		n := push.Notification{Title: "⚠ " + title, Body: i18n.Resolve(lang, p.Detail), URL: "/admin/dashboard", Tag: "health-" + p.Key}
+		mark := "⚠ "
+		if strings.HasPrefix(p.Key, "door-update:") {
+			mark = "⬆ "
+		}
+		n := push.Notification{Title: mark + title, Body: i18n.Resolve(lang, p.Detail), URL: "/admin/dashboard", Tag: "health-" + p.Key}
 		if ok {
 			n = push.Notification{Title: i18n.T(lang, "health.fixed", "TITLE", title), URL: "/admin/dashboard", Tag: "health-" + p.Key}
 		}

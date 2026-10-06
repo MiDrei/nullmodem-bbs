@@ -590,6 +590,18 @@ CREATE TABLE IF NOT EXISTS health_problems (
 -- internal/doors daily maintenance: per door, when its nightly command
 -- last ran and how it went; requested_at asks for a run now (the web
 -- admin's "Run now", carried out by the bbs daemon). Times Unix ms.
+-- door_releases is the door update check's last result per template
+-- (internal/doors.LatestRelease): its newest release, and the error if
+-- the last check failed. Times are Unix milliseconds.
+CREATE TABLE IF NOT EXISTS door_releases (
+    template      TEXT PRIMARY KEY,
+    version       TEXT NOT NULL DEFAULT '',
+    url           TEXT NOT NULL DEFAULT '',
+    published_at  INTEGER NOT NULL DEFAULT 0,
+    checked_at    INTEGER NOT NULL DEFAULT 0,
+    error         TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS door_daily (
     door          TEXT PRIMARY KEY,
     last_day      TEXT NOT NULL DEFAULT '',
