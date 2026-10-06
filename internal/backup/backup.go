@@ -338,7 +338,8 @@ type Logger interface {
 }
 
 // Nightly writes a backup once a day at the configured hour, unless
-// one was already written since then that day. cfg is re-read each
+// one was already written since then that day, and checks every new
+// backup (see VerifyNewest). cfg is re-read each
 // time (enabled, hour), so changes in the web admin need no restart.
 func Nightly(ctx context.Context, cfg func() (enabled bool, hour int, opts Options, src Sources), log Logger) {
 	tick := time.NewTicker(5 * time.Minute)
@@ -350,19 +351,33 @@ func Nightly(ctx context.Context, cfg func() (enabled bool, hour int, opts Optio
 		case <-tick.C:
 		}
 		enabled, hour, opts, src := cfg()
-		now := time.Now()
-		if !enabled || now.Hour() != hour {
-			continue
+		if enabled {
+			nightly(ctx, hour, opts, src, log)
 		}
-		due := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, now.Location())
-		if list, err := List(opts.Dir); err == nil && len(list) > 0 && !list[0].Time.Before(due) {
-			continue
+		// Every new backup -- nightly or written by hand -- is checked.
+		if c, ran := VerifyNewest(ctx, src, opts); ran {
+			if c.OK {
+				log.Info("backup %s checked: %d files, %d users, %d messages", c.Name, c.Files, c.Users, c.Messages)
+			} else {
+				log.Warn("backup %s failed its check: %s", c.Name, c.Error)
+			}
 		}
-		info, err := Run(ctx, src, opts, now)
-		if err != nil {
-			log.Warn("nightly backup: %v", err)
-			continue
-		}
-		log.Info("nightly backup written: %s (%.1f MB)", info.Name, float64(info.Size)/(1<<20))
 	}
+}
+
+func nightly(ctx context.Context, hour int, opts Options, src Sources, log Logger) {
+	now := time.Now()
+	if now.Hour() != hour {
+		return
+	}
+	due := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, now.Location())
+	if list, err := List(opts.Dir); err == nil && len(list) > 0 && !list[0].Time.Before(due) {
+		return
+	}
+	info, err := Run(ctx, src, opts, now)
+	if err != nil {
+		log.Warn("nightly backup: %v", err)
+		return
+	}
+	log.Info("nightly backup written: %s (%.1f MB)", info.Name, float64(info.Size)/(1<<20))
 }

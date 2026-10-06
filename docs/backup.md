@@ -38,6 +38,17 @@ another disk or a NAS (mounted into the container, e.g. `/backup` in
 `docker-compose.yml` for the `web` service, and entered as directory
 `/backup`).
 
+## Check
+
+Every new backup — nightly or "Back up now" — is checked right after it's
+written: the archive is read to its end (gzip's checksum catches a damaged
+file), the database in it is unpacked to a temporary file and must pass
+SQLite's integrity check, `bbs.yaml` must be in it, and it must hold at least
+half the users and messages the board has (an empty or wrong database
+doesn't). The result is on the Backups page ("Check now" repeats it) and on
+the dashboard; a failed check shows under "Needs attention" and as a push
+notification.
+
 ## Off-site copy (encrypted)
 
 Admin → System → Backups → **Off-site copy**: every backup then also goes to a

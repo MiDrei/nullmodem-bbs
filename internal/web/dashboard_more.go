@@ -67,6 +67,7 @@ type systemDTO struct {
 	FreeBytes      uint64         `json:"free_bytes"`
 	BackupEnabled  bool           `json:"backup_enabled"`
 	LastBackup     *backup.Info   `json:"last_backup"`
+	BackupCheck    *backup.Check  `json:"backup_check"`
 	OffsiteEnabled bool           `json:"offsite_enabled"`
 	Offsite        offsite.Status `json:"offsite"`
 	Services       []serviceBrief `json:"services"`
@@ -105,6 +106,7 @@ func (s *Server) systemStatus(cfg *config.Config) systemDTO {
 			}
 		}
 	}
+	d.BackupCheck = s.lastBackupCheck()
 	d.OffsiteEnabled = cfg.Backup.Offsite.Enabled
 	if s.DB != nil {
 		d.Offsite = offsite.LoadStatus(s.DB)

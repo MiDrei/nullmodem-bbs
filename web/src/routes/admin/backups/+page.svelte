@@ -11,11 +11,14 @@
 		getBackups,
 		putBackupSettings,
 		runBackup,
+		verifyBackup,
 		deleteBackup,
 		downloadBackup,
 		ApiError,
 		type BackupSettings,
-		type BackupInfo
+		type BackupInfo,
+		type BackupCheck,
+		type BackupState
 	} from '$lib/api';
 
 	let settings = $state<BackupSettings | null>(null);
@@ -35,7 +38,24 @@
 		toast.push(err instanceof ApiError ? err.message : fallback, 'error');
 	}
 
-	function apply(st: { settings: BackupSettings; backups: BackupInfo[]; free_bytes: number }) {
+	let check = $state<BackupCheck | null>(null);
+	let verifying = $state(false);
+
+	async function verifyNow() {
+		if (!auth.token) return;
+		verifying = true;
+		try {
+			apply(await verifyBackup(auth.token));
+			toast.push(check?.ok ? t('admin.backups.check_passed') : t('admin.backups.check_failed_short'), check?.ok ? 'success' : 'error');
+		} catch (err) {
+			await failed(err, t('admin.backups.check_failed_short'));
+		} finally {
+			verifying = false;
+		}
+	}
+
+	function apply(st: BackupState) {
+		check = st.check;
 		settings = st.settings;
 		backups = st.backups;
 		freeBytes = st.free_bytes;
@@ -185,6 +205,20 @@
 					{backups.length} · {mb(total)}{freeBytes ? t('admin.backups.v_free', { V: mb(freeBytes) }) : ''}
 				</span>
 			</div>
+			{#if backups.length && check}
+				<div class="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+					{#if check.ok}
+						<span class="text-emerald-500">
+							✓ {t('admin.backups.check_ok', { WHEN: when(check.at), FILES: check.files, USERS: check.users, MESSAGES: check.messages })}
+						</span>
+					{:else}
+						<span class="text-red-400" title={check.error}>✗ {t('admin.backups.check_failed', { WHEN: when(check.at), ERROR: check.error ?? '' })}</span>
+					{/if}
+					<button type="button" class="btn-secondary btn-xs" disabled={verifying} onclick={verifyNow}>
+						{verifying ? t('admin.backups.checking') : t('admin.backups.check_now')}
+					</button>
+				</div>
+			{/if}
 			{#if backups.length === 0}
 				<p class="text-sm text-muted">{t('admin.backups.none_yet_v', { V: settings.enabled ? t('admin.backups.the_first_one_is_written', { V: String(settings.hour).padStart(2, '0') }) : '' })}</p>
 			{:else}

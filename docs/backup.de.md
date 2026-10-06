@@ -39,6 +39,18 @@ NAS legen (im Container gemountet, z. B. `/backup` in der
 `docker-compose.yml` beim Dienst `web` und als Verzeichnis `/backup`
 eintragen).
 
+## Prüfung
+
+Jedes neue Backup — nächtlich oder „Back up now“ — wird gleich nach dem
+Schreiben geprüft: Das Archiv wird bis zum Ende gelesen (die Prüfsumme von
+gzip erkennt eine beschädigte Datei), die Datenbank darin in eine temporäre
+Datei entpackt und muss die Integritätsprüfung von SQLite bestehen,
+`bbs.yaml` muss drin sein, und es muss mindestens die Hälfte der Benutzer und
+Nachrichten der BBS enthalten (eine leere oder falsche Datenbank tut das
+nicht). Das Ergebnis steht auf der Backups-Seite („Check now“ wiederholt es)
+und im Dashboard; eine fehlgeschlagene Prüfung erscheint unter „Needs
+attention“ und als Push.
+
 ## Kopie ausser Haus (verschlüsselt)
 
 Admin → System → Backups → **Off-site copy**: Jedes Backup geht danach

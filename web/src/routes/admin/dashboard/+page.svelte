@@ -300,7 +300,12 @@
 					<div class="text-sm text-amber-400">{t('admin.dashboard.backup_off')}</div>
 				{:else if sys.last_backup}
 					<div class="text-sm {hours(sys.last_backup.time) > 36 ? 'text-amber-400' : 'text-ink-strong'}">{ago(sys.last_backup.time)}</div>
-					<div class="text-xs text-faint">{bytes(sys.last_backup.size)}</div>
+					<div class="text-xs text-faint">
+						{bytes(sys.last_backup.size)}
+						{#if sys.backup_check && sys.backup_check.name === sys.last_backup.name}
+							· {#if sys.backup_check.ok}<span class="text-emerald-500">✓ {t('admin.dashboard.backup_checked')}</span>{:else}<span class="text-red-400" title={sys.backup_check.error}>✗ {t('admin.dashboard.backup_check_failed')}</span>{/if}
+						{/if}
+					</div>
 				{:else}
 					<div class="text-sm text-amber-400">{t('admin.dashboard.backup_none')}</div>
 				{/if}

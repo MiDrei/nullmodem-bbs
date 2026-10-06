@@ -29,6 +29,8 @@ type backupResponse struct {
 	Backups  []backup.Info     `json:"backups"`
 	// FreeBytes is the free space where the backups go, 0 if unknown.
 	FreeBytes uint64 `json:"free_bytes"`
+	// Check is the last backup check, nil before the first.
+	Check *backup.Check `json:"check"`
 }
 
 // BackupSources is what a backup holds on this server: the database,
@@ -62,7 +64,48 @@ func (s *Server) backupResponse(c *config.Config) (backupResponse, error) {
 		},
 		Backups:   list,
 		FreeBytes: freeBytes(b.Directory()),
+		Check:     s.lastBackupCheck(),
 	}, nil
+}
+
+func (s *Server) lastBackupCheck() *backup.Check {
+	if s.DB == nil {
+		return nil
+	}
+	if c, ok := backup.LastCheck(s.DB); ok {
+		return &c
+	}
+	return nil
+}
+
+// handleVerifyBackup: POST /api/backups/verify -- checks the newest
+// backup again now (see backup.Verify).
+func (s *Server) handleVerifyBackup(w http.ResponseWriter, r *http.Request) {
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	src, opts := s.BackupSources(c), BackupOptions(c)
+	list, err := backup.List(opts.Dir)
+	if err != nil || len(list) == 0 {
+		writeError(w, http.StatusNotFound, "there is no backup yet")
+		return
+	}
+	check := backup.Verify(r.Context(), filepath.Join(opts.Dir, list[0].Name), src.DBPath, src.ConfigFiles[:1], s.DB)
+	if err := backup.SaveCheck(s.DB, check); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save the result")
+		return
+	}
+	if !check.OK {
+		s.logWarn("backup %s failed its check: %s", check.Name, check.Error)
+	}
+	resp, err := s.backupResponse(c)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list the backups")
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleGetBackups(w http.ResponseWriter, r *http.Request) {
@@ -142,6 +185,9 @@ func (s *Server) handleRunBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		s.logInfo("%s wrote a backup: %s (%.1f MB)", claims.Subject, info.Name, float64(info.Size)/(1<<20))
+	}
+	if check, ran := backup.VerifyNewest(r.Context(), s.BackupSources(c), BackupOptions(c)); ran && !check.OK {
+		s.logWarn("backup %s failed its check: %s", check.Name, check.Error)
 	}
 	resp, err := s.backupResponse(c)
 	if err != nil {

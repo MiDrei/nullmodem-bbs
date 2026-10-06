@@ -138,6 +138,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/backups", s.requireAuth(http.HandlerFunc(s.handleGetBackups)))
 	mux.Handle("PUT /api/backups/settings", s.requireAuth(http.HandlerFunc(s.handlePutBackupSettings)))
 	mux.Handle("POST /api/backups/run", s.requireAuth(http.HandlerFunc(s.handleRunBackup)))
+	mux.Handle("POST /api/backups/verify", s.requireAuth(http.HandlerFunc(s.handleVerifyBackup)))
 	mux.Handle("GET /api/backups/offsite", s.requireAuth(http.HandlerFunc(s.handleGetOffsite)))
 	mux.Handle("PUT /api/backups/offsite", s.requireAuth(http.HandlerFunc(s.handlePutOffsite)))
 	mux.Handle("POST /api/backups/offsite/age-key", s.requireAuth(http.HandlerFunc(s.handleOffsiteAgeKey)))

@@ -146,6 +146,11 @@ func Check(ctx context.Context, e Env) ([]Problem, error) {
 		}
 	}
 
+	// The last backup check (see backup.Verify).
+	if c, ok := backup.LastCheck(e.DB); ok && !c.OK {
+		add("backup-check", i18n.Ref("health.backup_check_failed", "NAME", c.Name), c.Error)
+	}
+
 	// The off-site copy of the backups.
 	if o := cfg.Backup.Offsite; o.Enabled {
 		st := offsite.LoadStatus(e.DB)

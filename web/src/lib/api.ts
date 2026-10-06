@@ -148,6 +148,7 @@ export interface SystemStatus {
 	free_bytes: number;
 	backup_enabled: boolean;
 	last_backup: { name: string; size: number; time: string } | null;
+	backup_check: BackupCheck | null;
 	offsite_enabled: boolean;
 	offsite: { last_ok: string; last_name: string; last_try: string; last_error: string; remote: number };
 	services: { name: string; version: string; started_at: string; running: boolean }[];
@@ -1929,10 +1930,28 @@ export interface BackupInfo {
 	time: string;
 }
 
+/** How checking a backup went: archive read whole, database intact, counts plausible. */
+export interface BackupCheck {
+	name: string;
+	at: string;
+	ok: boolean;
+	error?: string;
+	files: number;
+	users: number;
+	messages: number;
+}
+
 export interface BackupState {
 	settings: BackupSettings;
 	backups: BackupInfo[];
 	free_bytes: number;
+	/** The last check, null before the first. */
+	check: BackupCheck | null;
+}
+
+/** Checks the newest backup again now. */
+export function verifyBackup(token: string): Promise<BackupState> {
+	return request('/api/backups/verify', { method: 'POST' }, token);
 }
 
 export function getBackups(token: string): Promise<BackupState> {
