@@ -2,7 +2,6 @@ package bbs
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"git.maik.ch/nullmodem/kit/ansi"
@@ -18,58 +17,96 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 	if s.Community == nil {
 		return nil
 	}
+	cut := func(v string, n int) string {
+		r := []rune(v)
+		if len(r) > n {
+			r = r[:n]
+		}
+		return string(r) + strings.Repeat(" ", n-len(r))
+	}
+	statusWidth := 0
+	for _, k := range []string{"bbslist.st_up", "bbslist.st_down", "bbslist.st_unknown"} {
+		statusWidth = max(statusWidth, len(term.T(k)))
+	}
+	keys := term.T("bbslist.keys_view")
+	if u.Validated {
+		keys = term.T("bbslist.keys")
+	}
+	// A lightbar like the area lists': as many boards as fit under the
+	// banner, the column titles and the key line, scrolling through
+	// the rest.
+	cur, top := 0, 0
 	for {
 		list, err := s.Community.BBSList()
 		if err != nil {
 			return err
 		}
+		header := s.featureHeader(term, u, "bbslist.ans", term.T("common.bbs_list"))
+		rows := max(3, term.Height()-strings.Count(header, "\n")-5)
+		cur = max(0, min(cur, len(list)-1))
+		if cur < top {
+			top = cur
+		}
+		if cur >= top+rows {
+			top = cur - rows + 1
+		}
 		var b strings.Builder
-		b.WriteString(s.featureHeader(term, u, "bbslist.ans", term.T("common.bbs_list")))
+		b.WriteString(header)
 		if len(list) == 0 {
-			b.WriteString("  " + term.T("bbslist.empty") + "\r\n")
+			b.WriteString("  " + fgDim(ansi.White) + term.T("bbslist.empty") + ansi.Reset + "\r\n")
+		} else {
+			b.WriteString("  " + fgDim(ansi.White) + padCP(term.T("common.bbs"), 31) + padCP(term.T("common.address"), 33) + term.T("bbslist.col_status") + "\r\n" +
+				fgDim(ansi.Blue) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
 		}
-		cut := func(v string, n int) string {
-			r := []rune(v)
-			if len(r) > n {
-				r = r[:n]
+		end := min(top+rows, len(list))
+		for i := top; i < end; i++ {
+			e := list[i]
+			if i == cur {
+				b.WriteString("\x1b[1;37;44m  " + toCP437(cut(e.Name, 30)) + " " + toCP437(cut(e.Address, 32)) + " " + padCP(bbsStatusText(term, e), statusWidth+1) + ansi.Reset + "\r\n")
+				continue
 			}
-			return string(r) + strings.Repeat(" ", n-len(r))
+			fmt.Fprintf(&b, "  %s%s %s%s %s%s\r\n", ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)),
+				fgDim(ansi.White), toCP437(cut(e.Address, 32)), bbsStatus(term, e, statusWidth), ansi.Reset)
 		}
-		statusWidth := 0
-		for _, k := range []string{"bbslist.st_up", "bbslist.st_down", "bbslist.st_unknown"} {
-			statusWidth = max(statusWidth, len(term.T(k)))
+		for i := end - top; i < rows && len(list) > 0; i++ {
+			b.WriteString("\r\n")
 		}
-		for i, e := range list {
-			fmt.Fprintf(&b, "  %s%3d%s  %s%s %s%s %s%s\r\n", ansi.FG(ansi.Cyan, true), i+1, ansi.Reset,
-				ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)), fgDim(ansi.White), toCP437(cut(e.Address, 32)),
-				bbsStatus(term, e, statusWidth), ansi.Reset)
+		scroll := ""
+		if len(list) > rows {
+			scroll = "-- " + term.T("list.range", "FROM", top+1, "TO", end, "TOTAL", len(list)) + " --"
 		}
-		keys := term.T("bbslist.key_details")
-		if u.Validated {
-			keys += ", " + term.T("bbslist.key_add")
-		}
-		b.WriteString("\r\n  " + keys + " (" + term.T("common.enter_back") + "): " + ansi.FG(ansi.Yellow, true))
+		b.WriteString("\r\n" + ansi.FG(ansi.Black, true) + scroll + ansi.Reset + "\r\n" + keyHints(keys) + ansi.Reset)
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
-		in, err := term.ReadLine(false)
+		k, err := term.ReadKey()
 		if err != nil {
 			return err
 		}
-		in = strings.ToUpper(strings.TrimSpace(in))
 		switch {
-		case in == "":
-			return term.Print(ansi.Reset)
-		case in == "A" && u.Validated:
+		case k.Type == KeyUp:
+			cur--
+		case k.Type == KeyDown:
+			cur++
+		case k.Type == KeyPgUp:
+			cur -= rows
+		case k.Type == KeyPgDn:
+			cur += rows
+		case k.Type == KeyHome:
+			cur = 0
+		case k.Type == KeyEnd:
+			cur = len(list) - 1
+		case k.Type == KeyEnter && len(list) > 0:
+			if err := s.showBBS(term, u, list[cur]); err != nil {
+				return err
+			}
+		case isKey(k, 'a') && u.Validated:
+			term.Print(ansi.Reset + "\r\n\r\n")
 			if err := s.editBBS(term, u, community.BBS{}); err != nil {
 				return err
 			}
-		default:
-			if n, err := strconv.Atoi(in); err == nil && n >= 1 && n <= len(list) {
-				if err := s.showBBS(term, u, list[n-1]); err != nil {
-					return err
-				}
-			}
+		case isKey(k, 'q'), k.Type == KeyEscape:
+			return term.Print(ansi.Reset)
 		}
 	}
 }
@@ -197,6 +234,17 @@ func (s *Server) editBBS(term *Terminal, u *user.User, e community.BBS) error {
 }
 
 // bbsStatus is the online check's verdict, width columns wide.
+// bbsStatusText is bbsStatus's word, without its colour.
+func bbsStatusText(term *Terminal, e community.BBS) string {
+	switch {
+	case e.CheckedAt.IsZero():
+		return term.T("bbslist.st_unknown")
+	case e.Online:
+		return term.T("bbslist.st_up")
+	}
+	return term.T("bbslist.st_down")
+}
+
 func bbsStatus(term *Terminal, e community.BBS, width int) string {
 	switch {
 	case e.CheckedAt.IsZero():

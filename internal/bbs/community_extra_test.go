@@ -1,6 +1,7 @@
 package bbs
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -37,7 +38,7 @@ func TestBBSListAddAndOnlyOwnEditable(t *testing.T) {
 	s.Users.Register("maik", "password123", user.SLNewUser) // sysop
 	alice, _ := s.Users.Register("alice", "password123", user.SLNewUser)
 	bob, _ := s.Users.Register("bob", "password123", user.SLNewUser)
-	conn := newFakeConn("A\r\nAgency BBS\r\nagency.bbs.nz:2323\r\nAvon\r\nMystic\r\nThe fsxNet hub\r\n\r\n")
+	conn := newFakeConn("AAgency BBS\r\nagency.bbs.nz:2323\r\nAvon\r\nMystic\r\nThe fsxNet hub\r\nQ")
 	if err := s.bbsList(NewTerminal(conn), alice); err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestBBSListDetailsInGermanWrapAndKeepUmlauts(t *testing.T) {
 	// Typed on a UTF-8 terminal: the emoji arrives as UTF-8, not as
 	// four CP437 characters.
 	long := "A regional Swiss BBS that ran over dial-up from 1991 to 1996. Revived from a 30-year-old backup tape. Grüezi 🙂"
-	conn := newFakeConn("A\r\nBUEMA BBS\r\nbbs.buema.ch:2300\r\nMarc\r\nWildcat! v4.11\r\n" + long + "\r\n\r\n")
+	conn := newFakeConn("ABUEMA BBS\r\nbbs.buema.ch:2300\r\nMarc\r\nWildcat! v4.11\r\n" + long + "\r\nQ")
 	if err := s.bbsList(NewTerminal(conn), alice); err != nil {
 		t.Fatal(err)
 	}
@@ -106,3 +107,24 @@ func TestBBSListDetailsInGermanWrapAndKeepUmlauts(t *testing.T) {
 var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
 
 func ansiStrip(s string) string { return ansiSeq.ReplaceAllString(s, "") }
+
+func TestBBSListScrolls(t *testing.T) {
+	s := testServer(t)
+	s.Community = community.NewStore(s.Users.DB())
+	alice, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	for i := 1; i <= 30; i++ {
+		s.Community.SaveBBS(community.BBS{Name: fmt.Sprintf("Board %02d", i), Address: fmt.Sprintf("board%02d.example:23", i), AddedBy: "alice"})
+	}
+	// End jumps to the last board, Enter shows it, a key back, Q.
+	conn := newFakeConn("\x1b[F\r\n\r\nQ")
+	if err := s.bbsList(NewTerminal(conn), alice); err != nil {
+		t.Fatal(err)
+	}
+	out := conn.out.String()
+	if !strings.Contains(out, "1-") || !strings.Contains(out, "of 30") {
+		t.Errorf("no scroll status: %q", out)
+	}
+	if strings.Count(out, "Board 30") < 2 {
+		t.Errorf("End didn't reach the last board and show it: %q", out)
+	}
+}
