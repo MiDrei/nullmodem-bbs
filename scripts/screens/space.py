@@ -355,7 +355,7 @@ def lists():
 WELCOME_NAME=('MAIKS','PLACE')
 WELCOME_INFO=[[('Sysop','Mike Dreier'),('Location','Neunkirch, CH')],
               [('Telnet','bbs.maik.ch:2323'),('E-Mail','maiks.place.bbs@relay.maik.ch')]]
-WELCOME_NETS=[[('fsxNet','21:3/194'),('HobbyNet','954:700/14'),('LovlyNet','227:1/23')],
+WELCOME_NETS=[[('fsxNet','21:3/194'),('HobbyNet','954:700/14')],
               [('tqwNet','1337:1/131'),('SysopNet','23:1/107')]]
 BOLD={
 'M':["##...##","###.###","##.#.##","##...##","##...##","##...##","##...##"],
