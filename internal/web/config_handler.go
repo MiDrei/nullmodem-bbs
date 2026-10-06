@@ -60,9 +60,6 @@ type binkpUplinkDTO struct {
 	// purely a UI grouping (Hubs vs. Nodes/Points), no behavioral
 	// effect.
 	Downlink bool `json:"downlink"`
-	// PostAs -- see config.BinkpUplink.PostAs: the local user a point
-	// (the sysop's reader app) reads and writes as. Points only.
-	PostAs string `json:"post_as"`
 }
 
 // networkDTO is one config.Network. OriginalName is the name it was
@@ -123,7 +120,6 @@ func toDTO(c *config.Config) configDTO {
 			NoCRAM:              u.NoCRAM,
 			AKAAddresses:        akaAddrs,
 			Downlink:            u.Downlink,
-			PostAs:              strings.TrimSpace(u.PostAs),
 		}
 	}
 	addrs := c.BBS.FTNAddresses
@@ -197,11 +193,6 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
-	if msg := s.validatePostAs(dto.BinkpUplinks); msg != "" {
-		writeError(w, http.StatusBadRequest, msg)
-		return
-	}
-
 	c, err := s.loadBBSConfig()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load config")
@@ -241,7 +232,6 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 			NoCRAM:              u.NoCRAM,
 			AKAAddresses:        u.AKAAddresses,
 			Downlink:            u.Downlink,
-			PostAs:              strings.TrimSpace(u.PostAs),
 		}
 	}
 	c.Binkp.PollIntervalSeconds = dto.BinkpDefaultPollIntervalSeconds
@@ -529,25 +519,4 @@ func (s *Server) markConfigRestarts(before, after configDTO) {
 		before.BinkpDefaultPollIntervalSeconds != after.BinkpDefaultPollIntervalSeconds {
 		s.markRestartNeeded(i18n.Ref("restart.binkp"), services.Mailer)
 	}
-}
-
-// validatePostAs checks the uplinks' "post as" settings: only on a
-// point (a downlink with a point address), and naming a local user.
-func (s *Server) validatePostAs(uplinks []binkpUplinkDTO) string {
-	for _, u := range uplinks {
-		name := strings.TrimSpace(u.PostAs)
-		if name == "" {
-			continue
-		}
-		a, err := mail.ParseAddress(u.Address)
-		if !u.Downlink || err != nil || a.Point == 0 {
-			return fmt.Sprintf("%s: \"post as\" is only for a point of this system (a downlink with a point address like 21:3/194.1)", u.Address)
-		}
-		if s.Users != nil {
-			if _, err := s.Users.ByUsername(name); err != nil {
-				return fmt.Sprintf("%s: there is no user %q to post as", u.Address, name)
-			}
-		}
-	}
-	return ""
 }

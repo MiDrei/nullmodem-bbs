@@ -2,22 +2,20 @@ package tosser
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/areafix"
 	"git.maik.ch/nullmodem/bbs/internal/config"
 	"git.maik.ch/nullmodem/bbs/internal/mail"
-	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
-// The sysop's reader app as a point of 21:3/194, in two networks.
+// A reader app as a point of 21:3/194, in two networks.
 var (
 	pointOurAddresses = []string{"21:3/194@fsxnet", "954:700/14@hobbynet"}
 	fsxHub            = config.BinkpUplink{Address: "21:3/100", Host: "hub.fsx:24554", Network: "fsxNet"}
-	readerFsx         = config.BinkpUplink{Address: "21:3/194.1", Host: "fidomail", Network: "fsxNet", Downlink: true, Hold: true, PostAs: "sysop"}
-	readerHobby       = config.BinkpUplink{Address: "954:700/14.1", Host: "fidomail", Network: "HobbyNet", Downlink: true, Hold: true, PostAs: "sysop"}
+	readerFsx         = config.BinkpUplink{Address: "21:3/194.1", Host: "fidomail", Network: "fsxNet", Downlink: true, Hold: true}
+	readerHobby       = config.BinkpUplink{Address: "954:700/14.1", Host: "fidomail", Network: "HobbyNet", Downlink: true, Hold: true}
 	pointUplinks      = []config.BinkpUplink{fsxHub, readerFsx, readerHobby}
 )
 
@@ -48,62 +46,6 @@ func mustAddr(t *testing.T, s string) mail.Address {
 	return a
 }
 
-func TestPointEchomailIsPostedAsItsUserAndGoesUpNotBack(t *testing.T) {
-	netmailStore, messages, _, users, echoSubs, _ := newTestStoresWithRobot(t)
-	sysop, _ := users.Register("sysop", "password123", user.SLSysop)
-	area, _ := messages.CreateArea("FSX_GEN", "fsxNet General", "", "fsxNet", 0, 0)
-	echoSubs.Request("fidomail", "FSX_GEN", areafix.Inbound)
-
-	poster, err := newPointPoster(readerFsx, pointUplinks, users, pointOurAddresses)
-	if err != nil || poster == nil || poster.user.ID != sysop.ID {
-		t.Fatalf("newPointPoster = %+v, %v", poster, err)
-	}
-	body := "AREA:FSX_GEN\n\x01MSGID: 21:3/194.1 0000abcd\n\x01PID: FidoMail 1.0\nHello from the iPad.\nSecond line.\n\n--- FidoMail 1.0\n * Origin: My iPad (21:3/194.1)\nSEEN-BY: 3/194\n\x01PATH: 3/194\n"
-	// Written by the reader's clock, two hours ahead and without a zone.
-	msg := mail.Message{OrigAddr: mustAddr(t, "21:3/194.1"), DestAddr: mustAddr(t, "21:3/194"), Written: time.Now().Add(2 * time.Hour), FromName: "Mike", ToName: "All", Subject: "Test", Body: body}
-	for i := 0; i < 2; i++ { // the second time: the reader resent the packet
-		stats, err := tossInbound(pointPacket(t, msg), nil, netmailStore, messages, users, nil, poster)
-		if err != nil {
-			t.Fatalf("tossInbound: %v", err)
-		}
-		if want := 1 - i; stats.echo != want {
-			t.Fatalf("round %d: stats.echo = %d, want %d", i, stats.echo, want)
-		}
-	}
-
-	stored, _ := messages.ListMessages(area.ID)
-	if len(stored) != 1 || !stored[0].FromUserID.Valid || stored[0].FromUserID.Int64 != sysop.ID {
-		t.Fatalf("stored = %+v, want one post by sysop", stored)
-	}
-	if d := time.Since(stored[0].PostedAt); d < -time.Minute || d > time.Minute {
-		t.Fatalf("posted at %v, want the time it arrived, not the reader's clock", stored[0].PostedAt)
-	}
-	if got := stored[0].Body; got != "Hello from the iPad.\nSecond line." {
-		t.Fatalf("stored body = %q, want the text without kludges, tearline and origin", got)
-	}
-
-	up, _ := RoutedOutboundEcho(messages, fsxHub)
-	if len(up) != 1 {
-		t.Fatalf("RoutedOutboundEcho(hub) = %d messages, want the point's post going up", len(up))
-	}
-	buf, err := buildPacket(mustAddr(t, "21:3/194"), mustAddr(t, "21:3/100"), "", "Maiks Place BBS", nil, up, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	out := strings.ReplaceAll(buf.String(), "\r", "\n")
-	if !strings.Contains(out, "MSGID: 21:3/194 ") || !strings.Contains(out, "* Origin: Maiks Place BBS (21:3/194)") || strings.Contains(out, "21:3/194.1") || strings.Contains(out, "My iPad") {
-		t.Fatalf("outgoing packet should carry only the BBS's address and origin:\n%s", out)
-	}
-
-	back, _ := RoutedOutboundEchoForward(messages, echoSubs, readerFsx)
-	if len(back) != 0 {
-		t.Fatalf("the point's own post was offered back to it: %+v", back)
-	}
-	if mine, _ := RoutedOutboundEcho(messages, readerFsx); len(mine) != 0 {
-		t.Fatalf("RoutedOutboundEcho(point) = %+v, want nothing: this system's posts go up, not to a point", mine)
-	}
-}
-
 func TestPointGetsSubscribedAreasOnceAndNotOldBacklog(t *testing.T) {
 	_, messages, _, _, echoSubs, _ := newTestStoresWithRobot(t)
 	area, _ := messages.CreateArea("FSX_GEN", "fsxNet General", "", "fsxNet", 0, 0)
@@ -128,161 +70,9 @@ func TestPointGetsSubscribedAreasOnceAndNotOldBacklog(t *testing.T) {
 	}
 }
 
-func TestPointNetmailIsSentAsItsUserAndRoutedAway(t *testing.T) {
-	netmailStore, messages, _, users, _, _ := newTestStoresWithRobot(t)
-	sysop, _ := users.Register("sysop", "password123", user.SLSysop)
-	bob, _ := users.Register("bob", "password123", user.SLNewUser)
-	poster, _ := newPointPoster(readerFsx, pointUplinks, users, pointOurAddresses)
-
-	remote := mail.Message{OrigAddr: mustAddr(t, "21:3/194.1"), DestAddr: mustAddr(t, "21:1/100"), Written: time.Now(),
-		FromName: "Mike", ToName: "Avon", Subject: "Hi", Body: "\x01MSGID: 21:3/194.1 1\nHello Avon\n--- FidoMail\n * Origin: iPad (21:3/194.1)\n"}
-	local := mail.Message{OrigAddr: mustAddr(t, "21:3/194.1"), DestAddr: mustAddr(t, "21:3/194"), Written: time.Now(),
-		FromName: "Mike", ToName: "bob", Subject: "Local", Body: "Hi Bob\n"}
-	for _, m := range []mail.Message{remote, local} {
-		if _, err := tossInbound(pointPacket(t, m), nil, netmailStore, messages, users, nil, poster); err != nil {
-			t.Fatalf("tossInbound: %v", err)
-		}
-	}
-
-	pending, _ := netmailStore.PendingOutbound()
-	if len(pending) != 1 || pending[0].FromUserID.Int64 != sysop.ID || pending[0].FromAddress != "21:3/194" || pending[0].ToAddress != "21:1/100" || pending[0].Body != "Hello Avon" {
-		t.Fatalf("pending = %+v, want the netmail to Avon from sysop@21:3/194", pending)
-	}
-	if got := routeOutbound(pending, fsxHub, pointUplinks); len(got) != 1 {
-		t.Fatalf("hub gets %d, want the point's netmail", len(got))
-	}
-	if got := routeOutbound(pending, readerFsx, pointUplinks); len(got) != 0 {
-		t.Fatalf("point gets %+v, want nothing but mail addressed to it", got)
-	}
-	inbox, _ := netmailStore.Inbox(bob.ID)
-	if len(inbox) != 1 || inbox[0].FromUserID.Int64 != sysop.ID {
-		t.Fatalf("bob's inbox = %+v, want the local netmail from sysop", inbox)
-	}
-}
-
-func TestNetmailToPostAsUserIsCopiedToThePointOnce(t *testing.T) {
-	netmailStore, _, _, users, _, _ := newTestStoresWithRobot(t)
-	sysop, _ := users.Register("sysop", "password123", user.SLSysop)
-	poster, _ := newPointPoster(readerHobby, pointUplinks, users, pointOurAddresses)
-	netmailStore.Receive("Avon", "954:700/1", sysop.ID, "sysop", "", "Hi", "\x01INTL 954:700/14 954:700/1\n\x01MSGID: 954:700/1 5\nHello", time.Now(), false)
-
-	copies, err := poster.pointNetmailCopies(netmailStore, readerHobby)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(copies) != 1 || copies[0].ToAddress != "954:700/14.1" || strings.Contains(copies[0].Body, "INTL") {
-		t.Fatalf("copies = %+v, want one to the HobbyNet point without the old INTL", copies)
-	}
-	b := &outboundBundle{packetName: "x.pkt", netmailCopies: copies, point: true, pointHost: "fidomail"}
-	if err := b.markSent(&Result{}, []string{"x.pkt"}, mustAddr(t, "954:700/14.1"), netmailStore, nil, nil); err != nil {
-		t.Fatal(err)
-	}
-	if again, _ := poster.pointNetmailCopies(netmailStore, readerHobby); len(again) != 0 {
-		t.Fatalf("copied twice: %+v", again)
-	}
-	if inbox, _ := netmailStore.Inbox(sysop.ID); len(inbox) != 1 {
-		t.Fatalf("the copy must leave the original in the inbox: %+v", inbox)
-	}
-}
-
-func TestPostAsUnknownUserFails(t *testing.T) {
-	_, _, _, users, _, _ := newTestStoresWithRobot(t)
-	if _, err := newPointPoster(readerFsx, pointUplinks, users, pointOurAddresses); err == nil {
-		t.Fatal("a point posting as a user that doesn't exist was accepted")
-	}
-	if p, err := newPointPoster(fsxHub, pointUplinks, users, pointOurAddresses); p != nil || err != nil {
-		t.Fatalf("a hub got a poster: %+v, %v", p, err)
-	}
-}
-
-func TestTickedAreasAreTheSubscriptionsOfAPostAsPoint(t *testing.T) {
-	_, messages, _, _, echoSubs, _ := newTestStoresWithRobot(t)
-	area, _ := messages.CreateArea("FSX_GEN", "fsxNet General", "", "fsxNet", 0, 0)
-	messages.ReceiveEcho(area.ID, "Someone", "Hello", "text", "21:3/100 00000001", time.Now())
-	if err := echoSubs.Grant("fidomail", "FSX_GEN"); err != nil {
-		t.Fatal(err)
-	}
-
-	out, err := RoutedOutboundEchoForward(messages, echoSubs, readerFsx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(out) != 1 || out[0].AreaTag != "FSX_GEN" {
-		t.Fatalf("post-as point with FSX_GEN ticked got %+v, want its one message", out)
-	}
-
-	plain := readerFsx
-	plain.PostAs = ""
-	if out, _ := RoutedOutboundEchoForward(messages, echoSubs, plain); len(out) != 0 {
-		t.Fatalf("an ordinary point got %+v from a tick alone; it must subscribe via Areafix", out)
-	}
-
-	// Ticked and also ordered via Areafix: still sent once.
-	echoSubs.Request("fidomail", "FSX_GEN", areafix.Inbound)
-	if out, _ := RoutedOutboundEchoForward(messages, echoSubs, readerFsx); len(out) != 1 {
-		t.Fatalf("ticked and subscribed area offered %d times, want once", len(out))
-	}
-}
-
-func TestNetmailCopyGoesToOnePointEvenWithSeparateHostLabels(t *testing.T) {
-	netmailStore, _, _, users, _, _ := newTestStoresWithRobot(t)
-	sysop, _ := users.Register("sysop", "password123", user.SLSysop)
-	fsx, hobby := readerFsx, readerHobby
-	fsx.Host, hobby.Host = "fidomail-fsxnet", "fidomail-hobbynet"
-	uplinks := []config.BinkpUplink{fsxHub, fsx, hobby}
-	netmailStore.Receive("Avon", "954:700/1", sysop.ID, "sysop", "", "Hi", "Hello", time.Now(), false)
-
-	var total int
-	for _, e := range []config.BinkpUplink{fsx, hobby} {
-		p, err := newPointPoster(e, uplinks, users, pointOurAddresses)
-		if err != nil {
-			t.Fatal(err)
-		}
-		copies, _ := p.pointNetmailCopies(netmailStore, e)
-		for _, c := range copies {
-			if c.ToAddress != "954:700/14.1" {
-				t.Fatalf("copy to %s, want the HobbyNet point (sender's zone)", c.ToAddress)
-			}
-		}
-		total += len(copies)
-	}
-	if total != 1 {
-		t.Fatalf("%d copies, want exactly one", total)
-	}
-}
-
 func TestAreafixStopsAtTheTearline(t *testing.T) {
 	list, changes := parseAreafixCommands("+FSX_GEN\n%LIST\n\n--- FidoMailMobile/0.1.12+94 (iOS)\n * Origin: iPad (21:3/194.1)\n-SHOULD_NOT_COUNT\n")
 	if !list || len(changes) != 1 || changes[0].Tag != "FSX_GEN" {
 		t.Fatalf("list=%v changes=%+v, want %%LIST and +FSX_GEN only", list, changes)
-	}
-}
-
-func TestPointMailToAnEmailAddressGoesThroughTheGateway(t *testing.T) {
-	netmailStore, messages, _, users, _, _ := newTestStoresWithRobot(t)
-	sysop, _ := users.Register("sysop", "password123", user.SLSysop)
-	in, err := netmailStore.ReceiveEmail("Joe", "joe@other.ch", sysop.ID, "sysop", "Question", "Hi?", time.Now(), "<q@other.ch>", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	poster, _ := newPointPoster(readerFsx, pointUplinks, users, pointOurAddresses)
-
-	// The copy to the reader comes from the address, so it can answer.
-	copies, err := poster.pointNetmailCopies(netmailStore, readerFsx)
-	if err != nil || len(copies) != 1 || copies[0].FromName != "joe@other.ch" {
-		t.Fatalf("copies %+v, %v", copies, err)
-	}
-
-	msg := mail.Message{OrigAddr: mustAddr(t, "21:3/194.1"), DestAddr: mustAddr(t, "21:3/194"), Written: time.Now(),
-		FromName: "Mike", ToName: "joe@other.ch", Subject: "Re: Question", Body: "\x01MSGID: 21:3/194.1 00000001\nYes.\n--- FidoMail\n"}
-	if _, err := tossInbound(pointPacket(t, msg), nil, netmailStore, messages, users, nil, poster); err != nil {
-		t.Fatal(err)
-	}
-	due, err := netmailStore.PendingEmail(time.Now())
-	if err != nil || len(due) != 1 {
-		t.Fatalf("pending %+v, %v", due, err)
-	}
-	if d := due[0]; d.Email != "joe@other.ch" || d.FromUserID.Int64 != sysop.ID || d.InReplyTo != "<q@other.ch>" || strings.TrimSpace(d.Body) != "Yes." {
-		t.Errorf("email %+v (answering %d)", d, in.ID)
 	}
 }

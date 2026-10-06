@@ -237,13 +237,6 @@ type BinkpUplink struct {
 	// this system's own outgoing mail (see internal/tosser's
 	// points.go).
 	Downlink bool `yaml:"downlink,omitempty"`
-	// PostAs, for a point, names the local user whose mail the point
-	// reads and writes -- the sysop's own reader app (FidoMail and the
-	// like). Its echomail and netmail then go out as if that user had
-	// written them on the BBS itself, under this system's address, and
-	// netmail to that user is copied to the point too. Empty means an
-	// ordinary point.
-	PostAs string `yaml:"post_as,omitempty"`
 }
 
 // DoorConfig is one entry in Config.Doors -- see internal/doors.Door,

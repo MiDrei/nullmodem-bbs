@@ -23,8 +23,9 @@ Eintrag pro Netzwerk anlegen, an dem der Reader teilnehmen soll:
 
 Der Reader wird umgekehrt eingerichtet: diese BBS als Boss-Node (Host
 und BinkP-Port, z. B. `bbs.maik.ch:24554`), seine Point-Adressen,
-dasselbe Passwort. Seine Areas abonniert er über Areafix, oder man hakt
-sie im Web-Admin an (Area-Freigaben, die pro Host-Bezeichnung gelten).
+dasselbe Passwort. Seine Areas abonniert er über Areafix; die im Web-Admin
+für ihn angehakten Areas (Area-Freigaben, pro Host-Bezeichnung) sind die,
+die er abonnieren darf.
 
 Anders als ein Node bekommt ein Point nur, was ihm gehört:
 
@@ -33,39 +34,5 @@ Anders als ein Node bekommt ein Point nur, was ihm gehört:
 - die abonnierten Areas: ab zwei Wochen vor dem Abonnieren, jede
   Nachricht einmal (pro Point festgehalten, weil SEEN-BY keine Points
   nennen kann).
-
-## Als BBS-Benutzer schreiben
-
-**Post as BBS user** macht einen Point zu deinem eigenen Reader für dein
-BBS-Konto: Was du im Reader schreibst, erscheint, als hättest du es auf
-der BBS selbst geschrieben.
-
-- Echomail wird als Beitrag dieses Benutzers in der Area gespeichert und
-  geht mit Adresse, MSGID, Tearline und Origin dieses Systems an den Hub
-  -- Kludges, Tearline und Origin des Readers fallen weg. Sie wird nicht
-  an den Reader zurückgeschickt.
-- Netmail geht als dieser Benutzer von der Adresse dieses Systems in der
-  Zone des Empfängers hinaus; Netmail an jemanden auf dieser BBS landet
-  in dessen Posteingang, von dir.
-- Netmail an diesen Benutzer geht als Kopie auch an den Reader (beim
-  Einrichten die letzten zwei Wochen) -- einmal, an seine Point-Adresse
-  in der Zone des Absenders (sonst an seine erste), egal welche
-  Host-Bezeichnungen. Das Original bleibt im Posteingang der BBS.
-- Die im Web-Admin angehakten Areas (Area-Freigaben) sind seine
-  Abonnements: keine Areafix-Anfrage nötig. Wegnehmen beendet sie.
-  Areafix geht trotzdem auch.
-
-Ist das E-Mail-Gateway an, kommt per Mail Eingegangenes beim Reader mit
-der Absenderadresse an (wenn sie in die 35 Zeichen des Absenders einer
-Netmail passt); eine Netmail vom Reader an dieses System, adressiert an
-eine E-Mail-Adresse, geht als Mail hinaus, als Antwort auf die letzte Mail
-dieser Adresse.
-
-Ein erneut gesendetes Paket (der Reader hat unsere Bestätigung nicht
-gesehen) wird nicht doppelt gespeichert: Die MSGID des Readers wird
-dafür festgehalten. Der Benutzer muss existieren; wird er umbenannt oder
-gelöscht, schlagen die Sitzungen des Readers fehl, bis die Einstellung
-stimmt -- seine Post wird nie stattdessen unter der Point-Adresse
-gespeichert.
 
 Die Logik steckt in `internal/tosser/points.go`.

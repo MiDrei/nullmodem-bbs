@@ -27,8 +27,6 @@ export interface BinkpUplink {
 	aka_addresses: string[];
 	/** True for one of this system's own points/nodes it feeds (shown under "Nodes / Points"), false for an upstream hub/network feed (shown under "Hubs", the default). A downlink with a point address is a point: it only gets netmail addressed to it and its subscribed areas. */
 	downlink: boolean;
-	/** Points only: the local user whose mail this point (the sysop's reader app) reads and writes -- its mail goes out as if written on the BBS, and that user's netmail is copied to it. Empty = an ordinary point. */
-	post_as: string;
 }
 
 export interface BBSConfig {

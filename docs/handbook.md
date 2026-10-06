@@ -317,8 +317,8 @@ NullModem Reader.
   you set gets the address handle@your-domain (SwissMaik is
   `swissmaik@bbs.example.com`, a space becomes a dot) and can write email
   wherever they write netmail: an email address as the recipient. Answering
-  a mail answers by email — over Telnet, in the portal, the reader app, a
-  QWK reader and a point's reader (FidoMail). Setting up:
+  a mail answers by email — over Telnet, in the portal, the reader app and a
+  QWK reader. Setting up:
   1. At your mail provider, a mailbox for the domain with a **catch-all**
      (all mail to any address of the domain lands in it), and an SMTP login
      that may send as any address of the domain — usually the same account.

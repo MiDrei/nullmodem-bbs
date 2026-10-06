@@ -322,8 +322,7 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   `swissmaik@bbs.example.com`, ein Leerzeichen wird zum Punkt) und schreibt
   E-Mail überall dort, wo er Netmail schreibt: eine E-Mail-Adresse als
   Empfänger. Wer auf eine Mail antwortet, antwortet per Mail — über Telnet,
-  im Portal, in der Reader-App, in einem QWK-Reader und im Reader eines
-  Points (FidoMail). Einrichten:
+  im Portal, in der Reader-App und in einem QWK-Reader. Einrichten:
   1. Beim Mail-Anbieter ein Postfach für die Domain mit **Catch-all** (alle
      Mail an irgendeine Adresse der Domain landet dort) und ein SMTP-Login,
      das als jede Adresse der Domain senden darf — meist dasselbe Konto.

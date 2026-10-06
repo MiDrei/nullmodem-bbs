@@ -659,7 +659,7 @@ func TestTossInboundRoutesAreafixRequestsToTheRobotInsteadOfStoringThem(t *testi
 		t.Fatalf("Close: %v", err)
 	}
 
-	stats, err := tossInbound(&buf, nil, netmailStore, messages, users, robot, nil)
+	stats, err := tossInbound(&buf, nil, netmailStore, messages, users, robot)
 	if err != nil {
 		t.Fatalf("tossInbound: %v", err)
 	}

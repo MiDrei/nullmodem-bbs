@@ -23,9 +23,9 @@ network the reader should take part in:
 
 The reader is configured the other way round: this BBS as its boss
 node (host and BinkP port, e.g. `bbs.maik.ch:24554`), its point
-addresses, the same password. Its areas are subscribed through
-Areafix, or ticked for it in the web admin (area grants, which are
-kept per host label).
+addresses, the same password. It subscribes its areas through
+Areafix; the areas ticked for it in the web admin (area grants, kept
+per host label) are the ones it may subscribe.
 
 A point, unlike a node, only gets what's its own:
 
@@ -34,37 +34,5 @@ A point, unlike a node, only gets what's its own:
 - the areas it subscribed to: from two weeks before the subscription
   on, each message once (tracked per point, since SEEN-BY can't name
   points).
-
-## Post as a BBS user
-
-**Post as BBS user** on a point makes it your own reader for your BBS
-account: what you write in the reader appears as if you'd written it
-on the BBS itself.
-
-- Echomail is stored as that user's post in the area and goes to the
-  hub with this system's address, MSGID, tearline and origin line --
-  the reader's own kludges, tearline and origin are dropped. It isn't
-  sent back to the reader.
-- Netmail goes out as that user from this system's address in the
-  destination's zone; netmail to someone on this BBS lands in their
-  inbox, from you.
-- Netmail to that user is also copied to the reader (the last two
-  weeks when first set up) -- once, to its point address in the
-  sender's zone (else its first one), whatever the host labels. The
-  original stays in the BBS inbox.
-- The areas ticked for it in the web admin (area grants) are its
-  subscriptions: no Areafix request needed. Unticking one ends it.
-  Areafix still works as well.
-
-With the email gateway on, mail that came in by email reaches the reader
-from its address (when it fits the 35 characters of a netmail's From);
-a netmail from the reader to this system addressed to an email address
-goes out by email, as the answer to that address's last mail.
-
-A resent packet (the reader didn't see our acknowledgement) isn't
-posted twice: the reader's MSGID is kept to recognise it. The user must
-exist; if it's renamed or deleted, the reader's sessions fail until
-the setting is fixed -- its mail is never posted under the point's
-address instead.
 
 The logic lives in `internal/tosser/points.go`.

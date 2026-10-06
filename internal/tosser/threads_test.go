@@ -15,7 +15,7 @@ func TestRepliesThreadBothWays(t *testing.T) {
 	hub := func(body string) {
 		t.Helper()
 		msg := mail.Message{OrigAddr: mustAddr(t, "21:1/1"), DestAddr: mustAddr(t, "21:3/194"), Written: time.Now(), FromName: "Bob", ToName: "All", Subject: "Re: Topic", Body: body}
-		if _, err := tossInbound(pointPacket(t, msg), nil, netmailStore, messages, users, nil, nil); err != nil {
+		if _, err := tossInbound(pointPacket(t, msg), nil, netmailStore, messages, users, nil); err != nil {
 			t.Fatal(err)
 		}
 	}

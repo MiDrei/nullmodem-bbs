@@ -508,32 +508,3 @@ func IsFTNAddress(s string) bool {
 	}
 	return true
 }
-
-// DeliveredToPoint returns the IDs of the messages already copied to
-// the point whose uplink entry has host uplinkHost (see internal/
-// tosser's points.go).
-func (s *Store) DeliveredToPoint(uplinkHost string) (map[int64]bool, error) {
-	rows, err := s.db.Query(`SELECT message_id FROM netmail_point_deliveries WHERE uplink_host = ?`, uplinkHost)
-	if err != nil {
-		return nil, fmt.Errorf("netmail: point deliveries for %s: %w", uplinkHost, err)
-	}
-	defer rows.Close()
-	out := map[int64]bool{}
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("netmail: point deliveries for %s: %w", uplinkHost, err)
-		}
-		out[id] = true
-	}
-	return out, rows.Err()
-}
-
-// MarkDeliveredToPoint records that a copy of messageID reached the
-// point with host uplinkHost. Idempotent.
-func (s *Store) MarkDeliveredToPoint(messageID int64, uplinkHost string) error {
-	if _, err := s.db.Exec(`INSERT OR IGNORE INTO netmail_point_deliveries (message_id, uplink_host) VALUES (?, ?)`, messageID, uplinkHost); err != nil {
-		return fmt.Errorf("netmail: mark %d delivered to %s: %w", messageID, uplinkHost, err)
-	}
-	return nil
-}

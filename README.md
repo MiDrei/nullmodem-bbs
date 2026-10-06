@@ -130,8 +130,7 @@ Part of the NullModem family:
 - InterBBS Last Callers: reads the list from FSX_DAT (both common formats),
   shows it after login and in the portal and reports your own callers; data
   areas like FSX_DAT can be hidden from callers
-- Points, e.g. a reader like FidoMail; optionally it writes as your BBS user,
-  as if the mail came straight from the BBS
+- Points, e.g. a reader like FidoMail
 
 ## Layout
 

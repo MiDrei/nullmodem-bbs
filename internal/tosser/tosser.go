@@ -148,11 +148,7 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	presentedAddresses := effectiveAKAAddresses(ourAddresses, uplink)
 	ourAddr := ourAddressForUplink(presentedAddresses, uplinkAddr)
 
-	poster, err := newPointPoster(uplink, allUplinks, users, ourAddresses)
-	if err != nil {
-		return nil, err
-	}
-	bundle, err := buildOutboundBundle(ourAddr, uplinkAddr, bbsName, uplink, allUplinks, netmailStore, messages, robot, poster)
+	bundle, err := buildOutboundBundle(ourAddr, uplinkAddr, bbsName, uplink, allUplinks, netmailStore, messages, robot)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +162,7 @@ func Poll(ctx context.Context, ourAddresses []string, bbsName string, uplink con
 	res := &Result{}
 	var receiveErr error
 	receiveFile := func(f binkp.InboundFile, r io.Reader) error {
-		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, robot, ticSess, res, uplink.Address, uplink.Host, poster)
+		err := handleInboundFile(f, r, acceptedPasswords, netmailStore, messages, users, robot, ticSess, res, uplink.Address, uplink.Host)
 		if err != nil {
 			receiveErr = err
 		}
@@ -234,11 +230,9 @@ type outboundBundle struct {
 	forwardedEcho  []message.PendingEcho
 	forwardedFiles []PendingFileForward
 	// For a point (see points.go): what it's sent is recorded per
-	// point, not as SEEN-BY; netmailCopies are copies of its "post as"
-	// user's netmail, which stay in that user's inbox too.
-	point         bool
-	pointHost     string
-	netmailCopies []netmail.Message
+	// point, not as SEEN-BY.
+	point     bool
+	pointHost string
 }
 
 // buildOutboundBundle gathers routed netmail, routed echo, forwarded
@@ -249,7 +243,7 @@ type outboundBundle struct {
 // netmail/echo/forwardedEcho if there's any, plus a TIC descriptor
 // and payload pair per forwarded file, exactly how a real hub sends
 // file-echo (never bundled into the .pkt itself).
-func buildOutboundBundle(ourAddr, uplinkAddr mail.Address, bbsName string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, robot *RobotConfig, poster *pointPoster) (*outboundBundle, error) {
+func buildOutboundBundle(ourAddr, uplinkAddr mail.Address, bbsName string, uplink config.BinkpUplink, allUplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, robot *RobotConfig) (*outboundBundle, error) {
 	routed, err := RoutedOutbound(netmailStore, uplink, allUplinks)
 	if err != nil {
 		return nil, err
@@ -277,14 +271,8 @@ func buildOutboundBundle(ourAddr, uplinkAddr mail.Address, bbsName string, uplin
 
 	b := &outboundBundle{routed: routed, routedEcho: routedEcho, forwardedEcho: forwardedEcho, forwardedFiles: forwardedFiles,
 		point: isPoint(uplink), pointHost: uplink.Host}
-	if poster != nil {
-		if b.netmailCopies, err = poster.pointNetmailCopies(netmailStore, uplink); err != nil {
-			return nil, err
-		}
-	}
-
-	if len(routed) > 0 || len(b.netmailCopies) > 0 || len(routedEcho) > 0 || len(forwardedEcho) > 0 {
-		allNetmail := append(append([]netmail.Message(nil), routed...), b.netmailCopies...)
+	if len(routed) > 0 || len(routedEcho) > 0 || len(forwardedEcho) > 0 {
+		allNetmail := routed
 		echoOrigAddr := mail.Address{Zone: ourAddr.Zone, Net: ourAddr.Net, Node: ourAddr.Node}
 		if err := threadKludges(messages, echoOrigAddr, routedEcho, forwardedEcho); err != nil {
 			return nil, err
@@ -336,12 +324,6 @@ func (b *outboundBundle) markSent(res *Result, sessionFilesSent []string, uplink
 				return fmt.Errorf("tosser: marking echo message %d sent: %w", m.ID, err)
 			}
 			res.SentEcho++
-		}
-		for _, m := range b.netmailCopies {
-			if err := netmailStore.MarkDeliveredToPoint(m.ID, b.pointHost); err != nil {
-				return err
-			}
-			res.Sent++
 		}
 		if b.point {
 			for _, m := range b.forwardedEcho {
@@ -405,17 +387,6 @@ func (b *outboundBundle) markSent(res *Result, sessionFilesSent []string, uplink
 func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName string, uplinks []config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, tic *TICConfig, sessionLog *binkplog.Store) (*Result, error) {
 	var matchedUplink config.BinkpUplink
 	var matched bool
-	var poster *pointPoster
-	var posterErr error
-	var posterDone bool
-	// The point's "post as" poster, once the caller is known.
-	getPoster := func() (*pointPoster, error) {
-		if !posterDone {
-			poster, posterErr = newPointPoster(matchedUplink, uplinks, users, ourAddresses)
-			posterDone = true
-		}
-		return poster, posterErr
-	}
 	var ticSess *ticSession
 	var bundle *outboundBundle
 	var uplinkAddr mail.Address
@@ -440,13 +411,7 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 		if tic != nil && ticSess == nil {
 			ticSess = newTICSession(tic.Files, acceptedTICPasswords(matchedUplink, uplinks))
 		}
-		p, err := getPoster()
-		if err != nil {
-			receiveErr = err
-			io.Copy(io.Discard, r)
-			return err
-		}
-		err = handleInboundFile(f, r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users, robot, ticSess, res, matchedUplink.Address, matchedUplink.Host, p)
+		err := handleInboundFile(f, r, acceptedPacketPasswords(matchedUplink, uplinks), netmailStore, messages, users, robot, ticSess, res, matchedUplink.Address, matchedUplink.Host)
 		if err != nil {
 			receiveErr = err
 		}
@@ -494,12 +459,7 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 			}
 			uplinkAddr = addr
 			ourAddr := ourAddressForUplink(effectiveAKAAddresses(ourAddresses, matchedUplink), uplinkAddr)
-			p, err := getPoster()
-			if err != nil {
-				bundleErr = err
-				return nil
-			}
-			b, err := buildOutboundBundle(ourAddr, uplinkAddr, bbsName, matchedUplink, uplinks, netmailStore, messages, robot, p)
+			b, err := buildOutboundBundle(ourAddr, uplinkAddr, bbsName, matchedUplink, uplinks, netmailStore, messages, robot)
 			if err != nil {
 				bundleErr = err
 				return nil
@@ -638,15 +598,6 @@ func RoutedOutboundEchoForward(messages *message.Store, echoGrants *areafix.Echo
 	}
 
 	if isPoint(target) {
-		// The sysop's own reader: the areas ticked for it in the web
-		// admin are its subscriptions, no Areafix request needed.
-		if target.PostAs != "" {
-			grants, err := echoGrants.Grants(target.Host)
-			if err != nil {
-				return nil, fmt.Errorf("tosser: loading area grants for %s: %w", target.Host, err)
-			}
-			subs = append(subs, grants...)
-		}
 		var areas []subscribedArea
 		seenTag := map[string]bool{}
 		for _, sub := range subs {
@@ -852,7 +803,7 @@ func extractPacketBundle(name string, data []byte) ([]namedPacket, error) {
 // anything else is drained and reported in res.SkippedFiles rather
 // than dropped silently or fed to the packet parser (which fails hard
 // on it -- see isPacketFile's doc comment).
-func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, ticSess *ticSession, res *Result, uplinkAddress, uplinkHost string, poster *pointPoster) (err error) {
+func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, ticSess *ticSession, res *Result, uplinkAddress, uplinkHost string) (err error) {
 	if robot != nil && robot.Archive != nil {
 		if capture, cerr := robot.Archive.Begin(uplinkAddress, uplinkHost, f.Name); cerr == nil {
 			r = io.TeeReader(r, capture.Writer())
@@ -874,7 +825,7 @@ func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []str
 
 	switch {
 	case isPacketFile(f.Name):
-		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users, robot, poster)
+		stats, err := tossInbound(r, acceptedPasswords, netmailStore, messages, users, robot)
 		res.Received += stats.netmail
 		res.ReceivedEcho += stats.echo
 		return err
@@ -890,7 +841,7 @@ func handleInboundFile(f binkp.InboundFile, r io.Reader, acceptedPasswords []str
 			return nil
 		}
 		for _, p := range packets {
-			stats, err := tossInbound(bytes.NewReader(p.data), acceptedPasswords, netmailStore, messages, users, robot, poster)
+			stats, err := tossInbound(bytes.NewReader(p.data), acceptedPasswords, netmailStore, messages, users, robot)
 			res.Received += stats.netmail
 			res.ReceivedEcho += stats.echo
 			if err != nil {
@@ -1220,7 +1171,7 @@ type inboundStats struct {
 // keeps consuming them -- returning early, as an earlier version of
 // this password check did, deadlocks that writer forever instead of
 // cleanly failing the session.
-func tossInbound(r io.Reader, expectedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig, poster *pointPoster) (stats inboundStats, err error) {
+func tossInbound(r io.Reader, expectedPasswords []string, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *RobotConfig) (stats inboundStats, err error) {
 	defer func() {
 		if _, drainErr := io.Copy(io.Discard, r); drainErr != nil && err == nil {
 			err = fmt.Errorf("tosser: draining inbound packet: %w", drainErr)
@@ -1254,18 +1205,6 @@ func tossInbound(r io.Reader, expectedPasswords []string, netmailStore *netmail.
 		}
 
 		if tag, ok := echoAreaTag(msg.Body); ok {
-			if poster != nil {
-				handled, created, err := poster.tossEcho(tag, msg, messages)
-				if err != nil {
-					return stats, fmt.Errorf("tosser: tossing echomail message %d from point: %w", stats.netmail+stats.echo+1, err)
-				}
-				if handled {
-					if created {
-						stats.echo++
-					}
-					continue
-				}
-			}
 			created, err := tossEcho(tag, msg, messages)
 			if err != nil {
 				return stats, fmt.Errorf("tosser: tossing echomail message %d: %w", stats.netmail+stats.echo+1, err)
@@ -1280,15 +1219,6 @@ func tossInbound(r io.Reader, expectedPasswords []string, netmailStore *netmail.
 			return stats, fmt.Errorf("tosser: handling inbound Areafix/Filefix request %d: %w", stats.netmail+stats.echo+1, err)
 		} else if handled {
 			continue
-		}
-
-		if poster != nil {
-			if handled, err := poster.tossNetmail(msg, netmailStore, users); err != nil {
-				return stats, fmt.Errorf("tosser: storing netmail message %d from point: %w", stats.netmail+stats.echo+1, err)
-			} else if handled {
-				stats.netmail++
-				continue
-			}
 		}
 
 		var toUserID int64

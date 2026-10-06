@@ -68,7 +68,7 @@ func TestHandleInboundFileArchivesReceivedPacket(t *testing.T) {
 	packet := buildTestPacket(t)
 	res := &Result{}
 
-	err := handleInboundFile(binkp.InboundFile{Name: "12345678.pkt", Size: int64(len(packet))}, bytes.NewReader(packet), nil, netmailStore, messages, users, robot, nil, res, "21:3/100", "host.example.org:24554", nil)
+	err := handleInboundFile(binkp.InboundFile{Name: "12345678.pkt", Size: int64(len(packet))}, bytes.NewReader(packet), nil, netmailStore, messages, users, robot, nil, res, "21:3/100", "host.example.org:24554")
 	if err != nil {
 		t.Fatalf("handleInboundFile: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestHandleInboundFileArchivesSkippedFileAsSkipped(t *testing.T) {
 	robot := &RobotConfig{Archive: archiveStore}
 	res := &Result{}
 
-	err := handleInboundFile(binkp.InboundFile{Name: "mystery.xyz", Size: 4}, bytes.NewReader([]byte("data")), nil, netmailStore, messages, users, robot, nil, res, "21:3/100", "host.example.org:24554", nil)
+	err := handleInboundFile(binkp.InboundFile{Name: "mystery.xyz", Size: 4}, bytes.NewReader([]byte("data")), nil, netmailStore, messages, users, robot, nil, res, "21:3/100", "host.example.org:24554")
 	if err != nil {
 		t.Fatalf("handleInboundFile: %v", err)
 	}

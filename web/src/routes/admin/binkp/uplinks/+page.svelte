@@ -48,13 +48,7 @@
 			no_cram: false,
 			aka_addresses: [],
 			downlink,
-			post_as: ''
 		};
-	}
-
-	// A point of this system: a downlink with a point address.
-	function isPoint(u: BinkpUplink): boolean {
-		return u.downlink && /^\s*\d+:\d+\/\d+\.[1-9]\d*/.test(u.address);
 	}
 
 	function isAKAChecked(uplink: BinkpUplink, addr: string): boolean {
@@ -381,14 +375,6 @@
 										{t('admin.common.hold')}
 									</span>
 								{/if}
-								{#if u.post_as}
-									<span
-										class="rounded-full bg-sky-950 px-2 py-0.5 text-[10px] text-sky-300"
-										title={t('admin.binkp_uplinks.post_as_title', { USER: u.post_as })}
-									>
-										{t('admin.binkp_uplinks.posts_as_post_as', { POST_AS: u.post_as })}
-									</span>
-								{/if}
 								{#if u.no_cram}
 									<span
 										class="rounded-full bg-red-950 px-2 py-0.5 text-[10px] text-red-400"
@@ -588,20 +574,6 @@
 							{t('admin.binkp_uplinks.this_is_one_of_our')}
 						</span>
 					</label>
-					{#if isPoint(editingUplink)}
-						<label class="col-span-2 flex flex-col gap-1 text-sm">
-							<span class="text-slate-400">{t('admin.binkp_uplinks.post_as_bbs_user_for')}</span>
-							<input
-								class="field field-sm"
-								bind:value={editingUplink.post_as}
-								placeholder={t('admin.binkp_uplinks.empty_an_ordinary_point')}
-								autocomplete="off"
-							/>
-							<span class="text-xs text-slate-500">
-								{t('admin.binkp_uplinks.for_a_reader_like_fidomail')}
-							</span>
-						</label>
-					{/if}
 					<label class="flex items-center gap-2 text-sm">
 						<input type="checkbox" class="check" bind:checked={editingUplink.poll_disabled} />
 						<span class="text-slate-400">

@@ -581,34 +581,3 @@ func TestStaticDirNotFoundSkipsFileServer(t *testing.T) {
 	// Routes() must not panic when the static dir is absent.
 	_ = srv.Routes()
 }
-
-func TestPutConfigPostAsOnlyForAPointAndAnExistingUser(t *testing.T) {
-	srv, users, configPath := newTestServer(t)
-	users.Register("root", "supersecret", user.SLSysop)
-	h := srv.Routes()
-	token := loginAsSysop(t, h, "root", "supersecret")
-
-	base := func(u binkpUplinkDTO) configDTO {
-		return configDTO{Name: "X", Sysop: "root", NewUserSL: 10, TelnetEnabled: true, TelnetAddr: ":2323",
-			FTNAddresses: []string{"21:3/194"}, BinkpUplinks: []binkpUplinkDTO{u}}
-	}
-	point := binkpUplinkDTO{Address: "21:3/194.1", Host: "fidomail", Downlink: true, Hold: true, PostAs: "root"}
-
-	node := point
-	node.Address = "21:3/195"
-	if rec := doJSON(t, h, http.MethodPut, "/api/config", base(node), token); rec.Code != http.StatusBadRequest {
-		t.Fatalf("post_as on a node: status = %d, want 400", rec.Code)
-	}
-	nobody := point
-	nobody.PostAs = "nobody"
-	if rec := doJSON(t, h, http.MethodPut, "/api/config", base(nobody), token); rec.Code != http.StatusBadRequest {
-		t.Fatalf("post_as naming no user: status = %d, want 400", rec.Code)
-	}
-	if rec := doJSON(t, h, http.MethodPut, "/api/config", base(point), token); rec.Code != http.StatusOK {
-		t.Fatalf("valid post_as: status = %d, body=%s", rec.Code, rec.Body.String())
-	}
-	c, _ := config.Load(configPath)
-	if len(c.Binkp.Uplinks) != 1 || c.Binkp.Uplinks[0].PostAs != "root" {
-		t.Fatalf("saved uplinks = %+v", c.Binkp.Uplinks)
-	}
-}

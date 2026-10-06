@@ -387,8 +387,8 @@ CREATE TABLE IF NOT EXISTS services (
 -- already been sent, keyed by its uplink entry's host: SEEN-BY can't
 -- name points, and a point shares its net/node with this system, so
 -- the SEEN-BY tracking used for nodes doesn't work for them.
--- netmail_point_deliveries holds copies of netmail to a point's
--- "post as" user, which stay in that user's inbox as well.
+-- netmail_point_deliveries is no longer written (it held the copies of
+-- a "post as" point's netmail, a feature removed in v0.85.0).
 CREATE TABLE IF NOT EXISTS echo_point_deliveries (
     message_id  INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     uplink_host TEXT NOT NULL,
