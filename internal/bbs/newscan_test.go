@@ -141,7 +141,7 @@ func TestLoginSummaryCountsAndStartsTheScan(t *testing.T) {
 	if err := s.loginSummary(NewTerminal(conn), alice); err != nil {
 		t.Fatal(err)
 	}
-	out := conn.out.String()
+	out := plainText(conn.out.String())
 	for _, want := range []string{"New since your last call", "1 message", "4 messages in 2 areas", "[R] Read new", "[T] To you"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("summary lacks %q", want)

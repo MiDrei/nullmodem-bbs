@@ -328,11 +328,14 @@ def lists():
         +sgr(2)+T('files.downloads',-11,de)+sgr(7)+'{DOWNLOADS}\r\n'+rule())
     out['filread-footer']=out['msgread-footer']
 
-    # The community features' banners: the community menu's art and a
-    # title line; what follows comes from the board itself.
+    # The features' banners: their menu's art, a title line and a blank
+    # line; what follows comes from the board itself.
+    def feature(head,title,de): return list_head(head(),T(title,None,de))+'\r\n'
     for name,title in (('who','common.who_s_online'),('lastcallers','common.interbbs_last_callers'),
                        ('oneliners','common.one_liners'),('polls','common.voting_booth'),('bbslist','common.bbs_list')):
-        both(name,lambda de,title=title: list_head(head_community(),T(title,None,de)))
+        both(name,lambda de,title=title: feature(head_community,title,de))
+    for name,title in (('profile','common.your_profile'),('summary','summary.title')):
+        both(name,lambda de,title=title: feature(head_main,title,de))
     return out
 
 # ---------------- welcome ----------------

@@ -36,7 +36,7 @@ func TestNewFilesSearchAndAllSeen(t *testing.T) {
 	// The summary after login counts them and offers F.
 	conn = newFakeConn("\r")
 	s.loginSummary(NewTerminal(conn), alice)
-	if out := conn.out.String(); !strings.Contains(out, "2 new files") || !strings.Contains(out, "[F] Files") {
+	if out := plainText(conn.out.String()); !strings.Contains(out, "2 new files") || !strings.Contains(out, "[F] Files") {
 		t.Fatalf("summary: %q", out)
 	}
 

@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -213,15 +214,14 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 
 	label := func(key string) string { return ansi.FG(ansi.White, false) + "  " + padCP(term.T(key), 14) }
 	value := func(n int, what string) string {
-		color := ansi.FG(ansi.White, false)
+		color := ansi.FG(ansi.Black, true)
 		if n > 0 {
-			color = ansi.FG(ansi.Yellow, true)
+			color = ansi.FG(ansi.Cyan, true)
 		}
 		return color + what + ansi.Reset + "\r\n"
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("summary.title") + ansi.Reset + "\r\n")
-	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 40) + ansi.Reset + "\r\n")
+	b.WriteString(s.featureHeader(term, u, "summary.ans", term.T("summary.title")))
 	b.WriteString(label("common.netmail") + value(netmail, term.N("summary.netmail_count", netmail)))
 	b.WriteString(label("summary.to_you") + value(len(toMe), term.N("summary.messages", len(toMe))))
 	b.WriteString(label("common.new_2") + value(newTotal, term.T("summary.in_areas",
@@ -242,7 +242,7 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 		keys = append(keys, term.T("summary.key_files"))
 	}
 	keys = append(keys, term.T("summary.key_menu"))
-	b.WriteString("\r\n  " + ansi.FG(ansi.Yellow, true) + strings.Join(keys, "  ") + ansi.Reset + " ")
+	b.WriteString("\r\n  " + keyHints(strings.Join(keys, "  ")) + ansi.Reset + " ")
 	if err := term.Print(b.String()); err != nil {
 		return err
 	}
@@ -264,6 +264,16 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 			return nil
 		}
 	}
+}
+
+// keyHintPattern is a "[K]" key in a hint line like "[R] Read new".
+var keyHintPattern = regexp.MustCompile(`\[([^\]]+)\]`)
+
+// keyHints colours a hint line the way the screens show keys: grey
+// brackets, a cyan key, white text.
+func keyHints(text string) string {
+	return ansi.FG(ansi.White, true) + keyHintPattern.ReplaceAllString(text,
+		ansi.FG(ansi.Black, true)+"["+ansi.FG(ansi.Cyan, true)+"$1"+ansi.FG(ansi.Black, true)+"]"+ansi.FG(ansi.White, true))
 }
 
 // areaLookup returns each message's area, looked up once.

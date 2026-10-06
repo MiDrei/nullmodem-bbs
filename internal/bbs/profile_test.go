@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestProfileShowsOverviewAndChangesRealName(t *testing.T) {
 	if err := s.showProfile(NewTerminal(conn), u); err != nil {
 		t.Fatalf("showProfile: %v", err)
 	}
-	out := conn.out.String()
+	out := plainText(conn.out.String())
 	for _, want := range []string{"Handle:         alice", "Real name:      Alice Example", "not set (times shown in UTC)", "That name is reserved.", "Real name saved."} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q:\n%s", want, out)
@@ -164,11 +165,16 @@ func TestProfileTogglesQWKRouting(t *testing.T) {
 	if err := s.showProfile(NewTerminal(conn), u); err != nil {
 		t.Fatalf("showProfile: %v", err)
 	}
-	if !strings.Contains(conn.out.String(), "QWK SEEN-BY:    off") || !strings.Contains(conn.out.String(), "now carry SEEN-BY/PATH") {
+	if !strings.Contains(plainText(conn.out.String()), "QWK SEEN-BY:   off") || !strings.Contains(conn.out.String(), "now carry SEEN-BY/PATH") {
 		t.Fatalf("output:\n%s", conn.out.String())
 	}
 	stored, _ := s.Users.ByID(u.ID)
 	if !stored.QWKRouting || !u.QWKRouting {
 		t.Fatalf("stored=%v session=%v, want on", stored.QWKRouting, u.QWKRouting)
 	}
+}
+
+// plainText is out without its colours, the way a caller reads it.
+func plainText(out string) string {
+	return regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`).ReplaceAllString(out, "")
 }

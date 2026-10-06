@@ -3,7 +3,8 @@
 `space.py` generates the stock space-themed screens in `configs/screens`:
 the main menu, its submenus (messages, files, community), the sysop menu,
 the logoff screen, and the lists and views of message areas, messages,
-netmail, file areas and files, the door list, the banners of the community features and the welcome
+netmail, file areas and files, the door list, the banners of the community features, the profile and the summary after
+login and the welcome
 screen —
 each as `name.ans` (English text) and
 `name.de.ans` (`{T:key}` placeholders, filled in for German and Du);

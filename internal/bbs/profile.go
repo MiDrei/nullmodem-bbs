@@ -82,40 +82,57 @@ func timezoneLabel(term *Terminal, u *user.User) string {
 // them immediately.
 func (s *Server) showProfile(term *Terminal, u *user.User) error {
 	for {
-		lines := []string{
-			ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("common.your_profile") + ansi.Reset,
-			profileField(term, "common.handle_2", u.Username),
-			profileField(term, "common.real_name", u.RealName),
-			profileField(term, "common.security_level", strconv.Itoa(u.SecurityLevel)),
-			profileField(term, "common.total_calls", strconv.Itoa(u.TotalCalls)),
-			profileField(term, "common.member_since", term.Time(u.CreatedAt).Format("2006-01-02")),
-			profileField(term, "common.time_zone", timezoneLabel(term, u)),
-			profileField(term, "common.location", placeLabel(term, u)),
-			profileField(term, "common.language", toCP437(i18n.NameOf(term.Lang))),
-			profileField(term, "profile.qwk_seenby", onOffText(term, u.QWKRouting)),
-			profileField(term, "profile.editor", editorText(term, u)),
+		// The short details in two columns, the ones that may run long
+		// (time zone, place, e-mail address) on lines of their own;
+		// then the options, three a line.
+		left := [][2]string{
+			{"common.handle_2", u.Username},
+			{"common.real_name", toCP437(u.RealName)},
+			{"common.security_level", strconv.Itoa(u.SecurityLevel)},
+			{"profile.editor", editorText(term, u)},
 		}
+		right := [][2]string{
+			{"common.total_calls", strconv.Itoa(u.TotalCalls)},
+			{"common.member_since", term.Time(u.CreatedAt).Format("2006-01-02")},
+			{"common.language", toCP437(i18n.NameOf(term.Lang))},
+			{"profile.qwk_seenby", onOffText(term, u.QWKRouting)},
+		}
+		var b strings.Builder
+		b.WriteString(s.featureHeader(term, u, "profile.ans", term.T("common.your_profile")))
+		for i := range left {
+			b.WriteString("  " + profileField(term, left[i][0], padCP(left[i][1], 22)) + "  " +
+				ansi.FG(ansi.White, false) + padCP(term.T(right[i][0])+":", 15) + ansi.FG(ansi.White, true) + right[i][1] + ansi.Reset + "\r\n")
+		}
+		b.WriteString("  " + profileField(term, "common.time_zone", timezoneLabel(term, u)) + ansi.Reset + "\r\n")
+		b.WriteString("  " + profileField(term, "common.location", placeLabel(term, u)) + ansi.Reset + "\r\n")
 		if s.mayEmail(u) {
-			lines = append(lines, profileField(term, "common.email", emailgw.Address(s.emailConfig(), u.Username)))
+			b.WriteString("  " + profileField(term, "common.email", emailgw.Address(s.emailConfig(), u.Username)) + ansi.Reset + "\r\n")
 		}
-		lines = append(lines,
-			"",
-			profileOption("R", term.T("profile.opt_real_name")),
-			profileOption("T", term.T("profile.opt_timezone")),
-			profileOption("L", term.T("profile.opt_location")),
-			profileOption("A", term.T("profile.opt_language")),
-			profileOption("P", term.T("common.change_password")),
-			profileOption("K", term.T("common.qwk_area_selection")),
-			profileOption("S", term.T("profile.opt_seenby")),
-			profileOption("E", term.T("profile.opt_editor")),
-			profileOption("Q", term.T("common.back")),
-		)
-		for _, line := range lines {
-			if err := term.Println(line); err != nil {
-				return err
+		b.WriteString("\r\n")
+		options := [][2]string{
+			{"R", term.T("profile.opt_real_name")},
+			{"T", term.T("profile.opt_timezone")},
+			{"L", term.T("profile.opt_location")},
+			{"A", term.T("profile.opt_language")},
+			{"P", term.T("common.change_password")},
+			{"K", term.T("common.qwk_area_selection")},
+			{"S", term.T("profile.opt_seenby")},
+			{"E", term.T("profile.opt_editor")},
+			{"Q", term.T("common.back")},
+		}
+		for i, o := range options {
+			if i%3 == 0 {
+				b.WriteString("  ")
+			}
+			b.WriteString(profileOption(o[0], padCP(o[1], 22)))
+			if i%3 == 2 || i == len(options)-1 {
+				b.WriteString(ansi.Reset + "\r\n")
 			}
 		}
-		if err := term.Print("\n" + term.T("common.choice") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(b.String()); err != nil {
+			return err
+		}
+		if err := term.Print("\r\n" + ansi.FG(ansi.White, false) + term.T("common.choice") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		choice, err := term.ReadLine(false)
@@ -157,7 +174,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 // profileField is a "Label:   value" line of the overview, the values
 // lined up.
 func profileField(term *Terminal, key, value string) string {
-	return padCP(term.T(key)+":", 16) + value
+	return ansi.FG(ansi.White, false) + padCP(term.T(key)+":", 16) + ansi.FG(ansi.White, true) + value
 }
 
 // onOffText is on/off in the caller's language.
@@ -217,7 +234,7 @@ func (s *Server) toggleLineEditor(term *Terminal, u *user.User) error {
 }
 
 func profileOption(key, label string) string {
-	return fmt.Sprintf("  [%s%s%s] %s", ansi.FG(ansi.Yellow, true), key, ansi.Reset, label)
+	return ansi.FG(ansi.Black, true) + "[" + ansi.FG(ansi.Cyan, true) + key + ansi.FG(ansi.Black, true) + "] " + ansi.FG(ansi.White, true) + label
 }
 
 // changeRealName prompts for a new real name, validated the same way
