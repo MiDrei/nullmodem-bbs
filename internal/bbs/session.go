@@ -537,8 +537,8 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"importfile":     (*Server).sysopImportFile,
 	"netmail":        (*Server).showNetmail,
 	"doors":          (*Server).showDoors,
-	"qwk":            (*Server).downloadQWK,
-	"qwkrep":         (*Server).uploadQWKReply,
+	"qwk":            paused((*Server).downloadQWK),
+	"qwkrep":         paused((*Server).uploadQWKReply),
 	"qwkareas":       (*Server).configureQWKAreas,
 	"newscan":        (*Server).newScan,
 	"tome":           (*Server).toMe,
@@ -550,6 +550,17 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"newfiles":       (*Server).newFiles,
 	"filesearch":     (*Server).searchFiles,
 	"bbslist":        (*Server).bbsList,
+}
+
+// paused runs a builtin and then waits for a key, so what it printed
+// last isn't wiped at once by the menu's screen.
+func paused(f func(s *Server, term *Terminal, u *user.User) error) func(s *Server, term *Terminal, u *user.User) error {
+	return func(s *Server, term *Terminal, u *user.User) error {
+		if err := f(s, term, u); err != nil {
+			return err
+		}
+		return s.pauseForKey(term)
+	}
 }
 
 // runMenu displays the named menu and dispatches choices until the
@@ -861,13 +872,13 @@ func (s *Server) showWho(term *Terminal, u *user.User) error {
 	if err := term.Print(s.featureHeader(term, u, "who.ans", term.T("common.who_s_online"))); err != nil {
 		return err
 	}
-	if err := term.Println(ansi.FG(ansi.White, false) + "  " + padCP(term.T("common.node"), 6) + padCP(term.T("common.handle"), 21) + padCP(term.T("common.terminal"), 12) + term.T("common.connected") + "\r\n" +
-		ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset); err != nil {
+	if err := term.Println(fgDim(ansi.White) + "  " + padCP(term.T("common.node"), 6) + padCP(term.T("common.handle"), 21) + padCP(term.T("common.terminal"), 12) + term.T("common.connected") + "\r\n" +
+		fgDim(ansi.Blue) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset); err != nil {
 		return err
 	}
 	for _, n := range nodes {
 		if err := term.Println(fmt.Sprintf("  %s%-6d%s%-21s%s%-12s%s%s%s", ansi.FG(ansi.Cyan, true), n.Node, ansi.FG(ansi.White, true), n.Username,
-			ansi.FG(ansi.White, false), n.TermType, ansi.FG(ansi.Black, true), term.Time(n.ConnectedAt).Format("15:04:05 MST"), ansi.Reset)); err != nil {
+			fgDim(ansi.White), n.TermType, ansi.FG(ansi.Black, true), term.Time(n.ConnectedAt).Format("15:04:05 MST"), ansi.Reset)); err != nil {
 			return err
 		}
 	}

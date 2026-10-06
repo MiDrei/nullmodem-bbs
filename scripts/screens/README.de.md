@@ -4,8 +4,8 @@
 `configs/screens`: das Hauptmenü, seine Untermenüs (Nachrichten, Dateien,
 Treffpunkt), das Sysop-Menü, den Abmelde-Screen sowie die Listen und
 Ansichten für Nachrichtenbereiche, Nachrichten, Netmail, Dateibereiche und
-Dateien, die Doors-Liste, die Köpfe der Treffpunkt-Funktionen, des Profils und der Übersicht nach
-dem Login und den
+Dateien, die Doors-Liste, die Köpfe der Treffpunkt-Funktionen, des Profils, der Übersicht nach
+dem Login, der Nodeliste und von QWK und den
 Begrüssungs-Screen — jeweils als
 `name.ans` (englischer Text) und `name.de.ans` (`{T:key}`-Platzhalter,
 für Deutsch und Du gefüllt); Teile ohne eigenen Text (Listenzeilen) gibt

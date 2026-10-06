@@ -336,6 +336,8 @@ def lists():
         both(name,lambda de,title=title: feature(head_community,title,de))
     for name,title in (('profile','common.your_profile'),('summary','summary.title')):
         both(name,lambda de,title=title: feature(head_main,title,de))
+    for name,title in (('nodelist','common.nodelists'),('qwkget','menu.item.qwk_get'),('qwkput','menu.item.qwk_put')):
+        both(name,lambda de,title=title: feature(head_messages,title,de))
     return out
 
 # ---------------- welcome ----------------

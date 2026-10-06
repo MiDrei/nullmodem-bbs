@@ -146,16 +146,16 @@ func (s *Server) showOneliners(term *Terminal, u *user.User) error {
 	}
 	var b strings.Builder
 	b.WriteString(s.featureHeader(term, u, "oneliners.ans", term.T("common.one_liners")))
-	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
+	b.WriteString(fgDim(ansi.Blue) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
 	if len(list) == 0 {
-		b.WriteString(ansi.FG(ansi.White, false) + "  " + term.T("oneliners.empty") + ansi.Reset + "\r\n")
+		b.WriteString(fgDim(ansi.White) + "  " + term.T("oneliners.empty") + ansi.Reset + "\r\n")
 	}
 	for _, o := range list {
 		name := o.Username
 		if len(name) > 14 {
 			name = name[:14]
 		}
-		fmt.Fprintf(&b, "  %s%-14s %s%s%s\r\n", ansi.FG(ansi.Cyan, true), toCP437(name), ansi.FG(ansi.White, false), toCP437(o.Text), ansi.Reset)
+		fmt.Fprintf(&b, "  %s%-14s %s%s%s\r\n", ansi.FG(ansi.Cyan, true), toCP437(name), fgDim(ansi.White), toCP437(o.Text), ansi.Reset)
 	}
 	if err := term.Print(b.String()); err != nil {
 		return err
@@ -326,13 +326,13 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		at := term.Time(l.At).Format("15:04")
 		switch l.Kind {
 		case chat.Join:
-			addRow(ansi.FG(ansi.Green, false), at+"  "+term.U("common.username_joined_source", "USERNAME", l.Username, "SOURCE", l.Source))
+			addRow(fgDim(ansi.Green), at+"  "+term.U("common.username_joined_source", "USERNAME", l.Username, "SOURCE", l.Source))
 		case chat.Leave:
-			addRow(ansi.FG(ansi.Green, false), at+"  "+term.U("common.username_left", "USERNAME", l.Username))
+			addRow(fgDim(ansi.Green), at+"  "+term.U("common.username_left", "USERNAME", l.Username))
 		case chat.Page:
 			addRow(ansi.FG(ansi.Magenta, true), at+"  "+term.U("chat.paged_line", "USERNAME", l.Username, "TEXT", l.Text))
 		default:
-			addRow(ansi.FG(ansi.White, false), fmt.Sprintf("%s  %s: %s", at, chat.Speaker(l), l.Text))
+			addRow(fgDim(ansi.White), fmt.Sprintf("%s  %s: %s", at, chat.Speaker(l), l.Text))
 		}
 	}
 	if intro != "" {
@@ -349,7 +349,7 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 	var input []byte
 	present := ""
 	headline := func() string {
-		return fmt.Sprintf("\x1b[1;1H%s%s%s  %s%s\x1b[K", ansi.Reset, ansi.FG(ansi.Cyan, true), title, ansi.FG(ansi.White, false), toCP437(present)+ansi.Reset)
+		return fmt.Sprintf("\x1b[1;1H%s%s%s  %s%s\x1b[K", ansi.Reset, ansi.FG(ansi.Cyan, true), title, fgDim(ansi.White), toCP437(present)+ansi.Reset)
 	}
 	area := func() string {
 		var o strings.Builder
@@ -374,11 +374,11 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		hint = term.T("chat.hint_rooms")
 	}
 	full := func() error {
-		rule := ansi.FG(ansi.Blue, false) + strings.Repeat("\xc4", width) + ansi.Reset
+		rule := fgDim(ansi.Blue) + strings.Repeat("\xc4", width) + ansi.Reset
 		return term.Print(ansi.ClearScreen() + headline() +
 			fmt.Sprintf("\x1b[2;1H%s", rule) + area() +
 			fmt.Sprintf("\x1b[%d;1H%s", areaTop+areaRows, rule) +
-			fmt.Sprintf("\x1b[%d;1H%s%s%s", areaTop+areaRows+2, ansi.FG(ansi.White, false), hint, ansi.Reset) +
+			fmt.Sprintf("\x1b[%d;1H%s%s%s", areaTop+areaRows+2, fgDim(ansi.White), hint, ansi.Reset) +
 			inputRow())
 	}
 	refreshPresent := func() {
@@ -447,11 +447,11 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 					leave = true
 				case "/who":
 					refreshPresent()
-					addRow(ansi.FG(ansi.Cyan, false), present)
+					addRow(fgDim(ansi.Cyan), present)
 					redraw = true
 				case "/rooms", "/list":
 					if rooms {
-						s.listChatRooms(term, u, room, func(line string) { addRow(ansi.FG(ansi.Cyan, false), line) })
+						s.listChatRooms(term, u, room, func(line string) { addRow(fgDim(ansi.Cyan), line) })
 						redraw = true
 						break
 					}

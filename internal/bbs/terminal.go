@@ -1,6 +1,7 @@
 package bbs
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -417,3 +418,10 @@ func (t *Terminal) N(key string, n int, args ...any) string {
 // U is T as UTF-8, for text that's turned into CP437 on its way out
 // (the chat screen's lines).
 func (t *Terminal) U(key string, args ...any) string { return i18n.T(t.Lang, key, args...) }
+
+// fgDim sets a normal-intensity foreground colour -- unlike
+// ansi.FG(c, false), which leaves a bold set by an earlier bright colour
+// on, turning grey into white and dark blue into light blue.
+func fgDim(color int) string {
+	return "\x1b[0;" + strconv.Itoa(30+color) + "m"
+}

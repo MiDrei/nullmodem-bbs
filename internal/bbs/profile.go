@@ -101,7 +101,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 		b.WriteString(s.featureHeader(term, u, "profile.ans", term.T("common.your_profile")))
 		for i := range left {
 			b.WriteString("  " + profileField(term, left[i][0], padCP(left[i][1], 22)) + "  " +
-				ansi.FG(ansi.White, false) + padCP(term.T(right[i][0])+":", 15) + ansi.FG(ansi.White, true) + right[i][1] + ansi.Reset + "\r\n")
+				fgDim(ansi.White) + padCP(term.T(right[i][0])+":", 15) + ansi.FG(ansi.White, true) + right[i][1] + ansi.Reset + "\r\n")
 		}
 		b.WriteString("  " + profileField(term, "common.time_zone", timezoneLabel(term, u)) + ansi.Reset + "\r\n")
 		b.WriteString("  " + profileField(term, "common.location", placeLabel(term, u)) + ansi.Reset + "\r\n")
@@ -132,7 +132,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
-		if err := term.Print("\r\n" + ansi.FG(ansi.White, false) + term.T("common.choice") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print("\r\n" + fgDim(ansi.White) + term.T("common.choice") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		choice, err := term.ReadLine(false)
@@ -174,7 +174,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 // profileField is a "Label:   value" line of the overview, the values
 // lined up.
 func profileField(term *Terminal, key, value string) string {
-	return ansi.FG(ansi.White, false) + padCP(term.T(key)+":", 16) + ansi.FG(ansi.White, true) + value
+	return fgDim(ansi.White) + padCP(term.T(key)+":", 16) + ansi.FG(ansi.White, true) + value
 }
 
 // onOffText is on/off in the caller's language.

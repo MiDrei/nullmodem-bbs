@@ -41,7 +41,7 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 		}
 		for i, e := range list {
 			fmt.Fprintf(&b, "  %s%3d%s  %s%s %s%s %s%s\r\n", ansi.FG(ansi.Cyan, true), i+1, ansi.Reset,
-				ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)), ansi.FG(ansi.White, false), toCP437(cut(e.Address, 32)),
+				ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)), fgDim(ansi.White), toCP437(cut(e.Address, 32)),
 				bbsStatus(term, e, statusWidth), ansi.Reset)
 		}
 		keys := term.T("bbslist.key_details")
@@ -98,7 +98,7 @@ func (s *Server) showBBS(term *Terminal, u *user.User, e community.BBS) error {
 			if i == 0 {
 				label = term.T(key)
 			}
-			fmt.Fprintf(&b, "  %s%s%s %s\r\n", ansi.FG(ansi.Cyan, false), padCP(label, labelWidth), ansi.Reset, l)
+			fmt.Fprintf(&b, "  %s%s%s %s\r\n", fgDim(ansi.Cyan), padCP(label, labelWidth), ansi.Reset, l)
 		}
 	}
 	b.WriteString(s.featureHeader(term, u, "bbslist.ans", term.T("common.bbs_list")))
@@ -200,7 +200,7 @@ func (s *Server) editBBS(term *Terminal, u *user.User, e community.BBS) error {
 func bbsStatus(term *Terminal, e community.BBS, width int) string {
 	switch {
 	case e.CheckedAt.IsZero():
-		return ansi.FG(ansi.White, false) + padCP(term.T("bbslist.st_unknown"), width)
+		return fgDim(ansi.White) + padCP(term.T("bbslist.st_unknown"), width)
 	case e.Online:
 		return ansi.FG(ansi.Green, true) + padCP(term.T("bbslist.st_up"), width)
 	}

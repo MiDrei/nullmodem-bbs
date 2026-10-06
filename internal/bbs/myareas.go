@@ -42,7 +42,7 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 	}
 
 	cur, top := 0, 0
-	rows := max(3, term.Height()-5)
+	rows := max(3, term.Height()-6)
 	width := term.Width()
 	draw := func() error {
 		if cur < top {
@@ -58,14 +58,22 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 			}
 		}
 		var b strings.Builder
-		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + term.T("common.my_areas") + ansi.Reset +
-			" -- " + term.T("myareas.count", "COUNT", n, "TOTAL", len(stats)) + "\r\n\r\n")
+		// The title line the list screens have, without their art: the
+		// list needs the screen's height.
+		title := fgDim(ansi.Blue) + "\xc4\xb4 " + ansi.FG(ansi.White, true) + s.BBSName + fgDim(ansi.Blue) + " \xc3{FILL:\xc4}\xb4 " +
+			ansi.FG(ansi.Cyan, true) + term.T("common.my_areas") + fgDim(ansi.Blue) + " \xc3\xc4"
+		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.Layout(title, width) + ansi.Reset + "\r\n" +
+			"  " + fgDim(ansi.White) + term.T("myareas.count", "COUNT", n, "TOTAL", len(stats)) + ansi.Reset + "\r\n\r\n")
 		nameW := max(20, width-30)
 		for i := top; i < min(top+rows, len(stats)); i++ {
 			st := stats[i]
-			box := ansi.FG(ansi.White, false) + "[ ]"
+			box, nameColor := ansi.FG(ansi.Black, true)+"[ ]", fgDim(ansi.White)
 			if in[st.Area.ID] {
-				box = ansi.FG(ansi.Green, true) + "[x]"
+				box, nameColor = ansi.FG(ansi.Cyan, true)+"[\xfb]", ansi.FG(ansi.White, true)
+			}
+			newColor := ansi.FG(ansi.Black, true)
+			if st.New > 0 {
+				newColor = ansi.FG(ansi.Cyan, true)
 			}
 			name := []rune(st.Area.Name)
 			if len(name) > nameW {
@@ -75,17 +83,17 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 			if network == "" {
 				network = term.T("areas.local")
 			}
-			line := fmt.Sprintf(" %s%s %-*s %-12.12s %8s", box, ansi.Reset, nameW, toCP437(string(name)), network, newCount(term, st.New))
+			line := fmt.Sprintf(" %s %s%-*s %s%-12.12s %s%8s", box, nameColor, nameW, toCP437(string(name)), ansi.FG(ansi.Black, true), network, newColor, newCount(term, st.New)) + ansi.Reset
 			if i == cur {
-				line = fmt.Sprintf(" %s %-*s %-12.12s %8s", map[bool]string{true: "[x]", false: "[ ]"}[in[st.Area.ID]], nameW, toCP437(string(name)), network, newCount(term, st.New))
-				line = "\x1b[47m\x1b[30m" + line + ansi.Reset
+				line = fmt.Sprintf(" %s %-*s %-12.12s %8s ", map[bool]string{true: "[\xfb]", false: "[ ]"}[in[st.Area.ID]], nameW, toCP437(string(name)), network, newCount(term, st.New))
+				line = "\x1b[1;37;44m" + line + ansi.Reset
 			}
 			b.WriteString(line + "\r\n")
 		}
 		for i := min(top+rows, len(stats)) - top; i < rows; i++ {
 			b.WriteString("\r\n")
 		}
-		b.WriteString("\r\n" + ansi.FG(ansi.White, true) + term.T("myareas.keys") + ansi.Reset)
+		b.WriteString("\r\n" + keyHints(term.T("myareas.keys")) + ansi.Reset)
 		return term.Print(b.String())
 	}
 	setNetwork := func(network string) {

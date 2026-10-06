@@ -49,12 +49,15 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
+	if err := term.Print(s.featureHeader(term, u, "qwkget.ans", term.T("menu.item.qwk_get"))); err != nil {
+		return err
+	}
 	packetPath, count, unreadNetmailIDs, markRead, err := s.buildQWKPacketForUser(u, tmpDir)
 	if err != nil {
 		return fmt.Errorf("qwk download: %w", err)
 	}
 	if count == 0 {
-		return term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + term.T("common.no_new_mail_to_download"))
+		return term.Println(ansi.Reset + "  " + fgDim(ansi.White) + term.T("common.no_new_mail_to_download") + ansi.Reset)
 	}
 
 	info, err := os.Stat(packetPath)
@@ -62,7 +65,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 		return fmt.Errorf("qwk download: stat packet: %w", err)
 	}
 
-	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) +
 		term.T("qwk.download_start", "FILE", filepath.Base(packetPath), "SIZE", humanize.Bytes(uint64(info.Size()))) +
 		ansi.Reset + "\r\n"); err != nil {
 		return err
@@ -74,7 +77,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 	}
 	if sendErr != nil {
 		s.logWarn("zmodem QWK download by %s: %v", u.Username, sendErr)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("transfer.download_failed"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("transfer.download_failed") + ansi.Reset)
 	}
 
 	if err := s.commitQWKRead(u.ID, unreadNetmailIDs, markRead); err != nil {
@@ -82,7 +85,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 	}
 
 	s.logInfo("%s downloaded a QWK packet: %d message(s)", u.Username, count)
-	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.N("qwk.download_done", count))
+	return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Green, true) + term.N("qwk.download_done", count) + ansi.Reset)
 }
 
 // uploadQWKReply is the "builtin:qwkrep" command: it receives a .REP
@@ -99,7 +102,7 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	if err := term.Print(ansi.Reset + "\r\n" + ansi.FG(ansi.Yellow, true) +
+	if err := term.Print(s.featureHeader(term, u, "qwkput.ans", term.T("menu.item.qwk_put")) + "  " + fgDim(ansi.White) +
 		term.T("qwk.upload_ready") +
 		ansi.Reset + "\r\n"); err != nil {
 		return err
@@ -120,16 +123,16 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	if repName == "" {
 		if recvErr != nil {
 			s.logWarn("zmodem QWK reply upload by %s: %v", u.Username, recvErr)
-			return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("transfer.upload_failed"))
+			return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("transfer.upload_failed") + ansi.Reset)
 		}
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("qwk.no_rep"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("qwk.no_rep") + ansi.Reset)
 	}
 
 	bbsID := qwkdoor.BBSID(s.BBSName)
 	replies, err := qwk.ParseReplyPacket(filepath.Join(tmpDir, repName), bbsID)
 	if err != nil {
 		s.logWarn("parsing QWK reply packet from %s: %v", u.Username, err)
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) + term.T("qwk.bad_rep"))
+		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("qwk.bad_rep") + ansi.Reset)
 	}
 
 	res, err := s.routeQWKReplies(u, replies)
@@ -139,7 +142,7 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 
 	s.logInfo("%s uploaded a QWK reply packet: %d posted, %d netmail sent, %d skipped", u.Username, res.Posted, res.Sent, len(res.Rejected))
 
-	msg := ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) +
+	msg := ansi.Reset + "\r\n  " + ansi.FG(ansi.Green, true) +
 		term.T("common.replies_processed_posted_posted_sent", "POSTED", res.Posted, "SENT", res.Sent)
 	if len(res.Rejected) > 0 {
 		msg += term.T("common.count_skipped", "COUNT", len(res.Rejected))

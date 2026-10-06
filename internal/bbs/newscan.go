@@ -212,7 +212,7 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 		return nil
 	}
 
-	label := func(key string) string { return ansi.FG(ansi.White, false) + "  " + padCP(term.T(key), 14) }
+	label := func(key string) string { return fgDim(ansi.White) + "  " + padCP(term.T(key), 14) }
 	value := func(n int, what string) string {
 		color := ansi.FG(ansi.Black, true)
 		if n > 0 {
@@ -334,8 +334,8 @@ func (s *Server) searchMessages(term *Terminal, u *user.User) error {
 				ansi.FG(ansi.Yellow, true), i+1, ansi.Reset,
 				ansi.FG(ansi.White, true), cut(m.Subject, 28), ansi.Reset,
 				cut(m.FromName, 15),
-				ansi.FG(ansi.Cyan, false), cut(areaOf(m).Tag, 14),
-				ansi.FG(ansi.White, false)+term.Time(m.PostedAt).Format("2006-01-02"), ansi.Reset)
+				fgDim(ansi.Cyan), cut(areaOf(m).Tag, 14),
+				fgDim(ansi.White)+term.Time(m.PostedAt).Format("2006-01-02"), ansi.Reset)
 		}
 		keys := term.T("search.key_read")
 		if end < len(msgs) {

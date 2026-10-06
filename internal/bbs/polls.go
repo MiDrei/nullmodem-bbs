@@ -36,7 +36,7 @@ func (s *Server) votingBooth(term *Terminal, u *user.User) error {
 		for i, p := range polls {
 			mark := ansi.FG(ansi.Cyan, true) + " " + term.T("common.new_3") + ansi.Reset
 			if p.MyVote != 0 {
-				mark = ansi.FG(ansi.Green, false) + " " + term.T("polls.voted") + ansi.Reset
+				mark = fgDim(ansi.Green) + " " + term.T("polls.voted") + ansi.Reset
 			}
 			fmt.Fprintf(&b, "  %s%2d%s  %s%s  %s(%s)%s\r\n", ansi.FG(ansi.Cyan, true), i+1, ansi.FG(ansi.White, true),
 				toCP437(p.Question), mark, ansi.FG(ansi.Black, true), term.N("common.count_votes", p.Total), ansi.Reset)
@@ -76,7 +76,7 @@ func (s *Server) showPoll(term *Terminal, u *user.User, p community.Poll) error 
 		fmt.Fprintf(&b, "  %s%s%2d%s  %s\r\n", chosen, ansi.FG(ansi.Cyan, true), i+1, ansi.Reset, toCP437(o.Text))
 	}
 	if !u.Validated {
-		b.WriteString("\r\n  " + ansi.FG(ansi.Yellow, false) + term.T("polls.not_approved") + ansi.Reset + "\r\n")
+		b.WriteString("\r\n  " + fgDim(ansi.Yellow) + term.T("polls.not_approved") + ansi.Reset + "\r\n")
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
