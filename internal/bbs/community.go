@@ -145,7 +145,7 @@ func (s *Server) showOneliners(term *Terminal, u *user.User) error {
 		return nil
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("common.one_liners") + ansi.Reset + "\r\n")
+	b.WriteString(s.featureHeader(term, u, "oneliners.ans", term.T("common.one_liners")))
 	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
 	if len(list) == 0 {
 		b.WriteString(ansi.FG(ansi.White, false) + "  " + term.T("oneliners.empty") + ansi.Reset + "\r\n")
@@ -155,7 +155,7 @@ func (s *Server) showOneliners(term *Terminal, u *user.User) error {
 		if len(name) > 14 {
 			name = name[:14]
 		}
-		fmt.Fprintf(&b, "  %s%-14s %s%s%s\r\n", ansi.FG(ansi.Yellow, true), toCP437(name), ansi.FG(ansi.White, false), toCP437(o.Text), ansi.Reset)
+		fmt.Fprintf(&b, "  %s%-14s %s%s%s\r\n", ansi.FG(ansi.Cyan, true), toCP437(name), ansi.FG(ansi.White, false), toCP437(o.Text), ansi.Reset)
 	}
 	if err := term.Print(b.String()); err != nil {
 		return err

@@ -1,6 +1,8 @@
 package bbs
 
 import (
+	"git.maik.ch/nullmodem/kit/ansi"
+
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,5 +139,20 @@ func TestDoorsMenuScreens(t *testing.T) {
 	}
 	if strings.Contains(out, "<B>") {
 		t.Error("bulletins entry without any door having bulletins")
+	}
+}
+
+func TestFeatureHeaderClearsScreen(t *testing.T) {
+	s := testServer(t)
+	u, _ := s.Users.Register("alice", "password123", 10)
+	s.ScreensDir = t.TempDir()
+	if got := s.featureHeader(NewTerminal(newFakeConn("")), u, "who.ans", "Who"); !strings.HasPrefix(got, ansi.ClearScreen()) || !strings.Contains(got, "Who") {
+		t.Errorf("without a screen: %q", got)
+	}
+	os.WriteFile(filepath.Join(s.ScreensDir, "who.ans"), []byte("== {BBSNAME} {USERNAME} =="), 0o644)
+	s.BBSName = "Board"
+	got := s.featureHeader(NewTerminal(newFakeConn("")), u, "who.ans", "Who")
+	if !strings.HasPrefix(got, ansi.ClearScreen()) || !strings.Contains(got, "== Board alice ==") {
+		t.Errorf("with a screen: %q", got)
 	}
 }

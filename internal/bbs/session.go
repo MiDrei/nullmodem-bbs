@@ -738,6 +738,23 @@ func (s *Server) renderAreaHeader(term *Terminal, u *user.User, screenFile, fall
 	return finishHeaderLine(ansi.Layout(rendered, term.Width()))
 }
 
+// featureHeader is the banner above one of the board's features (who's
+// online, the last callers, the one-liners, ...): screenFile filled in
+// when there is one, else the plain title -- always on a cleared
+// screen, so a feature starts at the top whatever came before it.
+func (s *Server) featureHeader(term *Terminal, u *user.User, screenFile, title string) string {
+	raw, err := s.loadScreen(term.Lang, screenFile)
+	if err != nil {
+		return ansi.ClearScreen() + ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + title + ansi.Reset + "\r\n"
+	}
+	vars := ansi.Vars{"BBSNAME": s.BBSName, "SYSOP": s.SysopName}
+	if u != nil {
+		vars["USERNAME"], vars["SL"] = u.Username, strconv.Itoa(u.SecurityLevel)
+	}
+	rendered := ansi.Render(ansi.StripLeadingScreenClear(raw), vars)
+	return ansi.ClearScreen() + finishHeaderLine(ansi.Layout(rendered, term.Width()))
+}
+
 func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
 	return menu.RenderGenerated(m, securityLevel, vars)
 }
@@ -836,11 +853,16 @@ func (s *Server) showWho(term *Terminal, u *user.User) error {
 	if err != nil {
 		return err
 	}
-	if err := term.Println("\n" + ansi.FG(ansi.Cyan, true) + padCP(term.T("common.node"), 6) + padCP(term.T("common.handle"), 21) + padCP(term.T("common.terminal"), 12) + term.T("common.connected") + ansi.Reset); err != nil {
+	if err := term.Print(s.featureHeader(term, u, "who.ans", term.T("common.who_s_online"))); err != nil {
+		return err
+	}
+	if err := term.Println(ansi.FG(ansi.White, false) + "  " + padCP(term.T("common.node"), 6) + padCP(term.T("common.handle"), 21) + padCP(term.T("common.terminal"), 12) + term.T("common.connected") + "\r\n" +
+		ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset); err != nil {
 		return err
 	}
 	for _, n := range nodes {
-		if err := term.Println(fmt.Sprintf("%-6d%-21s%-12s%s", n.Node, n.Username, n.TermType, term.Time(n.ConnectedAt).Format("15:04:05 MST"))); err != nil {
+		if err := term.Println(fmt.Sprintf("  %s%-6d%s%-21s%s%-12s%s%s%s", ansi.FG(ansi.Cyan, true), n.Node, ansi.FG(ansi.White, true), n.Username,
+			ansi.FG(ansi.White, false), n.TermType, ansi.FG(ansi.Black, true), term.Time(n.ConnectedAt).Format("15:04:05 MST"), ansi.Reset)); err != nil {
 			return err
 		}
 	}

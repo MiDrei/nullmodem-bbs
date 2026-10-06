@@ -69,15 +69,15 @@ func (s *Server) showLastCallers(term *Terminal, u *user.User) error {
 		return string(r) + strings.Repeat(" ", n-len(r))
 	}
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("common.interbbs_last_callers") + ansi.Reset + "\r\n\r\n")
-	b.WriteString(ansi.FG(ansi.Blue, true) + "  " + padCP(term.T("common.caller"), 16) + padCP(term.T("common.bbs"), 26) + padCP(term.T("common.when"), 16) + term.T("common.from_2") + ansi.Reset + "\r\n")
+	b.WriteString(s.featureHeader(term, u, "lastcallers.ans", term.T("common.interbbs_last_callers")))
+	b.WriteString(ansi.FG(ansi.White, false) + "  " + padCP(term.T("common.caller"), 16) + padCP(term.T("common.bbs"), 26) + padCP(term.T("common.when"), 16) + term.T("common.from_2") + ansi.Reset + "\r\n")
 	b.WriteString(ansi.FG(ansi.Blue, false) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
 	for _, r := range recs {
 		b.WriteString(fmt.Sprintf("  %s%s%s%s%s%s%s%s\r\n",
 			ansi.FG(ansi.White, true), cut(r.Alias, 16),
-			ansi.FG(ansi.Yellow, true), cut(r.BBS, 26),
-			ansi.FG(ansi.White, false), cut(r.Date+" "+r.Time, 16),
-			ansi.FG(ansi.Cyan, false), cut(r.Location, 18)+ansi.Reset))
+			ansi.FG(ansi.Cyan, true), cut(r.BBS, 26),
+			ansi.FG(ansi.Black, true), cut(r.Date+" "+r.Time, 16),
+			ansi.FG(ansi.White, false), cut(r.Location, 18)+ansi.Reset))
 	}
 	if err := term.Print(b.String()); err != nil {
 		return err

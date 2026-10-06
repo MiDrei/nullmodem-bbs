@@ -24,7 +24,7 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 			return err
 		}
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("common.bbs_list") + ansi.Reset + "\r\n")
+		b.WriteString(s.featureHeader(term, u, "bbslist.ans", term.T("common.bbs_list")))
 		if len(list) == 0 {
 			b.WriteString("  " + term.T("bbslist.empty") + "\r\n")
 		}
@@ -40,8 +40,8 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 			statusWidth = max(statusWidth, len(term.T(k)))
 		}
 		for i, e := range list {
-			fmt.Fprintf(&b, "  %s%3d%s  %s%s %s%s %s%s\r\n", ansi.FG(ansi.Yellow, true), i+1, ansi.Reset,
-				ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)), ansi.FG(ansi.Cyan, false), toCP437(cut(e.Address, 32)),
+			fmt.Fprintf(&b, "  %s%3d%s  %s%s %s%s %s%s\r\n", ansi.FG(ansi.Cyan, true), i+1, ansi.Reset,
+				ansi.FG(ansi.White, true), toCP437(cut(e.Name, 30)), ansi.FG(ansi.White, false), toCP437(cut(e.Address, 32)),
 				bbsStatus(term, e, statusWidth), ansi.Reset)
 		}
 		keys := term.T("bbslist.key_details")
@@ -101,7 +101,8 @@ func (s *Server) showBBS(term *Terminal, u *user.User, e community.BBS) error {
 			fmt.Fprintf(&b, "  %s%s%s %s\r\n", ansi.FG(ansi.Cyan, false), padCP(label, labelWidth), ansi.Reset, l)
 		}
 	}
-	b.WriteString(ansi.Reset + "\r\n  " + ansi.FG(ansi.White, true) + toCP437(e.Name) + ansi.Reset + "\r\n")
+	b.WriteString(s.featureHeader(term, u, "bbslist.ans", term.T("common.bbs_list")))
+	b.WriteString("  " + ansi.FG(ansi.White, true) + toCP437(e.Name) + ansi.Reset + "\r\n")
 	row("common.address", toCP437(e.Address))
 	row("common.sysop", toCP437(e.Sysop))
 	row("common.software", toCP437(e.Software))

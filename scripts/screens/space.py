@@ -327,6 +327,12 @@ def lists():
         +sgr(2)+T('files.uploaded',-11,de)+sgr(7)+'{DATE}'+sgr(2)+' '+T('files.by',None,de)+' '+sgr(15)+'{BY}\r\n'
         +sgr(2)+T('files.downloads',-11,de)+sgr(7)+'{DOWNLOADS}\r\n'+rule())
     out['filread-footer']=out['msgread-footer']
+
+    # The community features' banners: the community menu's art and a
+    # title line; what follows comes from the board itself.
+    for name,title in (('who','common.who_s_online'),('lastcallers','common.interbbs_last_callers'),
+                       ('oneliners','common.one_liners'),('polls','common.voting_booth'),('bbslist','common.bbs_list')):
+        both(name,lambda de,title=title: list_head(head_community(),T(title,None,de)))
     return out
 
 # ---------------- welcome ----------------

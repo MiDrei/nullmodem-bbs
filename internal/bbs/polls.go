@@ -25,7 +25,7 @@ func (s *Server) votingBooth(term *Terminal, u *user.User) error {
 			return err
 		}
 		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + term.T("common.voting_booth") + ansi.Reset + "\r\n")
+		b.WriteString(s.featureHeader(term, u, "polls.ans", term.T("common.voting_booth")))
 		if len(polls) == 0 {
 			b.WriteString("  " + term.T("polls.none") + "\r\n")
 			if err := term.Print(b.String()); err != nil {
@@ -34,12 +34,12 @@ func (s *Server) votingBooth(term *Terminal, u *user.User) error {
 			return s.pauseForKey(term)
 		}
 		for i, p := range polls {
-			mark := ansi.FG(ansi.Yellow, true) + " " + term.T("common.new_3") + ansi.Reset
+			mark := ansi.FG(ansi.Cyan, true) + " " + term.T("common.new_3") + ansi.Reset
 			if p.MyVote != 0 {
 				mark = ansi.FG(ansi.Green, false) + " " + term.T("polls.voted") + ansi.Reset
 			}
-			fmt.Fprintf(&b, "  %s%2d%s  %s%s  %s(%s)%s\r\n", ansi.FG(ansi.Yellow, true), i+1, ansi.Reset,
-				toCP437(p.Question), mark, ansi.FG(ansi.White, false), term.N("common.count_votes", p.Total), ansi.Reset)
+			fmt.Fprintf(&b, "  %s%2d%s  %s%s  %s(%s)%s\r\n", ansi.FG(ansi.Cyan, true), i+1, ansi.FG(ansi.White, true),
+				toCP437(p.Question), mark, ansi.FG(ansi.Black, true), term.N("common.count_votes", p.Total), ansi.Reset)
 		}
 		b.WriteString("\r\n  " + term.T("polls.which") + " " + ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
@@ -66,13 +66,14 @@ func (s *Server) votingBooth(term *Terminal, u *user.User) error {
 // showPoll asks for a vote (or a changed one) and shows the results.
 func (s *Server) showPoll(term *Terminal, u *user.User, p community.Poll) error {
 	var b strings.Builder
-	b.WriteString(ansi.Reset + "\r\n  " + ansi.FG(ansi.White, true) + toCP437(p.Question) + ansi.Reset + "\r\n\r\n")
+	b.WriteString(s.featureHeader(term, u, "polls.ans", term.T("common.voting_booth")))
+	b.WriteString("  " + ansi.FG(ansi.White, true) + toCP437(p.Question) + ansi.Reset + "\r\n\r\n")
 	for i, o := range p.Options {
 		chosen := "  "
 		if o.ID == p.MyVote {
 			chosen = ansi.FG(ansi.Green, true) + " *" + ansi.Reset
 		}
-		fmt.Fprintf(&b, "  %s%s%2d%s  %s\r\n", chosen, ansi.FG(ansi.Yellow, true), i+1, ansi.Reset, toCP437(o.Text))
+		fmt.Fprintf(&b, "  %s%s%2d%s  %s\r\n", chosen, ansi.FG(ansi.Cyan, true), i+1, ansi.Reset, toCP437(o.Text))
 	}
 	if !u.Validated {
 		b.WriteString("\r\n  " + ansi.FG(ansi.Yellow, false) + term.T("polls.not_approved") + ansi.Reset + "\r\n")
