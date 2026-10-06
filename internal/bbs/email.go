@@ -52,11 +52,11 @@ func (s *Server) composeEmail(term *Terminal, u *user.User, to string) error {
 	if ok, err := s.emailAllowed(term, u); !ok {
 		return err
 	}
-	if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "  -> " +
+	if err := term.Println(ansi.Reset + ansi.FG(ansi.Cyan, true) + "  \xaf " +
 		term.T("netmail.email_from", "ADDRESS", emailgw.Address(s.emailConfig(), u.Username)) + ansi.Reset); err != nil {
 		return err
 	}
-	if err := term.Print(ansi.Reset + term.T("msg.subject") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("msg.subject") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	subject, err := term.ReadLine(false)

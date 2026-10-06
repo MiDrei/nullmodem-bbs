@@ -8,6 +8,7 @@ import (
 	"git.maik.ch/nullmodem/kit/ansi"
 
 	"git.maik.ch/nullmodem/bbs/internal/doors"
+	"git.maik.ch/nullmodem/bbs/internal/user"
 )
 
 // The doors' bulletins -- the scoreboards and news they write -- from
@@ -29,15 +30,15 @@ func doorBulletinList(available []doors.Door) []doorBulletin {
 	return out
 }
 
-func (s *Server) showDoorBulletins(term *Terminal, list []doorBulletin) error {
+func (s *Server) showDoorBulletins(term *Terminal, u *user.User, list []doorBulletin) error {
 	for {
-		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + term.T("doors.bulletins") + ansi.Reset + "\r\n")
+		var items [][2]string
 		for i, x := range list {
-			fmt.Fprintf(&b, "%2d) %s\r\n", i+1, toCP437(x.title))
+			items = append(items, [2]string{strconv.Itoa(i + 1), toCP437(x.title)})
 		}
-		b.WriteString(" Q) " + term.T("common.back") + "\r\n\r\n" + term.T("doors.which_bulletin") + " " + ansi.FG(ansi.Yellow, true))
-		if err := term.Print(b.String()); err != nil {
+		text := s.renderDoorFrame(term, u, "doorbulletins.ans", term.T("doors.bulletins"), items,
+			[][2]string{{"Q", term.T("common.back")}}, term.T("doors.which_bulletin"))
+		if err := term.Print(text); err != nil {
 			return err
 		}
 		in, err := term.ReadLine(false)

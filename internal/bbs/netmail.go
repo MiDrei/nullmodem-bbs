@@ -543,14 +543,15 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 // hand the message to), then a Subject, then hands off to the shared
 // runLineEditor for the body.
 func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
-	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.compose_title") + ansi.Reset); err != nil {
+	if err := term.Print(s.featureHeader(term, u, "netpost.ans", term.T("netmail.compose_title"))); err != nil {
 		return err
 	}
 	prompt := "netmail.to_prompt"
 	if s.mayEmail(u) {
 		prompt = "netmail.to_prompt_email"
 	}
-	if err := term.Print(ansi.Reset + "\n" + term.T(prompt) + ansi.FG(ansi.Yellow, true)); err != nil {
+	// The question is nearly a line wide: the answer goes under it.
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + strings.TrimSpace(term.T(prompt)) + "\r\n  " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	to, err := term.ReadLine(false)
@@ -559,7 +560,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 	}
 	to = strings.TrimSpace(to)
 	if to == "" {
-		return term.Println(ansi.Reset + term.T("common.cancelled"))
+		return term.Println(ansi.Reset + "  " + term.T("common.cancelled"))
 	}
 
 	var toUserID int64
@@ -583,16 +584,16 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		defaultName := to
 		if s.Nodelist != nil {
 			if e, ok, _ := s.Nodelist.LookupAddress(to); ok {
-				if err := term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + "  -> " + toCP437(e.Name) + ", " +
+				if err := term.Println(ansi.Reset + ansi.FG(ansi.Cyan, true) + "  \xaf " + toCP437(e.Name) + ", " +
 					toCP437(e.Location) + " (" + term.T("netmail.sysop_of", "SYSOP", toCP437(e.Sysop)) + ")" + ansi.Reset); err != nil {
 					return err
 				}
 				defaultName = toCP437(e.Sysop)
-			} else if err := term.Println(ansi.Reset + ansi.FG(ansi.Yellow, true) + "  " + term.T("common.not_in_the_nodelists_here") + ansi.Reset); err != nil {
+			} else if err := term.Println(ansi.Reset + "  " + ansi.FG(ansi.Black, true) + term.T("common.not_in_the_nodelists_here") + ansi.Reset); err != nil {
 				return err
 			}
 		}
-		if err := term.Print(ansi.Reset + term.T("netmail.recipient", "DEFAULT", defaultName) + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("netmail.recipient", "DEFAULT", defaultName) + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		name, err := term.ReadLine(false)
@@ -603,7 +604,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		if toName == "" {
 			toName = defaultName
 		}
-		if err := term.Print(ansi.Reset + term.T("netmail.crash") + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("netmail.crash") + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		crashAnswer, err := term.ReadLine(false)
@@ -619,11 +620,11 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 		if s.mayEmail(u) {
 			key = "netmail.bad_recipient_email"
 		}
-		return term.Println(ansi.Reset + ansi.FG(ansi.Red, true) +
-			term.T(key, "TO", to))
+		return term.Println(ansi.Reset + "  " + ansi.FG(ansi.Red, true) +
+			term.T(key, "TO", to) + ansi.Reset)
 	}
 
-	if err := term.Print(ansi.Reset + term.T("msg.subject") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "  " + fgDim(ansi.White) + term.T("msg.subject") + " " + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	subject, err := term.ReadLine(false)
@@ -632,7 +633,7 @@ func (s *Server) composeNetmail(term *Terminal, u *user.User) error {
 	}
 	subject = strings.TrimSpace(subject)
 	if subject == "" {
-		return term.Println(ansi.Reset + term.T("common.cancelled"))
+		return term.Println(ansi.Reset + "  " + term.T("common.cancelled"))
 	}
 
 	label := toName

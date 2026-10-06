@@ -55,7 +55,7 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 			return nil
 		}
 		if strings.EqualFold(choice, "b") && len(bulletins) > 0 {
-			if err := s.showDoorBulletins(term, bulletins); err != nil {
+			if err := s.showDoorBulletins(term, u, bulletins); err != nil {
 				return err
 			}
 			continue
@@ -96,26 +96,41 @@ const (
 // play: the banner, a row per door, the bulletins (if any door has
 // some) and back entries, and the prompt.
 func (s *Server) renderDoorList(term *Terminal, u *user.User, available []doors.Door, bulletins bool) string {
+	var items [][2]string
+	for i, d := range available {
+		items = append(items, [2]string{strconv.Itoa(i + 1), d.Name})
+	}
+	var tail [][2]string
+	if bulletins {
+		tail = append(tail, [2]string{"B", term.T("doors.bulletins_item")})
+	}
+	tail = append(tail, [2]string{"Q", term.T("doors.back")})
+	return s.renderDoorFrame(term, u, doorsScreen, term.T("common.doors"), items, tail, term.T("doors.which"))
+}
+
+// renderDoorFrame is a list in the door list's frame: banner (header,
+// with title as the fallback), a row per item, the gap, the tail
+// entries, the frame's bottom and the prompt.
+func (s *Server) renderDoorFrame(term *Terminal, u *user.User, header, title string, items, tail [][2]string, prompt string) string {
 	row := s.loadOptionalScreen(term, doorsRowScreen, fallbackDoorsRow)
 	line := func(key, label string) string {
 		return ansi.Layout(ansi.Render(row, ansi.Vars{"KEY": key, "DOOR": label}), term.Width()) + ansi.Reset + "\r\n"
 	}
 	var b strings.Builder
-	b.WriteString(s.renderAreaHeader(term, u, doorsScreen, term.T("common.doors")))
-	for i, d := range available {
-		b.WriteString(line(strconv.Itoa(i+1), d.Name))
+	b.WriteString(s.featureHeader(term, u, header, title))
+	for _, it := range items {
+		b.WriteString(line(it[0], it[1]))
 	}
 	if gap := s.loadOptionalScreen(term, doorsGapScreen, ""); gap != "" {
 		b.WriteString(ansi.Layout(gap, term.Width()) + ansi.Reset + "\r\n")
 	}
-	if bulletins {
-		b.WriteString(line("B", term.T("doors.bulletins_item")))
+	for _, it := range tail {
+		b.WriteString(line(it[0], it[1]))
 	}
-	b.WriteString(line("Q", term.T("doors.back")))
 	if footer := s.loadOptionalScreen(term, doorsFooterScreen, ""); footer != "" {
 		b.WriteString(ansi.Layout(footer, term.Width()) + ansi.Reset + "\r\n")
 	}
-	b.WriteString("\r\n" + term.T("doors.which") + " " + ansi.FG(ansi.Yellow, true))
+	b.WriteString("\r\n" + fgDim(ansi.White) + prompt + " " + ansi.FG(ansi.Yellow, true))
 	return b.String()
 }
 

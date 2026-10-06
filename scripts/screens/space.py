@@ -232,7 +232,11 @@ def doors_screens():
     row=sgr(F)+'\u2502'+'  '+key('{KEY}')+' '+sgr(15)+'{DOOR}'+sgr(7)+'{FILL: }'+sgr(F)+'\u2502'
     gap=sgr(F)+'\u2502'+sgr(7)+'{FILL: }'+sgr(F)+'\u2502'
     foot=sgr(F)+'\u2514{FILL:\u2500}\u2518'+ESC+'0m'
+    def bulletins(de):
+        s=Screen(de); s.top(T('doors.bulletins',None,de)); s.row()
+        return (ESC+'2J'+ESC+'H'+'\r\n'.join(head_doors()+s.L)).encode('cp437')
     return {'doors.ans':head(False),'doors.de.ans':head(True),
+            'doorbulletins.ans':bulletins(False),'doorbulletins.de.ans':bulletins(True),
             'doors-row.ans':row.encode('cp437'),'doors-gap.ans':gap.encode('cp437'),'doors-footer.ans':foot.encode('cp437')}
 
 def menu_screen(name,de):
@@ -306,6 +310,7 @@ def lists():
     both('netread-meta',lambda de: sgr(5)+T('msg.from',-9,de)+sgr(15)+'{FROM:-40}'+sgr(5)+' '+T('msg.date',None,de)+' '+sgr(7)+'{DATE}\r\n'
         +sgr(5)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(5)+T('msg.subject',-9,de)+sgr(13)+'{SUBJECT:-70}\r\n'+rule())
     out['netread-footer']=out['msgread-footer']
+    both('netpost',lambda de: list_head(nethead(),T('netmail.compose_title',None,de))+'\r\n')
 
     # Files: green, with the files menu's asteroids.
     def rocks(a):
