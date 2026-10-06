@@ -3,7 +3,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/auth.svelte';
-	import { getDashboard, ApiError, type Dashboard } from '$lib/api';
+	import { getDashboard, ApiError, type Dashboard, type UplinkStatus } from '$lib/api';
 
 	const REFRESH_MS = 5000;
 
@@ -38,6 +38,55 @@
 		if (m > 0) return `${m}m ${s}s`;
 		return `${s}s`;
 	}
+
+	// "3 min ago" for an RFC3339 time; "" stays "".
+	function ago(iso: string): string {
+		if (!iso || iso.startsWith('0001')) return '';
+		const sec = Math.max(0, (now - new Date(iso).getTime()) / 1000);
+		if (sec < 90) return t('web.time.just_now');
+		if (sec < 3600) return t('web.time.minutes', { N: Math.round(sec / 60) });
+		if (sec < 86400 * 1.5) return t('web.time.hours', { N: Math.round(sec / 3600) });
+		return t('web.time.days_long', { N: Math.round(sec / 86400) });
+	}
+
+	function bytes(n: number): string {
+		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+		let i = 0;
+		while (n >= 1024 && i < units.length - 1) {
+			n /= 1024;
+			i++;
+		}
+		return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
+	}
+
+	const hours = (iso: string) => (iso && !iso.startsWith('0001') ? (now - new Date(iso).getTime()) / 3_600_000 : Infinity);
+
+	// An uplink's state: failing (its last session failed), quiet (no
+	// session got through in two days though it's polled), paused, ok.
+	function uplinkState(u: UplinkStatus): 'error' | 'quiet' | 'paused' | 'ok' {
+		if (u.last_error && (!u.last_ok || u.last_error > u.last_ok)) return 'error';
+		if (u.hold && u.poll_disabled) return 'paused';
+		if (hours(u.last_ok) > 48) return u.downlink ? 'paused' : 'quiet';
+		return 'ok';
+	}
+	const dot = { error: 'bg-red-500', quiet: 'bg-amber-400', paused: 'bg-slate-500', ok: 'bg-emerald-500' };
+	const stateText = $derived({
+		error: t('admin.dashboard.state_error'),
+		quiet: t('admin.dashboard.state_quiet'),
+		paused: t('admin.dashboard.state_paused'),
+		ok: t('admin.dashboard.state_ok')
+	});
+
+	const nothingToDo = $derived(
+		!!dashboard &&
+			dashboard.pending_message_area_count === 0 &&
+			dashboard.pending_file_area_count === 0 &&
+			dashboard.unresolved_netmail_count === 0 &&
+			dashboard.pending_user_count === 0 &&
+			dashboard.locked_out_count === 0 &&
+			dashboard.paging.length === 0 &&
+			dashboard.problems.length === 0
+	);
 
 	onMount(async () => {
 		if (!auth.token) {
@@ -109,6 +158,8 @@
 				{/if}
 			</div>
 		</section>
+	{:else if nothingToDo}
+		<p class="mb-8 text-sm text-emerald-500">✓ {t('admin.dashboard.nothing_to_do')}</p>
 	{/if}
 
 	<div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -177,6 +228,123 @@
 			</div>
 		</div>
 	</section>
+
+	{#if dashboard.uplinks.length}
+		<section class="mb-8 rounded-xl border border-line p-4">
+			<div class="mb-4 flex items-center justify-between">
+				<h2 class="card-label">{t('admin.dashboard.mailer_per_uplink')}</h2>
+				<a href="/admin/logs" class="text-xs text-cyan-500 hover:text-cyan-300">{t('admin.dashboard.to_the_log')}</a>
+			</div>
+			<div class="overflow-x-auto">
+				<table class="w-full text-left text-sm">
+					<thead class="card-label">
+						<tr class="border-b border-line">
+							<th class="py-2 pr-4">{t('admin.dashboard.uplink')}</th>
+							<th class="py-2 pr-4">{t('admin.dashboard.last_ok')}</th>
+							<th class="py-2 pr-4">{t('admin.dashboard.last_error')}</th>
+							<th class="py-2 text-right">{t('admin.dashboard.sessions_24h')}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each dashboard.uplinks as u (u.address + u.host)}
+							{@const st = uplinkState(u)}
+							<tr class="border-b border-line align-top">
+								<td class="py-2 pr-4">
+									<div class="flex items-center gap-2">
+										<span class="inline-block h-2 w-2 shrink-0 rounded-full {dot[st]}" title={stateText[st]}></span>
+										<span class="font-mono text-ink-strong">{u.address}</span>
+										<span class="text-xs text-faint">{u.network}</span>
+									</div>
+									{#if u.hold || u.poll_disabled}
+										<div class="mt-0.5 pl-4 text-[11px] text-faint">
+											{[u.hold ? t('admin.common.hold') : '', u.poll_disabled ? t('admin.common.crash_only') : ''].filter(Boolean).join(' · ')}
+										</div>
+									{/if}
+								</td>
+								<td class="py-2 pr-4 text-ink-soft">{ago(u.last_ok) || '—'}</td>
+								<td class="py-2 pr-4">
+									{#if u.last_error}
+										<span class={st === 'error' ? 'text-red-400' : 'text-faint'}>{ago(u.last_error)}</span>
+										{#if st === 'error' && u.error}
+											<div class="max-w-md truncate text-xs text-red-500/80" title={u.error}>{u.error}</div>
+										{/if}
+									{:else}
+										<span class="text-faint">—</span>
+									{/if}
+								</td>
+								<td class="py-2 text-right font-mono">
+									{u.sessions_24h}{#if u.errors_24h}<span class="text-red-400"> · {u.errors_24h} ✗</span>{/if}
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	{/if}
+
+	{#if dashboard.system}
+	{@const sys = dashboard.system}
+	<section class="mb-8 rounded-xl border border-line p-4">
+		<h2 class="mb-4 card-label">{t('admin.dashboard.system')}</h2>
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<a href="/admin/backups" class="rounded-xl border border-line p-3 hover:border-cyan-700">
+				<div class="card-label mb-1">{t('admin.dashboard.backup')}</div>
+				{#if !sys.backup_enabled}
+					<div class="text-sm text-amber-400">{t('admin.dashboard.backup_off')}</div>
+				{:else if sys.last_backup}
+					<div class="text-sm {hours(sys.last_backup.time) > 36 ? 'text-amber-400' : 'text-ink-strong'}">{ago(sys.last_backup.time)}</div>
+					<div class="text-xs text-faint">{bytes(sys.last_backup.size)}</div>
+				{:else}
+					<div class="text-sm text-amber-400">{t('admin.dashboard.backup_none')}</div>
+				{/if}
+			</a>
+			<a href="/admin/backups" class="rounded-xl border border-line p-3 hover:border-cyan-700">
+				<div class="card-label mb-1">{t('admin.dashboard.offsite')}</div>
+				{#if !sys.offsite_enabled}
+					<div class="text-sm text-faint">{t('admin.dashboard.offsite_off')}</div>
+				{:else if sys.offsite.last_error && sys.offsite.last_try > sys.offsite.last_ok}
+					<div class="text-sm text-red-400">{t('admin.dashboard.offsite_failed', { WHEN: ago(sys.offsite.last_try) })}</div>
+					<div class="truncate text-xs text-red-500/80" title={sys.offsite.last_error}>{sys.offsite.last_error}</div>
+				{:else if sys.offsite.last_ok && !sys.offsite.last_ok.startsWith('0001')}
+					<div class="text-sm {hours(sys.offsite.last_ok) > 36 ? 'text-amber-400' : 'text-ink-strong'}">{ago(sys.offsite.last_ok)}</div>
+					<div class="text-xs text-faint">{tn('admin.dashboard.offsite_copies', sys.offsite.remote)}</div>
+				{:else}
+					<div class="text-sm text-amber-400">{t('admin.dashboard.offsite_never')}</div>
+				{/if}
+			</a>
+			<div class="rounded-xl border border-line p-3">
+				<div class="card-label mb-1">{t('admin.dashboard.space')}</div>
+				<div class="text-sm text-ink-strong">{t('admin.dashboard.db_size', { SIZE: bytes(sys.db_bytes) })}</div>
+				<div class="text-xs {sys.free_bytes < 2 * 1024 ** 3 ? 'text-amber-400' : 'text-faint'}">{t('admin.dashboard.free_space', { SIZE: bytes(sys.free_bytes) })}</div>
+			</div>
+			<a href="/admin/services" class="rounded-xl border border-line p-3 hover:border-cyan-700">
+				<div class="card-label mb-1">{t('admin.dashboard.services')}</div>
+				{#each sys.services as sv (sv.name)}
+					<div class="flex items-center gap-2 text-sm">
+						<span class="inline-block h-2 w-2 rounded-full {sv.running ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+						<span class="text-ink-strong">{sv.name}</span>
+						<span class="ml-auto text-xs text-faint">{sv.running ? ago(sv.started_at) : t('admin.dashboard.service_down')}</span>
+					</div>
+				{/each}
+			</a>
+		</div>
+		{#if sys.warnings.length}
+			<div class="mt-4">
+				<div class="card-label mb-2">{t('admin.dashboard.recent_warnings')}</div>
+				<ul class="flex flex-col gap-1 text-xs">
+					{#each sys.warnings as w, i (i)}
+						<li class="flex gap-3">
+							<span class="shrink-0 text-faint">{ago(w.at)}</span>
+							<span class="shrink-0 {w.level === 'error' ? 'text-red-400' : 'text-amber-400'}">{w.source}</span>
+							<span class="min-w-0 truncate text-ink-soft" title={w.message}>{w.message}</span>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{/if}
+	</section>
+	{/if}
 
 	<section class="rounded-xl border border-line p-4">
 		<h2 class="mb-4 card-label">{t('common.who_s_online')}</h2>

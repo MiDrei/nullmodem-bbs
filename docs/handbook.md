@@ -276,7 +276,11 @@ NullModem Reader.
 - **Dashboard:** "Needs attention" shows problems (service down, uplink
   unreachable, backup overdue, disk full, netmail stuck), waiting users,
   locked addresses and who's paging you right now. Problems come as push
-  notifications too.
+  notifications too. Below: per uplink when the last session went through,
+  the last error and the sessions of the past 24 hours (red dot: the last
+  session failed, yellow: nothing went through for two days, grey: not
+  polled); and the system — last backup, off-site copy, database size, free
+  space, services and the latest warnings and errors.
 - **Chat & one-liners:** Community → Chat & One-liners — that's where you
   answer when someone pages, and tidy up the one-liner wall.
 - **Chat rooms:** same place, under "Rooms". Besides the teleconference

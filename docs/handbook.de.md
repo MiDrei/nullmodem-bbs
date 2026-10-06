@@ -279,7 +279,12 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
 - **Dashboard:** „Needs attention“ zeigt Probleme (Dienst steht, Uplink
   unerreichbar, Backup überfällig, Platte voll, Netmail hängt), wartende
   Benutzer, gesperrte Adressen und wer dich gerade ruft. Probleme kommen auch
-  als Push.
+  als Push. Darunter pro Uplink, wann die letzte Sitzung geklappt hat, der
+  letzte Fehler und die Sitzungen der letzten 24 Stunden (roter Punkt: letzte
+  Sitzung fehlgeschlagen, gelb: seit zwei Tagen nichts durchgekommen, grau:
+  wird nicht abgeholt); und das System — letztes Backup, Off-site-Kopie,
+  Grösse der Datenbank, freier Speicher, Dienste und die letzten Warnungen
+  und Fehler.
 - **Chat & One-Liner:** Community → Chat & One-liners — dort antwortest du, wenn
   jemand pagt, und räumst die One-Liner-Wand auf.
 - **Chat-Räume:** ebenda unter „Rooms“. Neben der Teleconference (`main`)

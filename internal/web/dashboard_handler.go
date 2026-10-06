@@ -59,6 +59,10 @@ type dashboardDTO struct {
 	Paging []string `json:"paging"`
 	// Problems are what the health monitor sees not working now.
 	Problems []health.Problem `json:"problems"`
+	// Uplinks is how the mailer gets on with each uplink; System the
+	// backups, services, space and recent warnings.
+	Uplinks []uplinkStatusDTO `json:"uplinks"`
+	System  systemDTO         `json:"system"`
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -191,5 +195,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		LockedOutCount:          lockedOut,
 		Paging:                  paging,
 		Problems:                problems,
+		Uplinks:                 s.uplinkStatuses(cfg),
+		System:                  s.systemStatus(cfg),
 	})
 }

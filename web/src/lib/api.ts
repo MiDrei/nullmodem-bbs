@@ -123,6 +123,36 @@ export interface Dashboard {
 	/** Page rooms with a caller waiting for the sysop ("page-bob"). */
 	paging: string[];
 	problems: HealthProblem[];
+	/** How the mailer gets on with each uplink, from the kept BinkP sessions. */
+	uplinks: UplinkStatus[];
+	system: SystemStatus;
+}
+
+export interface UplinkStatus {
+	address: string;
+	network: string;
+	host: string;
+	downlink: boolean;
+	hold: boolean;
+	poll_disabled: boolean;
+	/** RFC3339, or "" if never. */
+	last_ok: string;
+	last_error: string;
+	error: string;
+	sessions_24h: number;
+	errors_24h: number;
+}
+
+export interface SystemStatus {
+	db_bytes: number;
+	free_bytes: number;
+	backup_enabled: boolean;
+	last_backup: { name: string; size: number; time: string } | null;
+	offsite_enabled: boolean;
+	offsite: { last_ok: string; last_name: string; last_try: string; last_error: string; remote: number };
+	services: { name: string; version: string; started_at: string; running: boolean }[];
+	/** The latest warnings and errors of the last week, newest first. */
+	warnings: { at: string; level: string; source: string; message: string }[];
 }
 
 export interface BBSUser {
