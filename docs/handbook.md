@@ -205,11 +205,14 @@ After login: InterBBS Last Callers, one-liners, an overview of what's new.
 **Languages:** the BBS speaks English, German formal (Sie) and German informal
 (Du) — on Telnet/SSH as in the portal, the reader app, the front page and the
 admin (language choice at the top right, the code next to the moon).
-New callers pick their language right at registration, later in the profile
-(Telnet `Y`, then `A`; in the portal under Profile, in the reader app in the
-settings) — it's a setting of the account, the same everywhere. Before login
-— and for everyone who never chose — the board's language applies (Content →
-Languages, "The board's language"); on the web a visitor without an account
+On Telnet/SSH every caller picks a language under the welcome screen, before
+the handle prompt (a key, Enter keeps the board's) — login and registration
+then come in it, and a new account keeps it. Later it's changed in the
+profile (Telnet `Y`, then `A`; in the portal under Profile, in the reader app
+in the settings) — it's a setting of the account, the same everywhere; an
+existing account's language applies from login on. For everyone who never
+chose, the board's language applies (Content → Languages, "The board's
+language"); on the web a visitor without an account
 gets their browser's language (German in the board's form, Sie or Du) and can
 switch at the top of the page. Error messages, push notifications and the
 welcome screen (`welcome.de.ans`) follow the language too.

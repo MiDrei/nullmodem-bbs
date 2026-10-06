@@ -28,13 +28,13 @@ func TestFailedLoginsLockTheAddressOut(t *testing.T) {
 	if _, err := s.Users.Register("alice", "password123", user.SLNewUser); err != nil {
 		t.Fatal(err)
 	}
-	conn := newFakeConn("alice\r\nwrong1\r\nwrong2\r\nwrong3\r\n")
+	conn := newFakeConn("\r\nalice\r\nwrong1\r\nwrong2\r\nwrong3\r\n")
 	s.Handle(conn)
 	if out := conn.out.String(); !strings.Contains(out, "Too many failed logins") {
 		t.Fatalf("no lockout message after 3 failures: %q", out)
 	}
 	// The next call is turned away before the login prompt.
-	conn = newFakeConn("alice\r\npassword123\r\n")
+	conn = newFakeConn("\r\nalice\r\npassword123\r\n")
 	s.Handle(conn)
 	out := conn.out.String()
 	if !strings.Contains(out, "Too many failed logins") || strings.Contains(out, "Enter your handle") {

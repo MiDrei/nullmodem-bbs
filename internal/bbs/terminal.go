@@ -31,6 +31,9 @@ type Terminal struct {
 	// Lang is the language the caller reads the board in (internal/
 	// i18n): the board's own until they log in, then theirs.
 	Lang string
+	// LangChosen is set once the caller picked Lang before logging in
+	// (askLoginLanguage), so registering doesn't ask again.
+	LangChosen bool
 	// sysopOK is set once the caller passed the two-factor check for
 	// the sysop functions (sysopGate) this session.
 	sysopOK bool

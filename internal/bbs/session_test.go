@@ -387,7 +387,7 @@ func TestHandleLogsConnectLoginAndDisconnect(t *testing.T) {
 		Logger: applog.NewLogger(logStore, "bbs"),
 	}
 
-	conn := newFakeConn("alice\r\nY\r\n\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
+	conn := newFakeConn("\r\nalice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
 	s.Handle(conn)
 
 	entries, err := logStore.Recent(50)
@@ -435,7 +435,7 @@ func TestRegisterNewRequiresRealName(t *testing.T) {
 
 	// Blank, then a reserved name, then a real one -- both rejections
 	// must simply re-prompt.
-	conn := newFakeConn("alice\r\nY\r\n\r\npassword123\r\npassword123\r\n\r\nSysop\r\nAlice Example\r\nQ\r\n")
+	conn := newFakeConn("\r\nalice\r\nY\r\npassword123\r\npassword123\r\n\r\nSysop\r\nAlice Example\r\nQ\r\n")
 	s.Handle(conn)
 
 	alice, err := users.ByUsername("alice")
@@ -471,7 +471,7 @@ func TestLoginRejectsReservedHandleForNewRegistration(t *testing.T) {
 		Logger: applog.NewLogger(applog.NewStore(sqlDB), "bbs"),
 	}
 
-	conn := newFakeConn("admin\r\nalice\r\nY\r\n\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
+	conn := newFakeConn("\r\nadmin\r\nalice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
 	s.Handle(conn)
 
 	if _, err := users.ByUsername("admin"); !errors.Is(err, user.ErrNotFound) {
@@ -522,7 +522,7 @@ func TestHandleLogsMenuErrors(t *testing.T) {
 		Logger: applog.NewLogger(logStore, "bbs"),
 	}
 
-	conn := newFakeConn("alice\r\nY\r\n\r\npassword123\r\npassword123\r\nAlice Example\r\nB\r\n")
+	conn := newFakeConn("\r\nalice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nB\r\n")
 	s.Handle(conn)
 
 	entries, err := logStore.Recent(50)
@@ -540,5 +540,38 @@ func TestHandleLogsMenuErrors(t *testing.T) {
 
 	if !strings.Contains(conn.out.String(), "Menu error:") {
 		t.Fatalf("expected the error to still be shown on-screen too, got: %q", conn.out.String())
+	}
+}
+
+// TestLoginLanguageChosenFirst: the language picked before logging in
+// is the login's and a new account's, without being asked again.
+func TestLoginLanguageChosenFirst(t *testing.T) {
+	dir := t.TempDir()
+	sqlDB, err := db.Open(filepath.Join(dir, "test.sqlite"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { sqlDB.Close() })
+	nodes := session.NewStore(sqlDB)
+	users := user.NewStore(sqlDB)
+	s := &Server{
+		Nodes:    nodes,
+		Menus:    testMenus(),
+		Users:    users,
+		Logger:   applog.NewLogger(applog.NewStore(sqlDB), "bbs"),
+		Language: func() string { return "de-du" },
+	}
+	conn := newFakeConn("1alice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
+	s.Handle(conn)
+	out := conn.out.String()
+	if !strings.Contains(out, "Enter = Deutsch (Du)") || !strings.Contains(out, "Enter your handle") {
+		t.Fatalf("no English login after choosing it:\n%q", out)
+	}
+	alice, err := users.ByUsername("alice")
+	if err != nil {
+		t.Fatalf("ByUsername: %v", err)
+	}
+	if alice.Language != "en" {
+		t.Errorf("Language = %q, want en", alice.Language)
 	}
 }

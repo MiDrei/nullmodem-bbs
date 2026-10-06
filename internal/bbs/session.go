@@ -216,6 +216,9 @@ func (s *Server) Handle(conn Conn) {
 	if err := s.welcome(term, node); err != nil {
 		return
 	}
+	if err := s.askLoginLanguage(term); err != nil {
+		return
+	}
 
 	u, err := s.login(term)
 	if err != nil {
@@ -403,11 +406,13 @@ func (s *Server) registerNew(term *Terminal, handle string) (*user.User, bool, e
 	if a := strings.ToUpper(strings.TrimSpace(answer)); a != "" && !isYes(term, a) {
 		return nil, false, nil
 	}
-	lang, err := s.chooseLanguage(term)
-	if err != nil {
-		return nil, false, err
+	lang := term.Lang
+	if !term.LangChosen {
+		if lang, err = s.chooseLanguage(term); err != nil {
+			return nil, false, err
+		}
+		term.Lang = lang
 	}
-	term.Lang = lang
 
 	for {
 		if err := term.Print(ansi.Reset + term.T("register.password", "MIN", user.MinPasswordLength) + ansi.FG(ansi.Yellow, true)); err != nil {
