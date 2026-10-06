@@ -29,6 +29,7 @@
 		| 'nodelist'
 		| 'chat'
 		| 'poll'
+		| 'news'
 		| 'lock'
 		| 'matrix'
 		| 'backup'
@@ -145,6 +146,9 @@
 	{:else if name === 'email'}
 		<circle cx="12" cy="12" r="4" />
 		<path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.9 7.9" />
+	{:else if name === 'news'}
+		<rect x="3" y="4" width="18" height="16" rx="2" />
+		<path d="M7 8h10M7 12h10M7 16h6" />
 	{:else if name === 'poll'}
 		<path d="M4 20h16" />
 		<path d="M7 16V10M12 16V5M17 16v-4" />

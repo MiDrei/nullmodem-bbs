@@ -220,3 +220,4 @@ email.sent_by: "Diese Nachricht kommt von {USER}, einem Benutzer der {BBS}. Dein
 admin.areafix.cmd_pause_confirm: "Den Hub bitten, uns bis %RESUME keine Post mehr zu schicken?"
 screen.desc.newscan: "Neues in deinen Bereichen"
 screen.desc.tome: "Ungelesenes an dich"
+admin.news.subtitle: "Schreib News für deine Anrufer, auf Deutsch und Englisch: Beim Login sehen sie die, die sie noch nicht gelesen haben, alle aktuellen im Hauptmenü unter N, die neuesten drei auf der Startseite und im Portal."

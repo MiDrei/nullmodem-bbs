@@ -551,6 +551,25 @@ CREATE TABLE IF NOT EXISTS bbs_list (
     updated_at   INTEGER NOT NULL
 );
 
+-- internal/community: the sysop's news, in English and German (a
+-- caller reads theirs, else the other), and which a caller has seen --
+-- the unseen ones show at login. expires_at 0: never.
+CREATE TABLE IF NOT EXISTS news (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  INTEGER NOT NULL,
+    author      TEXT NOT NULL DEFAULT '',
+    title_en    TEXT NOT NULL DEFAULT '',
+    text_en     TEXT NOT NULL DEFAULT '',
+    title_de    TEXT NOT NULL DEFAULT '',
+    text_de     TEXT NOT NULL DEFAULT '',
+    expires_at  INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS news_seen (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    news_id  INTEGER NOT NULL REFERENCES news(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, news_id)
+);
+
 -- Two-factor login (user/totp.go): one-time recovery codes, bcrypt-
 -- hashed, for an account whose authenticator is lost.
 CREATE TABLE IF NOT EXISTS totp_recovery (

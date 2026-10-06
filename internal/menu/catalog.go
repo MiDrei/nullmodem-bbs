@@ -38,6 +38,7 @@ var Builtins = []Builtin{
 	{Name: "stats", Label: "Your profile (stats)", Description: "Same as profile"},
 	{Name: "polls", Label: "Voting booth", Description: "The sysop's polls"},
 	{Name: "bbslist", Label: "BBS list", Description: "The list of boards the callers keep"},
+	{Name: "news", Label: "News", Description: "The sysop's news, as a list to read"},
 	{Name: "nodelist", Label: "Nodelist", Description: "Look up FTN systems in the imported nodelists"},
 	{Name: "lastcallers", Label: "Last callers", Description: "Who called, here and across InterBBS"},
 	{Name: "version", Label: "Version", Description: "The BBS software's version"},

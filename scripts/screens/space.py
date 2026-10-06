@@ -158,7 +158,8 @@ class Screen:
 
 MENUS={
  'main':(head_main,'common.main_menu',[
-    ('R','menu.item.newscan','screen.desc.newscan',False),None,
+    ('R','menu.item.newscan','screen.desc.newscan',False),
+    ('N','menu.item.news','screen.desc.news',False),None,
     ('M','menu.item.messages','screen.desc.messages',True),
     ('F','menu.item.files_menu','screen.desc.files',True),
     ('T','menu.item.community','screen.desc.community',True),
@@ -339,7 +340,7 @@ def lists():
     for name,title in (('who','common.who_s_online'),('lastcallers','common.interbbs_last_callers'),
                        ('oneliners','common.one_liners'),('polls','common.voting_booth'),('bbslist','common.bbs_list')):
         both(name,lambda de,title=title: feature(head_community,title,de))
-    for name,title in (('profile','common.your_profile'),('summary','summary.title')):
+    for name,title in (('profile','common.your_profile'),('summary','summary.title'),('news','news.title')):
         both(name,lambda de,title=title: feature(head_main,title,de))
     for name,title in (('sysusers','screen.sysop.listusers'),('syssetsl','screen.sysop.setsl'),('sysarea','screen.sysop.createarea'),
                        ('sysfilearea','screen.sysop.createfilearea'),('sysimport','screen.sysop.importfile')):

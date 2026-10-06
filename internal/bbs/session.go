@@ -242,6 +242,9 @@ func (s *Server) Handle(conn Conn) {
 	if err := s.showOneliners(term, u); err != nil {
 		return
 	}
+	if err := s.showNewsAtLogin(term, u); err != nil {
+		return
+	}
 	if err := s.loginSummary(term, u); err != nil {
 		return
 	}
@@ -550,6 +553,7 @@ var builtins = map[string]func(s *Server, term *Terminal, u *user.User) error{
 	"newfiles":       (*Server).newFiles,
 	"filesearch":     (*Server).searchFiles,
 	"bbslist":        (*Server).bbsList,
+	"news":           (*Server).showNews,
 }
 
 // paused runs a builtin and then waits for a key, so what it printed

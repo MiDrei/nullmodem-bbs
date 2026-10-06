@@ -182,6 +182,7 @@ Das Hauptmenü ist kurz; der Rest steckt in drei Untermenüs (Q geht zurück):
 | Hauptmenü | |
 |---|---|
 | R | neue Nachrichten lesen |
+| N | News vom Sysop |
 | M » | **Nachrichten:** R neue Nachrichten · T Nachrichten an mich · A Nachrichtenbereiche (dort S = suchen) · N Netmail (und E-Mail, wenn das Gateway an ist) · I Nodeliste · K meine Bereiche · O QWK holen · U QWK-Antworten hochladen |
 | F » | **Dateien:** A Dateibereiche · N neue Dateien · S Dateien suchen |
 | T » | **Treffpunkt:** C Chat (Telekonferenz; dort `/rooms`, `/join name`) · P Sysop rufen · L One-Liner · W wer ist online (mit Node-Nachricht) · Z letzte Anrufer · V Abstimmungen · B BBS-Liste |
@@ -343,6 +344,12 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   dem Grund zum Schreiber zurück; kann das Gateway eine halbe Stunde lang
   nicht abholen oder senden, steht es unter „Needs attention“. Die Anrufer
   sehen ihre Adresse im Profil.
+- **News:** Content → News. Eine Meldung hat Titel und Text auf Deutsch und
+  auf Englisch (wer Deutsch liest, bekommt die deutsche, alle anderen die
+  englische; fehlt eine Sprache, erscheint die andere) und auf Wunsch ein
+  Datum, bis zu dem sie erscheint. Beim Login sieht ein Anrufer die Meldungen,
+  die er noch nicht gesehen hat, im Hauptmenü unter N alle aktuellen; die
+  neuesten drei stehen auf der Startseite und im Portal (Treffpunkt).
 - **Abstimmungen / BBS-Liste:** Community → Polls & BBS List. Die BBS prüft
   stündlich, ob die Boards der Liste antworten (TCP-Verbindung, nichts wird
   gesendet) und zeigt „up/down“ bzw. „online/offline“; Adressen im eigenen

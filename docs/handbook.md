@@ -180,6 +180,7 @@ The main menu is short; the rest is in three submenus (Q goes back):
 | Main menu | |
 |---|---|
 | R | read new messages |
+| N | news from the sysop |
 | M » | **Messages:** R new messages · T messages to me · A message areas (there S = search) · N netmail (and email, when the gateway is on) · I nodelist · K my areas · O fetch QWK · U upload QWK replies |
 | F » | **Files:** A file areas · N new files · S search files |
 | T » | **Community:** C chat (teleconference; there `/rooms`, `/join name`) · P page the sysop · L one-liners · W who's online (with node message) · Z last callers · V polls · B BBS list |
@@ -336,6 +337,12 @@ NullModem Reader.
   writer as netmail with the reason; if the gateway can't fetch or send for
   half an hour, it shows under "Needs attention". The callers see their
   address in their profile.
+- **News:** Content → News. An item has a title and a text in German and in
+  English (callers reading German get the German one, everyone else the
+  English one; a missing language shows the other) and, if you like, a date
+  until which it shows. At login a caller sees the items they haven't seen
+  yet, in the main menu under N all current ones; the latest three are on the
+  front page and in the portal (Community).
 - **Polls / BBS list:** Community → Polls & BBS List. Every hour the BBS
   checks whether the boards on the list answer (a TCP connection, nothing is
   sent) and shows "up/down" or "online/offline"; addresses in your own or a

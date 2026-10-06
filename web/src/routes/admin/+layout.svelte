@@ -67,6 +67,7 @@
 				{ href: '/admin/message-areas', label: t('common.message_areas'), icon: 'areas' },
 				{ href: '/admin/file-areas', label: t('common.file_areas'), icon: 'files' },
 				{ href: '/admin/pending-areas', label: t('admin.common.pending_areas'), icon: 'pending' },
+				{ href: '/admin/news', label: t('web.news.title'), icon: 'news' },
 				{ href: '/admin/doors', label: t('common.doors'), icon: 'doors' },
 				{ href: '/admin/menus', label: t('admin.common.menus'), icon: 'menu' },
 				{ href: '/admin/screens', label: t('admin.common.screens'), icon: 'screens' },

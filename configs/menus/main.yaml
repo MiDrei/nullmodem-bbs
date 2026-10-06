@@ -6,6 +6,10 @@ items:
     label: "Read new messages"
     action: "builtin:newscan"
     min_sl: 0
+  - key: N
+    label: "News"
+    action: "builtin:news"
+    min_sl: 0
   - key: M
     label: "Messages"
     action: "goto:messages"

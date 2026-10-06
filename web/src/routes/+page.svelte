@@ -8,7 +8,8 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import DoorBulletins from '$lib/DoorBulletins.svelte';
-	import { getPublicDoorBulletins, type DoorBulletinView, listPublicFiles, type PublicFile, getPublicFeeds, getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
+	import NewsList from '$lib/NewsList.svelte';
+	import { getPublicNews, type PublicNews, getPublicDoorBulletins, type DoorBulletinView, listPublicFiles, type PublicFile, getPublicFeeds, getPublicOverview, getPublicStats, getWelcomeScreen, type PublicOverview, type StatsReport, type WelcomeScreen } from '$lib/api';
 	import StatsBoard from '$lib/stats/StatsBoard.svelte';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import Icon from '$lib/Icon.svelte';
@@ -19,6 +20,7 @@
 	let report = $state<StatsReport | null>(null);
 	let files = $state<PublicFile[]>([]);
 	let scores = $state<DoorBulletinView[]>([]);
+	let news = $state<PublicNews[]>([]);
 	let feeds = $state<{ tag: string; name: string; network: string; url: string }[]>([]);
 	let copied = $state('');
 	const host = typeof location === 'undefined' ? '' : location.hostname;
@@ -47,6 +49,9 @@
 			.catch(() => {});
 		getPublicDoorBulletins()
 			.then((b) => (scores = b))
+			.catch(() => {});
+		getPublicNews()
+			.then((n) => (news = n))
 			.catch(() => {});
 		const timer = setInterval(refresh, 60_000);
 		return () => clearInterval(timer);
@@ -211,6 +216,13 @@
 				{t('web.home.new_here')}
 			</p>
 		</section>
+
+		{#if news.length}
+			<section class="card">
+				<h2 class="card-label mb-3">{t('web.news.title')}</h2>
+				<NewsList list={news} />
+			</section>
+		{/if}
 
 		<!-- What's going on -->
 		{#if o}

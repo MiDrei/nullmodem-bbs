@@ -9,6 +9,7 @@
 	import { toast } from '$lib/toast.svelte';
 	import LastCallersList from '$lib/LastCallersList.svelte';
 	import DoorBulletins from '$lib/DoorBulletins.svelte';
+	import NewsList from '$lib/NewsList.svelte';
 	import {
 		listBBSPolls,
 		voteBBSPoll,
@@ -17,6 +18,8 @@
 		deleteBBSListEntry,
 		searchNodelist,
 		getDoorBulletins,
+		getPublicNews,
+		type PublicNews,
 		ApiError,
 		type DoorBulletinView,
 		type Poll,
@@ -37,6 +40,7 @@
 	let imports = $state<NodelistImport[]>([]);
 	let searched = $state(false);
 	let bulletins = $state<DoorBulletinView[]>([]);
+	let news = $state<PublicNews[]>([]);
 
 	async function failed(err: unknown, fallback: string) {
 		if (err instanceof ApiError && err.status === 401) {
@@ -57,6 +61,7 @@
 			[polls, bbs] = await Promise.all([listBBSPolls(tok), listBBSList(tok)]);
 			imports = (await searchNodelist(tok, '__nothing__')).imports;
 			bulletins = await getDoorBulletins(tok);
+			news = await getPublicNews();
 		} catch (err) {
 			await failed(err, t('web.common.page_failed'));
 		}
@@ -131,6 +136,13 @@
 	<h1 class="page-title">{t('web.common.community')}</h1>
 	<p class="page-subtitle">{t('web.community.subtitle')}</p>
 </div>
+
+{#if news.length}
+	<section class="card mb-5">
+		<h2 class="card-label mb-3">{t('web.news.title')}</h2>
+		<NewsList list={news} />
+	</section>
+{/if}
 
 <div class="mb-5 flex gap-1 border-b border-line">
 	{#each [['polls', t('web.community.polls')], ['bbs', t('common.bbs_list')], ['callers', t('web.common.last_callers')], ['nodelist', t('common.nodelist')]] as [k, label] (k)}

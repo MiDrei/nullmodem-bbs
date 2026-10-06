@@ -2296,6 +2296,50 @@ export function voteBBSPoll(token: string, pollId: number, optionId: number): Pr
 	return request(`/api/bbs/polls/${pollId}/vote`, { method: 'POST', body: JSON.stringify({ option_id: optionId }) }, token);
 }
 
+/** A news item as the admin edits it (expires_at: YYYY-MM-DD, through that day; empty: never). */
+export interface NewsItem {
+	id: number;
+	created_at: string;
+	author: string;
+	title_en: string;
+	text_en: string;
+	title_de: string;
+	text_de: string;
+	expires_at: string;
+	expired: boolean;
+}
+
+export type NewsInput = Pick<NewsItem, 'title_en' | 'text_en' | 'title_de' | 'text_de' | 'expires_at'>;
+
+export function listNews(token: string): Promise<NewsItem[]> {
+	return request('/api/news', { method: 'GET' }, token);
+}
+
+export function createNews(token: string, n: NewsInput): Promise<NewsItem[]> {
+	return request('/api/news', { method: 'POST', body: JSON.stringify(n) }, token);
+}
+
+export function updateNews(token: string, id: number, n: NewsInput): Promise<NewsItem[]> {
+	return request(`/api/news/${id}`, { method: 'PUT', body: JSON.stringify(n) }, token);
+}
+
+export function deleteNews(token: string, id: number): Promise<NewsItem[]> {
+	return request(`/api/news/${id}`, { method: 'DELETE' }, token);
+}
+
+/** A news item in the reader's language (front page, portal). */
+export interface PublicNews {
+	id: number;
+	created_at: string;
+	title: string;
+	text: string;
+}
+
+/** The latest three news items, in the page's language. */
+export function getPublicNews(): Promise<PublicNews[]> {
+	return request('/api/public/news', { method: 'GET' });
+}
+
 export function listPolls(token: string): Promise<Poll[]> {
 	return request('/api/polls', { method: 'GET' }, token);
 }
