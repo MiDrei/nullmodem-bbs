@@ -296,7 +296,7 @@ func Monitor(ctx context.Context, e Env, every time.Duration, log Logger, notify
 			continue
 		}
 		for _, p := range started {
-			log.Warn("problem: %s%s", i18n.Resolve("en", p.Title), suffix(p.Detail))
+			log.Warn("problem: %s%s", i18n.Resolve("en", p.Title), suffix(i18n.Resolve("en", p.Detail)))
 			notify(p, false)
 		}
 		for _, p := range over {
