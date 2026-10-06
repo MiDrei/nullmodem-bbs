@@ -305,7 +305,7 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 	defer s.Chat.Exit(room, u.Username, source)
 
 	width, height := term.Width(), term.Height()
-	areaTop, areaRows := 3, height-5 // title, rule; then the lines; rule, input, hint
+	areaTop, areaRows := 4, height-6 // title, who's here, rule; then the lines; rule, input, hint
 	if areaRows < 3 {
 		areaRows = 3
 	}
@@ -313,6 +313,31 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 	addRow := func(color, text string) {
 		for _, r := range ansi.WrapText(toCP437(text), width) {
 			shown = append(shown, color+r+ansi.Reset)
+		}
+		if len(shown) > 500 {
+			shown = shown[len(shown)-500:]
+		}
+	}
+	// addSaid adds what someone said: the time dark grey, the speaker
+	// cyan (the caller white), the words grey -- wrapped as one text,
+	// the colours set on its first row.
+	addSaid := func(at, speaker, text string) {
+		// WrapText joins words with single spaces: so does the prefix.
+		speaker = strings.Join(strings.Fields(speaker), " ")
+		rows := ansi.WrapText(toCP437(at+" "+speaker+": "+text), width)
+		head := len(toCP437(at + " " + speaker + ": "))
+		who := ansi.FG(ansi.Cyan, true)
+		if speaker == u.Username {
+			who = ansi.FG(ansi.White, true)
+		}
+		for i, r := range rows {
+			if i == 0 && len(r) >= head {
+				sp := r[len(at)+1 : head-2]
+				r = ansi.FG(ansi.Black, true) + at + " " + who + sp + ansi.FG(ansi.Black, true) + ": " + fgDim(ansi.White) + r[head:]
+			} else {
+				r = fgDim(ansi.White) + r
+			}
+			shown = append(shown, r+ansi.Reset)
 		}
 		if len(shown) > 500 {
 			shown = shown[len(shown)-500:]
@@ -332,7 +357,7 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		case chat.Page:
 			addRow(ansi.FG(ansi.Magenta, true), at+"  "+term.U("chat.paged_line", "USERNAME", l.Username, "TEXT", l.Text))
 		default:
-			addRow(fgDim(ansi.White), fmt.Sprintf("%s  %s: %s", at, chat.Speaker(l), l.Text))
+			addSaid(at, chat.Speaker(l), l.Text)
 		}
 	}
 	if intro != "" {
@@ -348,8 +373,11 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 
 	var input []byte
 	present := ""
+	// The list screens' title line, then who's here.
 	headline := func() string {
-		return fmt.Sprintf("\x1b[1;1H%s%s%s  %s%s\x1b[K", ansi.Reset, ansi.FG(ansi.Cyan, true), title, fgDim(ansi.White), toCP437(present)+ansi.Reset)
+		line := fgDim(ansi.Blue) + "\xc4\xb4 " + ansi.FG(ansi.White, true) + s.BBSName + fgDim(ansi.Blue) + " \xc3{FILL:\xc4}\xb4 " +
+			ansi.FG(ansi.Cyan, true) + title + fgDim(ansi.Blue) + " \xc3\xc4"
+		return fmt.Sprintf("\x1b[1;1H%s%s%s\x1b[K\x1b[2;1H  %s%s\x1b[K", ansi.Reset, ansi.Layout(line, width), ansi.Reset, fgDim(ansi.White), toCP437(present)+ansi.Reset)
 	}
 	area := func() string {
 		var o strings.Builder
@@ -367,7 +395,7 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 		if len(visible) > width-3 {
 			visible = visible[len(visible)-(width-3):]
 		}
-		return fmt.Sprintf("\x1b[%d;1H%s%s> %s%s\x1b[K", areaTop+areaRows+1, ansi.Reset, ansi.FG(ansi.Yellow, true), ansi.Reset, visible)
+		return fmt.Sprintf("\x1b[%d;1H%s%s\xaf %s%s\x1b[K", areaTop+areaRows+1, ansi.Reset, ansi.FG(ansi.Cyan, true), ansi.FG(ansi.White, true), visible)
 	}
 	hint := term.T("chat.hint")
 	if rooms {
@@ -376,9 +404,9 @@ func (s *Server) chatRoom(term *Terminal, u *user.User, room, title, intro strin
 	full := func() error {
 		rule := fgDim(ansi.Blue) + strings.Repeat("\xc4", width) + ansi.Reset
 		return term.Print(ansi.ClearScreen() + headline() +
-			fmt.Sprintf("\x1b[2;1H%s", rule) + area() +
+			fmt.Sprintf("\x1b[3;1H%s", rule) + area() +
 			fmt.Sprintf("\x1b[%d;1H%s", areaTop+areaRows, rule) +
-			fmt.Sprintf("\x1b[%d;1H%s%s%s", areaTop+areaRows+2, fgDim(ansi.White), hint, ansi.Reset) +
+			fmt.Sprintf("\x1b[%d;1H%s%s", areaTop+areaRows+2, keyHints(hint), ansi.Reset) +
 			inputRow())
 	}
 	refreshPresent := func() {
