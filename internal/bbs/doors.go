@@ -1,7 +1,6 @@
 package bbs
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -39,17 +38,8 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 	}
 
 	for {
-		var b strings.Builder
-		b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + term.T("common.doors") + ansi.Reset + "\r\n")
-		for i, d := range available {
-			b.WriteString(fmt.Sprintf("%2d) %s\r\n", i+1, d.Name))
-		}
 		bulletins := doorBulletinList(available)
-		if len(bulletins) > 0 {
-			b.WriteString(" B) " + term.T("doors.bulletins_item") + "\r\n")
-		}
-		b.WriteString(" Q) " + term.T("doors.back") + "\r\n\r\n" + term.T("doors.which") + " " + ansi.FG(ansi.Yellow, true))
-		if err := term.Print(b.String()); err != nil {
+		if err := term.Print(s.renderDoorList(term, u, available, len(bulletins) > 0)); err != nil {
 			return err
 		}
 
@@ -86,6 +76,47 @@ func (s *Server) showDoors(term *Terminal, u *user.User) error {
 			return err
 		}
 	}
+}
+
+// The door list's optional hand-designed pieces: a banner (clearing
+// the screen, like renderAreaHeader's), one row per door and for the
+// B and Q entries, a gap before those two, and a closing part -- each
+// with a plain fallback, so the list looks as it always did without
+// them.
+const (
+	doorsScreen       = "doors.ans"
+	doorsRowScreen    = "doors-row.ans"
+	doorsGapScreen    = "doors-gap.ans"
+	doorsFooterScreen = "doors-footer.ans"
+
+	fallbackDoorsRow = "{KEY:2}) {DOOR}"
+)
+
+// renderDoorList is the door list as printed before asking which to
+// play: the banner, a row per door, the bulletins (if any door has
+// some) and back entries, and the prompt.
+func (s *Server) renderDoorList(term *Terminal, u *user.User, available []doors.Door, bulletins bool) string {
+	row := s.loadOptionalScreen(term, doorsRowScreen, fallbackDoorsRow)
+	line := func(key, label string) string {
+		return ansi.Layout(ansi.Render(row, ansi.Vars{"KEY": key, "DOOR": label}), term.Width()) + ansi.Reset + "\r\n"
+	}
+	var b strings.Builder
+	b.WriteString(s.renderAreaHeader(term, u, doorsScreen, term.T("common.doors")))
+	for i, d := range available {
+		b.WriteString(line(strconv.Itoa(i+1), d.Name))
+	}
+	if gap := s.loadOptionalScreen(term, doorsGapScreen, ""); gap != "" {
+		b.WriteString(ansi.Layout(gap, term.Width()) + ansi.Reset + "\r\n")
+	}
+	if bulletins {
+		b.WriteString(line("B", term.T("doors.bulletins_item")))
+	}
+	b.WriteString(line("Q", term.T("doors.back")))
+	if footer := s.loadOptionalScreen(term, doorsFooterScreen, ""); footer != "" {
+		b.WriteString(ansi.Layout(footer, term.Width()) + ansi.Reset + "\r\n")
+	}
+	b.WriteString("\r\n" + term.T("doors.which") + " " + ansi.FG(ansi.Yellow, true))
+	return b.String()
 }
 
 // playDoor hands the connection's raw byte stream to internal/doors

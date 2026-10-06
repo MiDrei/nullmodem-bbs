@@ -199,6 +199,42 @@ MENUS={
     [('M','screen.sysop.back'),('Q','menu.item.quit')]),
 }
 
+def head_doors():
+    """A wormhole on the right, pulling in a violet nebula."""
+    a=Art(6,61)
+    a.nebula(VIOLET,2.6,0.0,0.8,1.6,0,62,seed=29,rows=5)
+    a.stars(38)
+    cx,cy,R,asp,twist,arms=60.0,5.0,4.9,2.4,1.5,3
+    for y in range(10):
+        for x in range(W):
+            dx=(x+0.5-cx)/asp; dy=y+0.5-cy
+            r=math.hypot(dx,dy)/R
+            if r>1.12: continue
+            a.cells[y//2][x]=(' ',7,0)
+            if r>1.0: continue
+            s_=(math.atan2(dy,dx)/(2*math.pi))*arms-math.log(r+0.02)*twist
+            f=s_-math.floor(s_)
+            arm=f<0.42
+            if r<0.16: c=15
+            elif r<0.3: c=14 if arm else 6
+            elif r<0.5: c=(14 if f<0.2 else 6) if arm else 4
+            elif r<0.75: c=(12 if f<0.2 else 4) if arm else (5 if f>0.8 else 0)
+            else: c=(13 if f<0.15 else 5) if arm else 0
+            if c: a.pix[y][x]=c
+    return a.lines()
+
+def doors_screens():
+    """The door list's banner (with the frame's top and a blank row),
+    its row, the gap before B/Q and the frame's bottom."""
+    def head(de):
+        s=Screen(de); s.top(T('common.doors',None,de)); s.row()
+        return (ESC+'2J'+ESC+'H'+'\r\n'.join(head_doors()+s.L)).encode('cp437')
+    row=sgr(F)+'\u2502'+'  '+key('{KEY}')+' '+sgr(15)+'{DOOR}'+sgr(7)+'{FILL: }'+sgr(F)+'\u2502'
+    gap=sgr(F)+'\u2502'+sgr(7)+'{FILL: }'+sgr(F)+'\u2502'
+    foot=sgr(F)+'\u2514{FILL:\u2500}\u2518'+ESC+'0m'
+    return {'doors.ans':head(False),'doors.de.ans':head(True),
+            'doors-row.ans':row.encode('cp437'),'doors-gap.ans':gap.encode('cp437'),'doors-footer.ans':foot.encode('cp437')}
+
 def menu_screen(name,de):
     head,title,items,foot=MENUS[name]
     s=Screen(de)
@@ -367,6 +403,8 @@ def main():
     for de in (False,True):
         open(OUT+'logoff'+('.de' if de else '')+'.ans','wb').write(logoff_screen(de))
     open(OUT+'welcome.ans','wb').write(welcome_screen())
+    for name,data in doors_screens().items():
+        open(OUT+name,'wb').write(data)
     for name,(en,de) in lists().items():
         open(OUT+name+'.ans','wb').write(en.encode('cp437'))
         if de is not None:

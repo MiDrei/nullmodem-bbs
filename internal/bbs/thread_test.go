@@ -110,3 +110,32 @@ func TestDoorsMenuShowsBulletins(t *testing.T) {
 		t.Fatalf("no bulletin:\n%q", out)
 	}
 }
+
+func TestDoorsMenuScreens(t *testing.T) {
+	s := testServer(t)
+	u, _ := s.Users.Register("alice", "password123", 10)
+	s.Doors = []doors.Door{{Name: "Game"}}
+	s.ScreensDir = t.TempDir()
+	for name, text := range map[string]string{
+		"doors.ans":        "\x1b[2J\x1b[H== {BBSNAME} ==",
+		"doors-row.ans":    "|<{KEY}> {DOOR}{FILL: }|",
+		"doors-gap.ans":    "|{FILL: }|",
+		"doors-footer.ans": "+{FILL:-}+",
+	} {
+		os.WriteFile(filepath.Join(s.ScreensDir, name), []byte(text), 0o644)
+	}
+	s.BBSName = "Board"
+	conn := newFakeConn("Q\r")
+	if err := s.showDoors(NewTerminal(conn), u); err != nil {
+		t.Fatal(err)
+	}
+	out := conn.out.String()
+	for _, want := range []string{"== Board ==", "|<1> Game", "|<Q> Back to menu", "+---"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%q", want, out)
+		}
+	}
+	if strings.Contains(out, "<B>") {
+		t.Error("bulletins entry without any door having bulletins")
+	}
+}
