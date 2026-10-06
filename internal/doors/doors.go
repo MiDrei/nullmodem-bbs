@@ -166,6 +166,11 @@ type Session struct {
 	// RemoteIP is the caller's IP address, for the "{ip}" placeholder;
 	// empty if unknown.
 	RemoteIP string
+	// DropLineEnd drops a first LF or NUL from the caller: the second
+	// half of the CR LF / CR NUL Enter that chose the door, still on
+	// its way -- the door would take it for a key and skip its first
+	// "press a key" pause.
+	DropLineEnd bool
 }
 
 // isTelnetConn is implemented by a conn that can suspend its own
@@ -322,7 +327,11 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 	connToDoorDone := make(chan struct{})
 	go func() {
 		defer close(connToDoorDone)
-		io.Copy(parent, conn)
+		var in io.Reader = conn
+		if sess.DropLineEnd {
+			in = &lineEndDropper{r: conn}
+		}
+		io.Copy(parent, in)
 	}()
 
 	var waitErr error
@@ -653,4 +662,26 @@ func nativeArgs(args []string, nodeDir string, node int, ip string) []string {
 		out = append(out, "/P"+nodeDir+"/")
 	}
 	return out
+}
+
+// lineEndDropper reads r, dropping its first byte if that is an LF or
+// a NUL (see Session.DropLineEnd).
+type lineEndDropper struct {
+	r    io.Reader
+	done bool
+}
+
+func (d *lineEndDropper) Read(p []byte) (int, error) {
+	n, err := d.r.Read(p)
+	if !d.done && n > 0 {
+		d.done = true
+		if p[0] == '\n' || p[0] == 0 {
+			copy(p, p[1:n])
+			n--
+			if n == 0 && err == nil {
+				return d.Read(p)
+			}
+		}
+	}
+	return n, err
 }

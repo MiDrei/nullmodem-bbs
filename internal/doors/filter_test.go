@@ -77,3 +77,12 @@ func TestOutputFilterKeepsOffTheLastColumnWithoutWrap(t *testing.T) {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }
+
+func TestLineEndDropperDropsOnlyAFirstLFOrNUL(t *testing.T) {
+	for in, want := range map[string]string{"\nabc\n": "abc\n", "\x00x": "x", "abc\n": "abc\n", "\r\n": "\r\n"} {
+		out, _ := io.ReadAll(&lineEndDropper{r: iotest.OneByteReader(strings.NewReader(in))})
+		if string(out) != want {
+			t.Errorf("%q -> %q, want %q", in, out, want)
+		}
+	}
+}

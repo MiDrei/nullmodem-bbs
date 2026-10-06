@@ -172,6 +172,15 @@ func (t *Terminal) Println(s string) error {
 // Terminal once it's done.
 func (t *Terminal) Raw() Conn { return t.conn }
 
+// TakeLineEnd reports whether the second half of a CR LF / CR NUL is
+// still to come and, if so, leaves it to the caller to drop (a raw
+// reader that gets the wire next -- see doors.Session.DropLineEnd).
+func (t *Terminal) TakeLineEnd() bool {
+	expect := t.expectLFOrNUL
+	t.expectLFOrNUL = false
+	return expect
+}
+
 // PushBack makes b the next bytes readByte (and so ReadKey/ReadLine)
 // returns, ahead of anything still unread on the wire. For a Raw
 // caller (internal/zmodem's downloadFile) that ends up reading a byte
