@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -68,6 +69,10 @@ type Config struct {
 	// BBS menu (see internal/doors) -- each one an already-installed
 	// executable on this host, not managed by this project itself.
 	Doors []DoorConfig `yaml:"doors"`
+	// SecurityLevels names the security levels the sysop uses ("20 --
+	// Regular user"), shown wherever one is chosen. Empty: the levels
+	// the board itself knows (see Levels).
+	SecurityLevels []SecurityLevel `yaml:"security_levels,omitempty"`
 
 	Database struct {
 		Path string `yaml:"path"`
@@ -749,3 +754,25 @@ type MailServer struct {
 
 // Limit is the daily limit per caller.
 func (e EmailConfig) Limit() int { return intOr(e.DailyLimit, 20) }
+
+// SecurityLevel is a named security level (0-255).
+type SecurityLevel struct {
+	Level int    `yaml:"level" json:"level"`
+	Name  string `yaml:"name" json:"name"`
+}
+
+// Levels is c's named security levels, lowest first: the sysop's, or
+// -- none set -- the ones the board itself uses, named by name (the
+// waiting new user, the new user, the sysop).
+func (c *Config) Levels(name func(key string) string) []SecurityLevel {
+	if len(c.SecurityLevels) > 0 {
+		out := append([]SecurityLevel(nil), c.SecurityLevels...)
+		sort.Slice(out, func(i, j int) bool { return out[i].Level < out[j].Level })
+		return out
+	}
+	out := []SecurityLevel{{Level: c.BBS.NewUserSL, Name: name("sl.new_user")}, {Level: 255, Name: name("sl.sysop")}}
+	if c.Security.Approval() && c.Security.Pending() != c.BBS.NewUserSL {
+		out = append([]SecurityLevel{{Level: c.Security.Pending(), Name: name("sl.pending")}}, out...)
+	}
+	return out
+}

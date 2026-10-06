@@ -219,3 +219,6 @@ admin.areafix.cmd_pause_confirm: "Den Hub bitten, uns bis %RESUME keine Post meh
 screen.desc.newscan: "Neues in deinen Bereichen"
 screen.desc.tome: "Ungelesenes an dich"
 admin.news.subtitle: "Schreib News für deine Anrufer, auf Deutsch und Englisch: Beim Login sehen sie die, die sie noch nicht gelesen haben, alle aktuellen im Hauptmenü unter N, die neuesten drei auf der Startseite und im Portal."
+admin.levels.subtitle: "Gib den Security Levels, die du verwendest, einen Namen: Überall, wo im Admin ein Level gewählt wird, erscheint er als „20 – Regulärer Benutzer“, und das Telnet-Sysop-Menü zeigt sie beim Setzen eines Levels."
+admin.levels.defaults_note: "Das sind die Levels, die die BBS selbst verwendet. Ändere oder ergänze sie und speichere, um eigene festzulegen."
+admin.levels.reset_confirm: "Eigene Namen verwerfen und zu den Standard-Levels zurück?"

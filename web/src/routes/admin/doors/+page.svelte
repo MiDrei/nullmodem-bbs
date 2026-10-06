@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SLSelect from '$lib/admin/SLSelect.svelte';
 	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -313,7 +314,7 @@
 			</label>
 			<label class="flex flex-col gap-1.5">
 				<span class="text-xs text-muted">{t('admin.doors.min_sl')}</span>
-				<input class="field field-sm" type="number" min="0" max="255" bind:value={draft.min_sl} />
+				<SLSelect bind:value={draft.min_sl} />
 			</label>
 		</div>
 

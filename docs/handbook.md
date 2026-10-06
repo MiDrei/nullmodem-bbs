@@ -165,7 +165,12 @@ show under System → Services.
 - **New accounts** wait for your approval (Users → "Awaiting approval" →
   Approve / Turn down). Until then they can read and may send you netmail.
   Accounts never approved are deleted by the maintenance after 30 days.
-- **Security levels:** Users (per account) and SL Matrix (who may do what).
+- **Security levels:** set per account under Users. Under Users → Security
+  levels you give the levels you use a name (e.g. 10 New user, 20 Regular
+  user, 30 Regular and email, 255 Sysop); every level field in the admin then
+  offers them by name, and the Telnet sysop menu lists them when setting a
+  caller's level. Without names of your own the board's levels show (waiting
+  for approval, new user, sysop).
 - **Forgotten password:** Users → "Password…" sets a new one.
 - **Second factor lost:** another sysop resets it with "Reset 2FA"; otherwise
   see [security.md](security.md).

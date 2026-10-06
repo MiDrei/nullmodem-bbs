@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SLSelect from '$lib/admin/SLSelect.svelte';
 	import { t } from '$lib/i18n.svelte';
 	// The netmail <-> email gateway: callers write to and get mail from
 	// handle@domain, through a (catch-all) mailbox fetched over IMAP and
@@ -222,7 +223,7 @@
 				</label>
 				<label class="flex flex-col gap-1">
 					<span class="text-xs text-muted">{t('admin.email.min_sl')}</span>
-					<input type="number" min="0" max="255" class="field field-sm" bind:value={e.min_sl} />
+					<SLSelect bind:value={e.min_sl} />
 					<span class="text-[11px] text-faint">{t('admin.email.min_sl_hint')}</span>
 				</label>
 				<label class="flex flex-col gap-1">

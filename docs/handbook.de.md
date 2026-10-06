@@ -167,7 +167,12 @@ erscheinen unter System → Services.
 - **Neue Konten** warten auf deine Freischaltung (Users → „Awaiting approval“
   → Approve / Turn down). Bis dahin lesen sie und dürfen dir Netmail
   schreiben. Nie freigeschaltete Konten löscht die Maintenance nach 30 Tagen.
-- **Security Levels:** Users (pro Konto) und SL Matrix (wer was darf).
+- **Security Levels:** pro Konto unter Users. Unter Users → Security Levels
+  gibst du den Levels, die du verwendest, einen Namen (z. B. 10 Neuer
+  Benutzer, 20 Regulärer Benutzer, 30 Regulär und E-Mail, 255 Sysop); jedes
+  Level-Feld im Admin bietet sie dann mit Namen an, und das Telnet-Sysop-Menü
+  zeigt sie beim Setzen eines Levels. Ohne eigene Namen erscheinen die Levels
+  der BBS (wartet auf Freischaltung, neuer Benutzer, Sysop).
 - **Passwort vergessen:** Users → „Password…“ setzt ein neues.
 - **Zweiter Faktor verloren:** Ein anderer Sysop setzt ihn mit „Reset 2FA“
   zurück; sonst siehe [security.md](security.de.md).

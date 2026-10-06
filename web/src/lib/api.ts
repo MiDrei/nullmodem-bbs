@@ -977,19 +977,6 @@ export function listMenus(token: string): Promise<MenuDef[]> {
 	return request<MenuDef[]>('/api/menus', { method: 'GET' }, token);
 }
 
-export function setMenuItemSL(
-	token: string,
-	menuName: string,
-	itemKey: string,
-	minSL: number
-): Promise<{ menu: MenuDef }> {
-	return request(
-		`/api/menus/${encodeURIComponent(menuName)}/items/${encodeURIComponent(itemKey)}`,
-		{ method: 'PUT', body: JSON.stringify({ min_sl: minSL }) },
-		token
-	);
-}
-
 /** A menu for the editor: what the stock menu of this version has that it lacks, and which menus lead here. */
 export interface MenuEdit {
 	menu: MenuDef;
@@ -2292,6 +2279,27 @@ export function listBBSPolls(token: string): Promise<Poll[]> {
 
 export function voteBBSPoll(token: string, pollId: number, optionId: number): Promise<Poll> {
 	return request(`/api/bbs/polls/${pollId}/vote`, { method: 'POST', body: JSON.stringify({ option_id: optionId }) }, token);
+}
+
+/** A named security level ("20 – Regular user"). */
+export interface SecurityLevel {
+	level: number;
+	name: string;
+}
+
+/** The named security levels; custom is false while they're the board's own defaults. */
+export interface SecurityLevels {
+	levels: SecurityLevel[];
+	custom: boolean;
+}
+
+export function getSecurityLevels(token: string): Promise<SecurityLevels> {
+	return request('/api/security-levels', { method: 'GET' }, token);
+}
+
+/** Saves the named levels; an empty list goes back to the board's own. */
+export function putSecurityLevels(token: string, levels: SecurityLevel[]): Promise<SecurityLevels> {
+	return request('/api/security-levels', { method: 'PUT', body: JSON.stringify({ levels }) }, token);
 }
 
 /** A news item as the admin edits it (expires_at: YYYY-MM-DD, through that day; empty: never). */

@@ -173,7 +173,7 @@
 			'a:security': t('admin.common.security'),
 			'a:services': t('admin.common.services'),
 			'a:settings': t('web.common.settings'),
-			'a:sl_matrix': t('admin.common.sl_matrix'),
+			'a:security_levels': t('admin.common.security_levels'),
 			'a:stats': t('admin.common.statistics'),
 			'a:twofactor': t('admin.common.two_factor_login'),
 			'a:users': t('admin.common.users')

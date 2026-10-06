@@ -86,6 +86,9 @@ type Server struct {
 	// Email, if set, is the email gateway's settings (re-read from the
 	// config); nil: no gateway.
 	Email func() config.EmailConfig
+	// SecurityLevels, if set, is the named security levels (see
+	// config.Config.Levels; name names the board's own ones).
+	SecurityLevels func(name func(key string) string) []config.SecurityLevel
 }
 
 // Options bundles the dependencies and configuration NewServer needs.
@@ -117,6 +120,7 @@ type Options struct {
 	Stats            *stats.Store
 	Language         func() string
 	Email            func() config.EmailConfig
+	SecurityLevels   func(name func(key string) string) []config.SecurityLevel
 }
 
 // NewServer returns a Server ready to accept sessions.
@@ -147,6 +151,7 @@ func NewServer(opts Options) *Server {
 		Stats:            opts.Stats,
 		Language:         opts.Language,
 		Email:            opts.Email,
+		SecurityLevels:   opts.SecurityLevels,
 	}
 }
 
@@ -885,6 +890,16 @@ func (s *Server) sysopSetSecurityLevel(term *Terminal, sysop *user.User) error {
 
 	if err := term.Println(ansi.Reset + "  " + fgDim(ansi.White) + term.T("sysop.setsl_current", "USERNAME", tu.Username, "SL", tu.SecurityLevel)); err != nil {
 		return err
+	}
+	// The named levels to choose from.
+	if s.SecurityLevels != nil {
+		var b strings.Builder
+		for _, l := range s.SecurityLevels(func(k string) string { return term.U(k) }) {
+			fmt.Fprintf(&b, "  %s%5d%s  %s\r\n", ansi.FG(ansi.Cyan, true), l.Level, ansi.FG(ansi.White, true), toCP437(l.Name))
+		}
+		if err := term.Print("\r\n" + b.String() + ansi.Reset + "\r\n"); err != nil {
+			return err
+		}
 	}
 	level, err := s.promptSecurityLevel(term, term.T("sysop.setsl_new"))
 	if err != nil {

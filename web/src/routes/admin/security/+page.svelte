@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SLSelect from '$lib/admin/SLSelect.svelte';
 	import { t } from '$lib/i18n.svelte';
 	// Login protection and new-user approval: the settings, the
 	// addresses locked out now, the allow and block lists, and the
@@ -196,12 +197,12 @@
 			<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 				<label class="flex flex-col gap-1">
 					<span class="text-xs text-muted">{t('admin.security.waiting_at_sl')}</span>
-					<input type="number" min="0" max="254" class="field field-sm" bind:value={settings.pending_sl} disabled={!settings.approve_new_users} />
+					<SLSelect bind:value={settings.pending_sl} max={254} disabled={!settings.approve_new_users} />
 					<span class="text-[11px] text-faint">{t('admin.security.they_read_and_write_netmail')}</span>
 				</label>
 				<label class="flex flex-col gap-1">
 					<span class="text-xs text-muted">{t('admin.security.new_users_get_sl')}</span>
-					<input type="number" min="1" max="254" class="field field-sm" bind:value={settings.new_user_sl} />
+					<SLSelect bind:value={settings.new_user_sl} min={1} max={254} />
 					<span class="text-[11px] text-faint">{t('admin.security.on_approval_or_at_once')}</span>
 				</label>
 				<label class="flex flex-col gap-1 sm:col-span-2">

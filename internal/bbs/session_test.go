@@ -3,6 +3,7 @@ package bbs
 import (
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
@@ -591,5 +592,25 @@ func TestSysopListUsersPages(t *testing.T) {
 	out := conn.out.String()
 	if !strings.Contains(out, "1-") || !strings.Contains(out, "of 41") || strings.Count(out, "\x1b[2J") != 2 {
 		t.Errorf("not two pages: %q", out)
+	}
+}
+
+func TestSetSecurityLevelListsTheNamedLevels(t *testing.T) {
+	s := testServer(t)
+	root, _ := s.Users.Register("root", "password123", user.SLSysop)
+	s.Users.Register("alice", "password123", 10)
+	s.SecurityLevels = func(func(string) string) []config.SecurityLevel {
+		return []config.SecurityLevel{{Level: 10, Name: "Neuer Benutzer"}, {Level: 20, Name: "Regulärer Benutzer"}, {Level: 255, Name: "Sysop"}}
+	}
+	conn := newFakeConn("alice\r\n20\r\n")
+	if err := s.sysopSetSecurityLevel(NewTerminal(conn), root); err != nil {
+		t.Fatal(err)
+	}
+	out := plainText(conn.out.String())
+	if !strings.Contains(out, "20  Regul") || !strings.Contains(out, "255  Sysop") {
+		t.Fatalf("no named levels: %q", out)
+	}
+	if u, _ := s.Users.ByUsername("alice"); u.SecurityLevel != 20 {
+		t.Fatalf("level %d", u.SecurityLevel)
 	}
 }

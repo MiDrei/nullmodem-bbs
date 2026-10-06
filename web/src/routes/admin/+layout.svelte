@@ -102,7 +102,7 @@
 			links: [
 				{ href: '/admin/users', label: t('admin.common.users'), icon: 'users' },
 				{ href: '/admin/security', label: t('admin.common.security'), icon: 'lock' },
-				{ href: '/admin/sl-matrix', label: t('admin.common.sl_matrix'), icon: 'matrix' }
+				{ href: '/admin/security-levels', label: t('admin.common.security_levels'), icon: 'matrix' }
 			]
 		},
 		{

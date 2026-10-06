@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SLSelect from '$lib/admin/SLSelect.svelte';
 	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -86,14 +87,7 @@
 			</label>
 			<label class="flex flex-col gap-1 text-sm">
 				<span class="text-slate-400">{t('admin.settings.new_user_security_level_0')}</span>
-				<input
-					type="number"
-					min="0"
-					max="255"
-					class="field"
-					bind:value={config.new_user_sl}
-					required
-				/>
+				<SLSelect class="field" bind:value={config.new_user_sl} />
 			</label>
 			<label class="flex items-start gap-2 text-sm">
 				<input type="checkbox" class="check mt-0.5" bind:checked={config.public_feeds} />

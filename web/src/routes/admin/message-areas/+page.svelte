@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SLSelect from '$lib/admin/SLSelect.svelte';
 	import { t } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -238,11 +239,11 @@
 		<div class="col-span-2 grid grid-cols-3 gap-3.5">
 			<label class="flex flex-col gap-1.5">
 				<span class="text-xs text-muted">{t('admin.common.min_sl_to_read')}</span>
-				<input type="number" min="0" max="255" class="field field-sm" bind:value={d.min_sl_read} />
+				<SLSelect bind:value={d.min_sl_read} />
 			</label>
 			<label class="flex flex-col gap-1.5">
 				<span class="text-xs text-muted">{t('admin.common.min_sl_to_post')}</span>
-				<input type="number" min="0" max="255" class="field field-sm" bind:value={d.min_sl_write} />
+				<SLSelect bind:value={d.min_sl_write} />
 			</label>
 			<label class="flex flex-col gap-1.5">
 				<span class="text-xs text-muted">{t('admin.common.sort_order')}</span>

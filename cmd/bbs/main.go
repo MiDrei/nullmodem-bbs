@@ -146,6 +146,7 @@ func main() {
 		Security:         security,
 		Language:         func() string { return current().BBS.Language },
 		Email:            func() config.EmailConfig { return current().Email },
+		SecurityLevels:   func(name func(string) string) []config.SecurityLevel { return current().Levels(name) },
 	})
 
 	// File and QWK transfers over Telnet/SSH run Synchronet's sexyz.

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SLSelect from '$lib/admin/SLSelect.svelte';
 	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -213,15 +214,7 @@
 							/>
 						</td>
 						<td class="p-3">
-							<input
-								type="number"
-								min="0"
-								max="255"
-								class="w-20 rounded border px-2 py-1 focus:outline-none {isSysop(row.level)
-									? 'border-amber-700 bg-slate-900 text-amber-400 focus:border-amber-500'
-									: 'border-slate-700 bg-slate-900 text-slate-100 focus:border-cyan-500'}"
-								bind:value={row.level}
-							/>
+							<SLSelect class="field field-sm min-w-52 {isSysop(row.level) ? 'text-amber-400' : ''}" bind:value={row.level} label={t('common.security_level')} />
 						</td>
 						<td class="p-3 text-slate-400">{row.user.total_calls}</td>
 						<td class="p-3 text-slate-400">{formatDate(row.user.last_login_at)}</td>

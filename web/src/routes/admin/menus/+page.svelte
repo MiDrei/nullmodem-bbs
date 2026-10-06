@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SLSelect from '$lib/admin/SLSelect.svelte';
 	import { t } from '$lib/i18n.svelte';
 	// The Telnet/SSH menus: their items (key, label, what it does, the
 	// lowest level that sees it), the screen shown instead of the
@@ -323,7 +324,7 @@
 									<option value="logoff">{t('admin.common.logoff')}</option>
 								</optgroup>
 							</select>
-							<input class="field" type="number" min="0" max="255" bind:value={it.min_sl} aria-label={t('admin.common.lowest_security_level')} />
+							<SLSelect class="field" bind:value={it.min_sl} label={t('admin.common.lowest_security_level')} />
 							<div class="flex items-center justify-end gap-1">
 								<button class="btn-secondary btn-xs" disabled={i === 0} onclick={() => move(i, -1)} aria-label={t('admin.menus.up')}>↑</button>
 								<button class="btn-secondary btn-xs" disabled={i === current.items.length - 1} onclick={() => move(i, 1)} aria-label={t('admin.menus.down')}>↓</button>
