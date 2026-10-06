@@ -297,10 +297,13 @@ async function handleResponse<T>(res: Response): Promise<T> {
 		}
 		throw new ApiError(res.status, message);
 	}
-	if (res.status === 204) {
+	// No content (204, or a 202 "accepted" without a body): nothing to
+	// parse -- reading it as JSON would turn a success into an error.
+	const text = await res.text();
+	if (res.status === 204 || text.trim() === '') {
 		return undefined as T;
 	}
-	return (await res.json()) as T;
+	return JSON.parse(text) as T;
 }
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
