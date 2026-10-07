@@ -4,7 +4,7 @@
 # Builds the SvelteKit admin UI to static files (adapter-static, see
 # web/vite.config.ts) -- internal/web.Server serves these straight off
 # disk (spaFileServer), no embedding needed.
-FROM node:24-bookworm-slim AS web-build
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS web-build
 WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
@@ -15,7 +15,7 @@ RUN npm run build
 # CGO_ENABLED=0 throughout: every dependency here, sqlite included
 # (modernc.org/sqlite), is pure Go by design (see CLAUDE.md) so cross-
 # compiling for both target arches needs no C toolchain at all.
-FROM golang:1.27-bookworm AS go-build
+FROM --platform=$BUILDPLATFORM golang:1.27-bookworm AS go-build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
