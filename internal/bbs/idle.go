@@ -20,6 +20,8 @@ func (t *Terminal) touch() { t.lastInput.Store(time.Now().UnixNano()) }
 // the returned func ends the pause.
 func (t *Terminal) Busy() (done func()) {
 	t.busy.Add(1)
+	t.forgetScreen() // whatever runs draws on it
+
 	return func() {
 		t.touch()
 		t.busy.Add(-1)

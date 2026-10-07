@@ -3,6 +3,7 @@ package bbs
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -65,6 +66,11 @@ type Terminal struct {
 	// (see watchIdle).
 	lastInput atomic.Int64
 	busy      atomic.Int32
+	// screen is the last whole-screen draw, line by line, at the size
+	// it was drawn for (see frame); nil when unknown.
+	screen           []screenLine
+	screenW, screenH int
+	screenMu         sync.Mutex
 }
 
 // SetLocation sets the zone Time converts to, e.g. after login or when
@@ -140,7 +146,10 @@ func (t *Terminal) Height() int {
 
 // Print writes s to the client, translating bare LF to CRLF.
 func (t *Terminal) Print(s string) error {
-	_, err := t.conn.Write([]byte(ansi.ToCRLF(s)))
+	t.screenMu.Lock()
+	out := t.frame(ansi.ToCRLF(s))
+	t.screenMu.Unlock()
+	_, err := t.conn.Write([]byte(out))
 	return err
 }
 
@@ -153,6 +162,7 @@ func (t *Terminal) Print(s string) error {
 // insertion shifts terminal state the artist never intended,
 // scrambling the result (confirmed live against a real fsxNet ad).
 func (t *Terminal) PrintRaw(s string) error {
+	t.forgetScreen()
 	_, err := t.conn.Write([]byte(s))
 	return err
 }
@@ -357,6 +367,7 @@ func (t *Terminal) ReadKey() (Key, error) {
 // companion LF/NUL follows -- a following one, whenever it does
 // arrive, is silently dropped instead.
 func (t *Terminal) ReadLine(mask bool) (string, error) {
+	t.forgetScreen() // what's typed is echoed
 	var line []byte
 
 	for {
