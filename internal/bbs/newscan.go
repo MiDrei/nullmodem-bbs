@@ -171,10 +171,13 @@ func (s *Server) toMe(term *Terminal, u *user.User) error {
 }
 
 func (s *Server) scanNote(term *Terminal, text string) error {
-	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + text + ansi.Reset); err != nil {
+	// In place of the line the cursor is on -- a reader's or list's key
+	// hints, typically -- so the screen stays as it is, nothing scrolls.
+	if err := term.Print("\r" + ansi.Reset + "\x1b[K" + ansi.FG(ansi.Cyan, true) + text + "  " + keyHints(term.T("common.press_enter")) + ansi.Reset); err != nil {
 		return err
 	}
-	return s.pauseForKey(term)
+	_, err := term.ReadLine(false)
+	return err
 }
 
 // loginSummary shows what's new since the last call and offers to read
