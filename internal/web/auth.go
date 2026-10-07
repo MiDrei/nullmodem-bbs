@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -264,6 +265,15 @@ func (s *Server) requireBBSUser(next http.Handler) http.Handler {
 				return
 			}
 		}
+		// The account as it is now: a deleted one is logged out, a
+		// lowered (or raised) level counts at once, not only once the
+		// token runs out.
+		u, err := s.Users.ByID(c.UserID)
+		if err != nil || !strings.EqualFold(u.Username, c.Subject) {
+			writeError(w, http.StatusUnauthorized, "invalid or expired token")
+			return
+		}
+		c.SecurityLevel = u.SecurityLevel
 
 		ctx := context.WithValue(r.Context(), claimsCtxKey, c)
 		next.ServeHTTP(w, r.WithContext(ctx))

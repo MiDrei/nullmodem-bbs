@@ -7,8 +7,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/textclean"
 	"strings"
 	"time"
+	"unicode/utf8"
 	// Embedded zone database: the runtime image (debian:trixie-slim)
 	// isn't guaranteed to ship /usr/share/zoneinfo, and a missing zone
 	// would silently fall back to UTC (see Location).
@@ -144,8 +146,17 @@ func ValidateRealName(realName string) error {
 	if IsRestrictedRealName(realName) {
 		return ErrRealNameReserved
 	}
+	if textclean.HasControl(realName) || utf8.RuneCountInString(realName) > MaxRealName {
+		return ErrRealNameInvalid
+	}
 	return nil
 }
+
+// MaxRealName is the longest real name.
+const MaxRealName = 60
+
+// ErrRealNameInvalid: control characters, or too long.
+var ErrRealNameInvalid = errors.New("user: real name has control characters or is too long")
 
 // userColumns is the column list every single-/multi-row user query
 // selects, in scanUser's order.

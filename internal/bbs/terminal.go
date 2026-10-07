@@ -3,6 +3,7 @@ package bbs
 import (
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/i18n"
@@ -60,6 +61,10 @@ type Terminal struct {
 	loc *time.Location
 	// threadView: the message lists show threads (T), for this call.
 	threadView bool
+	// lastInput (Unix nanoseconds) and busy are for the idle watch
+	// (see watchIdle).
+	lastInput atomic.Int64
+	busy      atomic.Int32
 }
 
 // SetLocation sets the zone Time converts to, e.g. after login or when
@@ -214,6 +219,7 @@ func (t *Terminal) readByte() (byte, error) {
 		if n == 0 {
 			continue
 		}
+		t.touch()
 		b := buf[0]
 		if t.expectLFOrNUL {
 			t.expectLFOrNUL = false

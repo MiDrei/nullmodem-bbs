@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/textclean"
 	"net/mail"
 	"strings"
 	"time"
@@ -40,6 +41,7 @@ func IsEmailAddress(s string) bool {
 // is the netmail it answers (0: none) -- a mail that came in, so this
 // one goes out as its reply.
 func (s *Store) SendEmail(fromUserID int64, fromAddress, to, subject, body string, replyTo int64) (*Message, error) {
+	subject = textclean.Line(subject)
 	to = strings.TrimSpace(to)
 	if !IsEmailAddress(to) {
 		return nil, fmt.Errorf("netmail: %q is not an email address", to)
@@ -79,6 +81,7 @@ func (s *Store) SendEmail(fromUserID int64, fromAddress, to, subject, body strin
 // inReplyTo are its headers; a messageID already received for the same
 // user is ErrDuplicate.
 func (s *Store) ReceiveEmail(fromName, from string, toUserID int64, toName, subject, body string, postedAt time.Time, messageID, inReplyTo string) (*Message, error) {
+	fromName, toName, subject = textclean.Line(fromName), textclean.Line(toName), textclean.Line(subject)
 	if fromName == "" {
 		fromName = from
 	}

@@ -173,9 +173,11 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 		sess.LastCall = u.LastLoginAt.Time
 	}
 	sess.DropLineEnd = term.TakeLineEnd()
+	done := term.Busy() // the door keeps its own time
 	if err := doors.Run(term.Raw(), door, sess); err != nil {
 		s.logWarn("door %s ended abnormally for %s: %v", door.Name, u.Username, err)
 	}
+	done()
 	return term.Println(ansi.Reset + "\r\n" + ansi.FG(ansi.Green, true) + term.T("doors.returned", "DOOR", door.Name))
 }
 

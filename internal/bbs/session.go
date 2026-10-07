@@ -1,6 +1,7 @@
 package bbs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"git.maik.ch/nullmodem/bbs/internal/chat"
@@ -9,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/applog"
@@ -218,6 +220,25 @@ func (s *Server) Handle(conn Conn) {
 	term.Lang = s.boardLang()
 	defer func() { recover() }()
 
+	// Hang up on a caller who stopped typing: a short while at the
+	// login, the board's idle limit once logged in.
+	idleCtx, stopIdle := context.WithCancel(context.Background())
+	defer stopIdle()
+	var loggedIn atomic.Bool
+	go term.watchIdle(idleCtx, func() time.Duration {
+		if !loggedIn.Load() {
+			return LoginIdleLimit
+		}
+		if s.Security == nil {
+			return 30 * time.Minute
+		}
+		return time.Duration(s.Security().Idle()) * time.Minute
+	}, func() {
+		s.logInfo("[%s] node %d: hung up for inactivity", protocol, node)
+		conn.Write([]byte("\r\n\r\n" + ansi.Reset + toCP437(term.T("session.idle_logoff")) + "\r\n"))
+		conn.Close()
+	})
+
 	if err := s.welcome(term, node); err != nil {
 		return
 	}
@@ -229,6 +250,7 @@ func (s *Server) Handle(conn Conn) {
 	if err != nil {
 		return
 	}
+	loggedIn.Store(true)
 	s.Nodes.SetUsername(node, u.Username)
 	term.SetLocation(u.Location())
 	term.Lang = s.userLang(u)

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/textclean"
 	"strings"
 	"time"
 )
@@ -207,7 +208,7 @@ const (
 )
 
 func clip(s string, n int) string {
-	s = strings.TrimSpace(s)
+	s = strings.TrimSpace(textclean.Line(s))
 	if r := []rune(s); len(r) > n {
 		return string(r[:n])
 	}

@@ -85,6 +85,7 @@ func (s *Server) playRemoteDoor(term *Terminal, u *user.User, door doors.Door) e
 	}
 	remote.SetReadDeadline(time.Time{})
 	s.logInfo("%s played %s (%s)", u.Username, door.Name, addr)
+	defer term.Busy()() // the remote door keeps its own time
 
 	// Door server -> caller.
 	closed := make(chan struct{})

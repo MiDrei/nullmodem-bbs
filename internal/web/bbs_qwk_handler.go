@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
-	"git.maik.ch/nullmodem/kit/qwk"
 )
 
 // qwkAreaDTO describes one message area for the QWK area-selection
@@ -247,7 +246,7 @@ func (s *Server) handleUploadBBSQWKReply(w http.ResponseWriter, r *http.Request)
 	dst.Close()
 
 	bbsID := qwkdoor.BBSID(bbsCfg.BBS.Name)
-	replies, err := qwk.ParseReplyPacket(repPath, bbsID)
+	replies, err := qwkdoor.ParseReply(repPath, bbsID)
 	if err != nil {
 		// The reason goes back to the caller too: an offline reader's
 		// user has no other way to find out what was wrong with the

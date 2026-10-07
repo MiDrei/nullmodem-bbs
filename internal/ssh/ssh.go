@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -115,11 +116,15 @@ func (srv *Server) ListenAndServe() error {
 }
 
 func (srv *Server) handleConn(nConn net.Conn, config *ssh.ServerConfig) {
+	// A client that stalls in the handshake doesn't get to hold the
+	// connection open.
+	nConn.SetDeadline(time.Now().Add(30 * time.Second))
 	sshConn, chans, reqs, err := ssh.NewServerConn(nConn, config)
 	if err != nil {
 		nConn.Close()
 		return
 	}
+	nConn.SetDeadline(time.Time{})
 	defer sshConn.Close()
 
 	go ssh.DiscardRequests(reqs)

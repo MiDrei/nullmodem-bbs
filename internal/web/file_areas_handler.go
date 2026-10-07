@@ -105,6 +105,10 @@ func (s *Server) handleCreateFileArea(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusConflict, "that tag is already in use")
 			return
 		}
+		if errors.Is(err, file.ErrBadTag) {
+			writeError(w, http.StatusBadRequest, "a tag is letters, digits and _ . - only")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "could not create file area")
 		return
 	}

@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"git.maik.ch/nullmodem/bbs/internal/applog"
 	"git.maik.ch/nullmodem/bbs/internal/archive"
@@ -334,7 +335,26 @@ func (s *Server) Routes() http.Handler {
 		}
 	}
 
-	return withCORS(s.localizeErrors(mux))
+	return withCORS(withBodyLimit(s.localizeErrors(mux)))
+}
+
+// Request bodies are capped: an upload (multipart) at maxUploadBytes
+// plus room for its form fields, anything else -- JSON, mostly -- at
+// maxBodyBytes. ParseMultipartForm alone only bounds the memory it
+// uses and spools the rest to temporary files, without limit.
+const maxBodyBytes = 8 << 20
+
+func withBodyLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limit := int64(maxBodyBytes)
+		if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+			limit = maxUploadBytes + 1<<20
+		}
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // spaFileServer serves files from dir, falling back to index.html for

@@ -297,7 +297,9 @@ func main() {
 	})
 
 	logger.Info("web admin API listening on %s", cfg.Addr)
-	logger.Fatal("%v", http.ListenAndServe(cfg.Addr, srv.Routes()))
+	// No write timeout: downloads and the terminal's WebSocket run long.
+	httpSrv := &http.Server{Addr: cfg.Addr, Handler: srv.Routes(), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 2 * time.Minute}
+	logger.Fatal("%v", httpSrv.ListenAndServe())
 }
 
 // migrateNetworks finishes what config.Load started for a config

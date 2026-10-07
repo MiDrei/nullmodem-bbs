@@ -1994,6 +1994,8 @@ export interface SecuritySettings {
 	lockout_minutes: number;
 	max_lockout_hours: number;
 	max_connections_per_ip: number;
+	/** Hang up a logged-in caller after this many idle minutes; 0: never. */
+	idle_minutes: number;
 	approve_new_users: boolean;
 	pending_sl: number;
 	new_user_sl: number;

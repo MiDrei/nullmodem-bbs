@@ -107,6 +107,9 @@ func (s *Server) handleUpdateBBSProfile(w http.ResponseWriter, r *http.Request) 
 		case errors.Is(err, user.ErrRealNameReserved):
 			writeError(w, http.StatusBadRequest, "that name is reserved")
 			return
+		case err != nil:
+			writeError(w, http.StatusBadRequest, "the real name may have at most 60 characters and no control characters")
+			return
 		}
 	}
 	if req.Timezone != nil {

@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/textclean"
 	"regexp"
 	"strings"
 	"sync"
@@ -80,6 +81,7 @@ var ErrBadRoom = errors.New("chat: not a room name")
 
 // Post adds a line to room.
 func (s *Store) Post(room, username, source, kind, text string) (Line, error) {
+	username, text = textclean.Line(username), textclean.Line(text)
 	if !ValidRoom(room) {
 		return Line{}, ErrBadRoom
 	}
@@ -316,7 +318,7 @@ const MaxOneliner = 60
 
 // AddOneliner puts a line on the wall.
 func (s *Store) AddOneliner(userID int64, username, text string) (Oneliner, error) {
-	text = strings.TrimSpace(text)
+	text = strings.TrimSpace(textclean.Line(text))
 	if text == "" {
 		return Oneliner{}, errors.New("chat: empty one-liner")
 	}

@@ -49,6 +49,13 @@ codes) lock the address out for a while; allow/block lists with an IP or a
 range. Behind Caddy and Docker's port mapping the forwarded address counts
 (`X-Forwarded-For` from private addresses).
 
+## Idle callers
+
+A Telnet/SSH caller who doesn't type for 3 minutes at the login, or for the
+"Hang up when idle" minutes once logged in (default 30, 0: never), is hung up
+— otherwise a silent connection would hold its node for good. Time in a door,
+a file transfer or an RLogin door doesn't count.
+
 ## Warnings
 
 Every 5 minutes the web service checks: are BBS, mailer and door background

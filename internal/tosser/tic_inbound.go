@@ -3,6 +3,7 @@ package tosser
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -161,6 +162,11 @@ func (ts *ticSession) toss(desc tic.File, payload []byte, res *Result) error {
 	}
 
 	area, _, err := ts.files.EnsureArea(desc.Area, desc.Area, "")
+	if errors.Is(err, file.ErrBadTag) {
+		// A tag that isn't a plain name ("../x") is no area of ours.
+		res.SkippedFiles = append(res.SkippedFiles, desc.Name)
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("tosser: ensuring file area %q: %w", desc.Area, err)
 	}

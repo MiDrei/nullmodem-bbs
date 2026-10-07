@@ -49,6 +49,13 @@ sperren die Adresse vorübergehend; Allow-/Blocklisten mit IP oder Bereich.
 Hinter Caddy und Dockers Port-Mapping zählt die weitergereichte Adresse
 (`X-Forwarded-For` von privaten Adressen).
 
+## Untätige Anrufer
+
+Wer per Telnet/SSH beim Login 3 Minuten nichts tippt, oder eingeloggt so viele
+Minuten wie bei „Hang up when idle“ eingestellt (Vorgabe 30, 0: nie), wird
+getrennt — sonst hielte eine stille Verbindung ihren Node für immer. Zeit in
+einem Door, bei einer Dateiübertragung oder in einem RLogin-Door zählt nicht.
+
 ## Warnungen
 
 Alle 5 Minuten prüft der Web-Dienst: läuft BBS/Mailer/Door-Hintergrundprogramm,

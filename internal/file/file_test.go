@@ -606,3 +606,17 @@ func TestRenameNetworkMatchesWithoutCaseAndLeavesOthers(t *testing.T) {
 		}
 	}
 }
+
+// A tag is a directory name: nothing that leads out of the files dir.
+func TestAreaTagsStayInsideTheFilesDir(t *testing.T) {
+	for _, bad := range []string{"../../configs", "..", "a/b", "", ".hidden", "x..y", `a\b`} {
+		if ValidTag(bad) {
+			t.Errorf("ValidTag(%q)", bad)
+		}
+	}
+	for _, good := range []string{"FSX_NODE", "AGN-GEN", "nodelist.2026", "UPLOADS"} {
+		if !ValidTag(good) {
+			t.Errorf("!ValidTag(%q)", good)
+		}
+	}
+}

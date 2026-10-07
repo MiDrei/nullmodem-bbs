@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/textclean"
 	"strings"
 	"time"
 )
@@ -418,6 +419,7 @@ func (s *Store) DeleteArea(id int64) error {
 
 // PostMessage adds a new message to an area, posted by fromUserID.
 func (s *Store) PostMessage(areaID, fromUserID int64, toName, subject, body string) (*Message, error) {
+	toName, subject = textclean.Line(toName), textclean.Line(subject)
 	res, err := s.db.Exec(
 		`INSERT INTO messages (area_id, from_user_id, to_name, subject, body) VALUES (?, ?, ?, ?, ?)`,
 		areaID, fromUserID, toName, subject, body,
@@ -532,6 +534,7 @@ func (s *Store) MarkSent(messageID int64) error {
 // omit it, and dropping mail from one of those over a missing kludge
 // would be worse than the rare accidental duplicate.
 func (s *Store) ReceiveEcho(areaID int64, fromName, subject, body, msgID string, postedAt time.Time) (msg *Message, created bool, err error) {
+	fromName, subject = textclean.Line(fromName), textclean.Line(subject)
 	res, err := s.db.Exec(
 		`INSERT OR IGNORE INTO messages (area_id, from_user_id, from_name, to_name, subject, body, msgid, posted_at) VALUES (?, NULL, ?, 'All', ?, ?, ?, ?)`,
 		// UTC, like CURRENT_TIMESTAMP: posted_at is compared and sorted
@@ -827,6 +830,7 @@ func isUniqueConstraintErr(err error) bool {
 // resending the same packet (created is false then, as in
 // ReceiveEcho); outbound, the message gets this system's MSGID.
 func (s *Store) PostEcho(areaID, fromUserID int64, toName, subject, body, msgID string, postedAt time.Time) (msg *Message, created bool, err error) {
+	toName, subject = textclean.Line(toName), textclean.Line(subject)
 	if toName == "" {
 		toName = "All"
 	}
@@ -900,6 +904,7 @@ func (s *Store) SetAreaHidden(id int64, hidden bool) error {
 // account (its sysop), like an InterBBS last-callers record whose
 // sender must read "ibbslastcall". It goes out like any local post.
 func (s *Store) PostMessageAs(areaID, fromUserID int64, fromName, toName, subject, body string) (*Message, error) {
+	fromName, toName, subject = textclean.Line(fromName), textclean.Line(toName), textclean.Line(subject)
 	res, err := s.db.Exec(
 		`INSERT INTO messages (area_id, from_user_id, from_name, to_name, subject, body) VALUES (?, ?, ?, ?, ?, ?)`,
 		areaID, fromUserID, fromName, toName, subject, body,

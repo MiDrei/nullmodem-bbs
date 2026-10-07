@@ -598,6 +598,10 @@ type SecurityConfig struct {
 	// MaxConnectionsPerIP limits simultaneous Telnet/SSH connections
 	// from one address; default 3, 0 no limit.
 	MaxConnectionsPerIP *int `yaml:"max_connections_per_ip,omitempty"`
+	// IdleMinutes hangs up on a logged-in caller who hasn't typed for
+	// that long (default 30; 0: never). Before login it's always a few
+	// minutes (internal/bbs.LoginIdleLimit).
+	IdleMinutes *int `yaml:"idle_minutes,omitempty"`
 	// ApproveNewUsers: new accounts start at PendingSL and wait for
 	// the sysop's approval before they may post; approval raises them
 	// to bbs.new_user_sl. Default on, PendingSL 5.
@@ -617,6 +621,7 @@ func (c SecurityConfig) Window() int         { return intOr(c.WindowMinutes, 10)
 func (c SecurityConfig) LockoutMins() int    { return intOr(c.LockoutMinutes, 15) }
 func (c SecurityConfig) MaxLockout() int     { return intOr(c.MaxLockoutHours, 24) }
 func (c SecurityConfig) MaxConnections() int { return intOr(c.MaxConnectionsPerIP, 3) }
+func (c SecurityConfig) Idle() int           { return intOr(c.IdleMinutes, 30) }
 func (c SecurityConfig) Approval() bool      { return c.ApproveNewUsers == nil || *c.ApproveNewUsers }
 func (c SecurityConfig) Pending() int        { return intOr(c.PendingSL, 5) }
 

@@ -19,6 +19,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -29,6 +30,16 @@ var ErrTagTaken = errors.New("file: area tag already taken")
 
 // ErrAreaNotFound is returned when an area tag or ID doesn't exist.
 var ErrAreaNotFound = errors.New("file: area not found")
+
+// ErrBadTag: an area tag that can't be a directory name -- it is one
+// (the area's files live in filesDir/<tag>), so only letters, digits
+// and "_.-", starting with a letter or digit.
+var ErrBadTag = errors.New("file: area tags are letters, digits and _ . - only")
+
+var tagRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
+
+// ValidTag reports whether tag can name a file area.
+func ValidTag(tag string) bool { return tagRE.MatchString(tag) && !strings.Contains(tag, "..") }
 
 // ErrDuplicateFilename is returned by ImportFile when the area
 // already has a file with that name.
@@ -122,6 +133,9 @@ func NewStore(db *sql.DB, filesDir string) *Store {
 // CreateArea adds a new file area. network is the FTN network it
 // belongs to (e.g. "fsxNet"), or "" for a local-only area.
 func (s *Store) CreateArea(tag, name, description, network string, minSLDownload, minSLUpload int) (*Area, error) {
+	if !ValidTag(tag) {
+		return nil, ErrBadTag
+	}
 	res, err := s.db.Exec(
 		`INSERT INTO file_areas (tag, name, description, network, min_sl_download, min_sl_upload) VALUES (?, ?, ?, ?, ?, ?)`,
 		tag, name, description, network, minSLDownload, minSLUpload,
@@ -236,6 +250,9 @@ func (s *Store) ApproveArea(id int64) error {
 // doesn't exist yet -- mirrors message.Store's EnsureArea, for when
 // TIC/file-echo tossing needs it; nothing calls this yet.
 func (s *Store) EnsureArea(tag, name, network string) (area *Area, created bool, err error) {
+	if !ValidTag(tag) {
+		return nil, false, ErrBadTag
+	}
 	if existing, err := s.AreaByTag(tag); err == nil {
 		return existing, false, nil
 	} else if !errors.Is(err, ErrAreaNotFound) {
@@ -508,6 +525,11 @@ func (s *Store) fileByAreaAndName(areaID int64, filename string) (*File, error) 
 func (s *Store) storeFile(area *Area, filename string, uploadedBy sql.NullInt64, uploadedByName, description string, src io.Reader) (*File, error) {
 	destDir := filepath.Join(s.filesDir, area.Tag)
 	destPath := filepath.Join(destDir, filename)
+	// Never outside the files directory, whatever a tag or name holds.
+	if rel, err := filepath.Rel(s.filesDir, destPath); err != nil || !filepath.IsLocal(rel) ||
+		filename == "" || filename == "." || filename == ".." || strings.Contains(filename, "/") {
+		return nil, fmt.Errorf("file: refusing to store %q in area %q", filename, area.Tag)
+	}
 
 	if _, err := os.Stat(destPath); err == nil {
 		return nil, ErrDuplicateFilename

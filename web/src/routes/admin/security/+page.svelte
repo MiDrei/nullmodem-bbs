@@ -177,6 +177,11 @@
 					<input type="number" min="0" class="field field-sm" bind:value={settings.max_connections_per_ip} />
 					<span class="text-[11px] text-faint">{t('admin.security.at_the_same_time_0')}</span>
 				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-xs text-muted">{t('admin.security.idle_minutes')}</span>
+					<input type="number" min="0" class="field field-sm" bind:value={settings.idle_minutes} />
+					<span class="text-[11px] text-faint">{t('admin.security.idle_minutes_hint')}</span>
+				</label>
 			</div>
 
 			<label class="flex items-start gap-2 text-sm">

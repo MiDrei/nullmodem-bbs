@@ -71,7 +71,9 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 		return err
 	}
 
+	done := term.Busy()
 	leftover, sendErr := zmodem.Send(term.Raw(), packetPath)
+	done()
 	if len(leftover) > 0 {
 		term.PushBack(leftover)
 	}
@@ -108,7 +110,9 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 		return err
 	}
 
+	done := term.Busy()
 	names, leftover, recvErr := zmodem.Receive(term.Raw(), tmpDir)
+	done()
 	if len(leftover) > 0 {
 		term.PushBack(leftover)
 	}
@@ -129,7 +133,7 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	}
 
 	bbsID := qwkdoor.BBSID(s.BBSName)
-	replies, err := qwk.ParseReplyPacket(filepath.Join(tmpDir, repName), bbsID)
+	replies, err := qwkdoor.ParseReply(filepath.Join(tmpDir, repName), bbsID)
 	if err != nil {
 		s.logWarn("parsing QWK reply packet from %s: %v", u.Username, err)
 		return term.Println(ansi.Reset + "\r\n  " + ansi.FG(ansi.Red, true) + term.T("qwk.bad_rep") + ansi.Reset)

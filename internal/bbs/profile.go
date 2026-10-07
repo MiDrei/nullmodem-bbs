@@ -48,6 +48,8 @@ func realNameErrorText(term *Terminal, err error) string {
 		return term.T("profile.real_name_required")
 	case errors.Is(err, user.ErrRealNameReserved):
 		return term.T("profile.real_name_reserved")
+	case errors.Is(err, user.ErrRealNameInvalid):
+		return term.T("profile.real_name_invalid")
 	default:
 		return err.Error()
 	}

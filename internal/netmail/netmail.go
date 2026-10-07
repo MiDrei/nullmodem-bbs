@@ -16,6 +16,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"git.maik.ch/nullmodem/bbs/internal/textclean"
 	"strconv"
 	"strings"
 	"time"
@@ -82,6 +83,7 @@ func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 // recipient; for a remote one, it flags the message for
 // internal/tosser's priority routing (see Message.Crash).
 func (s *Store) Send(fromUserID int64, fromAddress string, toUserID int64, toName, toAddress, subject, body string, crash bool) (*Message, error) {
+	toName, subject = textclean.Line(toName), textclean.Line(subject)
 	var toUserIDArg any
 	if toUserID > 0 {
 		toUserIDArg = toUserID
@@ -113,6 +115,7 @@ func (s *Store) Send(fromUserID int64, fromAddress string, toUserID int64, toNam
 // always what a system-composed message wants, since there's no
 // waiting caller and no reason to sit until the next scheduled poll.
 func (s *Store) SendSystem(fromName, fromAddress, toName, toAddress, subject, body string, crash bool) (*Message, error) {
+	fromName, toName, subject = textclean.Line(fromName), textclean.Line(toName), textclean.Line(subject)
 	res, err := s.db.Exec(
 		`INSERT INTO netmail_messages (from_user_id, from_name, from_address, to_name, to_address, subject, body, crash)
 		 VALUES (NULL, ?, ?, ?, ?, ?, ?, ?)`,
@@ -135,6 +138,7 @@ func (s *Store) SendSystem(fromName, fromAddress, toName, toAddress, subject, bo
 // users.username at read time. postedAt is the message's own Written
 // timestamp from the packet, not when we happened to receive it.
 func (s *Store) Receive(fromName, fromAddress string, toUserID int64, toName, toAddress, subject, body string, postedAt time.Time, crash bool) (*Message, error) {
+	fromName, toName, subject = textclean.Line(fromName), textclean.Line(toName), textclean.Line(subject)
 	var toUserIDArg any
 	if toUserID > 0 {
 		toUserIDArg = toUserID

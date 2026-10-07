@@ -21,6 +21,7 @@ type securitySettingsDTO struct {
 	LockoutMinutes      int      `json:"lockout_minutes"`
 	MaxLockoutHours     int      `json:"max_lockout_hours"`
 	MaxConnectionsPerIP int      `json:"max_connections_per_ip"`
+	IdleMinutes         int      `json:"idle_minutes"`
 	ApproveNewUsers     bool     `json:"approve_new_users"`
 	PendingSL           int      `json:"pending_sl"`
 	NewUserSL           int      `json:"new_user_sl"`
@@ -49,7 +50,7 @@ func toSecurityDTO(c *config.Config) securitySettingsDTO {
 	return securitySettingsDTO{
 		LockoutEnabled: sc.Lockout(), MaxFailures: sc.Failures(), WindowMinutes: sc.Window(),
 		LockoutMinutes: sc.LockoutMins(), MaxLockoutHours: sc.MaxLockout(), MaxConnectionsPerIP: sc.MaxConnections(),
-		ApproveNewUsers: sc.Approval(), PendingSL: sc.Pending(), NewUserSL: c.BBS.NewUserSL, BlockedHandles: blocked,
+		IdleMinutes: sc.Idle(), ApproveNewUsers: sc.Approval(), PendingSL: sc.Pending(), NewUserSL: c.BBS.NewUserSL, BlockedHandles: blocked,
 		RequireAdminTOTP: sc.RequireAdminTOTP,
 	}
 }
@@ -101,6 +102,9 @@ func (s *Server) handlePutSecuritySettings(w http.ResponseWriter, r *http.Reques
 	case d.MaxFailures < 1 || d.WindowMinutes < 1 || d.LockoutMinutes < 1 || d.MaxLockoutHours < 1:
 		writeError(w, http.StatusBadRequest, "the lockout limits must be at least 1")
 		return
+	case d.IdleMinutes < 0:
+		writeError(w, http.StatusBadRequest, "idle minutes must be 0 or more")
+		return
 	case d.MaxConnectionsPerIP < 0:
 		writeError(w, http.StatusBadRequest, "connections per address must not be negative (0: no limit)")
 		return
@@ -136,7 +140,7 @@ func (s *Server) handlePutSecuritySettings(w http.ResponseWriter, r *http.Reques
 	c.Security = config.SecurityConfig{
 		LockoutEnabled: b(d.LockoutEnabled), MaxFailures: p(d.MaxFailures), WindowMinutes: p(d.WindowMinutes),
 		LockoutMinutes: p(d.LockoutMinutes), MaxLockoutHours: p(d.MaxLockoutHours), MaxConnectionsPerIP: p(d.MaxConnectionsPerIP),
-		ApproveNewUsers: b(d.ApproveNewUsers), PendingSL: p(d.PendingSL), BlockedHandles: handles,
+		IdleMinutes: p(d.IdleMinutes), ApproveNewUsers: b(d.ApproveNewUsers), PendingSL: p(d.PendingSL), BlockedHandles: handles,
 		RequireAdminTOTP: d.RequireAdminTOTP,
 	}
 	c.BBS.NewUserSL = d.NewUserSL

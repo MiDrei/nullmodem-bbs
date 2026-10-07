@@ -691,7 +691,9 @@ func (s *Server) downloadFile(term *Terminal, u *user.User, f *file.File) error 
 		return err
 	}
 
+	done := term.Busy()
 	leftover, sendErr := zmodem.Send(term.Raw(), f.StoragePath)
+	done()
 	if len(leftover) > 0 {
 		term.PushBack(leftover)
 	}
@@ -745,7 +747,9 @@ func (s *Server) uploadFile(term *Terminal, u *user.User, area *file.Area) error
 		return err
 	}
 
+	done := term.Busy()
 	names, leftover, recvErr := zmodem.Receive(term.Raw(), tmpDir)
+	done()
 	if len(leftover) > 0 {
 		term.PushBack(leftover)
 	}
