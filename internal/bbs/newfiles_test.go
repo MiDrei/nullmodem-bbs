@@ -23,7 +23,7 @@ func TestNewFilesSearchAndAllSeen(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := conn.out.String()
-	if !strings.Contains(out, "FSXNET.Z75") || !strings.Contains(out, "apod1001.zip") || !strings.Contains(out, "A = all seen") {
+	if !strings.Contains(out, "FSXNET.Z75") || !strings.Contains(out, "apod1001.zip") || !strings.Contains(plainText(out), "[A] All seen") {
 		t.Fatalf("new files list: %q", out)
 	}
 

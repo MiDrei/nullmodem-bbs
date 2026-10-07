@@ -45,7 +45,7 @@ func (s *Server) browseNodelist(term *Terminal, u *user.User) error {
 		return string(r) + strings.Repeat(" ", n-len(r))
 	}
 	for {
-		if err := term.Print(ansi.Reset + "\r\n  " + fgDim(ansi.White) + term.T("nodelist.search_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
+		if err := term.Print(ansi.Reset + "\r\n  " + keyHints(term.T("nodelist.search_prompt")) + ansi.FG(ansi.Yellow, true)); err != nil {
 			return err
 		}
 		q, err := term.ReadLine(false)

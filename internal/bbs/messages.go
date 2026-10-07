@@ -192,7 +192,7 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 	// row, with no separator row of ours added on top) plus the
 	// footer's own fixed 3 lines (blank + its own scroll-status line,
 	// always reserved even when blank, plus the hint line).
-	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 2
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -247,10 +247,10 @@ func (s *Server) drawAreaLightbar(term *Terminal, u *user.User, stats []message.
 
 	scrollStatus := ""
 	if len(rows) > available {
-		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(rows)) + " --"
+		scrollStatus = term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(rows))
 	}
-	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + term.T("areas.keys") + ansi.Reset)
+	b.WriteString(ansi.Reset + scrollRule(term, scrollStatus) + ansi.CRLF)
+	b.WriteString(keyHints(term.T("areas.keys")) + ansi.Reset)
 	return scrollOffset, term.Print(b.String())
 }
 
@@ -496,7 +496,7 @@ func (s *Server) drawEmptyMessageList(term *Terminal, area *message.Area, canWri
 	if canWrite {
 		hint = term.T("msgs.key_post") + "   " + hint
 	}
-	return term.Print(s.renderMessageListHeader(term, area) + ansi.Reset + term.T("msgs.empty") + "\r\n\r\n" + ansi.FG(ansi.White, true) + hint + ansi.Reset)
+	return term.Print(s.renderMessageListHeader(term, area) + ansi.Reset + term.T("msgs.empty") + "\r\n\r\n" + keyHints(hint) + ansi.Reset)
 }
 
 // drawMessageList redraws the header banner plus the Subject/From/
@@ -560,7 +560,7 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 	// footer's own fixed 3 lines (blank + its own scroll-status line,
 	// always reserved even when blank -- see drawMessageReader's
 	// identically motivated budget -- plus the hint line).
-	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 2
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -608,10 +608,10 @@ func (s *Server) drawMessageList(term *Terminal, u *user.User, area *message.Are
 
 	scrollStatus := ""
 	if len(msgs) > available {
-		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(msgs)) + " --"
+		scrollStatus = term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(msgs))
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + hint + ansi.Reset)
+	b.WriteString(ansi.Reset + scrollRule(term, scrollStatus) + ansi.CRLF)
+	b.WriteString(keyHints(hint) + ansi.Reset)
 	return scrollOffset, term.Print(b.String())
 }
 
@@ -829,7 +829,7 @@ func (s *Server) drawReader(term *Terminal, area *message.Area, msgs []message.M
 	// status text was appended directly onto the hint line instead,
 	// silently eating one more row than budgeted and pushing the
 	// header off the top.
-	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1 + 1
+	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -876,13 +876,12 @@ func (s *Server) drawReader(term *Terminal, area *message.Area, msgs []message.M
 		b.WriteString(ansi.CRLF)
 	}
 
-	scrollStatus := ""
+	scrollStatus := scrollRule(term, "")
 	if maxOffset > 0 {
-		scrollStatus = "-- " + term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines) + " --"
+		scrollStatus = scrollRule(term, term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines))
 	}
-	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(footer)
+	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": keyHints(hint)})
+	b.WriteString(ansi.Reset + footer)
 	return maxOffset, term.Print(b.String())
 }
 

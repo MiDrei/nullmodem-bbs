@@ -42,7 +42,7 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 			return err
 		}
 		header := s.featureHeader(term, u, "bbslist.ans", term.T("common.bbs_list"))
-		rows := max(3, term.Height()-strings.Count(header, "\n")-5)
+		rows := max(3, term.Height()-strings.Count(header, "\n")-4)
 		cur = max(0, min(cur, len(list)-1))
 		if cur < top {
 			top = cur
@@ -73,9 +73,9 @@ func (s *Server) bbsList(term *Terminal, u *user.User) error {
 		}
 		scroll := ""
 		if len(list) > rows {
-			scroll = "-- " + term.T("list.range", "FROM", top+1, "TO", end, "TOTAL", len(list)) + " --"
+			scroll = term.T("list.range", "FROM", top+1, "TO", end, "TOTAL", len(list))
 		}
-		b.WriteString("\r\n" + ansi.FG(ansi.Black, true) + scroll + ansi.Reset + "\r\n" + keyHints(keys) + ansi.Reset)
+		b.WriteString(scrollRule(term, scroll) + "\r\n" + keyHints(keys) + ansi.Reset)
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
@@ -161,7 +161,7 @@ func (s *Server) showBBS(term *Terminal, u *user.User, e community.BBS) error {
 		}
 		return s.pauseForKey(term)
 	}
-	b.WriteString("\r\n  " + term.T("bbslist.entry_keys") + " " + ansi.FG(ansi.Yellow, true))
+	b.WriteString("\r\n  " + keyHints(term.T("bbslist.entry_keys")) + " " + ansi.FG(ansi.Yellow, true))
 	if err := term.Print(b.String()); err != nil {
 		return err
 	}

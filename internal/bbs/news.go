@@ -107,7 +107,7 @@ func (s *Server) showNews(term *Terminal, u *user.User) error {
 			return err
 		}
 		header := s.featureHeader(term, u, newsScreen, term.T("news.title"))
-		rows := max(3, term.Height()-strings.Count(header, "\n")-5)
+		rows := max(3, term.Height()-strings.Count(header, "\n")-4)
 		cur = max(0, min(cur, len(news)-1))
 		if cur < top {
 			top = cur
@@ -145,9 +145,9 @@ func (s *Server) showNews(term *Terminal, u *user.User) error {
 		}
 		scroll := ""
 		if len(news) > rows {
-			scroll = "-- " + term.T("list.range", "FROM", top+1, "TO", end, "TOTAL", len(news)) + " --"
+			scroll = term.T("list.range", "FROM", top+1, "TO", end, "TOTAL", len(news))
 		}
-		b.WriteString("\r\n" + ansi.FG(ansi.Black, true) + scroll + ansi.Reset + "\r\n" + keyHints(term.T("news.keys")) + ansi.Reset)
+		b.WriteString(scrollRule(term, scroll) + "\r\n" + keyHints(term.T("news.keys")) + ansi.Reset)
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}

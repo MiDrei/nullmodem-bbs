@@ -207,7 +207,7 @@ func TestFileAreasLightbarNewCountUnaffectedByJustVisitingList(t *testing.T) {
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
-	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [N] New files   [S] Search   [Q] Back")
+	renders := strings.Split(conn.out.String(), hintMarker("[Up/Down] Move   [Enter] Select   [N] New files   [S] Search   [Q] Back"))
 	if len(renders) < 3 {
 		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
 	}
@@ -242,7 +242,7 @@ func TestFileAreasLightbarNewCountClearsAfterReadingFile(t *testing.T) {
 	if !errors.Is(err, errLogoff) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
-	renders := strings.Split(conn.out.String(), "[Up/Down] Move   [Enter] Select   [N] New files   [S] Search   [Q] Back")
+	renders := strings.Split(conn.out.String(), hintMarker("[Up/Down] Move   [Enter] Select   [N] New files   [S] Search   [Q] Back"))
 	if len(renders) < 3 {
 		t.Fatalf("expected at least two lightbar redraws, got %d: %q", len(renders)-1, conn.out.String())
 	}
@@ -281,7 +281,7 @@ func TestFileListLightbarShowsNewFlagUntilActuallyRead(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back")
+	renders := strings.Split(out, hintMarker("[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back"))
 	if len(renders) < 4 {
 		t.Fatalf("expected at least three file-list redraws, got %d: %q", len(renders)-1, out)
 	}
@@ -327,7 +327,7 @@ func TestFileListLightbarArrowNavigationSelectsSecondFile(t *testing.T) {
 	if !strings.Contains(out, "\x1b[47m\x1b[30mNEW beta.txt") {
 		t.Fatalf("expected beta.txt's row highlighted, got: %q", out)
 	}
-	readerRenders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list")
+	readerRenders := strings.Split(out, hintMarker("[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list"))
 	if len(readerRenders) < 2 {
 		t.Fatalf("expected the reader to open, got: %q", out)
 	}
@@ -412,7 +412,7 @@ func TestReadFileNextPrevNavigatesWithoutReturningToList(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list")
+	renders := strings.Split(out, hintMarker("[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list"))
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, next, prev), got %d: %q", len(renders)-1, out)
 	}
@@ -456,7 +456,7 @@ func TestReadFileNextPrevClampAtEnds(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list")
+	renders := strings.Split(out, hintMarker("[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list"))
 	if len(renders) < 4 {
 		t.Fatalf("expected at least 3 reader redraws (initial, after Prev, after Next), got %d: %q", len(renders)-1, out)
 	}
@@ -520,7 +520,7 @@ func TestFileListScrollsAndKeepsHeaderVisibleWithManyFiles(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back")
+	renders := strings.Split(out, hintMarker("[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back"))
 	if len(renders) < 2 {
 		t.Fatalf("expected at least one file-list redraw, got: %q", out)
 	}
@@ -534,7 +534,7 @@ func TestFileListScrollsAndKeepsHeaderVisibleWithManyFiles(t *testing.T) {
 	if strings.Contains(firstRender, "file40.txt") {
 		t.Fatalf("expected the last file NOT to be visible in the initial (unscrolled) view, got: %q", firstRender)
 	}
-	if !strings.Contains(firstRender, "-- 1-") {
+	if !strings.Contains(plainText(firstRender), " 1-") {
 		t.Fatalf("expected a scroll-position indicator since the list doesn't fit one screen, got: %q", firstRender)
 	}
 }
@@ -559,7 +559,7 @@ func TestFileListArrowKeysClampAtFirstAndLastInsteadOfWrapping(t *testing.T) {
 			t.Fatalf("UploadFile: %v", err)
 		}
 	}
-	readerFooter := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list"
+	readerFooter := hintMarker("[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [D] Download  [Q] Back to list")
 
 	// Up at the very first file must stay put, not wrap to the last.
 	conn := newFakeConn("F\r\n\r\n" + strings.Repeat("\x1b[A", 3) + "\r\nQQQQ\r\n")
@@ -623,7 +623,7 @@ func TestFileListFooterAnchoredRegardlessOfFileCount(t *testing.T) {
 		}
 		out := conn.out.String()
 		colIdx := strings.Index(out, "Filename")
-		hintIdx := strings.Index(out, "[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back")
+		hintIdx := strings.Index(out, hintMarker("[Up/Down] Move   [Enter] View   [D] Download   [U] Upload   [Q] Back"))
 		if colIdx < 0 || hintIdx < 0 || hintIdx < colIdx {
 			t.Fatalf("expected both the column header and the hint line to appear in order, got: %q", out)
 		}
@@ -689,7 +689,7 @@ func TestReadFileArrowsScrollDescriptionInsteadOfSwitchingFiles(t *testing.T) {
 		t.Fatalf("expected the last line NOT to be visible yet (only scrolled down twice), got: %q", out)
 	}
 
-	renders := strings.Split(out, "[Up/Dn] Scroll  [D] Download  [Q] Back to list")
+	renders := strings.Split(out, hintMarker("[Up/Dn] Scroll  [D] Download  [Q] Back to list"))
 	if len(renders) < 6 {
 		t.Fatalf("expected at least 5 reader redraws (initial + 2 down + 2 up), got %d: %q", len(renders)-1, out)
 	}

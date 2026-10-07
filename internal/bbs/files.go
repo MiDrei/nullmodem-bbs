@@ -154,7 +154,7 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 	b.WriteString(columns)
 	b.WriteString(ansi.CRLF)
 
-	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 2
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -209,10 +209,10 @@ func (s *Server) drawFileAreaLightbar(term *Terminal, u *user.User, stats []file
 
 	scrollStatus := ""
 	if len(rows) > available {
-		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(rows)) + " --"
+		scrollStatus = term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(rows))
 	}
-	b.WriteString(ansi.Reset + ansi.CRLF + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + term.T("files.areas_keys") + ansi.Reset)
+	b.WriteString(ansi.Reset + scrollRule(term, scrollStatus) + ansi.CRLF)
+	b.WriteString(keyHints(term.T("files.areas_keys")) + ansi.Reset)
 	return scrollOffset, term.Print(b.String())
 }
 
@@ -371,7 +371,7 @@ outer:
 // drawEmptyFileList shows just the header banner and a hint bar for
 // an area with no files yet -- see messages.go's drawEmptyMessageList.
 func (s *Server) drawEmptyFileList(term *Terminal, area *file.Area) error {
-	return term.Print(s.renderFileListHeader(term, area) + ansi.Reset + term.T("files.empty") + "\r\n\r\n" + ansi.FG(ansi.White, true) + term.T("files.empty_keys") + ansi.Reset)
+	return term.Print(s.renderFileListHeader(term, area) + ansi.Reset + term.T("files.empty") + "\r\n\r\n" + keyHints(term.T("files.empty_keys")) + ansi.Reset)
 }
 
 // drawFileList redraws the header banner plus the Filename/By/Size/
@@ -413,7 +413,7 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 	// row, with no separator row of ours added on top) plus the
 	// footer's own fixed 3 lines (blank + its own scroll-status line,
 	// always reserved even when blank, plus the hint line).
-	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 2
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -462,10 +462,10 @@ func (s *Server) drawFileList(term *Terminal, area *file.Area, files []file.File
 
 	scrollStatus := ""
 	if len(files) > available {
-		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(files)) + " --"
+		scrollStatus = term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(files))
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + term.T("files.list_keys") + ansi.Reset)
+	b.WriteString(ansi.Reset + scrollRule(term, scrollStatus) + ansi.CRLF)
+	b.WriteString(keyHints(term.T("files.list_keys")) + ansi.Reset)
 	return scrollOffset, term.Print(b.String())
 }
 
@@ -611,7 +611,7 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 	// (deployment-customizable, not a fixed line count) plus one
 	// always-reserved blank line ahead of the footer, so a long line
 	// count doesn't wrap the hotkey hint onto a second physical row.
-	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1 + 1
+	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -658,13 +658,12 @@ func (s *Server) drawFileReader(term *Terminal, area *file.Area, files []file.Fi
 		b.WriteString(ansi.CRLF)
 	}
 
-	scrollStatus := ""
+	scrollStatus := scrollRule(term, "")
 	if maxOffset > 0 {
-		scrollStatus = "-- " + term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines) + " --"
+		scrollStatus = scrollRule(term, term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines))
 	}
-	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(footer)
+	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": keyHints(hint)})
+	b.WriteString(ansi.Reset + footer)
 	return maxOffset, term.Print(b.String())
 }
 

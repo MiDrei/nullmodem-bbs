@@ -68,7 +68,7 @@ func TestMessageListThreadView(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := conn.out.String()
-	if !strings.Contains(out, "(2) Topic A") || !strings.Contains(out, "(1) Topic B") || !strings.Contains(out, "[T] All messages") {
+	if !strings.Contains(out, "(2) Topic A") || !strings.Contains(out, "(1) Topic B") || !strings.Contains(plainText(out), "[T] All messages") {
 		t.Fatalf("thread rows missing:\n%q", out)
 	}
 	if strings.Index(out, "(2) Topic A") > strings.Index(out, "(1) Topic B") {

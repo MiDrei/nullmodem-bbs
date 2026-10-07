@@ -170,7 +170,7 @@ func TestNetmailInboxShowsNewFlagUntilRead(t *testing.T) {
 		t.Fatalf("runMenu error = %v, want errLogoff", err)
 	}
 	out := conn.out.String()
-	renders := strings.Split(out, "[Up/Down] Move   [Enter] Read   [C] Compose   [D] Delete   [Q] Back")
+	renders := strings.Split(out, hintMarker("[Up/Down] Move   [Enter] Read   [C] Compose   [D] Delete   [Q] Back"))
 	if len(renders) < 4 {
 		t.Fatalf("expected at least three inbox redraws, got %d: %q", len(renders)-1, out)
 	}
@@ -314,7 +314,7 @@ func TestNetmailListScrollsAndKeepsHeaderAndHintVisible(t *testing.T) {
 	if !strings.Contains(out, "Netmail") {
 		t.Fatalf("header scrolled off screen, want it still present: %q", out)
 	}
-	if !strings.Contains(out, "[Up/Down] Move") {
+	if !strings.Contains(out, hintMarker("[Up/Down] Move")) {
 		t.Fatalf("footer hint scrolled off screen, want it still present: %q", out)
 	}
 	lines := strings.Count(out, "\r\n")
@@ -403,7 +403,7 @@ func TestReadNetmailFooterPaddedToBottomOfScreen(t *testing.T) {
 	if total < 20 {
 		t.Fatalf("drawNetmailReader printed only %d lines for a short message, want the footer padded down near the terminal's 24-row height: %q", total, out)
 	}
-	if !strings.Contains(out, "[N/Right] Next") {
+	if !strings.Contains(out, hintMarker("[N/Right] Next")) {
 		t.Fatalf("expected the hotkey hint in output, got: %q", out)
 	}
 }
@@ -481,7 +481,7 @@ func TestNetmailListArrowKeysClampAtFirstAndLastInsteadOfWrapping(t *testing.T) 
 			t.Fatalf("Send: %v", err)
 		}
 	}
-	readerFooter := "[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [D] Delete  [Q] Back to list"
+	readerFooter := hintMarker("[N/Right] Next  [P/Left] Prev  [Up/Dn] Scroll  [R] Reply  [D] Delete  [Q] Back to list")
 
 	// Up on the already-topmost (newest, MsgThree) row must stay there,
 	// not wrap around to the oldest message at the bottom of the list.

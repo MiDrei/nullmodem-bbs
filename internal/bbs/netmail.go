@@ -186,7 +186,7 @@ func (s *Server) renderNetmailListHeader(term *Terminal, u *user.User) string {
 // drawEmptyNetmailList shows just the header banner and a hint bar
 // for an empty inbox -- see messages.go's drawEmptyMessageList.
 func (s *Server) drawEmptyNetmailList(term *Terminal, u *user.User) error {
-	return term.Print(s.renderNetmailListHeader(term, u) + ansi.Reset + term.T("netmail.empty") + "\r\n\r\n" + ansi.FG(ansi.White, true) + term.T("netmail.empty_keys") + ansi.Reset)
+	return term.Print(s.renderNetmailListHeader(term, u) + ansi.Reset + term.T("netmail.empty") + "\r\n\r\n" + keyHints(term.T("netmail.empty_keys")) + ansi.Reset)
 }
 
 // Fixed filenames for the hand-designed pieces of the netmail inbox
@@ -229,7 +229,7 @@ func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Me
 	b.WriteString(columns)
 	b.WriteString(ansi.CRLF)
 
-	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 3
+	used := strings.Count(header, "\n") + strings.Count(columns, "\n") + 1 + 2
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -280,10 +280,10 @@ func (s *Server) drawNetmailList(term *Terminal, u *user.User, msgs []netmail.Me
 
 	scrollStatus := ""
 	if len(msgs) > available {
-		scrollStatus = "-- " + term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(msgs)) + " --"
+		scrollStatus = term.T("list.range", "FROM", scrollOffset+1, "TO", end, "TOTAL", len(msgs))
 	}
-	b.WriteString(ansi.Reset + "\r\n" + ansi.FG(ansi.White, true) + scrollStatus + ansi.Reset + ansi.CRLF)
-	b.WriteString(ansi.FG(ansi.White, true) + term.T("netmail.list_keys") + ansi.Reset)
+	b.WriteString(ansi.Reset + scrollRule(term, scrollStatus) + ansi.CRLF)
+	b.WriteString(keyHints(term.T("netmail.list_keys")) + ansi.Reset)
 	return term.Print(b.String())
 }
 
@@ -483,7 +483,7 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 	b.WriteString(meta)
 	b.WriteString(ansi.CRLF)
 
-	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1 + 1
+	used := strings.Count(header, "\n") + strings.Count(meta, "\n") + 1 + strings.Count(footerTemplate, "\n") + 1
 	available := term.Height() - used
 	if available < 1 {
 		available = 1
@@ -525,13 +525,12 @@ func (s *Server) drawNetmailReader(term *Terminal, msgs []netmail.Message, idx, 
 		b.WriteString(ansi.CRLF)
 	}
 
-	scrollStatus := ""
+	scrollStatus := scrollRule(term, "")
 	if maxOffset > 0 {
-		scrollStatus = "-- " + term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines) + " --"
+		scrollStatus = scrollRule(term, term.T("read.lines", "FROM", scrollOffset+1, "TO", end, "TOTAL", totalLines))
 	}
-	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": hint})
-	b.WriteString(ansi.Reset + "\r\n")
-	b.WriteString(footer)
+	footer := ansi.Render(footerTemplate, ansi.Vars{"SCROLLSTATUS": scrollStatus, "HINT": keyHints(hint)})
+	b.WriteString(ansi.Reset + footer)
 	return maxOffset, term.Print(b.String())
 }
 

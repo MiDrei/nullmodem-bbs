@@ -73,7 +73,7 @@ func (s *Server) askLoginLanguage(term *Terminal) error {
 			b.WriteString(ansi.FG(ansi.Cyan, true) + " *")
 		}
 	}
-	b.WriteString("\r\n  " + ansi.FG(ansi.Black, true) + term.T("lang.enter_keeps", "LANGUAGE", toCP437(i18n.NameOf(term.Lang))) +
+	b.WriteString("\r\n  " + keyHints(term.T("lang.enter_keeps", "LANGUAGE", toCP437(i18n.NameOf(term.Lang)))) +
 		ansi.FG(ansi.Blue, true) + " " + toCP437("\u00bb") + " " + ansi.Reset)
 	if err := term.Print(b.String()); err != nil {
 		return err

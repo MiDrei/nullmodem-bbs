@@ -41,7 +41,7 @@ func (s *Server) votingBooth(term *Terminal, u *user.User) error {
 			fmt.Fprintf(&b, "  %s%2d%s  %s%s  %s(%s)%s\r\n", ansi.FG(ansi.Cyan, true), i+1, ansi.FG(ansi.White, true),
 				toCP437(p.Question), mark, ansi.FG(ansi.Black, true), term.N("common.count_votes", p.Total), ansi.Reset)
 		}
-		b.WriteString("\r\n  " + term.T("polls.which") + " " + ansi.FG(ansi.Yellow, true))
+		b.WriteString("\r\n  " + keyHints(term.T("polls.which")) + " " + ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func (s *Server) showPoll(term *Terminal, u *user.User, p community.Poll) error 
 	if p.MyVote != 0 {
 		prompt = term.T("polls.change_vote")
 	}
-	b.WriteString("\r\n  " + prompt + " " + term.T("polls.vote_hint") + " " + ansi.FG(ansi.Yellow, true))
+	b.WriteString("\r\n  " + prompt + " " + keyHints(term.T("polls.vote_hint")) + " " + ansi.FG(ansi.Yellow, true))
 	if err := term.Print(b.String()); err != nil {
 		return err
 	}

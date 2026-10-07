@@ -92,9 +92,9 @@ func (s *Server) showDoorBulletin(term *Terminal, x doorBulletin) error {
 		more := end < rows
 		prompt := fmt.Sprintf("\r\n%s-- %s, %s -- %s", ansi.FG(ansi.White, false), toCP437(x.title), term.Time(at).Format("2006-01-02 15:04"), ansi.Reset)
 		if more {
-			prompt += term.T("common.more_back") + " "
+			prompt += keyHints(term.T("common.more_back")) + ansi.Reset + " "
 		} else {
-			prompt += term.T("common.enter_back") + " "
+			prompt += keyHints(term.T("common.enter_back")) + ansi.Reset + " "
 		}
 		if err := term.Print(prompt); err != nil {
 			return err

@@ -566,7 +566,7 @@ func TestLoginLanguageChosenFirst(t *testing.T) {
 	conn := newFakeConn("1alice\r\nY\r\npassword123\r\npassword123\r\nAlice Example\r\nQ\r\n")
 	s.Handle(conn)
 	out := conn.out.String()
-	if !strings.Contains(out, "Enter = Deutsch (Du)") || !strings.Contains(out, "Enter your handle") {
+	if !strings.Contains(plainText(out), "[Enter] Deutsch (Du)") || !strings.Contains(out, "Enter your handle") {
 		t.Fatalf("no English login after choosing it:\n%q", out)
 	}
 	alice, err := users.ByUsername("alice")

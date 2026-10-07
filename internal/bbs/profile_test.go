@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/user"
+	"git.maik.ch/nullmodem/kit/ansi"
 )
 
 // registerProfileUser registers a throwaway first account (which
@@ -177,4 +178,10 @@ func TestProfileTogglesQWKRouting(t *testing.T) {
 // plainText is out without its colours, the way a caller reads it.
 func plainText(out string) string {
 	return regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`).ReplaceAllString(out, "")
+}
+
+// hintMarker is how a key hint line (or a stretch of one) appears in
+// the output, keys coloured -- for splitting output into screens.
+func hintMarker(s string) string {
+	return strings.TrimPrefix(keyHints(s), ansi.FG(ansi.White, true))
 }

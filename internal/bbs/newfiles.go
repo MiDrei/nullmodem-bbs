@@ -37,7 +37,7 @@ func (s *Server) newFiles(term *Terminal, u *user.User) error {
 
 // searchFiles asks for words and lists what matches.
 func (s *Server) searchFiles(term *Terminal, u *user.User) error {
-	if err := term.Print(ansi.Reset + "\r\n" + term.T("files.search_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + keyHints(term.T("files.search_prompt")) + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	q, err := term.ReadLine(false)
@@ -101,13 +101,13 @@ func (s *Server) fileList(term *Terminal, u *user.User, title string, files []fi
 		}
 		keys := term.T("list.key_open")
 		if end < len(files) {
-			keys += ", " + term.T("list.key_more")
+			keys += "  " + term.T("list.key_more")
 		}
 		if offerAllSeen {
-			keys += ", " + term.T("files.key_all_seen")
+			keys += "  " + term.T("files.key_all_seen")
 		}
-		keys += ", " + term.T("list.key_back")
-		fmt.Fprintf(&b, "\r\n  %s (%s): %s", keys, term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(files)), ansi.FG(ansi.Yellow, true))
+		keys += "  " + term.T("list.key_back")
+		fmt.Fprintf(&b, "\r\n  %s%s (%s): %s", keyHints(keys), ansi.Reset, term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(files)), ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}

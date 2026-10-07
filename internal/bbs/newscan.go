@@ -266,14 +266,29 @@ func (s *Server) loginSummary(term *Terminal, u *user.User) error {
 	}
 }
 
-// keyHintPattern is a "[K]" key in a hint line like "[R] Read new".
-var keyHintPattern = regexp.MustCompile(`\[([^\]]+)\]`)
+// keyHintPattern is a "[K]" key in a hint line like "[R] Read new";
+// "[[]" and "[]]" are the bracket keys themselves.
+var keyHintPattern = regexp.MustCompile(`\[(\]|[^\]]+)\]`)
 
 // keyHints colours a hint line the way the screens show keys: grey
 // brackets, a cyan key, white text.
 func keyHints(text string) string {
 	return ansi.FG(ansi.White, true) + keyHintPattern.ReplaceAllString(text,
 		ansi.FG(ansi.Black, true)+"["+ansi.FG(ansi.Cyan, true)+"$1"+ansi.FG(ansi.Black, true)+"]"+ansi.FG(ansi.White, true))
+}
+
+// scrollRule is the line between a scrolling list or text and its key
+// hints: the frame's blue rule across the screen, with where the view
+// is ("1-15 of 38") set into its right end when there's more to see.
+func scrollRule(term *Terminal, status string) string {
+	const rule = "\xc4"
+	w := term.Width()
+	if status == "" {
+		return fgDim(ansi.Blue) + strings.Repeat(rule, w) + ansi.Reset
+	}
+	fill := max(2, w-len(status)-4)
+	return fgDim(ansi.Blue) + strings.Repeat(rule, fill) + " " + ansi.FG(ansi.Black, true) + status + " " +
+		fgDim(ansi.Blue) + strings.Repeat(rule, max(0, w-fill-len(status)-2)) + ansi.Reset
 }
 
 // areaLookup returns each message's area, looked up once.
@@ -296,7 +311,7 @@ func (s *Server) areaLookup() func(*message.Message) *message.Area {
 // (subject, text, from, to) in the areas the caller may read; a number
 // reads from there, N/P stepping through the results.
 func (s *Server) searchMessages(term *Terminal, u *user.User) error {
-	if err := term.Print(ansi.Reset + "\r\n" + term.T("search.prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + keyHints(term.T("search.prompt")) + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	q, err := term.ReadLine(false)
@@ -339,9 +354,9 @@ func (s *Server) searchMessages(term *Terminal, u *user.User) error {
 		}
 		keys := term.T("search.key_read")
 		if end < len(msgs) {
-			keys += ", " + term.T("list.key_more")
+			keys += "  " + term.T("list.key_more")
 		}
-		fmt.Fprintf(&b, "\r\n  %s, %s (%s): %s", keys, term.T("list.key_back"), term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(msgs)), ansi.FG(ansi.Yellow, true))
+		fmt.Fprintf(&b, "\r\n  %s%s (%s): %s", keyHints(keys+"  "+term.T("list.key_back")), ansi.Reset, term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(msgs)), ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}

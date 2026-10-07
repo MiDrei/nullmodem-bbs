@@ -101,7 +101,7 @@ func (s *Server) sendNodeMessage(term *Terminal, u *user.User) error {
 	if len(others) == 0 {
 		return nil
 	}
-	if err := term.Print(ansi.Reset + "\r\n" + term.T("who.send_prompt") + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + keyHints(term.T("who.send_prompt")) + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	in, err := term.ReadLine(false)
@@ -264,7 +264,7 @@ func (s *Server) pageSysop(term *Terminal, u *user.User) error {
 			}
 		}
 	}
-	if err := term.Print(ansi.Reset + "\r\n" + term.T("chat.page_prompt") + "\r\n" + ansi.FG(ansi.Yellow, true)); err != nil {
+	if err := term.Print(ansi.Reset + "\r\n" + keyHints(term.T("chat.page_prompt")) + "\r\n" + ansi.FG(ansi.Yellow, true)); err != nil {
 		return err
 	}
 	reason, err := term.ReadLine(false)
