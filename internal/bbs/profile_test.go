@@ -185,3 +185,23 @@ func plainText(out string) string {
 func hintMarker(s string) string {
 	return strings.TrimPrefix(keyHints(s), ansi.FG(ansi.White, true))
 }
+
+// The profile fits the screen in every language: a line as wide as the
+// terminal wraps, leaving a blank row after it.
+func TestProfileFitsInEveryLanguage(t *testing.T) {
+	s := testServer(t)
+	u, _ := s.Users.Register("SwissMaik", "password123", 20)
+	for _, lang := range []string{"en", "de", "de-du"} {
+		conn := newFakeConn("Q\r")
+		term := NewTerminal(conn)
+		term.Lang = lang
+		if err := s.showProfile(term, u); err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range strings.Split(plainText(conn.out.String()), "\r\n") {
+			if len(line) > term.Width() {
+				t.Errorf("%s: %d wide: %q", lang, len(line), line)
+			}
+		}
+	}
+}

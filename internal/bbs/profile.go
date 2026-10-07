@@ -126,7 +126,12 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			if i%3 == 0 {
 				b.WriteString("  ")
 			}
-			b.WriteString(profileOption(o[0], padCP(o[1], 22)))
+			// Three columns in 79: 2 + 25 + 25 + the last unpadded.
+			label := o[1]
+			if i%3 != 2 && i != len(options)-1 {
+				label = padCP(label, 21)
+			}
+			b.WriteString(profileOption(o[0], label))
 			if i%3 == 2 || i == len(options)-1 {
 				b.WriteString(ansi.Reset + "\r\n")
 			}
