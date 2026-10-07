@@ -146,7 +146,6 @@ func (s *Server) showOneliners(term *Terminal, u *user.User) error {
 	}
 	var b strings.Builder
 	b.WriteString(s.featureHeader(term, u, "oneliners.ans", term.T("common.one_liners")))
-	b.WriteString(fgDim(ansi.Blue) + "  " + strings.Repeat("\xc4", 76) + ansi.Reset + "\r\n")
 	if len(list) == 0 {
 		b.WriteString(fgDim(ansi.White) + "  " + term.T("oneliners.empty") + ansi.Reset + "\r\n")
 	}
