@@ -21,3 +21,5 @@
 # Binaries from a go build in the repo root
 /bbs
 /mailer
+# Local working notes, not published
+CLAUDE.md
