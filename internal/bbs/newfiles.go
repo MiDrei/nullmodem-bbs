@@ -57,6 +57,10 @@ func (s *Server) searchFiles(term *Terminal, u *user.User) error {
 	return s.fileList(term, u, term.T("files.matching", "QUERY", q), files, false)
 }
 
+// newFilesScreen is the banner over the new files and file search
+// lists; its {TITLE} says which.
+const newFilesScreen = "newfiles.ans"
+
 // fileList pages through files, two lines each; a number opens one,
 // A (offerAllSeen) marks everything seen.
 func (s *Server) fileList(term *Terminal, u *user.User, title string, files []file.File, offerAllSeen bool) error {
@@ -72,12 +76,13 @@ func (s *Server) fileList(term *Terminal, u *user.User, title string, files []fi
 		areas[id] = a
 		return a
 	}
-	perPage := max(3, (term.Height()-5)/2)
+	header := s.featureHeader(term, u, newFilesScreen, title)
+	perPage := max(3, (term.Height()-strings.Count(header, "\n")-3)/2)
 	start := 0
 	for {
 		end := min(start+perPage, len(files))
 		var b strings.Builder
-		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + "  " + title + ansi.Reset + "\r\n\r\n")
+		b.WriteString(header)
 		for i := start; i < end; i++ {
 			f := files[i]
 			name := []rune(f.Filename)

@@ -807,7 +807,7 @@ func (s *Server) featureHeader(term *Terminal, u *user.User, screenFile, title s
 	if err != nil {
 		return ansi.ClearScreen() + ansi.Reset + "\r\n" + ansi.FG(ansi.Cyan, true) + "  " + title + ansi.Reset + "\r\n"
 	}
-	vars := ansi.Vars{"BBSNAME": s.BBSName, "SYSOP": s.SysopName}
+	vars := ansi.Vars{"BBSNAME": s.BBSName, "SYSOP": s.SysopName, "TITLE": title}
 	if u != nil {
 		vars["USERNAME"], vars["SL"] = u.Username, strconv.Itoa(u.SecurityLevel)
 	}

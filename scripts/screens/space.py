@@ -347,6 +347,8 @@ def lists():
         both(name,lambda de,title=title: feature(head_sysop,title,de))
     for name,title in (('nodelist','common.nodelists'),('qwkget','menu.item.qwk_get'),('qwkput','menu.item.qwk_put')):
         both(name,lambda de,title=title: feature(head_messages,title,de))
+    # New files and file search share one list: its title is the board's.
+    out['newfiles']=(list_head(head_files(),'{TITLE}')+'\r\n',None)
     return out
 
 # ---------------- welcome ----------------
