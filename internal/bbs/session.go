@@ -812,7 +812,13 @@ func (s *Server) featureHeader(term *Terminal, u *user.User, screenFile, title s
 		vars["USERNAME"], vars["SL"] = u.Username, strconv.Itoa(u.SecurityLevel)
 	}
 	rendered := ansi.Render(ansi.StripLeadingScreenClear(raw), vars)
-	return ansi.ClearScreen() + finishHeaderLine(ansi.Layout(rendered, term.Width()))
+	head := finishHeaderLine(ansi.Layout(rendered, term.Width()))
+	// What follows starts right under the title line: the banners'
+	// own blank line after it is dropped.
+	if strings.HasSuffix(head, "\r\n\r\n") {
+		head = strings.TrimSuffix(head, "\r\n")
+	}
+	return ansi.ClearScreen() + head
 }
 
 func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
@@ -826,7 +832,7 @@ func renderMenu(m *menu.Menu, securityLevel int, vars ansi.Vars) string {
 // informational output like a stats or who's-online listing would be
 // wiped by that redraw before a caller could ever read it.
 func (s *Server) pauseForKey(term *Terminal) error {
-	if err := term.Print("\n" + ansi.FG(ansi.White, true) + term.T("common.press_enter") + ansi.Reset); err != nil {
+	if err := term.Print("\n" + keyHints(term.T("common.press_enter")) + ansi.Reset); err != nil {
 		return err
 	}
 	_, err := term.ReadLine(false)

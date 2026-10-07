@@ -46,11 +46,6 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 
 	cur, top := 0, 0
 	header := s.featureHeader(term, u, myAreasScreen, term.T("common.my_areas"))
-	// A list, like the area list: its count line right under the
-	// title, not after the banners' blank line.
-	if strings.HasSuffix(header, "\r\n\r\n") {
-		header = strings.TrimSuffix(header, "\r\n")
-	}
 	// Header, the count line, the rows, the rule and the key hints:
 	// the hints on the screen's last line.
 	rows := max(3, term.Height()-strings.Count(header, "\n")-3)

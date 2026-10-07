@@ -4,7 +4,7 @@
 
 # Allgemein
 common.nothing_found: "Nichts gefunden."
-common.press_enter: "Weiter mit Enter..."
+common.press_enter: "[Enter] Weiter"
 common.choice: "Auswahl:"
 common.unknown_choice: "Unbekannte Auswahl."
 common.invalid_selection: "Ungültige Auswahl."

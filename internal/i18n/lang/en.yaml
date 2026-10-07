@@ -3,7 +3,7 @@
 
 # Shared
 common.nothing_found: "Nothing found."
-common.press_enter: "Press Enter to continue..."
+common.press_enter: "[Enter] Continue"
 common.choice: "Choice:"
 common.unknown_choice: "Unknown choice."
 common.invalid_selection: "Invalid selection."
