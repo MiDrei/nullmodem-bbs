@@ -330,12 +330,13 @@ func (s *Server) searchMessages(term *Terminal, u *user.User) error {
 		return s.scanNote(term, term.T("common.nothing_found"))
 	}
 	areaOf := s.areaLookup()
-	perPage := max(5, term.Height()-6)
+	header := s.featureHeader(term, u, "msgsearch.ans", term.T("search.title", "QUERY", q))
+	perPage := max(5, term.Height()-strings.Count(header, "\n")-2)
 	start := 0
 	for {
 		end := min(start+perPage, len(msgs))
 		var b strings.Builder
-		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.FG(ansi.Cyan, true) + "  " + term.T("search.title", "QUERY", q) + ansi.Reset + "\r\n\r\n")
+		b.WriteString(header)
 		cut := func(v string, n int) string {
 			r := []rune(v)
 			if len(r) > n {
@@ -356,7 +357,7 @@ func (s *Server) searchMessages(term *Terminal, u *user.User) error {
 		if end < len(msgs) {
 			keys += "  " + term.T("list.key_more")
 		}
-		fmt.Fprintf(&b, "\r\n  %s%s (%s): %s", keyHints(keys+"  "+term.T("list.key_back")), ansi.Reset, term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(msgs)), ansi.FG(ansi.Yellow, true))
+		fmt.Fprintf(&b, "%s\r\n%s%s (%s): %s", scrollRule(term, ""), keyHints(keys+"  "+term.T("list.key_back")), ansi.Reset, term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(msgs)), ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}

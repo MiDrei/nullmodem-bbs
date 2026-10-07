@@ -312,6 +312,7 @@ def lists():
         +sgr(5)+T('msg.to',-9,de)+sgr(15)+'{TO:-40}\r\n'+sgr(5)+T('msg.subject',-9,de)+sgr(13)+'{SUBJECT:-70}\r\n'+rule())
     out['netread-footer']=out['msgread-footer']
     both('netpost',lambda de: list_head(nethead(),T('netmail.compose_title',None,de))+'\r\n')
+    both('netreply',lambda de: list_head(nethead(),T('netmail.reply_title',None,de))+'\r\n')
 
     # Files: green, with the files menu's asteroids.
     def rocks(a):
@@ -345,10 +346,11 @@ def lists():
     for name,title in (('sysusers','screen.sysop.listusers'),('syssetsl','screen.sysop.setsl'),('sysarea','screen.sysop.createarea'),
                        ('sysfilearea','screen.sysop.createfilearea'),('sysimport','screen.sysop.importfile')):
         both(name,lambda de,title=title: feature(head_sysop,title,de))
-    for name,title in (('nodelist','common.nodelists'),('qwkget','menu.item.qwk_get'),('qwkput','menu.item.qwk_put')):
+    for name,title in (('nodelist','common.nodelists'),('qwkget','menu.item.qwk_get'),('qwkput','menu.item.qwk_put'),('myareas','common.my_areas')):
         both(name,lambda de,title=title: feature(head_messages,title,de))
     # New files and file search share one list: its title is the board's.
     out['newfiles']=(list_head(head_files(),'{TITLE}')+'\r\n',None)
+    out['msgsearch']=(list_head(head_messages(),'{TITLE}')+'\r\n',None)
     return out
 
 # ---------------- welcome ----------------

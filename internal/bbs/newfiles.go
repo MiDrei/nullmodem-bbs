@@ -77,7 +77,7 @@ func (s *Server) fileList(term *Terminal, u *user.User, title string, files []fi
 		return a
 	}
 	header := s.featureHeader(term, u, newFilesScreen, title)
-	perPage := max(3, (term.Height()-strings.Count(header, "\n")-3)/2)
+	perPage := max(3, (term.Height()-strings.Count(header, "\n")-2)/2)
 	start := 0
 	for {
 		end := min(start+perPage, len(files))
@@ -112,7 +112,7 @@ func (s *Server) fileList(term *Terminal, u *user.User, title string, files []fi
 			keys += "  " + term.T("files.key_all_seen")
 		}
 		keys += "  " + term.T("list.key_back")
-		fmt.Fprintf(&b, "\r\n  %s%s (%s): %s", keyHints(keys), ansi.Reset, term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(files)), ansi.FG(ansi.Yellow, true))
+		fmt.Fprintf(&b, "%s\r\n%s%s (%s): %s", scrollRule(term, ""), keyHints(keys), ansi.Reset, term.T("list.range", "FROM", start+1, "TO", end, "TOTAL", len(files)), ansi.FG(ansi.Yellow, true))
 		if err := term.Print(b.String()); err != nil {
 			return err
 		}

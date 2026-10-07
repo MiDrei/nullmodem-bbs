@@ -383,7 +383,7 @@ func (s *Server) replyToNetmail(term *Terminal, u *user.User, original *netmail.
 		}
 	}
 	subject := replySubject(original.Subject)
-	if err := term.Print(ansi.ClearScreen() + ansi.Reset + "\n" + ansi.FG(ansi.Magenta, true) + term.T("netmail.reply_title") + ansi.Reset); err != nil {
+	if err := term.Print(s.featureHeader(term, u, "netreply.ans", term.T("netmail.reply_title"))); err != nil {
 		return err
 	}
 	if err := term.Println(ansi.Reset + "\n" + ansi.FG(ansi.Cyan, true) + term.T("msg.to") + " " + ansi.Reset + original.FromName); err != nil {

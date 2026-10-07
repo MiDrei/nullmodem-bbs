@@ -16,6 +16,9 @@ import (
 // the reader app include. Areas added later are in by default.
 // Up/Down move, Space toggles, G the whole network, A all, N none,
 // S (or Enter) saves, Q/Esc leaves without saving.
+// myAreasScreen is the banner over "my areas".
+const myAreasScreen = "myareas.ans"
+
 func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 	stats, err := s.Messages.ListAreaStats(u.SecurityLevel, u.ID)
 	if err != nil {
@@ -42,7 +45,10 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 	}
 
 	cur, top := 0, 0
-	rows := max(3, term.Height()-6)
+	header := s.featureHeader(term, u, myAreasScreen, term.T("common.my_areas"))
+	// Header, the count line, the rows, the rule and the key hints:
+	// the hints on the screen's last line.
+	rows := max(3, term.Height()-strings.Count(header, "\n")-3)
 	width := term.Width()
 	draw := func() error {
 		if cur < top {
@@ -58,12 +64,7 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 			}
 		}
 		var b strings.Builder
-		// The title line the list screens have, without their art: the
-		// list needs the screen's height.
-		title := fgDim(ansi.Blue) + "\xc4\xb4 " + ansi.FG(ansi.White, true) + s.BBSName + fgDim(ansi.Blue) + " \xc3{FILL:\xc4}\xb4 " +
-			ansi.FG(ansi.Cyan, true) + term.T("common.my_areas") + fgDim(ansi.Blue) + " \xc3\xc4"
-		b.WriteString(ansi.ClearScreen() + ansi.Reset + ansi.Layout(title, width) + ansi.Reset + "\r\n" +
-			"  " + fgDim(ansi.White) + term.T("myareas.count", "COUNT", n, "TOTAL", len(stats)) + ansi.Reset + "\r\n\r\n")
+		b.WriteString(header + "  " + fgDim(ansi.White) + term.T("myareas.count", "COUNT", n, "TOTAL", len(stats)) + ansi.Reset + "\r\n")
 		nameW := max(20, width-30)
 		for i := top; i < min(top+rows, len(stats)); i++ {
 			st := stats[i]
@@ -93,7 +94,11 @@ func (s *Server) configureQWKAreas(term *Terminal, u *user.User) error {
 		for i := min(top+rows, len(stats)) - top; i < rows; i++ {
 			b.WriteString("\r\n")
 		}
-		b.WriteString("\r\n" + keyHints(term.T("myareas.keys")) + ansi.Reset)
+		scroll := ""
+		if len(stats) > rows {
+			scroll = term.T("list.range", "FROM", top+1, "TO", min(top+rows, len(stats)), "TOTAL", len(stats))
+		}
+		b.WriteString(scrollRule(term, scroll) + "\r\n" + keyHints(term.T("myareas.keys")) + ansi.Reset)
 		return term.Print(b.String())
 	}
 	setNetwork := func(network string) {
