@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/chat"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/discord"
-	"git.maik.ch/nullmodem/bbs/internal/matrix"
+	"github.com/midrei/nullmodem-bbs/internal/chat"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/discord"
+	"github.com/midrei/nullmodem-bbs/internal/matrix"
 )
 
 // The rooms callers may enter (the teleconference and the sysop's

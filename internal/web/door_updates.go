@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/doors"
-	"git.maik.ch/nullmodem/bbs/internal/services"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/doors"
+	"github.com/midrei/nullmodem-bbs/internal/services"
 )
 
 // DoorUpdateCheckEvery is how often RunDoorUpdateCheck asks the doors'

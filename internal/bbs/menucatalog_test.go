@@ -3,7 +3,7 @@ package bbs
 import (
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/menu"
+	"github.com/midrei/nullmodem-bbs/internal/menu"
 )
 
 // The menu editor offers menu.Builtins: exactly the commands there are.

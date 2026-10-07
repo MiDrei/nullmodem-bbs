@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/push"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/push"
 )
 
 // The mobile reader's notifications (internal/push): the device asks

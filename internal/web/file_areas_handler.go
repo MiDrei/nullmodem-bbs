@@ -9,7 +9,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 
-	"git.maik.ch/nullmodem/bbs/internal/file"
+	"github.com/midrei/nullmodem-bbs/internal/file"
 )
 
 const maxUploadBytes = 100 << 20 // 100 MiB, a sane cap for a BBS file library

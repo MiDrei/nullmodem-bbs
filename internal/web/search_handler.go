@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/message"
+	"github.com/midrei/nullmodem-bbs/internal/message"
 )
 
 // Message search for the portal and the reader.

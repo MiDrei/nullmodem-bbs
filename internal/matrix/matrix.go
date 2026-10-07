@@ -24,8 +24,8 @@ import (
 	"time"
 	"unicode"
 
-	"git.maik.ch/nullmodem/bbs/internal/chat"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/chat"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 )
 
 // MaxAge: lines older than this when the bridge gets to them stay here.

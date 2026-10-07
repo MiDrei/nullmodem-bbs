@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/areafix"
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
-	"git.maik.ch/nullmodem/bbs/internal/tosser"
+	"github.com/midrei/nullmodem-bbs/internal/areafix"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/tosser"
 )
 
 // Asking a hub what it has linked to us (%QUERY), and taking its word

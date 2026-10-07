@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/backup"
-	"git.maik.ch/nullmodem/bbs/internal/health"
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/stats"
-	"git.maik.ch/nullmodem/bbs/internal/user"
-	"git.maik.ch/nullmodem/bbs/internal/version"
+	"github.com/midrei/nullmodem-bbs/internal/backup"
+	"github.com/midrei/nullmodem-bbs/internal/health"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/stats"
+	"github.com/midrei/nullmodem-bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/version"
 )
 
 // The monthly recap: on the 1st (from RecapHour on), a netmail to every

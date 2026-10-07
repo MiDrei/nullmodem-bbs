@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // The board speaks several languages (internal/i18n): a caller reads

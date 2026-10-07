@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/services"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/services"
 )
 
 // serviceDTO is one daemon on the admin's Services page.

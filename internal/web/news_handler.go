@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/community"
+	"github.com/midrei/nullmodem-bbs/internal/community"
 )
 
 // newsDTO is a news item as the admin edits it: expires_at a date

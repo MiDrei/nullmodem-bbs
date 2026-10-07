@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestListUnresolvedNetmailReturnsUndeliverableMail(t *testing.T) {

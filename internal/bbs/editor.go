@@ -2,11 +2,11 @@ package bbs
 
 import (
 	"fmt"
-	"git.maik.ch/nullmodem/bbs/internal/textfmt"
+	"github.com/midrei/nullmodem-bbs/internal/textfmt"
 	"strconv"
 	"strings"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // editorCommand identifies one of the classic BBS line-editor slash

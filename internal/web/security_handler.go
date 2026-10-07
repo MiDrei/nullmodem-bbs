@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/guard"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/guard"
 )
 
 // The web admin's Security page: login protection (internal/guard) and

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/message"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/message"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestMessageAreasListAndReadSeededArea(t *testing.T) {

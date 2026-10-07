@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/chat"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/chat"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func chatServer(t *testing.T) *Server {

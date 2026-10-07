@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // configureQWKAreas is the "builtin:qwkareas" command, "My areas": a

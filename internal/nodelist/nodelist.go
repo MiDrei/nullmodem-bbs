@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // Entry is one system in a nodelist.

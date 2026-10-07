@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"git.maik.ch/nullmodem/bbs/internal/textfmt"
+	"github.com/midrei/nullmodem-bbs/internal/textfmt"
 	"net/http"
 	"strconv"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/message"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/message"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // defaultMessagePageSize/maxMessagePageSize bound the ?limit= query

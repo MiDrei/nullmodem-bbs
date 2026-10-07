@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/ansiimg"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/message"
+	"github.com/midrei/nullmodem-bbs/internal/ansiimg"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/message"
 )
 
 // Sharing the board: a link to it shows a preview (OpenGraph tags in

@@ -164,28 +164,19 @@ zusätzlich `-v "$PWD/configs/web.yaml:/app/configs/web.yaml"`). Der
 
 ## Versionierte Image-Tags
 
-Jedes Image in der Registry bekommt einen mitlaufenden Tag `latest` und
-einen festen nach `internal/version.Version` (`vX.Y.Z[-dev]`, dieselbe
-Angabe wie im Begrüssungsbildschirm -- siehe
-`configs/screens/welcome.ans`). So kann ein produktiver Betrieb auf eine
-bestimmte Version festgelegt und auf sie zurückgerollt werden, statt
-immer dem zuletzt hochgeladenen Image zu folgen:
+Jeder Release-Tag (`vX.Y.Z`) auf GitHub baut das Image für `amd64` und
+`arm64` und veröffentlicht es in der GitHub Container Registry, mit
+diesem Tag und `latest`:
 
 ```sh
-VTAG=$(grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+(-dev)?' internal/version/version.go)
-docker build --build-arg COMMIT=$(git rev-parse --short HEAD) -t nullmodem-bbs:latest .
-docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:latest
-docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:"$VTAG"
-docker push git.maik.ch/nullmodem/bbs:latest
-docker push git.maik.ch/nullmodem/bbs:"$VTAG"
+docker pull ghcr.io/midrei/nullmodem-bbs:vX.Y.Z
 ```
 
-Eine Installation (z. B. `~/nullmodem-deploy/docker-compose.yml` auf
-apollo) nennt in ihren `image:`-Zeilen den festen Tag `vX.Y.Z[-dev]`,
-nicht `latest`, und geht bewusst einen Schritt weiter mit
-`docker compose pull && docker compose up -d`, sobald es einen neuen Tag
-gibt -- sonst wird dort nichts direkt geändert (lokal entwickeln und
-committen, in Produktion nur über ein frisch hochgeladenes Image).
+Statt selbst zu bauen, kann man das Image in den `image:`-Zeilen der
+`docker-compose.yml` verwenden. Eine Installation besser auf einen
+Versions-Tag festlegen als auf `latest` und bewusst mit
+`docker compose pull && docker compose up -d` weitergehen, sobald es
+einen neuen gibt -- zurück geht es genauso mit dem vorherigen Tag.
 
 ## Fremdsoftware
 

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/stats"
+	"github.com/midrei/nullmodem-bbs/internal/stats"
 )
 
 var (

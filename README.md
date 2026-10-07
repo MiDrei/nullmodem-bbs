@@ -2,6 +2,8 @@
 
 **English** · [Deutsch](README.de.md)
 
+[![CI](https://github.com/midrei/nullmodem-bbs/actions/workflows/ci.yml/badge.svg)](https://github.com/midrei/nullmodem-bbs/actions/workflows/ci.yml)
+
 A bulletin board system in the style of Synchronet, Mystic and ENiGMA½ — over
 Telnet and SSH with ANSI/CP437 like in the nineties, plus a web portal for
 callers, a web administration for the sysop and an FTN mailer for FidoNet,
@@ -13,8 +15,8 @@ Part of the NullModem family:
 | Repo | Contents |
 |---|---|
 | **bbs** (this one) | the BBS itself |
-| [kit](https://git.maik.ch/nullmodem/kit) | shared foundation: ANSI/CP437, QWK/QWKE, Zmodem |
-| [reader](https://git.maik.ch/nullmodem/reader) | NullModem Reader (`nmr`), offline reader for this BBS's QWK mail |
+| [kit](https://github.com/midrei/nullmodem-kit) | shared foundation: ANSI/CP437, QWK/QWKE, Zmodem |
+| [reader](https://github.com/midrei/nullmodem-reader) | NullModem Reader (`nmr`), offline reader for this BBS's QWK mail |
 
 ## What it does
 
@@ -153,6 +155,9 @@ docker compose up -d --build
 telnet localhost 2323        # register first = sysop
 ```
 
+Or without building: put `image: ghcr.io/midrei/nullmodem-bbs:latest` (or a
+version tag) in `docker-compose.yml`'s three `image:` lines and drop `--build`.
+
 Then log in at `http://localhost:8090/admin` with the same account.
 Configuration, the data directory, your own screens, multi-arch builds and
 versioned images: [docs/docker.md](docs/docker.md).
@@ -193,6 +198,13 @@ go test ./...
   and its licenses
 - [scripts/multimail/README.md](scripts/multimail/README.md) — QWK exchange
   by script, e.g. for MultiMail
+
+## Contributing
+
+Bugs and ideas: [issues](https://github.com/midrei/nullmodem-bbs/issues).
+Pull requests are welcome -- see [CONTRIBUTING.md](CONTRIBUTING.md) for how to
+build, test and the project's conventions. Security problems please report
+privately: [SECURITY.md](SECURITY.md).
 
 ## Third-party software
 

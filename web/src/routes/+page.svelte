@@ -206,7 +206,7 @@
 					<div class="flex items-center gap-2 font-semibold text-ink-strong"><Icon name="qwk" />{t('web.home.qwk')}</div>
 					<p class="text-sm text-ink-soft">
 						{t('web.home.qwk_text1')}
-						<a href="https://git.maik.ch/nullmodem/reader/releases" class="text-accent hover:underline" target="_blank" rel="noopener">NullModem Reader</a>
+						<a href="https://github.com/midrei/nullmodem-reader/releases" class="text-accent hover:underline" target="_blank" rel="noopener">NullModem Reader</a>
 						{t('web.home.qwk_text2')}
 						<span class="font-mono">O</span> / <span class="font-mono">U</span>.
 					</p>

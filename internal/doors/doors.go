@@ -44,7 +44,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 	"io"
 	"os"
 	"os/exec"

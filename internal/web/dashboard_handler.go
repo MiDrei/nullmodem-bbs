@@ -1,12 +1,12 @@
 package web
 
 import (
-	"git.maik.ch/nullmodem/bbs/internal/health"
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/health"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
 	"net/http"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/version"
+	"github.com/midrei/nullmodem-bbs/internal/version"
 )
 
 type nodeDTO struct {

@@ -9,7 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"git.maik.ch/nullmodem/bbs/internal/textclean"
+	"github.com/midrei/nullmodem-bbs/internal/textclean"
 	"regexp"
 	"strings"
 	"sync"

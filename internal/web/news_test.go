@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/community"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/community"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestNewsAdminAndPublic(t *testing.T) {

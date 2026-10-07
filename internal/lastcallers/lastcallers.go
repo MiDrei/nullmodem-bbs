@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/message"
+	"github.com/midrei/nullmodem-bbs/internal/message"
 )
 
 // Subject and From are what a record written here is posted under.

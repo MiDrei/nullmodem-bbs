@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 type userDTO struct {

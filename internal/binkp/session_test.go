@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/version"
+	"github.com/midrei/nullmodem-bbs/internal/version"
 )
 
 // runPair runs originatorCfg and answererCfg against each other over

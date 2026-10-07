@@ -14,7 +14,7 @@
 # script or a scheduled task) -- an env var always wins if both are
 # set. Leaving Username/Password blank prompts for them instead.
 
-$BbsUrl = "https://bbs.maik.ch"
+$BbsUrl = "https://bbs.example.com"
 $Username = ""    # e.g. "alice"
 $Password = ""    # leave blank to be prompted each run
 $QwkDown = ""     # leave blank for the default (%USERPROFILE%\nullmodem-qwk\incoming)

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/mail"
-	"git.maik.ch/nullmodem/bbs/internal/message"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/mail"
+	"github.com/midrei/nullmodem-bbs/internal/message"
 )
 
 // Points of this system -- downlinks with a point address, 21:3/194.1

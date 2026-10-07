@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // pipeConn adapts a real net.Conn (from net.Pipe, which -- unlike

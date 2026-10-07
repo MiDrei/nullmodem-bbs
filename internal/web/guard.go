@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/guard"
+	"github.com/midrei/nullmodem-bbs/internal/guard"
 )
 
 // clientIP is the caller's address. Behind a reverse proxy (Caddy on
-// apollo) the request comes from loopback -- or, with Docker's port
+// a Docker deployment) the request comes from loopback -- or, with Docker's port
 // mapping in between, from the Docker network's gateway, a private
 // address -- and the caller is the last X-Forwarded-For entry, the one
 // the proxy added. From a public address the header is ignored: anyone

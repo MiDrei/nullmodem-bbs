@@ -8,11 +8,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/chat"
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/chat"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // Callers meeting each other: the one-liners wall, node messages

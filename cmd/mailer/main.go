@@ -14,7 +14,7 @@
 package main
 
 import (
-	"git.maik.ch/nullmodem/bbs/internal/nodelist"
+	"github.com/midrei/nullmodem-bbs/internal/nodelist"
 	// Time zones built in: TZ (e.g. Europe/Zurich) works whether the
 	// image has a zoneinfo database or not.
 	_ "time/tzdata"
@@ -23,7 +23,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"git.maik.ch/nullmodem/bbs/internal/maintenance"
+	"github.com/midrei/nullmodem-bbs/internal/maintenance"
 	"log"
 	"net"
 	"os"
@@ -34,19 +34,19 @@ import (
 	"syscall"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/applog"
-	"git.maik.ch/nullmodem/bbs/internal/archive"
-	"git.maik.ch/nullmodem/bbs/internal/areafix"
-	"git.maik.ch/nullmodem/bbs/internal/binkplog"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/db"
-	"git.maik.ch/nullmodem/bbs/internal/file"
-	"git.maik.ch/nullmodem/bbs/internal/message"
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
-	"git.maik.ch/nullmodem/bbs/internal/services"
-	"git.maik.ch/nullmodem/bbs/internal/tosser"
-	"git.maik.ch/nullmodem/bbs/internal/user"
-	"git.maik.ch/nullmodem/bbs/internal/version"
+	"github.com/midrei/nullmodem-bbs/internal/applog"
+	"github.com/midrei/nullmodem-bbs/internal/archive"
+	"github.com/midrei/nullmodem-bbs/internal/areafix"
+	"github.com/midrei/nullmodem-bbs/internal/binkplog"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/file"
+	"github.com/midrei/nullmodem-bbs/internal/message"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/services"
+	"github.com/midrei/nullmodem-bbs/internal/tosser"
+	"github.com/midrei/nullmodem-bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/version"
 )
 
 // checkInterval is how often the daemon checks which uplinks are due

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/doors"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/doors"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // slowConn hands out its input a byte at a time, as slowly as someone

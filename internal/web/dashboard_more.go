@@ -4,10 +4,10 @@ import (
 	"os"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/applog"
-	"git.maik.ch/nullmodem/bbs/internal/backup"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/offsite"
+	"github.com/midrei/nullmodem-bbs/internal/applog"
+	"github.com/midrei/nullmodem-bbs/internal/backup"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/offsite"
 )
 
 // uplinkStatusDTO is how the mailer gets on with one uplink, from the

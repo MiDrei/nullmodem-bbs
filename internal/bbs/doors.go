@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/doors"
-	"git.maik.ch/nullmodem/bbs/internal/user"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/doors"
+	"github.com/midrei/nullmodem-bbs/internal/user"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // showDoors is the "builtin:doors" command: a numbered list (like

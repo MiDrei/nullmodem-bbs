@@ -15,8 +15,8 @@ import (
 	"filippo.io/age"
 	"golang.org/x/net/webdav"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/db"
 )
 
 // roundTrip runs Test, then a real copy with pruning, against cfg.

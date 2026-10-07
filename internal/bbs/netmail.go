@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
-	"git.maik.ch/nullmodem/bbs/internal/user"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/user"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // mergeNetmailByPostedAt combines a and b (each already sorted newest-

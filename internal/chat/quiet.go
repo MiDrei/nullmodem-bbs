@@ -1,6 +1,6 @@
 package chat
 
-import "git.maik.ch/nullmodem/bbs/internal/user"
+import "github.com/midrei/nullmodem-bbs/internal/user"
 
 // QuietSysops is a Store.Quiet for the sysops (security level 255),
 // unless announce says they are announced.

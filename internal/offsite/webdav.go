@@ -11,7 +11,7 @@ import (
 	"path"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 )
 
 // WebDAV: a folder on Nextcloud, ownCloud, kDrive, a Storage Box ...

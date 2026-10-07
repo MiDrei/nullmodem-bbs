@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/db"
 )
 
 func newTestEchoStore(t *testing.T) *EchoStore {

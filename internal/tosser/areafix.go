@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/areafix"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/mail"
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/areafix"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/mail"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
 )
 
 // defaultAreafixRobotName and defaultFilefixRobotName are the

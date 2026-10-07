@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 const (

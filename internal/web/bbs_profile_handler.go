@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"git.maik.ch/nullmodem/bbs/internal/emailgw"
+	"github.com/midrei/nullmodem-bbs/internal/emailgw"
 	"net/http"
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // profileDTO is the portal's /profile page -- the same account

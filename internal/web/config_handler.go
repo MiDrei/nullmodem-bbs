@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/binkp"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/mail"
-	"git.maik.ch/nullmodem/bbs/internal/services"
-	"git.maik.ch/nullmodem/bbs/internal/tosser"
+	"github.com/midrei/nullmodem-bbs/internal/binkp"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/mail"
+	"github.com/midrei/nullmodem-bbs/internal/services"
+	"github.com/midrei/nullmodem-bbs/internal/tosser"
 )
 
 // binkpRequestTimeout bounds how long a single BinkP operation

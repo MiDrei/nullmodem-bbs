@@ -2,6 +2,8 @@
 
 [English](README.md) · **Deutsch**
 
+[![CI](https://github.com/midrei/nullmodem-bbs/actions/workflows/ci.yml/badge.svg)](https://github.com/midrei/nullmodem-bbs/actions/workflows/ci.yml)
+
 Eine Mailbox im Stil von Synchronet, Mystic und ENiGMA½ — über Telnet und
 SSH mit ANSI/CP437 wie in den Neunzigern, dazu ein Web-Portal für Benutzer,
 eine Web-Administration für den Sysop und ein FTN-Mailer für FidoNet, fsxNet
@@ -13,8 +15,8 @@ Teil der NullModem-Familie:
 | Repo | Inhalt |
 |---|---|
 | **bbs** (dieses) | die Mailbox selbst |
-| [kit](https://git.maik.ch/nullmodem/kit) | gemeinsamer Unterbau: ANSI/CP437, QWK/QWKE, Zmodem |
-| [reader](https://git.maik.ch/nullmodem/reader) | NullModem Reader (`nmr`), Offline-Reader für QWK-Post dieser BBS |
+| [kit](https://github.com/midrei/nullmodem-kit) | gemeinsamer Unterbau: ANSI/CP437, QWK/QWKE, Zmodem |
+| [reader](https://github.com/midrei/nullmodem-reader) | NullModem Reader (`nmr`), Offline-Reader für QWK-Post dieser BBS |
 
 ## Was sie kann
 
@@ -145,6 +147,10 @@ docker compose up -d --build
 telnet localhost 2323        # als Erster registrieren = Sysop
 ```
 
+Oder ohne selbst zu bauen: in den drei `image:`-Zeilen der `docker-compose.yml`
+`ghcr.io/midrei/nullmodem-bbs:latest` (oder einen Versions-Tag) eintragen
+und `--build` weglassen.
+
 Danach unter `http://localhost:8090/admin` mit demselben Konto anmelden.
 Konfiguration, Daten-Verzeichnis, eigene Bildschirme, Multi-Arch-Builds und
 versionierte Images: [docs/docker.de.md](docs/docker.de.md).
@@ -186,6 +192,13 @@ go test ./...
   Lizenzen (englisch)
 - [scripts/multimail/README.md](scripts/multimail/README.md) — QWK-Austausch
   per Skript, z. B. für MultiMail (englisch)
+
+## Mitmachen
+
+Fehler und Ideen: [Issues](https://github.com/midrei/nullmodem-bbs/issues).
+Pull-Requests sind willkommen -- wie man baut, testet und welche Regeln gelten,
+steht in [CONTRIBUTING.md](CONTRIBUTING.md) (englisch). Sicherheitsprobleme
+bitte nicht öffentlich melden: [SECURITY.md](SECURITY.md).
 
 ## Fremdsoftware
 

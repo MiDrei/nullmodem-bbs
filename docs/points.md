@@ -22,7 +22,7 @@ network the reader should take part in:
 | Downlink | on; **Hold** on too, since a reader can't be called |
 
 The reader is configured the other way round: this BBS as its boss
-node (host and BinkP port, e.g. `bbs.maik.ch:24554`), its point
+node (host and BinkP port, e.g. `bbs.example.com:24554`), its point
 addresses, the same password. It subscribes its areas through
 Areafix; the areas ticked for it in the web admin (area grants, kept
 per host label) are the ones it may subscribe.

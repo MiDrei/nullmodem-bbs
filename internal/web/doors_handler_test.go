@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/doors"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/doors"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func doorsTestSetup(t *testing.T) (http.Handler, string, string, string) {

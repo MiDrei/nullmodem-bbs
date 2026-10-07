@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/mail"
+	"github.com/midrei/nullmodem-bbs/internal/mail"
 )
 
 func TestRepliesThreadBothWays(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"sync"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/maintenance"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/maintenance"
 )
 
 // maintenanceDTO is config.MaintenanceConfig with its defaults filled

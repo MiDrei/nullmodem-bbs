@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestLogsEndpointRequiresAuth(t *testing.T) {

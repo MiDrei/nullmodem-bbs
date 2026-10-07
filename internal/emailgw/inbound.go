@@ -17,12 +17,12 @@ import (
 	_ "github.com/emersion/go-message/charset" // ISO-8859-1, Windows-1252 & co. in mail
 	"github.com/emersion/go-message/mail"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
-	"git.maik.ch/nullmodem/bbs/internal/textfmt"
-	"git.maik.ch/nullmodem/bbs/internal/user"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/textfmt"
+	"github.com/midrei/nullmodem-bbs/internal/user"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // Limits on what comes in: bigger mail arrives as its headers and a

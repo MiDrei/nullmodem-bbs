@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/applog"
+	"github.com/midrei/nullmodem-bbs/internal/applog"
 )
 
 const defaultLogLimit = 200

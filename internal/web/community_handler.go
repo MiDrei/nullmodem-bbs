@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"git.maik.ch/nullmodem/bbs/internal/community"
-	"git.maik.ch/nullmodem/bbs/internal/nodelist"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/community"
+	"github.com/midrei/nullmodem-bbs/internal/nodelist"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // Nodelists, polls and the BBS list: for callers in the portal (and

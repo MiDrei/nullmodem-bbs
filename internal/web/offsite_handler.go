@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/backup"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/offsite"
+	"github.com/midrei/nullmodem-bbs/internal/backup"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/offsite"
 )
 
 // The off-site copy of the backups (internal/offsite): where to (SFTP,

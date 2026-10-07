@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/community"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/community"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestNewsAtLoginOnceAndInTheList(t *testing.T) {

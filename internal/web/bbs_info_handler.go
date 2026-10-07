@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/version"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/version"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // handleBBSInfo reports the BBS's own configured display name --

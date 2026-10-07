@@ -3,11 +3,11 @@ package web
 import (
 	"encoding/json"
 	"errors"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 	"net/http"
 	"strconv"
 
-	"git.maik.ch/nullmodem/bbs/internal/chat"
+	"github.com/midrei/nullmodem-bbs/internal/chat"
 )
 
 // The web admin's Chat page: the rooms with something going on (a

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 )
 
 func TestShareImageMetaAndFeeds(t *testing.T) {

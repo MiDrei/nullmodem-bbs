@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func loginAsBBSUser(t *testing.T, h http.Handler, username, password string) string {

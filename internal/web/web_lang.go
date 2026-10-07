@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
 )
 
 // The portal, the reader app and the front page in the visitor's

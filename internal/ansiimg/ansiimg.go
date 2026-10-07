@@ -10,7 +10,7 @@ import (
 
 	xdraw "golang.org/x/image/draw"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // VGA is the 16-colour text-mode palette.

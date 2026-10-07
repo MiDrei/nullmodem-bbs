@@ -13,7 +13,7 @@
 # script or a scheduled job) -- an env var always wins if both are
 # set. Leaving USERNAME/PASSWORD blank prompts for them instead.
 
-BBS_URL="https://bbs.maik.ch"
+BBS_URL="https://bbs.example.com"
 USERNAME=""    # e.g. "alice"
 PASSWORD=""    # leave blank to be prompted each run
 QWK_DOWN=""    # leave blank for the default ($HOME/.nullmodem-qwk/incoming)

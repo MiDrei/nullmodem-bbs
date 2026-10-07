@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
 )
 
 // Logger is what the notifier reports problems to.

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/chat"
+	"github.com/midrei/nullmodem-bbs/internal/chat"
 )
 
 // The chat rooms for callers in the portal and the reader app: the

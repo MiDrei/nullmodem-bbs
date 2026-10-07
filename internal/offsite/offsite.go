@@ -20,8 +20,8 @@ import (
 
 	"filippo.io/age"
 
-	"git.maik.ch/nullmodem/bbs/internal/backup"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/backup"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 )
 
 // Suffix is what an encrypted copy's name ends in.

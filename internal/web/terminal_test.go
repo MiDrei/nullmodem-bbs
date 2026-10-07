@@ -11,7 +11,7 @@ import (
 
 	"github.com/coder/websocket"
 
-	"git.maik.ch/nullmodem/bbs/internal/telnet"
+	"github.com/midrei/nullmodem-bbs/internal/telnet"
 )
 
 func TestWebTerminalBridgesToTelnet(t *testing.T) {

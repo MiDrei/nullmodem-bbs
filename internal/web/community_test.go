@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/community"
-	"git.maik.ch/nullmodem/bbs/internal/nodelist"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/community"
+	"github.com/midrei/nullmodem-bbs/internal/nodelist"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestPortalPollsAndBBSList(t *testing.T) {

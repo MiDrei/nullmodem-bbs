@@ -8,7 +8,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestAdminLoginWithTwoFactor(t *testing.T) {

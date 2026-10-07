@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/doors"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/doors"
 )
 
 // The doors' bulletins (scoreboards, news) for the portal, and the

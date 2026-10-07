@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // errNotUnresolved is returned by unresolvedByID for a message that

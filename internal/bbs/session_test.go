@@ -3,21 +3,21 @@ package bbs
 import (
 	"errors"
 	"fmt"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/applog"
-	"git.maik.ch/nullmodem/bbs/internal/db"
-	"git.maik.ch/nullmodem/bbs/internal/file"
-	"git.maik.ch/nullmodem/bbs/internal/menu"
-	"git.maik.ch/nullmodem/bbs/internal/message"
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
-	"git.maik.ch/nullmodem/bbs/internal/session"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/applog"
+	"github.com/midrei/nullmodem-bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/file"
+	"github.com/midrei/nullmodem-bbs/internal/menu"
+	"github.com/midrei/nullmodem-bbs/internal/message"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/session"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func testMenus() menu.Set {

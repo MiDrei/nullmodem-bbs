@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // The full-screen message editor, as callers know it from Mystic and

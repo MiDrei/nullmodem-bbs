@@ -1,10 +1,10 @@
-module git.maik.ch/nullmodem/bbs
+module github.com/midrei/nullmodem-bbs
 
 go 1.26.0
 
 require (
 	filippo.io/age v1.3.2
-	git.maik.ch/nullmodem/kit v0.2.2
+	github.com/midrei/nullmodem-kit v0.3.0
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/coder/websocket v1.8.15

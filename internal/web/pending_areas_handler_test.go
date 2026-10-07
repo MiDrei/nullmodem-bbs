@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestPendingAreasListsOnlyPendingOnesAndApproveMakesThemVisible(t *testing.T) {

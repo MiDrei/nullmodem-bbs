@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/community"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/community"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // The voting booth: the sysop's polls (made in the web admin), voted

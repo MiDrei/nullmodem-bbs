@@ -17,10 +17,6 @@ RUN npm run build
 # compiling for both target arches needs no C toolchain at all.
 FROM golang:1.27-bookworm AS go-build
 WORKDIR /src
-# git.maik.ch/nullmodem/kit is public but self-hosted: fetch it
-# straight from there instead of via proxy.golang.org/sum.golang.org
-# (go.sum still pins its hash).
-ENV GOPRIVATE=git.maik.ch
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/ cmd/
@@ -32,7 +28,7 @@ ARG TARGETARCH
 # time is when this runs.
 ARG COMMIT=""
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    LDFLAGS="-s -w -X git.maik.ch/nullmodem/bbs/internal/version.Commit=${COMMIT} -X git.maik.ch/nullmodem/bbs/internal/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
+    LDFLAGS="-s -w -X github.com/midrei/nullmodem-bbs/internal/version.Commit=${COMMIT} -X github.com/midrei/nullmodem-bbs/internal/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags="$LDFLAGS" -o /out/bbs ./cmd/bbs && \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \

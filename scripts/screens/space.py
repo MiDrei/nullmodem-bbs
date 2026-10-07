@@ -354,13 +354,14 @@ def lists():
     return out
 
 # ---------------- welcome ----------------
-# The board's own connect banner: a ringed planet, the name in bold
-# letters with a blue shadow, the sysop's details and networks.
-WELCOME_NAME=('MAIKS','PLACE')
-WELCOME_INFO=[[('Sysop','Mike Dreier'),('Location','Neunkirch, CH')],
-              [('Telnet','bbs.maik.ch:2323'),('E-Mail','maiks.place.bbs@relay.maik.ch')]]
-WELCOME_NETS=[[('fsxNet','21:3/194'),('HobbyNet','954:700/14')],
-              [('tqwNet','1337:1/131'),('SysopNet','23:1/107')]]
+# The stock connect banner: a ringed planet, the software's name in bold
+# letters with a blue shadow, and the board's name and sysop (filled in
+# when shown). A board makes it its own in the admin's screen designer
+# -- its networks and addresses, say: an existing welcome.ans is never
+# overwritten by an update.
+WELCOME_NAME=('NULL','MODEM')
+WELCOME_INFO=[[('BBS','{BBSNAME}'),('Sysop','{SYSOP}')]]
+WELCOME_NETS=[]
 BOLD={
 'M':["##...##","###.###","##.#.##","##...##","##...##","##...##","##...##"],
 'A':[".####.","##..##","##..##","######","##..##","##..##","##..##"],
@@ -371,6 +372,10 @@ BOLD={
 'L':["##....","##....","##....","##....","##....","##....","######"],
 'C':[".#####","##....","##....","##....","##....","##....",".#####"],
 'E':["######","##....","##....","#####.","##....","##....","######"],
+'N':["##...##","###..##","####.##","##.####","##..###","##...##","##...##"],
+'U':["##..##","##..##","##..##","##..##","##..##","##..##",".####."],
+'O':[".####.","##..##","##..##","##..##","##..##","##..##",".####."],
+'D':["#####.","##..##","##..##","##..##","##..##","##..##","#####."],
 }
 def bold_text(a,text,cx,y0,grad,shadow):
     x=cx-(sum(len(BOLD[c][0])+1 for c in text)-1)//2
@@ -413,7 +418,8 @@ def welcome_screen():
     L.append(sgr(F)+'\u250c{FILL:\u2500}\u2510')
     for row in WELCOME_INFO:
         L.append(center('     '.join(sgr(6)+k+dot+sgr(15)+v for k,v in row)))
-    L.append(sgr(F)+'\u251c{FILL:\u2500}\u2524')
+    if WELCOME_NETS:
+        L.append(sgr(F)+'\u251c{FILL:\u2500}\u2524')
     for row in WELCOME_NETS:
         L.append(center(dot.join(sgr(14)+n+' '+sgr(7)+a for n,a in row)))
     L.append(sgr(F)+'\u2514{FILL:\u2500}\u2518')

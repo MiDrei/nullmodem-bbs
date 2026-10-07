@@ -1,0 +1,35 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what happened instead. Screenshots of Telnet screens help.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: As shown on the welcome screen, the `?` command or the admin dashboard, e.g. "v0.91.1 (7031376, ...)"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      multiple: true
+      options: [Telnet/SSH, Web portal, Reader (PWA), Admin, Mailer/BinkP/tosser, Doors, Email gateway, Docker/install, Other]
+  - type: input
+    id: client
+    attributes:
+      label: Terminal or browser
+      description: e.g. SyncTERM 1.2, NetRunner, Firefox 131
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines
+      description: From the admin's Logs page. Leave out passwords and the subjects of Areafix/Filefix netmail (they carry the robot password).
+      render: text

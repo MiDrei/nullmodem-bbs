@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // A screen (.ans, CP437) may take its texts from the catalog: {T:key},

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // RenderGenerated is the menu as text, for a menu without a screen of

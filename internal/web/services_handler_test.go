@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/services"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/services"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func servicesByName(t *testing.T, h http.Handler, token string) map[string]serviceDTO {

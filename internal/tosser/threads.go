@@ -3,8 +3,8 @@ package tosser
 import (
 	"fmt"
 
-	"git.maik.ch/nullmodem/bbs/internal/mail"
-	"git.maik.ch/nullmodem/bbs/internal/message"
+	"github.com/midrei/nullmodem-bbs/internal/mail"
+	"github.com/midrei/nullmodem-bbs/internal/message"
 )
 
 // threadKludges fills in each outgoing echo's REPLY kludge, so other

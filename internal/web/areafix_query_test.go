@@ -2,13 +2,13 @@ package web
 
 import (
 	"encoding/json"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/areafix"
+	"github.com/midrei/nullmodem-bbs/internal/areafix"
 )
 
 func TestAreafixQueryAndAdoptingTheHubsWord(t *testing.T) {

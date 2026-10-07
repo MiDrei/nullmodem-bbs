@@ -3,7 +3,7 @@ package menu
 import (
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
 )
 
 // In is m as a caller reading lang sees it: each title and label in

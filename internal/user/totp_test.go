@@ -7,7 +7,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
-	"git.maik.ch/nullmodem/bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/db"
 )
 
 func TestTOTPSetupVerifyReplayAndRecovery(t *testing.T) {

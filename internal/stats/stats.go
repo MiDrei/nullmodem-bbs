@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/db"
 )
 
 // Store records into and reports from the shared database. A nil

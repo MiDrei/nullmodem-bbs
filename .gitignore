@@ -17,3 +17,7 @@
 
 # Editor/OS
 .DS_Store
+
+# Binaries from a go build in the repo root
+/bbs
+/mailer

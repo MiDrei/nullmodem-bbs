@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/db"
 )
 
 func newStore(t *testing.T) *Store {

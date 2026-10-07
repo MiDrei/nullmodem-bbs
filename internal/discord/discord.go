@@ -20,8 +20,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
-	"git.maik.ch/nullmodem/bbs/internal/chat"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/chat"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 )
 
 // Permissions the bot needs in the bridged channels: view, send, read

@@ -3,7 +3,7 @@ package web
 import (
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 )
 
 // Each uplink's last good and last failed session, the latter also when

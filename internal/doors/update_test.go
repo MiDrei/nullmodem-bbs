@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/db"
 )
 
 // Updating replaces what the release ships, keeps everything else and

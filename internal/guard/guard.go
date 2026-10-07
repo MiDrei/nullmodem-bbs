@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
 )
 
 // Settings are the lockout limits (config.SecurityConfig).

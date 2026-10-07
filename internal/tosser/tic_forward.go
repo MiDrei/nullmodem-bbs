@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/areafix"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/file"
-	"git.maik.ch/nullmodem/bbs/internal/mail"
+	"github.com/midrei/nullmodem-bbs/internal/areafix"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/file"
+	"github.com/midrei/nullmodem-bbs/internal/mail"
 )
 
 // PendingFileForward is one file ready to be forwarded to a downlink

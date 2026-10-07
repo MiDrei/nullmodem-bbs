@@ -164,29 +164,19 @@ mounts at all.
 
 ## Versioned image tags
 
-Every image pushed to the registry gets both a floating `latest` tag
-and one pinned to `internal/version.Version`'s `vX.Y.Z[-dev]` suffix
-(the same string the welcome screen shows -- see
-`configs/screens/welcome.ans`), so a production deploy can pin to,
-and roll back to, a specific build instead of always tracking
-whatever was pushed last:
+Each release tag (`vX.Y.Z`) on GitHub builds the image for `amd64` and
+`arm64` and publishes it to the GitHub Container Registry with that tag
+and `latest`:
 
 ```sh
-VTAG=$(grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+(-dev)?' internal/version/version.go)
-docker build --build-arg COMMIT=$(git rev-parse --short HEAD) -t nullmodem-bbs:latest .
-docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:latest
-docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:"$VTAG"
-docker push git.maik.ch/nullmodem/bbs:latest
-docker push git.maik.ch/nullmodem/bbs:"$VTAG"
+docker pull ghcr.io/midrei/nullmodem-bbs:vX.Y.Z
 ```
 
-A deployment (e.g. apollo's `~/nullmodem-deploy/docker-compose.yml`)
-references the specific `vX.Y.Z[-dev]` tag in its `image:` lines, not
-`latest`, and moves forward deliberately with
-`docker compose pull && docker compose up -d` once a new tag exists --
-never edited directly otherwise, per this project's deploy workflow
-(develop and commit locally, roll out to production only via a
-freshly pushed image).
+Use the image in `docker-compose.yml`'s `image:` lines instead of
+building it yourself. Pin a deployment to a version tag rather than
+`latest`, and move on deliberately with
+`docker compose pull && docker compose up -d` once a new one exists --
+rolling back is the same with the previous tag.
 
 ## Third-party software
 

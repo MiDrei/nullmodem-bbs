@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 
-	"git.maik.ch/nullmodem/bbs/internal/version"
+	"github.com/midrei/nullmodem-bbs/internal/version"
 )
 
 // The public front page (/): everything a visitor -- or a BBS list --

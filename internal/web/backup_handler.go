@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/backup"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/backup"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 )
 
 // The web admin's Backups page (internal/backup): settings, the

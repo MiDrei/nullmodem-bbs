@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // Threads for the portal and the reader app: a message's whole thread

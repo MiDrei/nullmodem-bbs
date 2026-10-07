@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-kit/ansi"
 	"github.com/dustin/go-humanize"
 
-	"git.maik.ch/nullmodem/bbs/internal/file"
+	"github.com/midrei/nullmodem-bbs/internal/file"
 )
 
 // Files anyone may download: those in areas the sysop made public

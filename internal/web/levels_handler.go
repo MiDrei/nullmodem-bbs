@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
 )
 
 // levelsDTO is the named security levels; Custom is false while the

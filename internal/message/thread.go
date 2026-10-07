@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/db"
 )
 
 // Threads: every message may name the one it answers (ReplyTo, same

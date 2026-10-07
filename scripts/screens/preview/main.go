@@ -15,10 +15,10 @@ import (
 
 	"golang.org/x/image/draw"
 
-	"git.maik.ch/nullmodem/bbs/internal/ansiimg"
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/menu"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/ansiimg"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/menu"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // width is what the board lays screens out to on an 80-column

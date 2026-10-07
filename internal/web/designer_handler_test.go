@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/user"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 func TestGetScreenGridParsesExistingScreen(t *testing.T) {

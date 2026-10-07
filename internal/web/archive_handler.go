@@ -10,8 +10,8 @@ import (
 
 	"github.com/dustin/go-humanize"
 
-	"git.maik.ch/nullmodem/bbs/internal/archive"
-	"git.maik.ch/nullmodem/bbs/internal/tosser"
+	"github.com/midrei/nullmodem-bbs/internal/archive"
+	"github.com/midrei/nullmodem-bbs/internal/tosser"
 )
 
 type archiveEntryDTO struct {

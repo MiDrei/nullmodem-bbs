@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for the BBS
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What should the BBS do, and for whom (callers, sysops, the network)?
+    validations:
+      required: true
+  - type: textarea
+    id: elsewhere
+    attributes:
+      label: Seen elsewhere?
+      description: If another BBS (Synchronet, Mystic, ENiGMA½ …) does it, how.

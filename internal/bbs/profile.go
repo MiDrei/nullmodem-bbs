@@ -3,14 +3,14 @@ package bbs
 import (
 	"errors"
 	"fmt"
-	"git.maik.ch/nullmodem/bbs/internal/emailgw"
+	"github.com/midrei/nullmodem-bbs/internal/emailgw"
 	"strconv"
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/i18n"
-	"git.maik.ch/nullmodem/bbs/internal/user"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/i18n"
+	"github.com/midrei/nullmodem-bbs/internal/user"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // commonTimezones is the short list the Telnet/SSH time zone picker

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/mail"
-	"git.maik.ch/nullmodem/bbs/internal/tic"
+	"github.com/midrei/nullmodem-bbs/internal/mail"
+	"github.com/midrei/nullmodem-bbs/internal/tic"
 )
 
 // InspectedMessage summarizes one packed FTS-0001 message for the web

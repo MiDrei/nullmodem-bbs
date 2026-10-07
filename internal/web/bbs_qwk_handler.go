@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/qwkdoor"
+	"github.com/midrei/nullmodem-bbs/internal/qwkdoor"
 )
 
 // qwkAreaDTO describes one message area for the QWK area-selection

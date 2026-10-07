@@ -5,14 +5,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"git.maik.ch/nullmodem/bbs/internal/mail"
+	"github.com/midrei/nullmodem-bbs/internal/mail"
 	"hash/crc32"
 	"strings"
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/binkp"
-	"git.maik.ch/nullmodem/bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/binkp"
+	"github.com/midrei/nullmodem-bbs/internal/config"
 )
 
 // buildTICBytes renders a minimal .tic descriptor's contents from the

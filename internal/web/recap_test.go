@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/stats"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/stats"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestMonthlyRecap(t *testing.T) {

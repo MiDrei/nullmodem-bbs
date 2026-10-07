@@ -3,8 +3,8 @@ package web
 import (
 	"net/http"
 
-	"git.maik.ch/nullmodem/bbs/internal/lastcallers"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/lastcallers"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 // lastCallerDTO is one InterBBS last caller, for the portal.

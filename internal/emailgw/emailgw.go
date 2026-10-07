@@ -18,10 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/applog"
-	"git.maik.ch/nullmodem/bbs/internal/config"
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/applog"
+	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // Alias is username's address part: lower case, a space a dot, and

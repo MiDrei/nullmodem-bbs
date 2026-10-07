@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
 )
 
 // A hub has two robots, Areafix (echomail) and Filefix (file echos),

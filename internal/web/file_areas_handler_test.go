@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 func TestFileAreaCRUD(t *testing.T) {

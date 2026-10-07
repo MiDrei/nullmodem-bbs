@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/services"
+	"github.com/midrei/nullmodem-bbs/internal/services"
 )
 
 // Program is a door's background program: a process that must run all

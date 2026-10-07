@@ -100,7 +100,7 @@ restore as below.
 
 ## Restoring
 
-In the deploy directory (on apollo `~/nullmodem-deploy`):
+In the deploy directory (where `docker-compose.yml` is):
 
 ```sh
 docker compose down

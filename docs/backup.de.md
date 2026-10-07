@@ -105,7 +105,7 @@ Danach wie unten zurückspielen.
 
 ## Zurückspielen
 
-Im Deploy-Verzeichnis (auf apollo `~/nullmodem-deploy`):
+Im Deploy-Verzeichnis (wo die `docker-compose.yml` liegt):
 
 ```sh
 docker compose down

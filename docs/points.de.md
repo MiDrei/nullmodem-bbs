@@ -22,7 +22,7 @@ Eintrag pro Netzwerk anlegen, an dem der Reader teilnehmen soll:
 | Downlink | an; dazu **Hold**, weil man einen Reader nicht anrufen kann |
 
 Der Reader wird umgekehrt eingerichtet: diese BBS als Boss-Node (Host
-und BinkP-Port, z. B. `bbs.maik.ch:24554`), seine Point-Adressen,
+und BinkP-Port, z. B. `bbs.example.com:24554`), seine Point-Adressen,
 dasselbe Passwort. Seine Areas abonniert er über Areafix; die im Web-Admin
 für ihn angehakten Areas (Area-Freigaben, pro Host-Bezeichnung) sind die,
 die er abonnieren darf.

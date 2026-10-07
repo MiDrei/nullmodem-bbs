@@ -3,16 +3,16 @@ package web
 import (
 	"encoding/json"
 	"errors"
-	"git.maik.ch/nullmodem/bbs/internal/emailgw"
-	"git.maik.ch/nullmodem/bbs/internal/textfmt"
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/emailgw"
+	"github.com/midrei/nullmodem-bbs/internal/textfmt"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/netmail"
-	"git.maik.ch/nullmodem/kit/ansi"
+	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 type bbsNetmailSummaryDTO struct {

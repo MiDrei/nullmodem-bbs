@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // The signed-in sysop's own two-factor login (Admin -> Security), and

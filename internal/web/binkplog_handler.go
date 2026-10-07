@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/binkplog"
+	"github.com/midrei/nullmodem-bbs/internal/binkplog"
 )
 
 type binkpSessionDTO struct {

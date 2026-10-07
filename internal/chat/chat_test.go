@@ -3,12 +3,12 @@ package chat
 import (
 	"strings"
 
-	"git.maik.ch/nullmodem/bbs/internal/user"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"git.maik.ch/nullmodem/bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/db"
 )
 
 func testStore(t *testing.T) (*Store, *time.Time) {

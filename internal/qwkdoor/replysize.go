@@ -4,7 +4,7 @@ import (
 	"archive/zip"
 	"fmt"
 
-	"git.maik.ch/nullmodem/kit/qwk"
+	"github.com/midrei/nullmodem-kit/qwk"
 )
 
 // MaxReplyBytes bounds a reply packet's unpacked .MSG files. A caller's
