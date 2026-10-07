@@ -4,7 +4,6 @@ go 1.26.0
 
 require (
 	filippo.io/age v1.3.2
-	github.com/midrei/nullmodem-kit v0.3.0
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/coder/websocket v1.8.15
@@ -14,6 +13,7 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/midrei/nullmodem-kit v0.3.0
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/pkg/sftp v1.13.11
 	github.com/pquerna/otp v1.5.0
