@@ -182,7 +182,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, dashboardDTO{
 		BBSName:                 cfg.BBS.Name,
-		Version:                 version.Version,
+		Version:                 version.Full(),
 		UserCount:               userCount,
 		MessageAreaCount:        messageAreaCount,
 		FileAreaCount:           fileAreaCount,

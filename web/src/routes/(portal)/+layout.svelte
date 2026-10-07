@@ -105,7 +105,7 @@
 	<footer
 		class="flex justify-between gap-4 border-t border-line px-6 py-4 font-mono text-[10.5px] text-dim md:px-10"
 	>
-		<span>NullModem BBS{site.info.version ? ` v${site.info.version}` : ''}</span>
+		<span>NullModem BBS{site.info.version ? ` v${site.info.version}` : ''}{site.info.build ? ` · ${site.info.build}` : ''}</span>
 		{#if site.telnetAddress}
 			<span>telnet · {site.telnetAddress} · <a href="/terminal" class="hover:text-ink">{t('web.footer.in_browser')}</a></span>
 		{/if}

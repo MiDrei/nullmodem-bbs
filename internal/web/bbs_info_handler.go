@@ -23,7 +23,7 @@ func (s *Server) handleBBSInfo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not load config")
 		return
 	}
-	info := bbsInfoDTO{Name: c.BBS.Name, Version: version.Short()}
+	info := bbsInfoDTO{Name: c.BBS.Name, Version: version.Short(), Build: version.Build()}
 	if c.Telnet.Enabled {
 		info.TelnetPort = portOf(c.Telnet.Addr)
 	}
@@ -38,8 +38,10 @@ func (s *Server) handleBBSInfo(w http.ResponseWriter, r *http.Request) {
 // and SSH (the page's own host, these ports). A port is empty when
 // that server is disabled.
 type bbsInfoDTO struct {
-	Name       string `json:"name"`
-	Version    string `json:"version"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	// Build is the commit and build time, "" when unknown.
+	Build      string `json:"build,omitempty"`
 	TelnetPort string `json:"telnet_port,omitempty"`
 	SSHPort    string `json:"ssh_port,omitempty"`
 }

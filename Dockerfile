@@ -27,13 +27,18 @@ COPY cmd/ cmd/
 COPY internal/ internal/
 ARG TARGETOS
 ARG TARGETARCH
+# The build shown beside the version (internal/version): pass the
+# commit with --build-arg COMMIT=$(git rev-parse --short HEAD); the
+# time is when this runs.
+ARG COMMIT=""
 RUN --mount=type=cache,target=/root/.cache/go-build \
+    LDFLAGS="-s -w -X git.maik.ch/nullmodem/bbs/internal/version.Commit=${COMMIT} -X git.maik.ch/nullmodem/bbs/internal/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" && \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /out/bbs ./cmd/bbs && \
+    go build -trimpath -ldflags="$LDFLAGS" -o /out/bbs ./cmd/bbs && \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /out/mailer ./cmd/mailer && \
+    go build -trimpath -ldflags="$LDFLAGS" -o /out/mailer ./cmd/mailer && \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /out/web ./cmd/web
+    go build -trimpath -ldflags="$LDFLAGS" -o /out/web ./cmd/web
 
 # ---- sexyz (Zmodem) ----------------------------------------------------
 # Telnet/SSH file and QWK transfers shell out to Synchronet's sexyz

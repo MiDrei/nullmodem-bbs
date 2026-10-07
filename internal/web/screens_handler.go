@@ -78,7 +78,7 @@ func previewVars(bbsName, sysop string) ansi.Vars {
 	return ansi.Vars{
 		"BBSNAME":    bbsName,
 		"SYSOP":      sysop,
-		"VERSION":    version.Version,
+		"VERSION":    version.Full(),
 		"NODE":       "1",
 		"DATE":       now.Format("2006-01-02"),
 		"TIME":       now.Format("15:04:05"),

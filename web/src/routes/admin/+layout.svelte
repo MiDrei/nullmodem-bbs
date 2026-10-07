@@ -282,7 +282,7 @@
 	<footer
 		class="flex justify-between gap-4 border-t border-line px-6 py-4 font-mono text-[10.5px] text-dim md:px-10"
 	>
-		<span>{t('admin.nav.nullmodem_bbs_v_sysop', { V: site.info.version ? ` v${site.info.version}` : '' })}</span>
+		<span>{t('admin.nav.nullmodem_bbs_v_sysop', { V: (site.info.version ? ` v${site.info.version}` : '') + (site.info.build ? ` · ${site.info.build}` : '') })}</span>
 		{#if site.telnetAddress}
 			<span>{t('admin.nav.telnet_telnetaddress', { TELNETADDRESS: site.telnetAddress })}</span>
 		{/if}

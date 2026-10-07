@@ -132,13 +132,18 @@ from Debian's own repos for both `amd64` and `arm64`. Build both in
 one pass with buildx:
 
 ```sh
-docker buildx build --platform linux/amd64,linux/arm64 -t nullmodem-bbs:latest .
+docker buildx build --platform linux/amd64,linux/arm64 --build-arg COMMIT=$(git rev-parse --short HEAD) -t nullmodem-bbs:latest .
 ```
+
+`--build-arg COMMIT=…` stamps the commit into the binaries; it shows
+beside the version (welcome screen, `?` command, admin dashboard,
+Services, page footers) together with the build time. Without it only
+the build time shows.
 
 ## Building without Compose
 
 ```sh
-docker build -t nullmodem-bbs .
+docker build --build-arg COMMIT=$(git rev-parse --short HEAD) -t nullmodem-bbs .
 mkdir -p data configs/menus configs/screens
 docker run -d --name nullmodem-bbs \
     -p 2323:2323 -p 2222:2222 \
@@ -168,7 +173,7 @@ whatever was pushed last:
 
 ```sh
 VTAG=$(grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+(-dev)?' internal/version/version.go)
-docker build -t nullmodem-bbs:latest .
+docker build --build-arg COMMIT=$(git rev-parse --short HEAD) -t nullmodem-bbs:latest .
 docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:latest
 docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:"$VTAG"
 docker push git.maik.ch/nullmodem/bbs:latest

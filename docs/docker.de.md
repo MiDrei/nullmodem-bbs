@@ -133,13 +133,18 @@ Debians Paketquellen für `amd64` und `arm64`. Beide in einem Durchgang
 mit buildx:
 
 ```sh
-docker buildx build --platform linux/amd64,linux/arm64 -t nullmodem-bbs:latest .
+docker buildx build --platform linux/amd64,linux/arm64 --build-arg COMMIT=$(git rev-parse --short HEAD) -t nullmodem-bbs:latest .
 ```
+
+`--build-arg COMMIT=…` schreibt den Commit in die Programme; er steht
+neben der Version (Willkommensbildschirm, `?`-Befehl, Admin-Dashboard,
+Services, Seitenfuss), zusammen mit dem Build-Zeitpunkt. Ohne ihn steht
+nur der Zeitpunkt da.
 
 ## Ohne Compose
 
 ```sh
-docker build -t nullmodem-bbs .
+docker build --build-arg COMMIT=$(git rev-parse --short HEAD) -t nullmodem-bbs .
 mkdir -p data configs/menus configs/screens
 docker run -d --name nullmodem-bbs \
     -p 2323:2323 -p 2222:2222 \
@@ -168,7 +173,7 @@ immer dem zuletzt hochgeladenen Image zu folgen:
 
 ```sh
 VTAG=$(grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+(-dev)?' internal/version/version.go)
-docker build -t nullmodem-bbs:latest .
+docker build --build-arg COMMIT=$(git rev-parse --short HEAD) -t nullmodem-bbs:latest .
 docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:latest
 docker tag nullmodem-bbs:latest git.maik.ch/nullmodem/bbs:"$VTAG"
 docker push git.maik.ch/nullmodem/bbs:latest

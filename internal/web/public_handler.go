@@ -40,6 +40,7 @@ type publicOverviewDTO struct {
 	Sysop      string             `json:"sysop"`
 	Location   string             `json:"location"`
 	Version    string             `json:"version"`
+	Build      string             `json:"build,omitempty"`
 	TelnetPort string             `json:"telnet_port,omitempty"`
 	SSHPort    string             `json:"ssh_port,omitempty"`
 	BinkpPort  string             `json:"binkp_port,omitempty"`
@@ -82,7 +83,7 @@ func (s *Server) publicOverview() (*publicOverviewDTO, error) {
 		return nil, err
 	}
 	o := &publicOverviewDTO{
-		Name: c.BBS.Name, Sysop: c.BBS.Sysop, Location: c.BBS.Location, Version: version.Short(),
+		Name: c.BBS.Name, Sysop: c.BBS.Sysop, Location: c.BBS.Location, Version: version.Short(), Build: version.Build(),
 		Networks: []publicNetworkDTO{}, Online: []publicOnlineDTO{}, Callers: []publicCallerDTO{},
 		Oneliners: []map[string]any{}, Doors: []string{}, Stats: map[string]int{},
 	}

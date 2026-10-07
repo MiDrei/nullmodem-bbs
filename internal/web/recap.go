@@ -34,7 +34,7 @@ func (s *Server) sendRecap(title string, days int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	x := stats.RecapExtra{BBSName: c.BBS.Name, Version: version.Short()}
+	x := stats.RecapExtra{BBSName: c.BBS.Name, Version: version.ShortBuild()}
 	if problems, err := health.Current(s.DB); err == nil {
 		for _, p := range problems {
 			// The recap is in English.

@@ -97,7 +97,7 @@ func main() {
 	// A restart asked for in the web admin (see internal/services) --
 	// the request that asked for it has been answered by the time Run
 	// sees it.
-	if inst, err := services.NewStore(sqlDB).Register(services.Web, version.Short()); err != nil {
+	if inst, err := services.NewStore(sqlDB).Register(services.Web, version.ShortBuild()); err != nil {
 		logger.Warn("registering with the service list: %v", err)
 	} else {
 		go inst.Run(context.Background(), func(string) {

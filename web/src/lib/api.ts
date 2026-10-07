@@ -362,6 +362,8 @@ async function requestForm<T>(path: string, formData: FormData, token: string): 
 export interface BBSInfo {
 	name: string;
 	version: string;
+	/** The build: commit and time, e.g. "a1cf7b5, 2026-10-07 13:54 UTC". */
+	build?: string;
 	telnet_port?: string;
 	ssh_port?: string;
 }
@@ -376,6 +378,7 @@ export interface PublicOverview {
 	sysop: string;
 	location: string;
 	version: string;
+	build?: string;
 	telnet_port?: string;
 	ssh_port?: string;
 	binkp_port?: string;

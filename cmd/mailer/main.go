@@ -124,7 +124,7 @@ func main() {
 	// A restart asked for in the web admin (see internal/services) is
 	// taken between two rounds of polls, never in the middle of one.
 	restartCh := make(chan struct{})
-	if inst, err := services.NewStore(sqlDB).Register(services.Mailer, version.Short()); err != nil {
+	if inst, err := services.NewStore(sqlDB).Register(services.Mailer, version.ShortBuild()); err != nil {
 		logger.Warn("registering with the service list: %v", err)
 	} else {
 		go inst.Run(ctx, func(string) { close(restartCh) })

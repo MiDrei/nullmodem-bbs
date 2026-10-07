@@ -356,7 +356,7 @@
 	</main>
 
 	<footer class="flex justify-between gap-4 border-t border-line px-6 py-4 font-mono text-[10.5px] text-dim md:px-10">
-		<span>NullModem BBS{o?.version ? ` v${o.version}` : ''}</span>
+		<span title={o?.build ?? ''}>NullModem BBS{o?.version ? ` v${o.version}` : ''}{o?.build ? ` · ${o.build}` : ''}</span>
 		{#if bbsAuth.isSysop}<a href="/admin" class="hover:text-ink">{t('web.common.admin')}</a>{/if}
 	</footer>
 </div>

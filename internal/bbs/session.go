@@ -310,7 +310,7 @@ func (s *Server) baseVars(node int) ansi.Vars {
 	return ansi.Vars{
 		"BBSNAME": s.BBSName,
 		"SYSOP":   s.SysopName,
-		"VERSION": Version,
+		"VERSION": version.Full(),
 		"NODE":    strconv.Itoa(node),
 		"DATE":    now.Format("2006-01-02"),
 		"TIME":    now.Format("15:04:05"),
@@ -840,7 +840,7 @@ func (s *Server) pauseForKey(term *Terminal) error {
 }
 
 func (s *Server) showVersion(term *Terminal, u *user.User) error {
-	if err := term.Println("\n" + Version); err != nil {
+	if err := term.Println("\n" + version.Full()); err != nil {
 		return err
 	}
 	return s.pauseForKey(term)

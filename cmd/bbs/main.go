@@ -159,7 +159,7 @@ func main() {
 	// A restart asked for in the web admin (see internal/services):
 	// "idle" waits until no caller is online, "now" doesn't.
 	serviceStore := services.NewStore(sqlDB)
-	if inst, err := serviceStore.Register(services.BBS, version.Short()); err != nil {
+	if inst, err := serviceStore.Register(services.BBS, version.ShortBuild()); err != nil {
 		logger.Warn("registering with the service list: %v", err)
 	} else {
 		go inst.Run(context.Background(), func(mode string) {
