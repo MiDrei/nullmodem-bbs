@@ -86,3 +86,13 @@ func TestLineEndDropperDropsOnlyAFirstLFOrNUL(t *testing.T) {
 		}
 	}
 }
+
+// A line run past the edge with wrapping on continues on the next one:
+// turning wrapping off there counts from that line's start.
+func TestOutputFilterFollowsAWrapBeforeWrapGoesOff(t *testing.T) {
+	in := strings.Repeat("A", 85) + "\x1b[?7l" + strings.Repeat("B", 80)
+	want := strings.Repeat("A", 85) + strings.Repeat("B", 74)
+	if got := filtered(t, in, false, true); got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
+	}
+}

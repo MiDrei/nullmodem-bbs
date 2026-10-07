@@ -62,11 +62,13 @@
 	const hours = (iso: string) => (iso && !iso.startsWith('0001') ? (now - new Date(iso).getTime()) / 3_600_000 : Infinity);
 
 	// An uplink's state: failing (its last session failed), quiet (no
-	// session got through in two days though it's polled), paused, ok.
+	// session got through in two days though it's polled regularly),
+	// paused, ok.
 	function uplinkState(u: UplinkStatus): 'error' | 'quiet' | 'paused' | 'ok' {
 		if (u.last_error && (!u.last_ok || u.last_error > u.last_ok)) return 'error';
 		if (u.hold && u.poll_disabled) return 'paused';
-		if (hours(u.last_ok) > 48) return u.downlink ? 'paused' : 'quiet';
+		// A crash-only uplink is only called when there's mail: silence is normal.
+		if (hours(u.last_ok) > 48 && !u.poll_disabled) return u.downlink ? 'paused' : 'quiet';
 		return 'ok';
 	}
 	const dot = { error: 'bg-red-500', quiet: 'bg-amber-400', paused: 'bg-slate-500', ok: 'bg-emerald-500' };

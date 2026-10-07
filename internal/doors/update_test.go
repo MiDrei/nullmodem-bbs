@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -71,19 +72,30 @@ func TestUpdateReplacesShippedFilesOnly(t *testing.T) {
 }
 
 func TestLatestReleaseAndRecord(t *testing.T) {
+	uploading := true
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/repos/o/game/releases/latest" {
 			http.NotFound(w, r)
 			return
 		}
-		w.Write([]byte(`{"tag_name":"v0.2.3","html_url":"https://example/rel","published_at":"2026-10-06T00:14:49Z"}`))
+		assets := `[{"name":"game-v0.2.3-linux-` + runtime.GOARCH + `.tar.gz"}]`
+		if uploading {
+			assets = `[]`
+		}
+		w.Write([]byte(`{"tag_name":"v0.2.3","html_url":"https://example/rel","published_at":"2026-10-06T00:14:49Z","assets":` + assets + `}`))
 	}))
 	defer srv.Close()
 	old := githubAPI
 	githubAPI = srv.URL
 	defer func() { githubAPI = old }()
 
-	tmpl := Template{ID: "game", Name: "Game", Download: &Download{GitHub: "o/game"}}
+	tmpl := Template{ID: "game", Name: "Game", Download: &Download{GitHub: "o/game",
+		URL: "https://example/{version}/game-{version}-linux-{arch}.tar.gz", Arch: map[string]string{runtime.GOARCH: runtime.GOARCH}}}
+	// Published, its builds still being uploaded: not yet.
+	if rel, err := LatestRelease(context.Background(), http.DefaultClient, tmpl); err == nil {
+		t.Fatalf("a release without this system's build: %+v", rel)
+	}
+	uploading = false
 	rel, err := LatestRelease(context.Background(), http.DefaultClient, tmpl)
 	if err != nil || rel.Version != "v0.2.3" || rel.URL != "https://example/rel" {
 		t.Fatalf("LatestRelease = %+v, %v", rel, err)

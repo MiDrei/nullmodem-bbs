@@ -56,6 +56,14 @@ func (c *Check) verify(ctx context.Context, path, dbName string, required []stri
 	}
 	defer gz.Close()
 
+	// One left behind by a crash or restart mid-check.
+	if stale, _ := filepath.Glob(filepath.Join(filepath.Dir(path), ".verify-*.sqlite")); len(stale) > 0 {
+		for _, f := range stale {
+			if info, err := os.Stat(f); err == nil && time.Since(info.ModTime()) > time.Hour {
+				os.Remove(f)
+			}
+		}
+	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".verify-*.sqlite")
 	if err != nil {
 		return err

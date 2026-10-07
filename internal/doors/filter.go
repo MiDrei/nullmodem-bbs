@@ -122,6 +122,10 @@ func (f *outputFilter) track(b byte) bool {
 		if f.noWrap && f.col >= classicWidth-1 {
 			return false
 		}
+		if f.col >= classicWidth {
+			// With wrapping on, the terminal went on to the next line.
+			f.col = 0
+		}
 		f.col++
 	}
 	return true

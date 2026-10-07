@@ -367,12 +367,6 @@ func (s *session) send(cmd Command, arg string) error {
 	return s.writeCommandFrame(s.conn, cmd, arg)
 }
 
-func (s *session) sendData(data []byte) error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	return s.writeDataFrame(s.conn, data)
-}
-
 // sendInfoAndAddress emits this side's informational M_NUL lines
 // (SYS/ZYZ/LOC/NDL/TIME/VER/BUILD, what binkd and Mystic send about
 // themselves) immediately followed by M_ADR, as a single

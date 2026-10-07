@@ -40,17 +40,6 @@ func isPoint(u config.BinkpUplink) bool {
 	return err == nil && a.Point > 0
 }
 
-// pointEntries returns the point entries among uplinks with host host.
-func pointEntries(uplinks []config.BinkpUplink, host string) []config.BinkpUplink {
-	var out []config.BinkpUplink
-	for _, u := range uplinks {
-		if isPoint(u) && u.Host == host {
-			out = append(out, u)
-		}
-	}
-	return out
-}
-
 // pointForAddress returns the point entry addr (a netmail destination)
 // belongs to, if any.
 func pointForAddress(uplinks []config.BinkpUplink, addr string) (config.BinkpUplink, bool) {

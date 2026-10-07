@@ -55,6 +55,7 @@ func Install(ctx context.Context, client *http.Client, t Template, version, door
 	if err := os.MkdirAll(doorsDir, 0o755); err != nil {
 		return "", fmt.Errorf("doors: creating %s: %w", doorsDir, err)
 	}
+	removeStale(filepath.Join(doorsDir, ".install-"+t.Dir+"-*"))
 	tmp, err := os.MkdirTemp(doorsDir, ".install-"+t.Dir+"-*")
 	if err != nil {
 		return "", fmt.Errorf("doors: creating scratch dir: %w", err)

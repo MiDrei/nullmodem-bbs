@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"git.maik.ch/nullmodem/bbs/internal/config"
@@ -17,6 +18,10 @@ const DoorUpdateCheckEvery = 12 * time.Hour
 
 // doorUpdateTimeout bounds downloading and unpacking one update.
 const doorUpdateTimeout = 5 * time.Minute
+
+// doorUpdating lets one door update run at a time (two at once would
+// overwrite each other's backup).
+var doorUpdating sync.Mutex
 
 func doorDir(d config.DoorConfig) string {
 	if d.Kind == "dosbox" {
@@ -151,6 +156,11 @@ func (s *Server) handleUpdateDoor(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "the door is up to date")
 		return
 	}
+	if !doorUpdating.TryLock() {
+		writeError(w, http.StatusConflict, "a door update is running already")
+		return
+	}
+	defer doorUpdating.Unlock()
 	ctx, cancel := context.WithTimeout(r.Context(), doorUpdateTimeout)
 	defer cancel()
 	if err := doors.Update(ctx, &http.Client{Timeout: doorUpdateTimeout}, t, dir, latest); err != nil {

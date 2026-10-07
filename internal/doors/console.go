@@ -82,7 +82,7 @@ func scriptConsole(ctx context.Context, dir, exe string, steps []consoleStep) er
 		// Compared without escapes and without any whitespace: a
 		// highlighted hotkey letter ("R" in "Reset") has an escape right
 		// inside its word, and cursor moves stand in for spaces.
-		return spaces.ReplaceAllString(ansiEscape.ReplaceAllString(string(out.Bytes()), ""), "")
+		return spaces.ReplaceAllString(ansiEscape.ReplaceAllString(out.String(), ""), "")
 	}
 
 	for _, st := range steps {

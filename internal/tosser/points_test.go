@@ -10,13 +10,10 @@ import (
 	"git.maik.ch/nullmodem/bbs/internal/mail"
 )
 
-// A reader app as a point of 21:3/194, in two networks.
+// A reader app as a point of 21:3/194.
 var (
-	pointOurAddresses = []string{"21:3/194@fsxnet", "954:700/14@hobbynet"}
-	fsxHub            = config.BinkpUplink{Address: "21:3/100", Host: "hub.fsx:24554", Network: "fsxNet"}
-	readerFsx         = config.BinkpUplink{Address: "21:3/194.1", Host: "fidomail", Network: "fsxNet", Downlink: true, Hold: true}
-	readerHobby       = config.BinkpUplink{Address: "954:700/14.1", Host: "fidomail", Network: "HobbyNet", Downlink: true, Hold: true}
-	pointUplinks      = []config.BinkpUplink{fsxHub, readerFsx, readerHobby}
+	fsxHub    = config.BinkpUplink{Address: "21:3/100", Host: "hub.fsx:24554", Network: "fsxNet"}
+	readerFsx = config.BinkpUplink{Address: "21:3/194.1", Host: "fidomail", Network: "fsxNet", Downlink: true, Hold: true}
 )
 
 // pointPacket is a packet from the reader app: one message, written by

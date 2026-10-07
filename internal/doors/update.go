@@ -9,7 +9,9 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -77,6 +79,9 @@ func LatestRelease(ctx context.Context, client *http.Client, t Template) (Releas
 		Tag       string    `json:"tag_name"`
 		URL       string    `json:"html_url"`
 		Published time.Time `json:"published_at"`
+		Assets    []struct {
+			Name string `json:"name"`
+		} `json:"assets"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return Release{}, fmt.Errorf("doors: reading GitHub's answer about %s: %w", t.Name, err)
@@ -84,7 +89,19 @@ func LatestRelease(ctx context.Context, client *http.Client, t Template) (Releas
 	if body.Tag == "" {
 		return Release{}, fmt.Errorf("doors: GitHub names no release of %s", t.Name)
 	}
-	return Release{Version: body.Tag, URL: body.URL, At: body.Published}, nil
+	// A release is published before its builds are uploaded: until
+	// this system's is there, it isn't one to update to.
+	url, _, err := t.Download.resolve(runtime.GOARCH, body.Tag)
+	if err != nil {
+		return Release{}, fmt.Errorf("doors: %s: %w", t.Name, err)
+	}
+	asset := path.Base(url)
+	for _, a := range body.Assets {
+		if a.Name == asset {
+			return Release{Version: body.Tag, URL: body.URL, At: body.Published}, nil
+		}
+	}
+	return Release{}, fmt.Errorf("doors: %s %s has no %s (yet)", t.Name, body.Tag, asset)
 }
 
 // SaveRelease records what the update check found for template id;
@@ -164,6 +181,7 @@ func Update(ctx context.Context, client *http.Client, t Template, dir, version s
 		return fmt.Errorf("doors: %s is not installed in %s", t.Name, dir)
 	}
 	parent := filepath.Dir(dir)
+	removeStale(filepath.Join(parent, ".update-"+filepath.Base(dir)+"-*"))
 	tmp, err := os.MkdirTemp(parent, ".update-"+filepath.Base(dir)+"-*")
 	if err != nil {
 		return fmt.Errorf("doors: creating scratch dir: %w", err)
@@ -230,4 +248,15 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return os.WriteFile(dst, b, info.Mode().Perm())
+}
+
+// removeStale deletes what pattern matches that is older than an hour:
+// scratch directories a crash or restart left behind.
+func removeStale(pattern string) {
+	matches, _ := filepath.Glob(pattern)
+	for _, m := range matches {
+		if info, err := os.Stat(m); err == nil && time.Since(info.ModTime()) > time.Hour {
+			os.RemoveAll(m)
+		}
+	}
 }

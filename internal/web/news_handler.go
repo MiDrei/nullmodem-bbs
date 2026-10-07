@@ -121,7 +121,7 @@ func (s *Server) handleDeleteNews(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "no such news")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "could not save the news")
+		writeError(w, http.StatusInternalServerError, "could not delete the news")
 		return
 	}
 	if claims, ok := claimsFromContext(r.Context()); ok {
