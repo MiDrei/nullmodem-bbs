@@ -251,6 +251,7 @@ func doorsFromConfig(entries []config.DoorConfig) []doors.Door {
 			DropFileInDoorDir: d.DropFileInDoorDir,
 			LockFiles:         d.LockFiles,
 			Stdio:             d.Stdio,
+			Console:           d.Console,
 			ANSI16:            d.ANSI16,
 			Remote:            d.Remote,
 			Daily:             d.Daily,

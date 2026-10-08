@@ -35,6 +35,7 @@ type doorDTO struct {
 	DropFileInDoorDir bool     `json:"dropfile_in_door_dir"`
 	LockFiles         []string `json:"lock_files"`
 	Stdio             bool     `json:"stdio"`
+	Console           bool     `json:"console"`
 	ANSI16            bool     `json:"ansi16"`
 	// Remote is a door of kind "rlogin": where and as whom.
 	Remote   config.RemoteDoor `json:"remote"`
@@ -112,6 +113,7 @@ func toDoorDTO(d config.DoorConfig) doorDTO {
 		DropFileInDoorDir: d.DropFileInDoorDir,
 		LockFiles:         orEmpty(d.LockFiles),
 		Stdio:             d.Stdio,
+		Console:           d.Console,
 		ANSI16:            d.ANSI16,
 		Remote:            d.Remote,
 		Template:          d.Template,
@@ -151,6 +153,7 @@ func fromDoorDTO(d doorDTO) config.DoorConfig {
 		DropFileInDoorDir: d.DropFileInDoorDir,
 		LockFiles:         trimmed(d.LockFiles),
 		Stdio:             d.Stdio && kind == "",
+		Console:           d.Console && kind == "" && !d.Stdio,
 		ANSI16:            d.ANSI16,
 		Remote:            trimRemote(d.Remote, kind),
 		Template:          d.Template,
@@ -437,6 +440,7 @@ func (s *Server) handleAddDoorFromTemplate(w http.ResponseWriter, r *http.Reques
 		entry.Dir = dir
 		entry.Args = t.Args
 		entry.Stdio = t.Stdio
+		entry.Console = t.Console
 		entry.ANSI16 = t.ANSI16
 		entry.Program = t.Program
 	} else {

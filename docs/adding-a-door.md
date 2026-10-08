@@ -123,7 +123,7 @@ out:
 | --- | --- | --- |
 | MRC Chat (uMRC, MIT, native) | downloaded from GitHub | Multi-Relay Chat client; installing asks what the chat network shows about the board (written to `mrc.cfg`), `umrc-bridge` runs as its background program (see below) |
 | Immortal Barons (MIT, native) | downloaded from GitHub | Barren Realms Elite remake; `door.json` set to DOOR32.SYS and the world created with default settings (`-reset-from-config`); `ansi16` on |
-| Usurper Reborn (GPL-2.0, native) | downloaded from GitHub (~55 MB) | runs with `stdio` (see below) |
+| Usurper Reborn (GPL-2.0, native) | downloaded from GitHub (~60 MB) | runs with `console` (see below) |
 | Usurper (GPL-2.0, native) | downloaded from GitHub | Rick Parrish's Linux build; `USURPER.CFG`/`USURP.CTL` from its samples (`BBSTYPE DOOR32`), then EDITOR's "Reset Game" driven over a pseudo-terminal; `NODE/ONLINERS.DAT` as lock file |
 | Judge Dredd (MIT) | downloaded from GitHub | `JUDGE.CTL` and `DATA/REG.DAT` are set to this board's name and sysop |
 | Legend of the Red Dragon | by hand | `DORINFO1.DEF` in the door dir; run `LORDCFG` once |
@@ -178,11 +178,19 @@ included) under the same BBS name.
 
 `stdio: true` also connects the door's stdin/stdout to the caller's
 connection, the way Synchronet runs doors, and leaves the BBS's telnet
-layer handling the protocol (as for `dosbox` doors). Usurper Reborn
-needs it: it switches to standard I/O by itself as soon as its output
-is redirected, which it always is here. A door on standard I/O writes bare LFs,
-trusting a terminal driver to add the CR; the BBS adds it instead
-(otherwise every line starts where the previous one ended).
+layer handling the protocol (as for `dosbox` doors). A door on standard
+I/O writes bare LFs, trusting a terminal driver to add the CR; the BBS
+adds it instead (otherwise every line starts where the previous one
+ended). Such a door expects the BBS to echo what's typed -- this BBS
+doesn't, so prefer the socket where a door offers both.
+
+`console: true` keeps a socket door on the socket: its stdin, stdout and
+stderr become a pseudo-terminal no caller sees (otherwise they're
+`/dev/null`). Usurper Reborn needs it: it takes /dev/null for redirected
+I/O and switches to standard I/O by itself, where (from 1.2 on) nothing
+the caller types is echoed. On the socket it echoes itself; its menus
+and pauses there take a line (key, then Enter) by design. What a door
+writes to its console shows in the log when it fails.
 
 ### 16 colours
 

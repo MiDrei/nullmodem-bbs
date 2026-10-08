@@ -62,6 +62,7 @@
 			dropfile_in_door_dir: false,
 			lock_files: [],
 			stdio: false,
+			console: false,
 			ansi16: false,
 			remote: { host: '', port: 513, client_user: '', server_user: '', term_type: '' },
 			template: '',
@@ -437,11 +438,20 @@
 				</span>
 			</label>
 			<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
-				<input type="checkbox" class="check mt-0.5" bind:checked={draft.stdio} />
+				<input type="checkbox" class="check mt-0.5" bind:checked={draft.stdio} onchange={() => draft.stdio && (draft.console = false)} />
 				<span>
 					<span class="text-ink">{t('admin.doors.talk_over_standard_i_o')}</span>
 					<span class="block text-xs text-faint">
 						{t('admin.doors.for_doors_that_use_stdin')}
+					</span>
+				</span>
+			</label>
+			<label class="flex cursor-pointer items-start gap-2.5 text-[13px]">
+				<input type="checkbox" class="check mt-0.5" bind:checked={draft.console} disabled={draft.stdio} />
+				<span>
+					<span class="text-ink">{t('admin.doors.give_it_a_console')}</span>
+					<span class="block text-xs text-faint">
+						{t('admin.doors.give_it_a_console_hint')}
 					</span>
 				</span>
 			</label>
@@ -587,7 +597,7 @@
 								{/if}
 							</div>
 							<div class="mt-1 truncate font-mono text-[11px] text-faint">
-								{t('admin.doors.v_v2_v3_v4_v5', { V: doorDir(d) || '—', V2: d.kind === 'rlogin' ? '' : ` · ${dropfileLabel(d)}`, V3: d.daily ? t('admin.doors.daily_v', { V: d.daily_at || '00:05' }) : '', V4: d.dropfile_in_door_dir ? t('admin.doors.door_dir') : '', V5: d.stdio ? t('admin.doors.stdio') : '', V6: d.ansi16 ? t('admin.doors.16_colours') : '', V7: d.program.length ? t('admin.doors.runs_v', { V: d.program[0] }) : '', MIN_SL: d.min_sl })}
+								{t('admin.doors.v_v2_v3_v4_v5', { V: doorDir(d) || '—', V2: d.kind === 'rlogin' ? '' : ` · ${dropfileLabel(d)}`, V3: d.daily ? t('admin.doors.daily_v', { V: d.daily_at || '00:05' }) : '', V4: d.dropfile_in_door_dir ? t('admin.doors.door_dir') : '', V5: d.stdio ? t('admin.doors.stdio') : d.console ? t('admin.doors.console_tag') : '', V6: d.ansi16 ? t('admin.doors.16_colours') : '', V7: d.program.length ? t('admin.doors.runs_v', { V: d.program[0] }) : '', MIN_SL: d.min_sl })}
 							</div>
 							{#if d.daily_state}
 								<div class="mt-0.5 truncate text-[11px] {d.daily_state.ok ? 'text-emerald-500' : 'text-red-400'}" title={d.daily_state.detail}>

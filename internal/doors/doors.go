@@ -129,6 +129,13 @@ type Door struct {
 	// handling the protocol, as it does for "dosbox" doors, and a bare
 	// LF in its output gets the CR a terminal driver would add.
 	Stdio bool
+	// Console gives a "native" door played over the DOOR32.SYS socket a
+	// pseudo-terminal as its stdin, stdout and stderr -- a console no
+	// caller sees. Without one they are /dev/null, which some doors
+	// (Usurper Reborn) take for redirected I/O and switch to standard
+	// I/O on their own, where nothing reaches them. Its output goes
+	// into the door's error detail.
+	Console bool
 	// ANSI16 rewrites the door's 256-colour and true-colour output into
 	// the 16 classic ANSI colours, for doors drawn for modern terminals
 	// (Immortal Barons) played from classic BBS terminals, which can't
@@ -283,12 +290,29 @@ func Run(conn io.ReadWriter, door Door, sess Session) error {
 		cmd.Stdin = child
 		cmd.Stdout = child
 	}
-	var stderr bytes.Buffer
+	var stderr syncBuffer
 	cmd.Stderr = &stderr
+	var consoleSlave *os.File
+	if door.Console && door.Kind != "dosbox" && !door.Stdio {
+		master, slave, err := openPTY()
+		if err != nil {
+			child.Close()
+			return fmt.Errorf("doors: %s: opening its console: %w", door.Name, err)
+		}
+		defer master.Close()
+		attachPTY(cmd, slave)
+		consoleSlave = slave
+		// Whatever the door writes there is read away (a full pty
+		// would block it), the start of it kept for the error detail.
+		go io.Copy(&stderr, master)
+	}
 
 	if err := cmd.Start(); err != nil {
 		child.Close()
 		return fmt.Errorf("doors: starting %s: %w", door.Name, err)
+	}
+	if consoleSlave != nil {
+		consoleSlave.Close() // the door has its own; EOF on master when it exits
 	}
 	// Our copy of the child's fd -- the door process has its own,
 	// inherited at fork; closing ours doesn't affect it, and holding
@@ -684,4 +708,28 @@ func (d *lineEndDropper) Read(p []byte) (int, error) {
 		}
 	}
 	return n, err
+}
+
+// syncBuffer is a bytes.Buffer safe for a writer goroutine and a
+// reader, capped at maxDetail bytes (a door's console can be chatty).
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+const maxDetail = 16 << 10
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if room := maxDetail - b.buf.Len(); room > 0 {
+		b.buf.Write(p[:min(len(p), room)])
+	}
+	return len(p), nil
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

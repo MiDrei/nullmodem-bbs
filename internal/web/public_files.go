@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/midrei/nullmodem-kit/ansi"
 	"github.com/dustin/go-humanize"
+	"github.com/midrei/nullmodem-kit/ansi"
 
 	"github.com/midrei/nullmodem-bbs/internal/file"
 )

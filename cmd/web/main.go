@@ -5,6 +5,7 @@ package main
 import (
 	"github.com/midrei/nullmodem-bbs/internal/chat"
 	"github.com/midrei/nullmodem-bbs/internal/community"
+	"github.com/midrei/nullmodem-bbs/internal/doors"
 	"github.com/midrei/nullmodem-bbs/internal/emailgw"
 	"github.com/midrei/nullmodem-bbs/internal/guard"
 	"github.com/midrei/nullmodem-bbs/internal/health"
@@ -92,6 +93,9 @@ func main() {
 
 	if err := migrateNetworks(cfg.BBSConfigPath, filepath.Dir(cfg.DatabasePath), bbsCfg, sqlDB, logger); err != nil {
 		log.Fatalf("migrating networks: %v", err)
+	}
+	if err := migrateDoorConsoles(cfg.BBSConfigPath, filepath.Dir(cfg.DatabasePath), bbsCfg, logger); err != nil {
+		logger.Warn("moving doors to a console: %v", err)
 	}
 
 	// A restart asked for in the web admin (see internal/services) --
@@ -334,6 +338,41 @@ func migrateNetworks(path, dataDir string, c *config.Config, sqlDB *sql.DB, logg
 	}
 	logger.Info("networks set up from the uplinks (%s), %d area group(s) renamed; previous config kept as %s",
 		strings.Join(names, ", "), n, filepath.Base(backup))
+	return nil
+}
+
+// migrateDoorConsoles moves doors set up from a template that now plays
+// over the socket with a console (Usurper Reborn from 1.2: on standard
+// I/O it no longer echoes what's typed) off standard I/O. Once; the
+// sysop can still set them back in the admin.
+func migrateDoorConsoles(path, dataDir string, c *config.Config, logger *applog.Logger) error {
+	var moved []string
+	for i := range c.Doors {
+		d := &c.Doors[i]
+		dir := d.Dir
+		t, ok := doors.TemplateFor(d.Template, dir)
+		if !ok || !t.Console || !d.Stdio || d.Kind != "" || d.Template != t.ID {
+			continue
+		}
+		d.Stdio, d.Console = false, true
+		moved = append(moved, d.Name)
+	}
+	if len(moved) == 0 {
+		return nil
+	}
+	old, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading %s for its backup: %w", path, err)
+	}
+	backup := filepath.Join(dataDir, filepath.Base(path)+".bak-doorconsole-"+time.Now().Format("20060102-150405"))
+	if err := os.WriteFile(backup, old, 0o644); err != nil {
+		return fmt.Errorf("backing up %s: %w", path, err)
+	}
+	if err := config.Save(path, c); err != nil {
+		return err
+	}
+	logger.Info("door(s) %s now played over the socket with a console instead of standard I/O; previous config kept as %s",
+		strings.Join(moved, ", "), filepath.Base(backup))
 	return nil
 }
 

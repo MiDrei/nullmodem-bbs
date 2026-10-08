@@ -286,6 +286,9 @@ type DoorConfig struct {
 	// Stdio runs a native door over standard I/O -- see
 	// internal/doors.Door.Stdio.
 	Stdio bool `yaml:"stdio,omitempty"`
+	// Console gives a native socket door a pseudo-terminal as its
+	// console -- see internal/doors.Door.Console.
+	Console bool `yaml:"console,omitempty"`
 	// ANSI16 reduces the door's colours to the 16 classic ones -- see
 	// internal/doors.Door.ANSI16.
 	ANSI16 bool `yaml:"ansi16,omitempty"`

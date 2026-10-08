@@ -33,6 +33,7 @@ type Template struct {
 	Exe               string   `json:"exe,omitempty"`
 	Args              []string `json:"args,omitempty"`
 	Stdio             bool     `json:"stdio,omitempty"`
+	Console           bool     `json:"console,omitempty"`
 	ANSI16            bool     `json:"ansi16,omitempty"`
 	DOSBoxLaunchCmd   string   `json:"dosbox_launch_cmd,omitempty"`
 	DropFile          string   `json:"dropfile"`
@@ -190,9 +191,10 @@ var Templates = []Template{
 		Kind:        "native",
 		Exe:         "UsurperReborn",
 		Args:        []string{"--door32", "{dropfile}"},
-		// It switches to standard I/O by itself once its output is
-		// redirected, so it's run that way.
-		Stdio: true,
+		// Played over the socket with a console of its own: on standard
+		// I/O (which it picks by itself when its output is redirected)
+		// 1.2 doesn't echo what's typed, so its menus look dead.
+		Console: true,
 		Download: &Download{
 			URL:           "https://github.com/binary-knight/usurper-reborn/releases/download/{version}/UsurperReborn-{version}-Linux-{arch}.zip",
 			Version:       "v1.2.7",

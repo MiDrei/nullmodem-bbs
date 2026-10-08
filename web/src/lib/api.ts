@@ -1679,6 +1679,8 @@ export interface Door {
 	lock_files: string[];
 	/** Native doors only: talk over stdin/stdout instead of the DOOR32.SYS socket. */
 	stdio: boolean;
+	/** Native socket doors only: a pseudo-terminal as the door's console, so it doesn't take its I/O for redirected. */
+	console: boolean;
 	/** Reduce the door's 256/true colours to the 16 classic ANSI colours. */
 	ansi16: boolean;
 	/** Kind "rlogin": the door server and the user names sent to it. */
