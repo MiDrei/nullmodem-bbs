@@ -25,10 +25,17 @@ import (
 // terminal (internal/bbs's Terminal.Width).
 const width = 79
 
+// sample fills the screens' placeholders.
+var sample = struct{ bbs, sysop, user, version string }{"Maiks Place BBS", "Mike Dreier", "SwissMaik", "NullModem BBS"}
+
 func main() {
 	lang := flag.String("lang", "de-du", "language of the {T:key} texts")
 	sl := flag.Int("sl", 255, "security level of the caller")
 	scale := flag.Int("scale", 2, "pixels per font pixel")
+	flag.StringVar(&sample.bbs, "bbs", sample.bbs, "the board's name ({BBSNAME})")
+	flag.StringVar(&sample.sysop, "sysop", sample.sysop, "the sysop ({SYSOP})")
+	flag.StringVar(&sample.user, "user", sample.user, "the caller ({USERNAME})")
+	flag.StringVar(&sample.version, "version", sample.version, "{VERSION}")
 	flag.Parse()
 	if flag.NArg() != 2 {
 		fmt.Fprintln(os.Stderr, "usage: preview [-lang de-du] [-sl 255] [-scale 2] screen.ans out.png")
@@ -45,8 +52,8 @@ func run(in, out, lang string, sl, scale int) error {
 	if err != nil {
 		return err
 	}
-	vars := ansi.Vars{"BBSNAME": "Maiks Place BBS", "SYSOP": "Mike Dreier", "USERNAME": "SwissMaik",
-		"NODE": "1", "SL": fmt.Sprint(sl), "VERSION": "NullModem BBS",
+	vars := ansi.Vars{"BBSNAME": sample.bbs, "SYSOP": sample.sysop, "USERNAME": sample.user,
+		"NODE": "1", "SL": fmt.Sprint(sl), "VERSION": sample.version,
 		"SYSOP_ITEM": menu.SysopItem(sl, string(ansi.EncodeCP437(i18n.T(lang, "menu.sysop_item"))))}
 	text := ansi.Layout(ansi.Render(menu.SysopLines(i18n.FillScreen(lang, raw), sl), vars), width)
 	src := ansiimg.Render(ansi.ParseGrid(text, width+1))

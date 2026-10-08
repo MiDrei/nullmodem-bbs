@@ -5,6 +5,11 @@ name: Release image
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to write the release page for (the image isn't rebuilt)
+        required: true
 
 permissions:
   contents: read
@@ -12,6 +17,7 @@ permissions:
 
 jobs:
   image:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,3 +45,40 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.licenses=MIT
+
+  notes:
+    # The release page: the changes since the previous version tag (the
+    # commit titles) and how to pull the image. "Run workflow" with a
+    # tag writes it for an existing one.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Write the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/nullmodem-bbs"
+          {
+            echo "## Changes"
+            echo
+            if [ -n "$prev" ]; then range="$prev..$TAG"; else range="$TAG"; fi
+            git log --no-merges --format='- %s' "$range"
+            echo
+            echo "## Image"
+            echo
+            echo '```sh'
+            echo "docker pull $image:$TAG"
+            echo '```'
+            [ -n "$prev" ] && echo && echo "**Full diff:** ${{ github.server_url }}/${{ github.repository }}/compare/$prev...$TAG"
+          } > notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" --title "NullModem BBS $TAG" --notes-file notes.md --verify-tag
+          fi

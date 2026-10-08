@@ -18,6 +18,21 @@ Teil der NullModem-Familie:
 | [kit](https://github.com/midrei/nullmodem-kit) | gemeinsamer Unterbau: ANSI/CP437, QWK/QWKE, Zmodem |
 | [reader](https://github.com/midrei/nullmodem-reader) | NullModem Reader (`nmr`), Offline-Reader für QWK-Post dieser BBS |
 
+## Bilder
+
+Telnet/SSH, im mitgelieferten Weltraum-Design (eine Beispiel-BBS, «Starport BBS»):
+
+| | |
+|---|---|
+| ![Willkommensbildschirm](docs/images/welcome.png) | ![Hauptmenü](docs/images/main.png) |
+| ![Nachrichtenleser](docs/images/reader.png) | ![Doors](docs/images/doors.png) |
+
+Die Web-Seite:
+
+| | |
+|---|---|
+| ![Startseite im Browser](docs/images/web-front.png) | ![Web-Portal](docs/images/web-message.png) |
+
 ## Was sie kann
 
 **Telnet/SSH**

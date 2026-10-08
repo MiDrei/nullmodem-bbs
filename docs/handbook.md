@@ -406,6 +406,7 @@ already shows the item, otherwise "Edit screen". Before bigger updates:
 | Caller locked out | Users → Security | too many failed logins; Unlock |
 | Door doesn't start | Logs → System (door filter) | directory empty, wrong drop file, lock file |
 | Times wrong | `.env` → `TZ` | container without a time zone (UTC) |
+| Leftovers on screen when moving through lists | the caller's terminal | it doesn't handle the in-place updates (only changed lines are sent); `NULLMODEM_FULL_REDRAW=1` in the `bbs` service's environment sends every screen whole again |
 
 With shell access: `docker compose logs -f mailer` (or `bbs`, `web`).
 

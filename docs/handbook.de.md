@@ -414,6 +414,7 @@ sagt dann, ob der Bildschirm (`main.ans`) den Punkt schon zeigt, sonst
 | Anrufer ausgesperrt | Users → Security | zu viele Fehl-Logins; Unlock |
 | Door startet nicht | Logs → System (Door-Filter) | Verzeichnis leer, falsche Drop-Datei, Lock-Datei |
 | Zeiten falsch | `.env` → `TZ` | Container ohne Zeitzone (UTC) |
+| Reste auf dem Bildschirm beim Blättern in Listen | Terminal des Anrufers | es kommt mit dem Aktualisieren an Ort und Stelle nicht zurecht (gesendet werden nur geänderte Zeilen); `NULLMODEM_FULL_REDRAW=1` in der Umgebung des `bbs`-Dienstes sendet wieder jeden Bildschirm ganz |
 
 Wer Shell-Zugang hat: `docker compose logs -f mailer` (bzw. `bbs`, `web`).
 

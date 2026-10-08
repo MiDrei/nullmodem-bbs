@@ -1,6 +1,7 @@
 package bbs
 
 import (
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,6 +15,11 @@ import (
 // lines that changed, each in place.
 
 const clearHome = "\x1b[2J\x1b[H"
+
+// fullRedraw turns the line-by-line updates off (NULLMODEM_FULL_REDRAW
+// set to anything): every screen is sent whole again, for a terminal
+// that gets confused by the in-place updates, or for capturing screens.
+var fullRedraw = os.Getenv("NULLMODEM_FULL_REDRAW") != ""
 
 // nonSGR finds a control sequence other than a colour change: a screen
 // that moves the cursor itself (the chat, the editor, ANSI art) is
@@ -64,6 +70,9 @@ func visibleWidth(text string) int {
 // last one is known; anything else is written as it is and forgets the
 // screen (the caller drew over it).
 func (t *Terminal) frame(out string) string {
+	if fullRedraw {
+		return out
+	}
 	body, whole := strings.CutPrefix(out, clearHome)
 	w, h := t.Width(), t.Height()
 	if !whole || nonSGR.MatchString(body) || strings.Contains(strings.ReplaceAll(body, "\r\n", ""), "\r") {
