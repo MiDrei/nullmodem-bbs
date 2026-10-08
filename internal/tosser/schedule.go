@@ -3,6 +3,7 @@ package tosser
 import (
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/midrei/nullmodem-bbs/internal/config"
@@ -67,4 +68,72 @@ func IsDue(uplink config.BinkpUplink, lastPolled, now time.Time, defaultInterval
 		interval = time.Duration(uplink.PollIntervalSeconds) * time.Second
 	}
 	return now.Sub(lastPolled) >= interval
+}
+
+// DialBackoff spaces out crash dials (see cmd/mailer's
+// dialedForPendingMail) to an uplink whose last ones failed: each
+// failure in a row doubles the wait, from FirstWait up to MaxWait,
+// and a session that works starts it over. Without it, mail waiting
+// for an unreachable hub was dialed every few minutes for hours --
+// noise in the log, and a cadence that gets a caller blocked by the
+// hub's own rate limiting. Kept in memory: a restart tries again.
+type DialBackoff struct {
+	FirstWait, MaxWait time.Duration
+
+	mu    sync.Mutex
+	hosts map[string]dialFailures
+}
+
+type dialFailures struct {
+	count int
+	last  time.Time
+}
+
+// Wait is how long after its last failure host is left alone; zero
+// when its last dial worked.
+func (b *DialBackoff) Wait(host string) time.Duration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.wait(b.hosts[host].count)
+}
+
+func (b *DialBackoff) wait(count int) time.Duration {
+	if count == 0 {
+		return 0
+	}
+	w := b.FirstWait
+	for i := 1; i < count && w < b.MaxWait; i++ {
+		w *= 2
+	}
+	return min(w, b.MaxWait)
+}
+
+// Ready reports whether host may be dialed at now.
+func (b *DialBackoff) Ready(host string, now time.Time) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	f := b.hosts[host]
+	return f.count == 0 || now.Sub(f.last) >= b.wait(f.count)
+}
+
+// Failed records a failed dial to host at now and returns how many
+// failed in a row.
+func (b *DialBackoff) Failed(host string, now time.Time) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.hosts == nil {
+		b.hosts = map[string]dialFailures{}
+	}
+	f := b.hosts[host]
+	f.count++
+	f.last = now
+	b.hosts[host] = f
+	return f.count
+}
+
+// Worked records a session with host that worked.
+func (b *DialBackoff) Worked(host string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.hosts, host)
 }

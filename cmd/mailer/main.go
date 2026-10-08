@@ -344,9 +344,10 @@ func pollIfDue(ctx context.Context, cfg *config.Config, uplink config.BinkpUplin
 
 	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, cfg.BBS.Name, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg, sessionLog)
 	if err != nil {
-		logger.Warn("polling %s (%s): %v", uplink.Address, uplink.Host, err)
+		logger.Warn("polling %s (%s): %v%s", uplink.Address, uplink.Host, err, dialFailed(uplink.Host))
 		return true
 	}
+	dialBackoff.Worked(uplink.Host)
 	logger.Info("polled %s (%s): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles)+replacedSuffix(res.ReplacedFiles))
 	return true
 }
@@ -373,7 +374,8 @@ func skippedFilesSuffix(skipped []string) string {
 // dials nothing, leaving the uplink to checkUplinks' slower fallback
 // scheduling. Reports whether it actually dialed (whether or not that
 // dial succeeded), so checkUplinks' caller can stop after one dial
-// per tick the same way it does for a regular poll.
+// per tick the same way it does for a regular poll. After failed
+// dials, it waits longer and longer before the next (see dialBackoff).
 func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config.BinkpUplink, netmailStore *netmail.Store, messages *message.Store, users *user.Store, robot *tosser.RobotConfig, ticCfg *tosser.TICConfig, pollStore *tosser.UplinkPollStore, sessionLog *binkplog.Store, logger *applog.Logger) bool {
 	routedNetmail, err := tosser.RoutedOutbound(netmailStore, uplink, cfg.Binkp.Uplinks)
 	if err != nil {
@@ -406,17 +408,36 @@ func dialedForPendingMail(ctx context.Context, cfg *config.Config, uplink config
 	if len(routedNetmail) == 0 && len(routedEcho) == 0 && len(forwardedEcho) == 0 && len(forwardedFiles) == 0 {
 		return false
 	}
+	if !dialBackoff.Ready(uplink.Host, time.Now()) {
+		return false // its last dials failed; the mail waits (or the hub picks it up calling in)
+	}
 	if err := pollStore.RecordAttempt(uplink.Host); err != nil {
 		logger.Warn("recording poll attempt for %s (%s): %v", uplink.Address, uplink.Host, err)
 		return false
 	}
 	res, err := tosser.Poll(ctx, cfg.BBS.FTNAddresses, cfg.BBS.Name, uplink, cfg.Binkp.Uplinks, netmailStore, messages, users, robot, ticCfg, sessionLog)
 	if err != nil {
-		logger.Warn("crash-dialing %s (%s) for pending mail: %v", uplink.Address, uplink.Host, err)
+		logger.Warn("crash-dialing %s (%s) for pending mail: %v%s", uplink.Address, uplink.Host, err, dialFailed(uplink.Host))
 		return true
 	}
+	dialBackoff.Worked(uplink.Host)
 	logger.Info("crash-dialed %s (%s) for pending mail: sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", uplink.Address, uplink.Host, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles)+replacedSuffix(res.ReplacedFiles))
 	return true
+}
+
+// dialBackoff holds back crash dials to an uplink whose last dials
+// failed -- see tosser.DialBackoff.
+var dialBackoff = &tosser.DialBackoff{FirstWait: minGapBetweenAnyPolls, MaxWait: time.Hour}
+
+// dialFailed records a failed dial to host and returns a log-line
+// suffix saying when mail waiting for it is tried again, once it
+// failed more than once in a row.
+func dialFailed(host string) string {
+	n := dialBackoff.Failed(host, time.Now())
+	if n < 2 {
+		return ""
+	}
+	return fmt.Sprintf(" (failed %d times in a row; waiting mail is tried again in %s)", n, dialBackoff.Wait(host))
 }
 
 // activeInbound counts inbound BinkP sessions in progress, so a

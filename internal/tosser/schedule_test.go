@@ -111,3 +111,30 @@ func TestIsDueUsesPerUplinkOverride(t *testing.T) {
 		t.Fatal("IsDue = false after 121 of 120 override minutes, want true")
 	}
 }
+
+func TestDialBackoff(t *testing.T) {
+	b := &DialBackoff{FirstWait: 5 * time.Minute, MaxWait: time.Hour}
+	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	if !b.Ready("hub", now) || b.Wait("hub") != 0 {
+		t.Fatal("a new host isn't ready")
+	}
+	want := []time.Duration{5, 10, 20, 40, 60, 60}
+	for i, w := range want {
+		if n := b.Failed("hub", now); n != i+1 {
+			t.Fatalf("failures %d, want %d", n, i+1)
+		}
+		if got := b.Wait("hub"); got != w*time.Minute {
+			t.Errorf("after %d failure(s): wait %v, want %v", i+1, got, w*time.Minute)
+		}
+		if b.Ready("hub", now.Add(w*time.Minute-time.Second)) || !b.Ready("hub", now.Add(w*time.Minute)) {
+			t.Errorf("after %d failure(s): ready at the wrong time", i+1)
+		}
+	}
+	if !b.Ready("other", now) {
+		t.Error("one host's failures hold back another")
+	}
+	b.Worked("hub")
+	if !b.Ready("hub", now) || b.Wait("hub") != 0 {
+		t.Error("a working session doesn't start over")
+	}
+}
