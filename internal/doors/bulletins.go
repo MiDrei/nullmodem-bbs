@@ -1,12 +1,15 @@
 package doors
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"github.com/midrei/nullmodem-kit/ansi"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // MaxBulletin bounds a bulletin file read for showing.
@@ -52,4 +55,49 @@ func ReadBulletin(dir, file string) ([]byte, time.Time, error) {
 		return nil, time.Time{}, fmt.Errorf("doors: %w", err)
 	}
 	return data[:n], info.ModTime(), nil
+}
+
+// BulletinText is a door's bulletin file ready for the terminal: a
+// UTF-8 file (Usurper Reborn's news, with its emoji) turned into CP437
+// -- what has no CP437 form, like an emoji, left out -- and plain text
+// wrapped at word boundaries to width; ANSI art (CP437, with escape
+// sequences) as it is. Lines end in CR LF.
+func BulletinText(data []byte, width int) string {
+	if i := bytes.IndexByte(data, 0x1a); i >= 0 {
+		data = data[:i] // SAUCE
+	}
+	text := string(data)
+	if utf8.Valid(data) && !isASCII(data) {
+		text = string(ansi.EncodeCP437(strings.Map(func(r rune) rune {
+			// Emoji, their joiners and selectors: no CP437 form, left
+			// out rather than shown as "?".
+			if r >= 0x80 && string(ansi.EncodeCP437(string(r))) == "?" {
+				return -1
+			}
+			return r
+		}, text)))
+	}
+	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+	if !strings.Contains(text, "\x1b[") {
+		var wrapped []string
+		for _, l := range lines {
+			l = strings.TrimRight(l, " ")
+			if len(l) <= width {
+				wrapped = append(wrapped, l)
+				continue
+			}
+			wrapped = append(wrapped, ansi.WrapText(l, width)...)
+		}
+		lines = wrapped
+	}
+	return strings.Join(lines, "\r\n")
+}
+
+func isASCII(b []byte) bool {
+	for _, c := range b {
+		if c >= 0x80 {
+			return false
+		}
+	}
+	return true
 }

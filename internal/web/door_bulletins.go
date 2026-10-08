@@ -3,7 +3,6 @@ package web
 import (
 	"net/http"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/midrei/nullmodem-kit/ansi"
@@ -43,13 +42,8 @@ func (s *Server) doorBulletins(c *config.Config, sl int, publicOnly bool) []door
 			if err != nil {
 				continue // not written yet
 			}
-			text := string(data)
-			// SAUCE and anything after the DOS end-of-file mark.
-			if i := strings.IndexByte(text, 0x1a); i >= 0 {
-				text = text[:i]
-			}
 			out = append(out, doorBulletinDTO{Door: d.Name, Title: b.Title, Updated: at, Public: b.Public,
-				Grid: ansi.ParseGrid(normalizeNewlines(text), artWidth)})
+				Grid: ansi.ParseGrid(doors.BulletinText(data, artWidth), artWidth)})
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Public && !out[j].Public })

@@ -16,7 +16,7 @@ import (
 func TestRunConsoleGivesTheDoorATerminal(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "door.sh")
-	os.WriteFile(script, []byte("#!/bin/sh\nif [ -t 0 ] && [ -t 1 ]; then printf 'tty.' >&3; else printf 'notty.' >&3; fi\necho console-noise\n"), 0o755)
+	os.WriteFile(script, []byte("#!/bin/sh\nif [ -t 0 ] && [ -t 1 ]; then printf 'tty.' >&3; else printf 'notty.' >&3; fi\necho console-noise\nexec sleep 5\n"), 0o755)
 
 	for _, c := range []struct {
 		console bool

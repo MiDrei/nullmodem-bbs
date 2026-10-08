@@ -72,12 +72,8 @@ func (s *Server) showDoorBulletin(term *Terminal, x doorBulletin) error {
 		}
 		return s.pauseForKey(term)
 	}
-	text := string(data)
-	if i := strings.IndexByte(text, 0x1a); i >= 0 {
-		text = text[:i] // SAUCE
-	}
-	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\n", "\r\n")
-	grid := ansi.ParseGrid(text, 80)
+	text := doors.BulletinText(data, term.Width())
+	grid := ansi.ParseGrid(text, term.Width())
 	rows := grid.Height
 	for rows > 0 && strings.TrimSpace(grid.EncodeRows(rows-1, rows)) == "" {
 		rows--
