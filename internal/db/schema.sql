@@ -593,6 +593,16 @@ CREATE TABLE IF NOT EXISTS health_problems (
 -- door_releases is the door update check's last result per template
 -- (internal/doors.LatestRelease): its newest release, and the error if
 -- the last check failed. Times are Unix milliseconds.
+-- email_greylist is the gateway mail server's greylisting
+-- (internal/emailgw): sender network|from|to, when first and last seen
+-- and whether a retry has passed. Unix milliseconds.
+CREATE TABLE IF NOT EXISTS email_greylist (
+    key         TEXT PRIMARY KEY,
+    first_seen  INTEGER NOT NULL,
+    passed      INTEGER NOT NULL DEFAULT 0,
+    last_seen   INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS door_releases (
     template      TEXT PRIMARY KEY,
     version       TEXT NOT NULL DEFAULT '',

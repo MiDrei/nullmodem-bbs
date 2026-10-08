@@ -351,6 +351,9 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   2. Domain, IMAP-Server (das Postfach) und SMTP-Server eintragen, **Test**,
      einschalten, speichern.
 
+  Oder ohne Postfach: die BBS als eigener Mail-Server der Domain oder der
+  Webhook eines Weiterleitungsdienstes -- siehe [email.de.md](email.de.md).
+
   Die BBS holt das Postfach jede Minute ab; ungelesene Mail wird zur Netmail
   an den Anrufer, an den sie geht (`name+irgendwas@` geht auch), und danach
   als gelesen markiert oder, wenn gewünscht, gelöscht. Mail an unbekannte

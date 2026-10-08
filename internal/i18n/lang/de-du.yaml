@@ -223,3 +223,4 @@ admin.levels.subtitle: "Gib den Security Levels, die du verwendest, einen Namen:
 admin.levels.defaults_note: "Das sind die Levels, die die BBS selbst verwendet. Ändere oder ergänze sie und speichere, um eigene festzulegen."
 admin.levels.reset_confirm: "Eigene Namen verwerfen und zu den Standard-Levels zurück?"
 admin.doors.update_confirm: "{NAME} auf {VERSION} aktualisieren?\n\nSpielstände und Einstellungen bleiben, die ersetzten Dateien werden neben dem Door gesichert. Lies vorher die Release-Notes, falls die Version etwas Besonderes verlangt."
+admin.email.own_server_hint: "Setz den MX-Eintrag von {DOMAIN} (und der weiteren Domains) auf diesen Rechner und leite Port 25 auf den Port des Mail-Servers weiter ({PORT} im Container). Viele Privatanschlüsse sperren eingehenden Port 25."

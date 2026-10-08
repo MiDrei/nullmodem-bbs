@@ -59,6 +59,9 @@ services:
       TZ: ${TZ:-UTC} # e.g. Europe/Zurich: logs, backup names, nightly runs
     ports:
       - "8090:8090" # admin UI + REST API
+      # The email gateway's own mail server (Admin -> Email gateway ->
+      # "Be the domain's mail server"); port 25 is where the MX sends.
+      # - "25:2525"
     volumes:
       - ./configs/bbs.yaml:/app/configs/bbs.yaml
       - ./configs/web.yaml:/app/configs/web.yaml

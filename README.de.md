@@ -197,6 +197,8 @@ go test ./...
 
 - [docs/handbook.de.md](docs/handbook.de.md) — **Sysop-Handbuch**: Aufsetzen, Netzwerke,
   Areas, Doors, Benutzer, Alltag, Updates, Fehlersuche
+- [docs/email.de.md](docs/email.de.md) — E-Mail direkt empfangen: die BBS als
+  Mail-Server (MX) oder der Webhook eines Weiterleitungsdienstes
 - [docs/docker.de.md](docs/docker.de.md) — Betrieb mit Docker
 - [docs/adding-a-door.md](docs/adding-a-door.md) — Doors einrichten, nativ und
   unter DOSBox-X (englisch)

@@ -88,6 +88,8 @@ type Server struct {
 	Matrix *matrix.Bridge
 	// EmailGateway is the netmail <-> email gateway; nil: none.
 	EmailGateway *emailgw.Gateway
+	// MailReceiver is the gateway's own mail server; nil: none.
+	MailReceiver *emailgw.Receiver
 	// MenuDefaultsDir holds this version's stock menus (the image's
 	// configs-defaults/menus), "" for none: the menu editor offers
 	// what's new in them.
@@ -130,6 +132,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/terminal", s.handleTerminal)
 	mux.HandleFunc("GET /api/bbs/welcome-screen", s.handleWelcomeScreen)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
+	mux.HandleFunc("POST /api/email/inbound", s.handleEmailInbound)
+	// Mailgun posts the raw mail only to a URL ending in "mime".
+	mux.HandleFunc("POST /api/email/inbound/mime", s.handleEmailInbound)
 	mux.Handle("GET /api/config", s.requireAuth(http.HandlerFunc(s.handleGetConfig)))
 	mux.Handle("PUT /api/config", s.requireAuth(http.HandlerFunc(s.handlePutConfig)))
 	mux.Handle("GET /api/services", s.requireAuth(http.HandlerFunc(s.handleListServices)))
@@ -211,6 +216,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/email", s.requireAuth(http.HandlerFunc(s.handlePutEmail)))
 	mux.Handle("POST /api/email/test", s.requireAuth(http.HandlerFunc(s.handleTestEmail)))
 	mux.Handle("POST /api/email/fetch", s.requireAuth(http.HandlerFunc(s.handleFetchEmail)))
+	mux.Handle("POST /api/email/webhook-secret", s.requireAuth(http.HandlerFunc(s.handleNewWebhookSecret)))
 	mux.Handle("GET /api/oneliners", s.requireAuth(http.HandlerFunc(s.handleListOneliners)))
 	mux.Handle("DELETE /api/oneliners/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteOneliner)))
 	mux.Handle("GET /api/nodelists", s.requireAuth(http.HandlerFunc(s.handleNodelistStatus)))

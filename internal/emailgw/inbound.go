@@ -73,16 +73,19 @@ func folder(s config.MailServer) string {
 	return s.Folder
 }
 
-// Test logs in to both servers (and opens the IMAP folder).
+// Test logs in to both servers (and opens the IMAP folder), the IMAP
+// one only when the gateway has a mailbox.
 func Test(ctx context.Context, cfg config.EmailConfig) error {
-	c, err := dialIMAP(cfg.IMAP)
-	if err != nil {
-		return fmt.Errorf("IMAP: %w", err)
-	}
-	_, err = c.Select(folder(cfg.IMAP), true)
-	c.Logout()
-	if err != nil {
-		return fmt.Errorf("IMAP: opening %s: %w", folder(cfg.IMAP), err)
+	if cfg.IMAP.Host != "" {
+		c, err := dialIMAP(cfg.IMAP)
+		if err != nil {
+			return fmt.Errorf("IMAP: %w", err)
+		}
+		_, err = c.Select(folder(cfg.IMAP), true)
+		c.Logout()
+		if err != nil {
+			return fmt.Errorf("IMAP: opening %s: %w", folder(cfg.IMAP), err)
+		}
 	}
 	s, err := dialSMTP(cfg.SMTP)
 	if err != nil {
@@ -306,14 +309,100 @@ func partName(contentType string) string {
 	return params["name"]
 }
 
-// take turns one fetched mail into netmail. An error leaves it in the
-// mailbox for another try; mail that isn't for anyone is dropped.
+// take turns one fetched mail into netmail, for the callers its
+// headers name. An error leaves it in the mailbox for another try; mail
+// that isn't for anyone is dropped.
 func (g *Gateway) take(cfg config.EmailConfig, raw []byte, tooBig bool, size uint32) error {
+	return g.takeFor(cfg, raw, nil, false, tooBig, size)
+}
+
+// Receive turns a mail taken in directly (the mail server, a webhook)
+// into netmail for rcpts, its envelope recipients -- not the headers,
+// which leave out a Bcc and name a list rather than its members. spam:
+// the checks at the door found it suspect. Bigger than the gateway
+// takes, it arrives as its headers and a note.
+func (g *Gateway) Receive(cfg config.EmailConfig, raw []byte, rcpts []string, spam bool) error {
+	size := len(raw)
+	tooBig := size > maxMailSize
+	if tooBig {
+		if i := bytes.Index(raw, []byte("\r\n\r\n")); i > 0 {
+			raw = raw[:i+4]
+		}
+	}
+	return g.takeFor(cfg, raw, rcpts, spam, tooBig, uint32(min(size, 1<<31)))
+}
+
+// localPart is addr's local part if addr is at one of the gateway's
+// domains ("+tag" dropped: swissmaik+bbs@ is swissmaik@), else "".
+func localPart(cfg config.EmailConfig, addr string) string {
+	addr = strings.ToLower(strings.Trim(strings.TrimSpace(addr), "<>"))
+	at := strings.LastIndexByte(addr, '@')
+	if at <= 0 {
+		return ""
+	}
+	local, domain := addr[:at], addr[at+1:]
+	for _, d := range cfg.Domains() {
+		if domain == d {
+			if i := strings.IndexByte(local, '+'); i > 0 {
+				local = local[:i]
+			}
+			return local
+		}
+	}
+	return ""
+}
+
+// postmasters are the addresses every mail domain must have (RFC 5321,
+// 2142); their mail goes to the sysops.
+var postmasters = map[string]bool{"postmaster": true, "abuse": true}
+
+// Recipient is the caller addr reaches, if it's one of the gateway's
+// addresses and the caller may get email: nil and no error otherwise.
+func (g *Gateway) Recipient(cfg config.EmailConfig, addr string) (*user.User, error) {
+	local := localPart(cfg, addr)
+	if local == "" {
+		return nil, nil
+	}
+	if postmasters[local] {
+		return g.sysop()
+	}
+	u, err := g.userByAlias(local)
+	if errors.Is(err, user.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !May(cfg, u) {
+		return nil, nil
+	}
+	return u, nil
+}
+
+// sysop is the first sysop-level caller, for postmaster@ and abuse@.
+func (g *Gateway) sysop() (*user.User, error) {
+	all, err := g.Users.ListAll()
+	if err != nil {
+		return nil, err
+	}
+	for i := range all {
+		if all[i].SecurityLevel >= user.SLSysop {
+			return &all[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// takeFor delivers raw to the callers it's for: rcpts if given (the
+// envelope), else the addresses in its headers. spam adds to the spam
+// mark its headers may carry.
+func (g *Gateway) takeFor(cfg config.EmailConfig, raw []byte, rcpts []string, spam, tooBig bool, size uint32) error {
 	in, err := Parse(raw, cfg.Domain)
 	if err != nil {
 		g.drop("unreadable mail: %v", err)
 		return nil
 	}
+	in.Spam = in.Spam || spam
 	if in.Ours {
 		g.drop("mail from %s: sent by this gateway itself", in.From)
 		return nil
@@ -326,28 +415,33 @@ func (g *Gateway) take(cfg config.EmailConfig, raw []byte, tooBig bool, size uin
 		g.drop("mail without a sender (%q)", in.Subject)
 		return nil
 	}
-	domain := "@" + strings.ToLower(cfg.Domain)
+	to := in.To
+	if rcpts != nil {
+		to = rcpts
+	}
 	delivered := map[int64]bool{}
-	for _, to := range in.To {
-		if !strings.HasSuffix(to, domain) {
+	for _, addr := range to {
+		local := localPart(cfg, addr)
+		if local == "" {
 			continue
 		}
-		local := strings.TrimSuffix(to, domain)
-		if i := strings.IndexByte(local, '+'); i > 0 {
-			local = local[:i] // swissmaik+bbs@ is swissmaik@
-		}
-		u, err := g.userByAlias(local)
-		if errors.Is(err, user.ErrNotFound) {
-			continue
+		var u *user.User
+		if postmasters[local] {
+			u, err = g.sysop()
+		} else {
+			u, err = g.userByAlias(local)
+			if errors.Is(err, user.ErrNotFound) {
+				continue
+			}
 		}
 		if err != nil {
 			return err
 		}
-		if delivered[u.ID] {
+		if u == nil || delivered[u.ID] {
 			continue
 		}
-		if !May(cfg, u) {
-			g.drop("mail from %s to %s: not allowed to get email", in.From, to)
+		if !postmasters[local] && !May(cfg, u) {
+			g.drop("mail from %s to %s: not allowed to get email", in.From, addr)
 			delivered[u.ID] = true
 			continue
 		}
@@ -357,7 +451,7 @@ func (g *Gateway) take(cfg config.EmailConfig, raw []byte, tooBig bool, size uin
 		delivered[u.ID] = true
 	}
 	if len(delivered) == 0 {
-		g.drop("mail from %s to %s: no such caller", in.From, strings.Join(in.To, ", "))
+		g.drop("mail from %s to %s: no such caller", in.From, strings.Join(to, ", "))
 	}
 	return nil
 }

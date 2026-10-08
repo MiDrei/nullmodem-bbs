@@ -250,6 +250,9 @@ func main() {
 		BBSName: func() string { return current().BBS.Name },
 	}
 	go srv.EmailGateway.Run(context.Background())
+	// The gateway's own mail server (the domain's MX), when it's on.
+	srv.MailReceiver = &emailgw.Receiver{Gateway: srv.EmailGateway, DataDir: filepath.Dir(cfg.DatabasePath)}
+	go srv.MailReceiver.Run(context.Background())
 	go srv.RunDoorUpdateCheck(context.Background())
 
 	// Watching that everything keeps working: problems go to the
@@ -271,6 +274,11 @@ func main() {
 			}
 			if down, detail := srv.EmailGateway.Down(30 * time.Minute); down {
 				out = append(out, health.Problem{Key: "email", Title: i18n.Ref("health.email_down"), Detail: detail})
+			}
+			if st := srv.MailReceiver.Status(); !st.Listening && st.Error != "" {
+				if c := current(); c.Email.Enabled && c.Email.Receive.SMTP {
+					out = append(out, health.Problem{Key: "email-server", Title: i18n.Ref("health.email_server_down", "ADDR", c.Email.Receive.ListenAddr()), Detail: st.Error})
+				}
 			}
 			return out
 		},

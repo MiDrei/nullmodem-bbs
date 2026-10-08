@@ -345,6 +345,9 @@ NullModem Reader.
   2. Enter the domain, the IMAP server (the mailbox) and the SMTP server,
      **Test**, turn it on, save.
 
+  Or without a mailbox: the BBS as the domain's own mail server, or a
+  forwarding service's webhook -- see [email.md](email.md).
+
   The BBS fetches the mailbox every minute; unread mail becomes netmail to
   the caller it's addressed to (`name+anything@` works too) and is marked
   read, or deleted if you choose so. Mail to unknown addresses, to callers

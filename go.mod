@@ -3,6 +3,7 @@ module github.com/midrei/nullmodem-bbs
 go 1.26.0
 
 require (
+	blitiri.com.ar/go/spf v1.6.0
 	filippo.io/age v1.3.2
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/bwmarrin/discordgo v0.29.0

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -745,6 +746,73 @@ type EmailConfig struct {
 	DeleteFetched bool `yaml:"delete_fetched,omitempty"`
 	// DeliverSpam passes on mail the provider marked as spam.
 	DeliverSpam bool `yaml:"deliver_spam,omitempty"`
+	// Receive is mail taken in directly -- the BBS as the domain's mail
+	// server (MX) or through a forwarding service's webhook -- rather
+	// than fetched from the IMAP mailbox.
+	Receive MailReceive `yaml:"receive,omitempty"`
+}
+
+// MailReceive is how the gateway takes in mail itself.
+type MailReceive struct {
+	// SMTP runs a mail server for the domain on Listen (inside the
+	// container; port 25 outside, where the domain's MX points).
+	SMTP   bool   `yaml:"smtp,omitempty"`
+	Listen string `yaml:"listen,omitempty"`
+	// Hostname is the name the server greets with; "" is the domain.
+	Hostname string `yaml:"hostname,omitempty"`
+	// ExtraDomains are further domains taken in besides Domain (the
+	// same callers, handle@other.example).
+	ExtraDomains []string `yaml:"extra_domains,omitempty"`
+	// Greylist asks a sender not seen before to try again in a few
+	// minutes (nil: on); real mail servers do, most spam doesn't.
+	Greylist *bool `yaml:"greylist,omitempty"`
+	// DNSBL are the block lists a connecting server is checked against
+	// (nil: zen.spamhaus.org; empty list: none).
+	DNSBL []string `yaml:"dnsbl,omitempty"`
+	// SPF turns away mail whose sender's domain says the server isn't
+	// allowed to send for it (nil: on); a soft fail marks it as spam.
+	SPF *bool `yaml:"spf,omitempty"`
+	// Webhook takes mail a forwarding service posts to
+	// /api/email/inbound, authenticated with WebhookSecret.
+	Webhook       bool   `yaml:"webhook,omitempty"`
+	WebhookSecret string `yaml:"webhook_secret,omitempty"`
+}
+
+// ListenAddr is where the mail server listens; default ":2525".
+func (r MailReceive) ListenAddr() string {
+	if r.Listen == "" {
+		return ":2525"
+	}
+	return r.Listen
+}
+
+// Greylisting reports whether greylisting is on.
+func (r MailReceive) Greylisting() bool { return r.Greylist == nil || *r.Greylist }
+
+// CheckSPF reports whether SPF is checked.
+func (r MailReceive) CheckSPF() bool { return r.SPF == nil || *r.SPF }
+
+// BlockLists are the DNS block lists checked.
+func (r MailReceive) BlockLists() []string {
+	if r.DNSBL == nil {
+		return []string{"zen.spamhaus.org"}
+	}
+	return r.DNSBL
+}
+
+// Domains are all the domains the gateway takes mail for, lower case:
+// Domain first.
+func (e EmailConfig) Domains() []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, d := range append([]string{e.Domain}, e.Receive.ExtraDomains...) {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d != "" && !seen[d] {
+			seen[d] = true
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // MailServer is an IMAP or SMTP server and the login there.

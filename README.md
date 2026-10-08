@@ -204,6 +204,8 @@ go test ./...
 - [docs/handbook.md](docs/handbook.md) — **Sysop handbook**: setting up,
   networks, areas, doors, users, day to day, updates, troubleshooting
 - [docs/docker.md](docs/docker.md) — running with Docker
+- [docs/email.md](docs/email.md) — receiving email directly: the BBS as
+  mail server (MX) or a forwarding service's webhook
 - [docs/adding-a-door.md](docs/adding-a-door.md) — setting up doors, native and
   under DOSBox-X
 - [docs/points.md](docs/points.md) — points and your own reader apps (FidoMail)

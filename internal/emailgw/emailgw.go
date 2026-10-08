@@ -151,7 +151,9 @@ func (g *Gateway) Run(ctx context.Context) {
 		cfg := g.Config()
 		if cfg.Enabled && cfg.Domain != "" {
 			g.SendPending(ctx, cfg, time.Now())
-			if time.Since(lastFetch) >= FetchEvery {
+			// Without a mailbox the mail comes in directly (Receiver,
+			// the webhook): nothing to fetch.
+			if cfg.IMAP.Host != "" && time.Since(lastFetch) >= FetchEvery {
 				lastFetch = time.Now()
 				g.Fetch(ctx, cfg)
 			}
@@ -188,7 +190,7 @@ func (g *Gateway) Down(after time.Duration) (bool, string) {
 		return false, ""
 	}
 	st := LoadStatus(g.DB)
-	if st.LastFetchError != "" && time.Since(st.LastFetch) > after {
+	if cfg.IMAP.Host != "" && st.LastFetchError != "" && time.Since(st.LastFetch) > after {
 		return true, st.LastFetchError
 	}
 	waiting, oldest, _, err := g.Netmail.EmailQueue(time.Now())

@@ -2606,6 +2606,20 @@ export interface EmailSettings {
 	daily_limit: number;
 	delete_fetched: boolean;
 	deliver_spam: boolean;
+	/** Mail taken in directly: the gateway's own mail server (the domains' MX) and/or a forwarding service's webhook. */
+	receive: {
+		smtp: boolean;
+		listen: string;
+		hostname: string;
+		extra_domains: string[];
+		greylist: boolean;
+		dnsbl: string[];
+		spf: boolean;
+		webhook: boolean;
+		/** Read-only here; POST /api/email/webhook-secret makes a new one. */
+		webhook_secret: string;
+		server: { listening: boolean; addr: string; error: string; since: string; taken: number; refused: number; last_at: string; last_from: string };
+	};
 	status: {
 		last_fetch: string;
 		last_fetch_error: string;
@@ -2632,6 +2646,11 @@ export function saveEmailSettings(token: string, s: EmailSettings): Promise<Emai
 /** Logs in to both servers with these (unsaved) settings. */
 export function testEmailSettings(token: string, s: EmailSettings): Promise<{ ok: boolean; error?: string }> {
 	return request<{ ok: boolean; error?: string }>('/api/email/test', { method: 'POST', body: JSON.stringify(s) }, token);
+}
+
+/** A new secret for the inbound webhook (the old one stops working). */
+export function newEmailWebhookSecret(token: string): Promise<EmailSettings> {
+	return request<EmailSettings>('/api/email/webhook-secret', { method: 'POST' }, token);
 }
 
 /** Fetches the mailbox and sends what's waiting, now. */

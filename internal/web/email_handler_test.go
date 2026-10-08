@@ -21,7 +21,7 @@ func TestEmailSettingsKeepPasswords(t *testing.T) {
 		"imap": map[string]any{"host": "imap.example.ch", "security": "tls", "user": "all@example.ch", "password": "imap-secret"},
 		"smtp": map[string]any{"host": "smtp.example.ch", "port": 587, "security": "starttls", "user": "all@example.ch", "password": "smtp-secret"}}
 	rec := doJSON(t, h, http.MethodPut, "/api/email", settings, token)
-	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "secret") {
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "-secret") {
 		t.Fatalf("save: %d %s", rec.Code, rec.Body)
 	}
 	var got emailDTO
@@ -34,7 +34,8 @@ func TestEmailSettingsKeepPasswords(t *testing.T) {
 	delete(settings["smtp"].(map[string]any), "password")
 	doJSON(t, h, http.MethodPut, "/api/email", settings, token)
 	c, _ := config.Load(configPath)
-	if c.Email.IMAP.Password != "imap-secret" || c.Email.SMTP.Password != "smtp-secret" || c.Email.Limit() != 10 || c.Email.IMAP.Security != "" {
+	if c.Email.IMAP.Password != "imap-secret" || c.Email.SMTP.Password != "smtp-secret" || c.Email.Limit() != 10 || c.Email.IMAP.Security != "" ||
+		!c.Email.Receive.Greylisting() || !c.Email.Receive.CheckSPF() {
 		t.Fatalf("config %+v", c.Email)
 	}
 	// On without servers: refused.

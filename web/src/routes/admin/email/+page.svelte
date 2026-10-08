@@ -14,6 +14,7 @@
 		saveEmailSettings,
 		testEmailSettings,
 		fetchEmailNow,
+		newEmailWebhookSecret,
 		ApiError,
 		type EmailSettings,
 		type MailServer
@@ -57,6 +58,7 @@
 		try {
 			const fresh = await getEmailSettings(auth.token);
 			e.status = fresh.status;
+			e.receive.server = fresh.receive.server;
 			e.waiting = fresh.waiting;
 			e.failed = fresh.failed;
 			e.recent = fresh.recent;
@@ -70,7 +72,10 @@
 		if (!auth.token || !e) return;
 		busy = 'save';
 		try {
-			e = await saveEmailSettings(auth.token, $state.snapshot(e) as EmailSettings);
+			const out = $state.snapshot(e) as EmailSettings;
+			out.receive.extra_domains = words(extraDomains);
+			out.receive.dnsbl = words(blockLists);
+			e = await saveEmailSettings(auth.token, out);
 			toast.push(t('admin.email.saved'), 'success');
 		} catch (err) {
 			await failed(err, t('admin.email.could_not_save'));
@@ -105,6 +110,35 @@
 			busy = null;
 		}
 	}
+
+	async function newSecret() {
+		if (!auth.token || !e) return;
+		if (e.receive.webhook_secret && !confirm(t('admin.email.new_secret_confirm'))) return;
+		busy = 'secret';
+		try {
+			const fresh = await newEmailWebhookSecret(auth.token);
+			e.receive.webhook_secret = fresh.receive.webhook_secret;
+			toast.push(t('admin.email.secret_made'), 'success');
+		} catch (err) {
+			await failed(err, t('admin.email.could_not_save'));
+		} finally {
+			busy = null;
+		}
+	}
+
+	// The lists as the sysop edits them: words separated by spaces or commas.
+	let extraDomains = $state('');
+	let blockLists = $state('');
+	$effect(() => {
+		if (e) {
+			extraDomains = e.receive.extra_domains.join(' ');
+			blockLists = e.receive.dnsbl.join(' ');
+		}
+	});
+	const words = (s: string) => s.split(/[\s,;]+/).map((w) => w.trim()).filter(Boolean);
+	let webhookURL = $derived(e?.receive.webhook_secret ? `${location.origin}/api/email/inbound?key=${e.receive.webhook_secret}` : '');
+	let direct = $derived(!!e && (e.receive.smtp || e.receive.webhook));
+	let mxPort = $derived(e?.receive.listen?.split(':').pop() || '2525');
 
 	// The usual port of each kind of server and security.
 	function defaultPort(kind: 'imap' | 'smtp', security: MailServer['security']): number {
@@ -194,6 +228,18 @@
 						{t('admin.email.queue', { WAITING: e.waiting, FAILED: e.failed })}
 					</div>
 				</div>
+				{#if e.receive.smtp}
+					<p class="mt-2 text-xs {e.receive.server.listening ? 'text-emerald-400' : 'text-amber-300'}">
+						{#if e.receive.server.listening}
+							{t('admin.email.server_listening', { ADDR: e.receive.server.addr, TAKEN: e.receive.server.taken, REFUSED: e.receive.server.refused })}
+							{#if e.receive.server.last_from}
+								· {t('admin.email.server_last', { FROM: e.receive.server.last_from, WHEN: relativeTime(e.receive.server.last_at) })}
+							{/if}
+						{:else}
+							{t('admin.email.server_down', { ERROR: e.receive.server.error || '—' })}
+						{/if}
+					</p>
+				{/if}
 				{#if e.status.last_fetch_error}
 					<p class="mt-2 text-xs text-amber-300">{t('admin.email.fetch_error', { ERROR: e.status.last_fetch_error })}</p>
 				{/if}
@@ -236,6 +282,65 @@
 				{@render server('imap', e.imap)}
 				{@render server('smtp', e.smtp)}
 			</div>
+			{#if direct}
+				<p class="-mt-2 text-[11px] text-faint">{t('admin.email.imap_optional')}</p>
+			{/if}
+
+			<fieldset class="flex flex-col gap-3 rounded-lg border border-line p-3">
+				<legend class="px-1 text-sm font-medium text-ink-strong">{t('admin.email.receive_title')}</legend>
+				<label class="flex items-start gap-2 text-sm">
+					<input type="checkbox" class="check mt-0.5" bind:checked={e.receive.smtp} />
+					<span>
+						<span class="text-ink">{t('admin.email.own_server')}</span>
+						<span class="block text-xs text-faint">{t('admin.email.own_server_hint', { DOMAIN: e.domain || 'bbs.example.com', PORT: mxPort })}</span>
+					</span>
+				</label>
+				{#if e.receive.smtp}
+					<div class="grid gap-3 sm:grid-cols-3">
+						<label class="flex flex-col gap-1">
+							<span class="text-xs text-muted">{t('admin.email.server_hostname')}</span>
+							<input class="field field-sm font-mono" bind:value={e.receive.hostname} placeholder={e.domain || 'mail.example.com'} />
+						</label>
+						<label class="flex flex-col gap-1">
+							<span class="text-xs text-muted">{t('admin.email.server_listen')}</span>
+							<input class="field field-sm font-mono" bind:value={e.receive.listen} placeholder=":2525" />
+						</label>
+						<label class="flex flex-col gap-1">
+							<span class="text-xs text-muted">{t('admin.email.block_lists')}</span>
+							<input class="field field-sm font-mono" bind:value={blockLists} placeholder="zen.spamhaus.org" />
+						</label>
+					</div>
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" class="check" bind:checked={e.receive.greylist} />
+						<span class="text-muted">{t('admin.email.greylist')}</span>
+					</label>
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" class="check" bind:checked={e.receive.spf} />
+						<span class="text-muted">{t('admin.email.spf')}</span>
+					</label>
+				{/if}
+				<label class="flex flex-col gap-1">
+					<span class="text-xs text-muted">{t('admin.email.extra_domains')}</span>
+					<input class="field field-sm font-mono" bind:value={extraDomains} placeholder="mail.example.org" />
+					<span class="text-[11px] text-faint">{t('admin.email.extra_domains_hint')}</span>
+				</label>
+				<label class="flex items-start gap-2 text-sm">
+					<input type="checkbox" class="check mt-0.5" bind:checked={e.receive.webhook} disabled={!e.receive.webhook_secret} />
+					<span>
+						<span class="text-ink">{t('admin.email.webhook')}</span>
+						<span class="block text-xs text-faint">{t('admin.email.webhook_hint')}</span>
+					</span>
+				</label>
+				<div class="flex flex-wrap items-center gap-2">
+					{#if webhookURL}
+						<code class="min-w-0 flex-1 truncate rounded bg-black/20 px-2 py-1 font-mono text-[11px] text-ink-soft" title={webhookURL}>{webhookURL}</code>
+					{/if}
+					<button type="button" class="btn-secondary btn-xs" disabled={busy !== null} onclick={newSecret}>
+						{e.receive.webhook_secret ? t('admin.email.new_secret') : t('admin.email.make_secret')}
+					</button>
+				</div>
+			</fieldset>
+
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={e.delete_fetched} />
 				<span class="text-muted">{t('admin.email.delete_fetched')}</span>

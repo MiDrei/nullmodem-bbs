@@ -2,7 +2,10 @@ package web
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -36,6 +39,21 @@ type emailMailDTO struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// receiveDTO is how the gateway takes mail in itself (see
+// config.MailReceive) and how its mail server is doing.
+type receiveDTO struct {
+	SMTP          bool                  `json:"smtp"`
+	Listen        string                `json:"listen"`
+	Hostname      string                `json:"hostname"`
+	ExtraDomains  []string              `json:"extra_domains"`
+	Greylist      bool                  `json:"greylist"`
+	DNSBL         []string              `json:"dnsbl"`
+	SPF           bool                  `json:"spf"`
+	Webhook       bool                  `json:"webhook"`
+	WebhookSecret string                `json:"webhook_secret"` // out only; set by POST /api/email/webhook-secret
+	Server        emailgw.ReceiveStatus `json:"server"`
+}
+
 type emailDTO struct {
 	Enabled       bool          `json:"enabled"`
 	Domain        string        `json:"domain"`
@@ -45,6 +63,7 @@ type emailDTO struct {
 	DailyLimit    int           `json:"daily_limit"`
 	DeleteFetched bool          `json:"delete_fetched"`
 	DeliverSpam   bool          `json:"deliver_spam"`
+	Receive       receiveDTO    `json:"receive"`
 
 	Status  emailgw.Status `json:"status"`
 	Waiting int            `json:"waiting"`
@@ -56,6 +75,13 @@ type emailDTO struct {
 
 func toMailServerDTO(m config.MailServer) mailServerDTO {
 	return mailServerDTO{Host: m.Host, Port: m.Port, Security: orDefault(m.Security, "tls"), User: m.User, HasPassword: m.Password != "", Folder: m.Folder}
+}
+
+func orEmptyList(v []string) []string {
+	if v == nil {
+		return []string{}
+	}
+	return v
 }
 
 func orDefault(v, d string) string {
@@ -70,6 +96,12 @@ func (s *Server) emailState(r *http.Request, c *config.Config) emailDTO {
 	d := emailDTO{Enabled: e.Enabled, Domain: e.Domain, IMAP: toMailServerDTO(e.IMAP), SMTP: toMailServerDTO(e.SMTP),
 		MinSL: e.MinSL, DailyLimit: e.Limit(), DeleteFetched: e.DeleteFetched, DeliverSpam: e.DeliverSpam,
 		Status: emailgw.LoadStatus(s.DB), Recent: []emailMailDTO{}}
+	rc := e.Receive
+	d.Receive = receiveDTO{SMTP: rc.SMTP, Listen: rc.ListenAddr(), Hostname: rc.Hostname, ExtraDomains: orEmptyList(rc.ExtraDomains),
+		Greylist: rc.Greylisting(), DNSBL: orEmptyList(rc.BlockLists()), SPF: rc.CheckSPF(), Webhook: rc.Webhook, WebhookSecret: rc.WebhookSecret}
+	if s.MailReceiver != nil {
+		d.Receive.Server = s.MailReceiver.Status()
+	}
 	d.Waiting, _, d.Failed, _ = s.Netmail.EmailQueue(time.Now())
 	if claims, ok := claimsFromContext(r.Context()); ok {
 		d.Example = emailgw.Address(e, claims.Subject)
@@ -133,9 +165,78 @@ func validSecurity(v string) bool {
 	return v == "" || v == "tls" || v == "starttls" || v == "none"
 }
 
+// applyReceive applies the receiving settings; the webhook secret
+// stays (it's made by POST /api/email/webhook-secret).
+func applyReceive(w http.ResponseWriter, dst *config.MailReceive, in receiveDTO) bool {
+	var domains []string
+	for _, d := range in.ExtraDomains {
+		d = strings.ToLower(strings.Trim(strings.TrimSpace(d), "@."))
+		if d == "" {
+			continue
+		}
+		if !strings.Contains(d, ".") || strings.ContainsAny(d, " @/:") {
+			writeError(w, http.StatusBadRequest, "the domain looks wrong (e.g. bbs.example.com)")
+			return false
+		}
+		domains = append(domains, d)
+	}
+	var lists []string
+	for _, l := range in.DNSBL {
+		if l = strings.ToLower(strings.TrimSpace(l)); l != "" {
+			lists = append(lists, l)
+		}
+	}
+	listen := strings.TrimSpace(in.Listen)
+	if listen != "" {
+		if _, port, err := net.SplitHostPort(listen); err != nil || port == "" {
+			writeError(w, http.StatusBadRequest, "the mail server's address is host:port, e.g. :2525")
+			return false
+		}
+	}
+	if listen == ":2525" {
+		listen = ""
+	}
+	greylist, spf := in.Greylist, in.SPF
+	dst.SMTP, dst.Listen, dst.Hostname, dst.ExtraDomains = in.SMTP, listen, strings.TrimSpace(in.Hostname), domains
+	dst.Greylist, dst.SPF, dst.DNSBL = &greylist, &spf, lists
+	if lists == nil {
+		dst.DNSBL = []string{}
+	}
+	dst.Webhook = in.Webhook && dst.WebhookSecret != ""
+	return true
+}
+
+// handleNewWebhookSecret: POST /api/email/webhook-secret -- a new
+// secret for the inbound webhook (the old one stops working).
+func (s *Server) handleNewWebhookSecret(w http.ResponseWriter, r *http.Request) {
+	c, err := s.loadBBSConfig()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load config")
+		return
+	}
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not make a secret")
+		return
+	}
+	c.Email.Receive.WebhookSecret = hex.EncodeToString(b)
+	if err := config.Save(s.BBSConfigPath, c); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save config")
+		return
+	}
+	if claims, ok := claimsFromContext(r.Context()); ok {
+		s.logInfo("%s made a new email webhook secret", claims.Subject)
+	}
+	writeJSON(w, http.StatusOK, s.emailState(r, c))
+}
+
 // readEmailSettings applies the request's settings to c.
 func readEmailSettings(w http.ResponseWriter, r *http.Request, c *config.Config) bool {
-	var in emailDTO
+	// Without a "receive" block, the receiving settings stay as they are.
+	var in struct {
+		emailDTO
+		Receive *receiveDTO `json:"receive"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return false
@@ -159,9 +260,13 @@ func readEmailSettings(w http.ResponseWriter, r *http.Request, c *config.Config)
 	e.DailyLimit = &limit
 	applyMailServer(&e.IMAP, in.IMAP)
 	applyMailServer(&e.SMTP, in.SMTP)
+	if in.Receive != nil && !applyReceive(w, &e.Receive, *in.Receive) {
+		return false
+	}
 	e.Enabled = in.Enabled
-	if e.Enabled && (e.Domain == "" || e.IMAP.Host == "" || e.SMTP.Host == "") {
-		writeError(w, http.StatusBadRequest, "the gateway needs a domain, an IMAP and an SMTP server")
+	direct := e.Receive.SMTP || e.Receive.Webhook
+	if e.Enabled && (e.Domain == "" || e.SMTP.Host == "" || (e.IMAP.Host == "" && !direct)) {
+		writeError(w, http.StatusBadRequest, "the gateway needs a domain, an SMTP server to send and a way in: an IMAP mailbox, its own mail server or the webhook")
 		return false
 	}
 	return true
