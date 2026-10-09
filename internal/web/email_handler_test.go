@@ -49,6 +49,17 @@ func TestEmailSettingsKeepPasswords(t *testing.T) {
 	if c.Email.IMAP != (config.MailServer{}) || c.Email.SMTP.Password != "smtp-secret" {
 		t.Errorf("mailbox off: %+v", c.Email.IMAP)
 	}
+	// The webhook's signing key: set, kept when not sent, removed.
+	for i, rc := range []map[string]any{{"signing_key": "sign-key"}, {}, {"clear_signing_key": true}} {
+		rc["smtp"] = true
+		settings["receive"] = rc
+		rec := doJSON(t, h, http.MethodPut, "/api/email", settings, token)
+		c, _ = config.Load(configPath)
+		want := []string{"sign-key", "sign-key", ""}[i]
+		if rec.Code != http.StatusOK || c.Email.Receive.WebhookSigningKey != want || strings.Contains(rec.Body.String(), "sign-key") {
+			t.Errorf("signing key step %d: %d, %q", i, rec.Code, c.Email.Receive.WebhookSigningKey)
+		}
+	}
 	// On without servers: refused.
 	if rec := doJSON(t, h, http.MethodPut, "/api/email", map[string]any{"enabled": true, "domain": "example.ch", "daily_limit": 5}, token); rec.Code != http.StatusBadRequest {
 		t.Errorf("on without servers: %d", rec.Code)

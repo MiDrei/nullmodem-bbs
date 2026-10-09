@@ -369,6 +369,33 @@
 						{e.receive.webhook_secret ? t('admin.email.new_secret') : t('admin.email.make_secret')}
 					</button>
 				</div>
+				{#if e.receive.webhook}
+					<label class="flex flex-col gap-1">
+						<span class="text-xs text-muted">{t('admin.email.signing_key')}</span>
+						<div class="flex items-center gap-2">
+							<input
+								type="password"
+								class="field field-sm min-w-0 flex-1 font-mono"
+								bind:value={e.receive.signing_key}
+								autocomplete="new-password"
+								placeholder={e.receive.has_signing_key ? t('admin.common.saved') : ''}
+							/>
+							{#if e.receive.has_signing_key}
+								<button
+									type="button"
+									class="btn-secondary btn-xs"
+									onclick={() => {
+										if (!e) return;
+										e.receive.clear_signing_key = true;
+										e.receive.has_signing_key = false;
+										e.receive.signing_key = '';
+									}}>{t('admin.email.signing_key_remove')}</button
+								>
+							{/if}
+						</div>
+						<span class="text-[11px] text-faint">{t('admin.email.signing_key_hint')}</span>
+					</label>
+				{/if}
 			</fieldset>
 
 			{#if imapOn}

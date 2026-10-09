@@ -2637,6 +2637,10 @@ export interface EmailSettings {
 		webhook: boolean;
 		/** Read-only here; POST /api/email/webhook-secret makes a new one. */
 		webhook_secret: string;
+		/** The signing key (Forward Email): in only, "" keeps it. */
+		signing_key?: string;
+		clear_signing_key?: boolean;
+		has_signing_key: boolean;
 		server: { listening: boolean; addr: string; error: string; since: string; taken: number; refused: number; last_at: string; last_from: string };
 	};
 	status: {

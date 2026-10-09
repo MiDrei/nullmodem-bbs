@@ -356,6 +356,9 @@ func withBodyLimit(next http.Handler) http.Handler {
 		if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
 			limit = maxUploadBytes + 1<<20
 		}
+		if strings.HasPrefix(r.URL.Path, "/api/email/inbound") {
+			limit = maxInboundMailBytes
+		}
 		if r.Body != nil {
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}

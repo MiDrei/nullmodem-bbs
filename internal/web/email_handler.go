@@ -42,16 +42,21 @@ type emailMailDTO struct {
 // receiveDTO is how the gateway takes mail in itself (see
 // config.MailReceive) and how its mail server is doing.
 type receiveDTO struct {
-	SMTP          bool                  `json:"smtp"`
-	Listen        string                `json:"listen"`
-	Hostname      string                `json:"hostname"`
-	ExtraDomains  []string              `json:"extra_domains"`
-	Greylist      bool                  `json:"greylist"`
-	DNSBL         []string              `json:"dnsbl"`
-	SPF           bool                  `json:"spf"`
-	Webhook       bool                  `json:"webhook"`
-	WebhookSecret string                `json:"webhook_secret"` // out only; set by POST /api/email/webhook-secret
-	Server        emailgw.ReceiveStatus `json:"server"`
+	SMTP          bool     `json:"smtp"`
+	Listen        string   `json:"listen"`
+	Hostname      string   `json:"hostname"`
+	ExtraDomains  []string `json:"extra_domains"`
+	Greylist      bool     `json:"greylist"`
+	DNSBL         []string `json:"dnsbl"`
+	SPF           bool     `json:"spf"`
+	Webhook       bool     `json:"webhook"`
+	WebhookSecret string   `json:"webhook_secret"` // out only; set by POST /api/email/webhook-secret
+	// The webhook's signing key: in only ("" keeps it, ClearSigningKey
+	// removes it), shown as HasSigningKey.
+	SigningKey      string                `json:"signing_key,omitempty"`
+	ClearSigningKey bool                  `json:"clear_signing_key,omitempty"`
+	HasSigningKey   bool                  `json:"has_signing_key"`
+	Server          emailgw.ReceiveStatus `json:"server"`
 }
 
 type emailDTO struct {
@@ -98,7 +103,8 @@ func (s *Server) emailState(r *http.Request, c *config.Config) emailDTO {
 		Status: emailgw.LoadStatus(s.DB), Recent: []emailMailDTO{}}
 	rc := e.Receive
 	d.Receive = receiveDTO{SMTP: rc.SMTP, Listen: rc.ListenAddr(), Hostname: rc.Hostname, ExtraDomains: orEmptyList(rc.ExtraDomains),
-		Greylist: rc.Greylisting(), DNSBL: orEmptyList(rc.BlockLists()), SPF: rc.CheckSPF(), Webhook: rc.Webhook, WebhookSecret: rc.WebhookSecret}
+		Greylist: rc.Greylisting(), DNSBL: orEmptyList(rc.BlockLists()), SPF: rc.CheckSPF(), Webhook: rc.Webhook, WebhookSecret: rc.WebhookSecret,
+		HasSigningKey: rc.WebhookSigningKey != ""}
 	if s.MailReceiver != nil {
 		d.Receive.Server = s.MailReceiver.Status()
 	}
@@ -206,6 +212,12 @@ func applyReceive(w http.ResponseWriter, dst *config.MailReceive, in receiveDTO)
 	dst.Greylist, dst.SPF, dst.DNSBL = &greylist, &spf, lists
 	if lists == nil {
 		dst.DNSBL = []string{}
+	}
+	switch key := strings.TrimSpace(in.SigningKey); {
+	case in.ClearSigningKey:
+		dst.WebhookSigningKey = ""
+	case key != "":
+		dst.WebhookSigningKey = key
 	}
 	dst.Webhook = in.Webhook && dst.WebhookSecret != ""
 	return true

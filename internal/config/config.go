@@ -776,6 +776,10 @@ type MailReceive struct {
 	// /api/email/inbound, authenticated with WebhookSecret.
 	Webhook       bool   `yaml:"webhook,omitempty"`
 	WebhookSecret string `yaml:"webhook_secret,omitempty"`
+	// WebhookSigningKey, when set, is the key the service signs its
+	// requests with (Forward Email: X-Webhook-Signature, HMAC-SHA256
+	// of the body); a request without a valid signature is refused.
+	WebhookSigningKey string `yaml:"webhook_signing_key,omitempty"`
 }
 
 // ListenAddr is where the mail server listens; default ":2525".

@@ -66,6 +66,27 @@ von einem Weiterleitungsdienst annehmen**. Die Adresse ist
 `https://deine-bbs/api/email/inbound?key=SCHLÜSSEL`; geheim halten
 (**Neuer Schlüssel** ersetzt sie).
 
+**Forward Email** (forwardemail.net, bezahlter Plan -- im Gratis-Plan
+steht die Webhook-Adresse samt Schlüssel öffentlich im DNS):
+
+1. Den MX der Domain auf `mx1.forwardemail.net` und
+   `mx2.forwardemail.net` setzen (je Priorität 10) und die Domain dort
+   bestätigen.
+2. My Account → Domains → *deine Domain* → Aliases → ein Catch-all (`*`)
+   mit Weiterleitung an
+   `https://bbs.example.com/api/email/inbound?key=SCHLÜSSEL&attachments=false`
+   (`attachments=false`: Die Anhänge stecken schon in der Rohmail, das
+   halbiert die Anfrage).
+3. My Account → Domains → Settings → *Webhook Signature Payload
+   Verification Key*: im Admin unter **Signaturschlüssel** eintragen. Ab
+   dann wird eine Anfrage ohne gültige `X-Webhook-Signature` von Forward
+   Email abgewiesen.
+
+Auch der Versand kann über Forward Email laufen: deren SMTP-Server
+(`smtp.forwardemail.net`, Port 465 TLS) mit einem Alias der Domain und
+dessen generiertem Passwort unter **Versand (SMTP)** -- eine ausgehende
+Verbindung, zu Hause muss nichts geöffnet werden.
+
 **Cloudflare Email Routing** (Domain bei Cloudflare): Email → Email
 Routing → Routing rules → Catch-all → *Send to a Worker*, mit diesem
 Worker und dem Schlüssel als Worker-Secret `NULLMODEM_SECRET`:
@@ -93,8 +114,10 @@ export default {
 **Alles andere**, das eine Mail per HTTP schicken kann: die Rohmail als
 Body (`message/rfc822`), die Empfänger in `?to=` (durch Komma getrennt)
 oder einem `X-Envelope-To`-Header, den Schlüssel als `?key=` oder
-`Authorization: Bearer`. Antworten: 204 angenommen, 401 falscher
-Schlüssel, 404 Webhook aus, 503 später nochmals.
+`Authorization: Bearer`. Antworten: 200 angenommen, 401 falscher
+Schlüssel oder falsche Signatur, 404 Webhook aus, 503 später nochmals.
+Eine Anfrage über 64 MB wird verworfen (mit 200 beantwortet und
+protokolliert), damit sie nicht tagelang wiederholt wird.
 
 ## Das IMAP-Postfach
 

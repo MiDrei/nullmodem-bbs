@@ -62,6 +62,26 @@ address**, then **Take mail from a forwarding service**. The address is
 `https://your-bbs/api/email/inbound?key=SECRET`; keep it secret (**New
 secret** replaces it).
 
+**Forward Email** (forwardemail.net, a paid plan -- on the free one the
+webhook address with its secret stands in public DNS):
+
+1. Point the domain's MX at `mx1.forwardemail.net` and
+   `mx2.forwardemail.net` (priority 10 each) and verify the domain there.
+2. My Account → Domains → *your domain* → Aliases → a catch-all (`*`)
+   forwarding to
+   `https://bbs.example.com/api/email/inbound?key=SECRET&attachments=false`
+   (`attachments=false`: the attachments are in the raw mail already,
+   this halves the request).
+3. My Account → Domains → Settings → *Webhook Signature Payload
+   Verification Key*: copy it into **Signing key** in the admin. From then
+   on a request without Forward Email's valid `X-Webhook-Signature` is
+   refused.
+
+Sending can go through Forward Email too: its SMTP server
+(`smtp.forwardemail.net`, port 465 TLS) with an alias of the domain and
+its generated password under **Sending (SMTP)** -- an outgoing
+connection, nothing to open at home.
+
 **Cloudflare Email Routing** (domain on Cloudflare): Email → Email
 Routing → Routing rules → catch-all → *Send to a Worker*, with this
 worker and the secret as the worker's secret `NULLMODEM_SECRET`:
@@ -89,8 +109,9 @@ makes Mailgun post the raw mail).
 **Anything else** that can post a mail: the raw message as the body
 (`message/rfc822`), the recipients in `?to=` (comma-separated) or an
 `X-Envelope-To` header, the secret as `?key=` or
-`Authorization: Bearer`. Answers: 204 taken, 401 wrong secret, 404 the
-webhook is off, 503 try again later.
+`Authorization: Bearer`. Answers: 200 taken, 401 wrong secret or
+signature, 404 the webhook is off, 503 try again later. A request over
+64 MB is dropped (answered 200, logged), so it isn't retried for days.
 
 ## The IMAP mailbox
 
