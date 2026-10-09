@@ -7,6 +7,7 @@ import (
 	"github.com/midrei/nullmodem-bbs/internal/chat"
 	"github.com/midrei/nullmodem-bbs/internal/community"
 	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/emailgw"
 	"regexp"
 	"strconv"
 	"strings"
@@ -88,6 +89,9 @@ type Server struct {
 	// Email, if set, is the email gateway's settings (re-read from the
 	// config); nil: no gateway.
 	Email func() config.EmailConfig
+	// Forwards is the callers' netmail forwarding to their own address
+	// (internal/emailgw); nil: not offered.
+	Forwards *emailgw.Forwards
 	// SecurityLevels, if set, is the named security levels (see
 	// config.Config.Levels; name names the board's own ones).
 	SecurityLevels func(name func(key string) string) []config.SecurityLevel
@@ -122,6 +126,7 @@ type Options struct {
 	Stats            *stats.Store
 	Language         func() string
 	Email            func() config.EmailConfig
+	Forwards         *emailgw.Forwards
 	SecurityLevels   func(name func(key string) string) []config.SecurityLevel
 }
 
@@ -153,6 +158,7 @@ func NewServer(opts Options) *Server {
 		Stats:            opts.Stats,
 		Language:         opts.Language,
 		Email:            opts.Email,
+		Forwards:         opts.Forwards,
 		SecurityLevels:   opts.SecurityLevels,
 	}
 }

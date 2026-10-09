@@ -1655,6 +1655,8 @@ export interface BBSProfile {
 	language: string;
 	/** The caller's address at the email gateway; absent when they can't use it. */
 	email?: string;
+	/** Netmail forwarding to an address of the caller's; absent if none (or no email). */
+	forward?: { address: string; verified: boolean; pending: boolean; mark_read: boolean };
 }
 
 export function getBBSProfile(token: string): Promise<BBSProfile> {
@@ -1667,6 +1669,23 @@ export function updateBBSProfile(
 	changes: { real_name?: string; timezone?: string; qwk_routing?: boolean; location?: string; language?: string }
 ): Promise<BBSProfile> {
 	return request<BBSProfile>('/api/bbs/profile', { method: 'PUT', body: JSON.stringify(changes) }, token);
+}
+
+/** Mails a confirmation code to address; Confirm turns the forwarding on. */
+export function requestNetmailForward(token: string, address: string): Promise<BBSProfile> {
+	return request<BBSProfile>('/api/bbs/profile/forward', { method: 'POST', body: JSON.stringify({ address }) }, token);
+}
+
+export function confirmNetmailForward(token: string, code: string): Promise<BBSProfile> {
+	return request<BBSProfile>('/api/bbs/profile/forward/confirm', { method: 'POST', body: JSON.stringify({ code }) }, token);
+}
+
+export function setNetmailForwardRead(token: string, markRead: boolean): Promise<BBSProfile> {
+	return request<BBSProfile>('/api/bbs/profile/forward', { method: 'PUT', body: JSON.stringify({ mark_read: markRead }) }, token);
+}
+
+export function removeNetmailForward(token: string): Promise<BBSProfile> {
+	return request<BBSProfile>('/api/bbs/profile/forward', { method: 'DELETE' }, token);
 }
 
 export function changeBBSPassword(token: string, currentPassword: string, newPassword: string): Promise<void> {

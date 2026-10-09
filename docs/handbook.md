@@ -360,6 +360,17 @@ NullModem Reader.
   writer as netmail with the reason; if the gateway can't fetch or send for
   half an hour, it shows under "Needs attention". The callers see their
   address in their profile.
+
+  There a caller can also have all their netmail -- FTN, local and email --
+  sent on to an address of theirs (Telnet: profile `M`; portal: Profile →
+  Netmail by email), and marked read on the board if they like. The
+  address counts once they enter the code mailed to it (valid 30 minutes),
+  so nobody can have the board mail a stranger; addresses of the board's
+  own domains can't be used. Only netmail arriving after that is
+  forwarded, at most 100 a caller and day; it goes out through the same
+  SMTP server, retried for a day if that's down. A forwarded email
+  carries its sender as Reply-To, so answering it from the mailbox
+  reaches them directly.
 - **News:** Content → News. An item has a title and a text in German and in
   English (callers reading German get the German one, everyone else the
   English one; a missing language shows the other) and, if you like, a date

@@ -184,7 +184,9 @@ const loopHeader = "X-NullModem-Gateway"
 // without kludge lines, a final newline.
 func PlainBody(body string) string {
 	var keep []string
-	for _, l := range strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n") {
+	// FTN netmail ends its lines with a bare CR.
+	body = strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\r", "\n")
+	for _, l := range strings.Split(body, "\n") {
 		if strings.HasPrefix(l, "\x01") || strings.HasPrefix(l, "SEEN-BY:") {
 			continue
 		}

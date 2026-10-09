@@ -368,6 +368,18 @@ mit Offline-Lesen und Push, QWK-Reader wie NullModem Reader.
   dem Grund zum Schreiber zurück; kann das Gateway eine halbe Stunde lang
   nicht abholen oder senden, steht es unter „Needs attention“. Die Anrufer
   sehen ihre Adresse im Profil.
+
+  Dort kann ein Anrufer auch seine ganze Netmail -- FTN, lokal und E-Mail
+  -- zusätzlich an eine eigene Adresse schicken lassen (Telnet: Profil
+  `M`; Portal: Profil → Netmail per E-Mail) und auf Wunsch in der BBS als
+  gelesen markieren. Die Adresse gilt erst, wenn der Code eingegeben ist,
+  der an sie geht (30 Minuten gültig) -- so kann niemand die BBS fremde
+  Adressen anschreiben lassen; Adressen der eigenen Domains der BBS gehen
+  nicht. Weitergeleitet wird nur Netmail, die danach ankommt, höchstens
+  100 pro Anrufer und Tag; sie geht über denselben SMTP-Server und wird
+  einen Tag lang wiederholt, falls er nicht erreichbar ist. Eine
+  weitergeleitete E-Mail trägt ihren Absender als Reply-To: Eine Antwort
+  aus dem Postfach erreicht ihn direkt.
 - **News:** Content → News. Eine Meldung hat Titel und Text auf Deutsch und
   auf Englisch (wer Deutsch liest, bekommt die deutsche, alle anderen die
   englische; fehlt eine Sprache, erscheint die andere) und auf Wunsch ein

@@ -151,6 +151,7 @@ func (g *Gateway) Run(ctx context.Context) {
 		cfg := g.Config()
 		if cfg.Enabled && cfg.Domain != "" {
 			g.SendPending(ctx, cfg, time.Now())
+			g.ForwardPending(ctx, cfg, time.Now())
 			// Without a mailbox the mail comes in directly (Receiver,
 			// the webhook): nothing to fetch.
 			if cfg.IMAP.Host != "" && time.Since(lastFetch) >= FetchEvery {

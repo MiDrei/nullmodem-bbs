@@ -36,6 +36,9 @@ type profileDTO struct {
 	// Email is the caller's address at the email gateway, "" when they
 	// can't use it.
 	Email string `json:"email,omitempty"`
+	// Forward is the caller's netmail forwarding to an address of
+	// theirs, nil if none; only offered with Email.
+	Forward *forwardDTO `json:"forward,omitempty"`
 }
 
 // profileFor is toProfileDTO with the caller's email address.
@@ -43,6 +46,11 @@ func (s *Server) profileFor(u *user.User) profileDTO {
 	d := toProfileDTO(u)
 	if c, err := s.loadBBSConfig(); err == nil && emailgw.May(c.Email, u) {
 		d.Email = emailgw.Address(c.Email, u.Username)
+		if s.DB != nil {
+			if f, err := emailgw.NewForwards(s.DB).Get(u.ID); err == nil && f != nil {
+				d.Forward = &forwardDTO{Address: f.Address, Verified: f.Verified, Pending: f.Pending, MarkRead: f.MarkRead}
+			}
+		}
 	}
 	return d
 }

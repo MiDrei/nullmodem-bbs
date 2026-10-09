@@ -603,6 +603,35 @@ CREATE TABLE IF NOT EXISTS email_greylist (
     last_seen   INTEGER NOT NULL
 );
 
+-- netmail_forward: a caller's netmail also goes by email to address
+-- once verified (internal/emailgw's forward.go) -- the confirmation
+-- code's hash, when it was sent (Unix seconds) and how often it was
+-- guessed; from_id: only netmail after it is forwarded.
+CREATE TABLE IF NOT EXISTS netmail_forward (
+    user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    address     TEXT NOT NULL,
+    verified    INTEGER NOT NULL DEFAULT 0,
+    mark_read   INTEGER NOT NULL DEFAULT 0,
+    code_hash   TEXT NOT NULL DEFAULT '',
+    code_sent   INTEGER NOT NULL DEFAULT 0,
+    code_tries  INTEGER NOT NULL DEFAULT 0,
+    from_id     INTEGER NOT NULL DEFAULT 0
+);
+
+-- netmail_forwarded: each netmail's forwarding -- tries, the next one,
+-- done (sent or given up, error says why). Unix seconds.
+CREATE TABLE IF NOT EXISTS netmail_forwarded (
+    netmail_id  INTEGER PRIMARY KEY REFERENCES netmail_messages(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL,
+    done        INTEGER NOT NULL DEFAULT 0,
+    attempts    INTEGER NOT NULL DEFAULT 0,
+    first_try   INTEGER NOT NULL DEFAULT 0,
+    next_try    INTEGER NOT NULL DEFAULT 0,
+    sent_at     INTEGER NOT NULL DEFAULT 0,
+    error       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_netmail_forwarded_user ON netmail_forwarded(user_id, sent_at);
+
 CREATE TABLE IF NOT EXISTS door_releases (
     template      TEXT PRIMARY KEY,
     version       TEXT NOT NULL DEFAULT '',

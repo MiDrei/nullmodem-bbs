@@ -13,6 +13,10 @@
 		getBBSProfile,
 		updateBBSProfile,
 		changeBBSPassword,
+		requestNetmailForward,
+		confirmNetmailForward,
+		setNetmailForwardRead,
+		removeNetmailForward,
 		ApiError,
 		type BBSProfile
 	} from '$lib/api';
@@ -115,6 +119,48 @@
 		savingRouting = true;
 		await save({ qwk_routing: on }, on ? t('web.profile.seenby_on') : t('common.qwk_packets_now_leave_seen'));
 		savingRouting = false;
+	}
+
+	// Netmail forwarding: an address, confirmed with a code mailed there.
+	let fwAddress = $state('');
+	let fwCode = $state('');
+	let fwBusy = $state(false);
+	let fwChanging = $state(false);
+
+	async function forward(call: () => Promise<BBSProfile>, done: string) {
+		if (!bbsAuth.token) return;
+		fwBusy = true;
+		try {
+			apply(await call());
+			if (done) toast.push(done, 'success');
+		} catch (err) {
+			if (await handleAuthError(err)) return;
+			toast.push(err instanceof ApiError ? err.message : t('web.common.save_failed'), 'error');
+		} finally {
+			fwBusy = false;
+		}
+	}
+
+	async function sendForwardCode(e?: SubmitEvent) {
+		e?.preventDefault();
+		const addr = fwAddress.trim() || profile?.forward?.address || '';
+		await forward(() => requestNetmailForward(bbsAuth.token!, addr), t('web.profile.forward_code_sent_toast'));
+		if (profile?.forward?.pending) {
+			fwChanging = false;
+			fwCode = '';
+		}
+	}
+
+	async function confirmForward(e: SubmitEvent) {
+		e.preventDefault();
+		await forward(() => confirmNetmailForward(bbsAuth.token!, fwCode), t('web.profile.forward_on'));
+		fwCode = '';
+	}
+
+	async function stopForward() {
+		await forward(() => removeNetmailForward(bbsAuth.token!), t('web.profile.forward_off'));
+		fwAddress = '';
+		fwChanging = false;
 	}
 
 	async function savePassword(e: SubmitEvent) {
@@ -244,6 +290,78 @@
 				</button>
 			</form>
 		</section>
+
+		{#if profile.email}
+			{@const fw = profile.forward}
+			<section class="card">
+				<h2 class="card-label mb-1.5">{t('web.profile.forward_title')}</h2>
+				<p class="mb-3.5 text-[13px] text-muted">{t('web.profile.forward_hint')}</p>
+				{#if fw?.pending && !fwChanging}
+					<p class="mb-3 text-[13px] text-ink">{t('web.profile.forward_code_sent', { ADDRESS: fw.address })}</p>
+					<form class="flex flex-wrap gap-2.5" onsubmit={confirmForward}>
+						<label class="sr-only" for="profile-fwcode">{t('web.profile.forward_code')}</label>
+						<input
+							id="profile-fwcode"
+							class="field w-40 font-mono tracking-widest"
+							bind:value={fwCode}
+							inputmode="numeric"
+							autocomplete="one-time-code"
+							maxlength="7"
+							placeholder="123456"
+							required
+						/>
+						<button class="btn-primary" disabled={fwBusy || fwCode.trim().length < 6}>{t('web.profile.forward_confirm')}</button>
+						<button type="button" class="btn-secondary" disabled={fwBusy} onclick={() => sendForwardCode()}>
+							{t('web.profile.forward_resend')}
+						</button>
+						<button type="button" class="btn-secondary" disabled={fwBusy} onclick={stopForward}>{t('web.common.cancel')}</button>
+					</form>
+				{:else if fw?.verified && !fwChanging}
+					<p class="mb-3 text-[13px] text-ink">{t('web.profile.forward_active', { ADDRESS: fw.address })}</p>
+					<label class="mb-4 flex cursor-pointer items-start gap-3 text-[13px]">
+						<input
+							type="checkbox"
+							class="check mt-0.5"
+							checked={fw.mark_read}
+							disabled={fwBusy}
+							onchange={(e) => {
+								const on = (e.currentTarget as HTMLInputElement).checked;
+								forward(() => setNetmailForwardRead(bbsAuth.token!, on), t('web.profile.forward_saved'));
+							}}
+						/>
+						<span>
+							<span class="text-ink">{t('web.profile.forward_mark_read')}</span>
+							<span class="mt-0.5 block text-faint">{t('web.profile.forward_mark_read_hint')}</span>
+						</span>
+					</label>
+					<div class="flex flex-wrap gap-2.5">
+						<button type="button" class="btn-secondary" disabled={fwBusy} onclick={() => (fwChanging = true)}>
+							{t('web.profile.forward_change')}
+						</button>
+						<button type="button" class="btn-secondary" disabled={fwBusy} onclick={stopForward}>{t('web.profile.forward_stop')}</button>
+					</div>
+				{:else}
+					<form class="flex flex-wrap gap-2.5" onsubmit={sendForwardCode}>
+						<label class="sr-only" for="profile-fwaddr">{t('web.profile.forward_address')}</label>
+						<input
+							id="profile-fwaddr"
+							type="email"
+							class="field min-w-56 flex-1"
+							bind:value={fwAddress}
+							placeholder={t('web.profile.forward_address')}
+							autocomplete="email"
+							required
+						/>
+						<button class="btn-primary" disabled={fwBusy || !fwAddress.trim()}>{t('web.profile.forward_send_code')}</button>
+						{#if fwChanging}
+							<button type="button" class="btn-secondary" disabled={fwBusy} onclick={() => (fwChanging = false)}>
+								{t('web.common.cancel')}
+							</button>
+						{/if}
+					</form>
+				{/if}
+			</section>
+		{/if}
 
 		<section class="card">
 			<h2 class="card-label mb-3.5">{t('web.common.password')}</h2>

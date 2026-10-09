@@ -110,6 +110,9 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 		if s.mayEmail(u) {
 			b.WriteString("  " + profileField(term, "common.email", emailgw.Address(s.emailConfig(), u.Username)) + ansi.Reset + "\r\n")
 		}
+		if s.mayForward(u) {
+			b.WriteString("  " + profileField(term, "profile.forward_label", s.forwardLabel(term, u)) + ansi.Reset + "\r\n")
+		}
 		b.WriteString("\r\n")
 		options := [][2]string{
 			{"R", term.T("profile.opt_real_name")},
@@ -120,8 +123,11 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			{"K", term.T("common.qwk_area_selection")},
 			{"S", term.T("profile.opt_seenby")},
 			{"E", term.T("profile.opt_editor")},
-			{"Q", term.T("common.back")},
 		}
+		if s.mayForward(u) {
+			options = append(options, [2]string{"M", term.T("profile.opt_forward")})
+		}
+		options = append(options, [2]string{"Q", term.T("common.back")})
 		for i, o := range options {
 			if i%3 == 0 {
 				b.WriteString("  ")
@@ -167,6 +173,10 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			err = s.toggleQWKRouting(term, u)
 		case "E":
 			err = s.toggleLineEditor(term, u)
+		case "M":
+			if s.mayForward(u) {
+				err = s.netmailForward(term, u)
+			}
 		case "Q", "":
 			return nil
 		default:

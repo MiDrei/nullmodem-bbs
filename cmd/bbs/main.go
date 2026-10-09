@@ -26,6 +26,7 @@ import (
 	"github.com/midrei/nullmodem-bbs/internal/config"
 	"github.com/midrei/nullmodem-bbs/internal/db"
 	"github.com/midrei/nullmodem-bbs/internal/doors"
+	"github.com/midrei/nullmodem-bbs/internal/emailgw"
 	"github.com/midrei/nullmodem-bbs/internal/file"
 	"github.com/midrei/nullmodem-bbs/internal/hostkey"
 	"github.com/midrei/nullmodem-bbs/internal/menu"
@@ -146,6 +147,7 @@ func main() {
 		Security:         security,
 		Language:         func() string { return current().BBS.Language },
 		Email:            func() config.EmailConfig { return current().Email },
+		Forwards:         emailgw.NewForwards(sqlDB),
 		SecurityLevels:   func(name func(string) string) []config.SecurityLevel { return current().Levels(name) },
 	})
 
