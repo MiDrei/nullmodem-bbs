@@ -74,6 +74,9 @@ type fakeSMTP struct {
 	mu   sync.Mutex
 	got  []sentMail
 	fail int // answer RCPT with this code (0: accept)
+	// failMail answers MAIL with this code (0: accept) -- the smarthost
+	// refusing the sending itself.
+	failMail int
 }
 
 type sentMail struct {
@@ -90,6 +93,9 @@ type smtpSession struct {
 func (s *smtpSession) Reset()        { s.cur = sentMail{} }
 func (s *smtpSession) Logout() error { return nil }
 func (s *smtpSession) Mail(from string, _ *smtp.MailOptions) error {
+	if s.f.failMail != 0 {
+		return &smtp.SMTPError{Code: s.f.failMail, Message: "Domain is pending admin approval for outbound SMTP access"}
+	}
 	s.cur.from = from
 	return nil
 }
@@ -314,6 +320,30 @@ func TestRefusedMailComesBack(t *testing.T) {
 	}
 	if due, _ := e.nm.PendingEmail(time.Now().Add(time.Hour)); len(due) != 0 {
 		t.Errorf("still pending after a refusal: %d", len(due))
+	}
+}
+
+// The smarthost refusing the sending itself (login, approval) is for
+// the sysop to fix: the mail waits and is tried again, no bounce.
+func TestSmarthostRefusalRetries(t *testing.T) {
+	e := setup(t)
+	e.smtp.failMail = 535
+	if _, err := e.nm.SendEmail(e.maik.ID, "", "x@other.ch", "Hello", "Hi", 0); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	e.gw.SendPending(context.Background(), e.cfg, now)
+	if inbox, _ := e.nm.Inbox(e.maik.ID); len(inbox) != 0 {
+		t.Fatalf("bounced on the smarthost's refusal: %+v", inbox)
+	}
+	if due, _ := e.nm.PendingEmail(now.Add(5 * time.Minute)); len(due) != 1 {
+		t.Fatal("not tried again later")
+	}
+	// Approved: the next try goes out.
+	e.smtp.failMail = 0
+	e.gw.SendPending(context.Background(), e.cfg, now.Add(5*time.Minute))
+	if len(e.smtp.got) != 1 {
+		t.Errorf("sent %d mails after the approval, want 1", len(e.smtp.got))
 	}
 }
 

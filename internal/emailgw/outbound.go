@@ -81,7 +81,7 @@ func (g *Gateway) sendOne(c *smtp.Client, cfg config.EmailConfig, m netmail.Outg
 	err = c.SendMail(from, []string{m.Email}, bytes.NewReader(raw))
 	if err != nil {
 		var se *smtp.SMTPError
-		if errors.As(err, &se) && se.Code >= 500 {
+		if errors.As(err, &se) && se.Code >= 500 && !smarthostRefused(se) {
 			g.giveUp(m, u, err.Error())
 			return
 		}
@@ -105,6 +105,24 @@ func (g *Gateway) retry(m netmail.OutgoingEmail, err error, now time.Time) {
 	if e := g.Netmail.EmailRetry(m.ID, err.Error(), now.Add(retryDelay(m.Attempts))); e != nil {
 		g.logWarn("email gateway: %v", e)
 	}
+}
+
+// smarthostRefused reports whether a permanent SMTP error is about the
+// sending itself -- the login, or the provider not (yet) letting this
+// account send -- rather than the mail or its recipient. That's for the
+// sysop to fix, so the mail waits and is tried again (up to GiveUpAfter)
+// instead of going back to its writer at once. Seen live: Forward Email
+// answers "535 Domain is pending admin approval for outbound SMTP
+// access" until it has approved the domain.
+func smarthostRefused(se *smtp.SMTPError) bool {
+	switch se.Code {
+	case 530, 534, 535, 538: // authentication required/too weak/failed, encryption required
+		return true
+	}
+	// 5.7.8 credentials invalid, 5.7.9 mechanism too weak, 5.7.11
+	// encryption required.
+	ec := se.EnhancedCode
+	return ec[0] == 5 && ec[1] == 7 && (ec[2] == 8 || ec[2] == 9 || ec[2] == 11)
 }
 
 // giveUp stops trying mail m and tells its writer (u, may be nil) why.
