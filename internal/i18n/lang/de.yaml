@@ -279,9 +279,10 @@ editor.no_lines: "(noch keine Zeilen)"
 editor.empty: "Die Nachricht ist leer; nichts zu speichern."
 editor.no_such_line: "Diese Zeile gibt es nicht."
 editor.line_deleted: "Zeile {LINE} gelöscht."
-fse.hint: "^Z Speichern  ^X Abbrechen  ^Y Zeile weg  ^W Wort weg  ^L Neu zeichnen"
+fse.hint: "ESC Menü  ^Z Speichern  ^X Abbrechen  ^Y Zeile weg  ^W Wort weg"
 fse.empty: "Die Nachricht ist leer -- nichts zu speichern."
 fse.abort: "Diese Nachricht verwerfen? (j/N)"
+fse.menu: "S Speichern   A Verwerfen   L Neu zeichnen   andere Taste: weiterschreiben"
 
 # Nachrichtenbereiche, meine Bereiche
 common.message_areas: "Nachrichtenbereiche"

@@ -299,6 +299,32 @@ func (s *Server) runFullScreenEditor(term *Terminal, header []string, initial []
 		case KeyPgDn:
 			b.row = min(len(b.lines)-1, b.row+rows)
 			b.clampCol()
+		case KeyEscape:
+			// The menu: letters work on any keyboard layout, where a
+			// terminal may send Ctrl-Y for the key marked Z (QWERTZ).
+			status = term.T("fse.menu")
+			if err := term.Print(drawStatus() + cursor()); err != nil {
+				return nil, false, err
+			}
+			k, err := term.ReadKey()
+			if err != nil {
+				return nil, false, err
+			}
+			status = ""
+			if k.Type == KeyChar {
+				switch strings.ToUpper(string(k.Rune)) {
+				case "S":
+					key = Key{Type: KeyCtrl, Rune: 'z'}
+				case "A", "V":
+					key = Key{Type: KeyCtrl, Rune: 'x'}
+				case "L":
+					key = Key{Type: KeyCtrl, Rune: 'l'}
+				}
+			}
+			if key.Type != KeyCtrl {
+				break
+			}
+			fallthrough
 		case KeyCtrl:
 			switch key.Rune {
 			case 'z': // save

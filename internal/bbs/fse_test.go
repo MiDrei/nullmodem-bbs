@@ -2,6 +2,7 @@ package bbs
 
 import (
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 	"testing"
@@ -198,5 +199,71 @@ func TestFullScreenEditorStartsUnderTheRule(t *testing.T) {
 	// Head on rows 1-2, the rule on 3: the text on 4, the cursor there.
 	if !strings.Contains(out, "\x1b[3;1H"+ansi.FG(ansi.Blue, false)+"\xc4") || !strings.Contains(out, "\x1b[4;1H"+ansi.Reset+"Hi") || !strings.Contains(out, "\x1b[4;3H") {
 		t.Errorf("text not right under the rule: %q", out)
+	}
+}
+
+// packetConn hands out its input in the pieces the client sent it in,
+// and says what's left of the current one (like telnet's Buffered).
+type packetConn struct {
+	*fakeConn
+	packets [][]byte
+}
+
+func (c *packetConn) Read(p []byte) (int, error) {
+	for len(c.packets) > 0 && len(c.packets[0]) == 0 {
+		c.packets = c.packets[1:]
+	}
+	if len(c.packets) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, c.packets[0])
+	c.packets[0] = c.packets[0][n:]
+	return n, nil
+}
+
+func (c *packetConn) Buffered() int {
+	if len(c.packets) == 0 {
+		return 0
+	}
+	return len(c.packets[0])
+}
+
+func newPacketConn(packets ...string) *packetConn {
+	c := &packetConn{fakeConn: newFakeConn("")}
+	for _, p := range packets {
+		c.packets = append(c.packets, []byte(p))
+	}
+	return c
+}
+
+// The Escape key alone is a key at once; a cursor key's sequence, in
+// one piece, is still that key.
+func TestReadKeyTellsEscapeFromCursorKeys(t *testing.T) {
+	term := NewTerminal(newPacketConn("\x1b", "\x1b[A", "x"))
+	for _, want := range []KeyType{KeyEscape, KeyUp, KeyChar} {
+		k, err := term.ReadKey()
+		if err != nil || k.Type != want {
+			t.Fatalf("got %v %v, want %v", k, err, want)
+		}
+	}
+}
+
+// ESC, then S saves -- layout-proof, unlike Ctrl-Z on a QWERTZ keyboard.
+func TestFullScreenEditorEscapeMenuSaves(t *testing.T) {
+	s := testServer(t)
+	s.FullScreenEditor = true
+	u, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	general, _ := s.Messages.AreaByTag("general")
+	conn := newPacketConn("Menu test\r\n", "Hello", "\x1b", "x", "\x1b", "s")
+	if err := s.postMessage(NewTerminal(conn), u, general); err != nil {
+		t.Fatal(err)
+	}
+	msgs, _ := s.Messages.ListMessages(general.ID)
+	last := msgs[len(msgs)-1]
+	if last.Subject != "Menu test" || last.Body != "Hello" {
+		t.Fatalf("posted %q / %q (any other key must go on writing, not type)", last.Subject, last.Body)
+	}
+	if !strings.Contains(conn.out.String(), "S Save") {
+		t.Error("no menu shown")
 	}
 }

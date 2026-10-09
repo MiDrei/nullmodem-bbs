@@ -5,6 +5,7 @@
 package ssh
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"sync"
@@ -17,6 +18,7 @@ import (
 // channel. It implements io.ReadWriteCloser.
 type Session struct {
 	channel ssh.Channel
+	r       *bufio.Reader // the channel, buffered: see Buffered
 	conn    *ssh.ServerConn
 
 	mu     sync.Mutex
@@ -55,7 +57,18 @@ func (s *Session) WindowSize() (width, height int) {
 // User returns the username presented during authentication.
 func (s *Session) User() string { return s.conn.User() }
 
-func (s *Session) Read(p []byte) (int, error)  { return s.channel.Read(p) }
+// Buffered is how many bytes the client sent that wait to be read (see
+// internal/telnet's Session.Buffered).
+func (s *Session) Buffered() int { return s.reader().Buffered() }
+
+func (s *Session) reader() *bufio.Reader {
+	if s.r == nil {
+		s.r = bufio.NewReader(s.channel)
+	}
+	return s.r
+}
+
+func (s *Session) Read(p []byte) (int, error)  { return s.reader().Read(p) }
 func (s *Session) Write(p []byte) (int, error) { return s.channel.Write(p) }
 func (s *Session) Close() error                { return s.channel.Close() }
 

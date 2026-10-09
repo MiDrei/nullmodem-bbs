@@ -219,6 +219,11 @@ func (s *Session) Write(p []byte) (int, error) {
 // which SyncTERM (already past its own init, waiting for ZFILE)
 // received as a bewildering stray ZRQINIT and reacted to with a burst
 // of confused ZRINIT/ZABORT frames before giving up.
+// Buffered is how many bytes the client sent that wait to be read --
+// after an ESC, none means it was the Escape key alone, not the start
+// of a cursor key's sequence (those arrive in one piece).
+func (s *Session) Buffered() int { return s.r.Buffered() }
+
 func (s *Session) Read(p []byte) (int, error) {
 	s.mu.Lock()
 	raw := s.raw

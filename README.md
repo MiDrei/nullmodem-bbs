@@ -52,7 +52,7 @@ The web side:
   looking things up and for checking netmail addresses ("→ Agency BBS,
   Dunedin")
 - Full-screen editor for writing (arrow keys, Home/End, Page Up/Down, word
-  wrap, reply with quote; ^Z save, ^X abort, ^Y delete line); whoever prefers
+  wrap, reply with quote; ESC menu, ^Z save, ^X abort, ^Y delete line); whoever prefers
   writing line by line picks the line editor in their profile
 - New messages after login: an overview (netmail, to you, new per area),
   "Read new messages" reads all areas in turn, "Messages to you" only those

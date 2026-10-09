@@ -279,9 +279,10 @@ editor.no_lines: "(no lines yet)"
 editor.empty: "Message is empty; nothing to save."
 editor.no_such_line: "No such line."
 editor.line_deleted: "Line {LINE} deleted."
-fse.hint: "^Z Save  ^X Abort  ^Y Del line  ^W Del word  ^L Redraw"
+fse.hint: "ESC Menu  ^Z Save  ^X Abort  ^Y Del line  ^W Del word"
 fse.empty: "The message is empty -- nothing to save."
 fse.abort: "Abort this message? (y/N)"
+fse.menu: "S Save   A Abort   L Redraw   any other key: go on writing"
 
 # Message areas, my areas
 common.message_areas: "Message Areas"

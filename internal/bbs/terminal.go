@@ -294,6 +294,12 @@ func (t *Terminal) ReadKey() (Key, error) {
 		return Key{Type: KeyBackspace}, nil
 
 	case c == 0x1b:
+		// Nothing more waiting: the Escape key alone (a cursor key's
+		// sequence arrives in one piece). A connection that can't tell
+		// waits for the next byte.
+		if b, ok := t.conn.(interface{ Buffered() int }); ok && len(t.pending) == 0 && b.Buffered() == 0 {
+			return Key{Type: KeyEscape}, nil
+		}
 		next, err := t.readByte()
 		if err != nil {
 			// Nothing followed the escape byte before the connection

@@ -51,7 +51,7 @@ Die Web-Seite:
 - Nodelisten (I): werden aus den File-Echos der Netze übernommen (FSXNET.Z75 …),
   zum Nachschlagen und zum Prüfen von Netmail-Adressen („→ Agency BBS, Dunedin“)
 - Vollbild-Editor zum Schreiben (Pfeiltasten, Pos1/Ende, Bild auf/ab, Wortumbruch,
-  Antwort mit Zitat; ^Z speichern, ^X abbrechen, ^Y Zeile löschen); wer lieber
+  Antwort mit Zitat; ESC-Menü, ^Z speichern, ^X abbrechen, ^Y Zeile löschen); wer lieber
   zeilenweise schreibt, stellt im Profil den Zeileneditor ein
 - Neue Nachrichten nach dem Login: Übersicht (Netmail, an dich, neu pro Area),
   „Read new messages“ liest alle Areas der Reihe nach, „Messages to you“ nur
