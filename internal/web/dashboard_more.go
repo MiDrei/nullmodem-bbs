@@ -7,6 +7,7 @@ import (
 	"github.com/midrei/nullmodem-bbs/internal/applog"
 	"github.com/midrei/nullmodem-bbs/internal/backup"
 	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/emailgw"
 	"github.com/midrei/nullmodem-bbs/internal/offsite"
 )
 
@@ -72,6 +73,21 @@ type systemDTO struct {
 	Offsite        offsite.Status `json:"offsite"`
 	Services       []serviceBrief `json:"services"`
 	Warnings       []logLineBrief `json:"warnings"`
+	Email          *emailBrief    `json:"email"` // nil while the gateway is off
+}
+
+// emailBrief is how the email gateway's ways in and out are doing.
+type emailBrief struct {
+	Server     *emailgw.ReceiveStatus `json:"server"` // the own mail server, if on
+	Webhook    bool                   `json:"webhook"`
+	Mailbox    bool                   `json:"mailbox"` // fetched over IMAP
+	LastFetch  string                 `json:"last_fetch"`
+	FetchError string                 `json:"fetch_error"`
+	LastIn     string                 `json:"last_in"` // the newest mail taken, by any way
+	LastOut    string                 `json:"last_out"`
+	SendError  string                 `json:"send_error"`
+	Waiting    int                    `json:"waiting"`
+	Failed     int                    `json:"failed"` // in the last day
 }
 
 type serviceBrief struct {
@@ -129,5 +145,28 @@ func (s *Server) systemStatus(cfg *config.Config) systemDTO {
 			}
 		}
 	}
+	d.Email = s.emailBrief(cfg)
 	return d
+}
+
+func (s *Server) emailBrief(cfg *config.Config) *emailBrief {
+	e := cfg.Email
+	if !e.Enabled || s.DB == nil {
+		return nil
+	}
+	st := emailgw.LoadStatus(s.DB)
+	b := &emailBrief{Webhook: e.Receive.Webhook, Mailbox: e.IMAP.Host != "",
+		LastFetch: iso(st.LastFetch), FetchError: st.LastFetchError, LastOut: iso(st.LastSend), SendError: st.LastSendError}
+	if e.Receive.SMTP && s.MailReceiver != nil {
+		rs := s.MailReceiver.Status()
+		b.Server = &rs
+	}
+	var in time.Time
+	if s.DB.QueryRow(`SELECT posted_at FROM netmail_messages WHERE email != '' AND from_user_id IS NULL ORDER BY id DESC LIMIT 1`).Scan(&in) == nil {
+		b.LastIn = iso(in)
+	}
+	if s.Netmail != nil {
+		b.Waiting, _, b.Failed, _ = s.Netmail.EmailQueue(time.Now())
+	}
+	return b
 }

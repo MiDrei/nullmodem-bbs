@@ -9,7 +9,6 @@
 	// caller and "Log out" in one header row; version and Telnet
 	// address in a quiet footer.
 	import { onMount } from 'svelte';
-	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
@@ -59,7 +58,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 	<title>{site.info.name}</title>
 </svelte:head>
 

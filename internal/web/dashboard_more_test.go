@@ -2,8 +2,10 @@ package web
 
 import (
 	"testing"
+	"time"
 
 	"github.com/midrei/nullmodem-bbs/internal/config"
+	"github.com/midrei/nullmodem-bbs/internal/user"
 )
 
 // Each uplink's last good and last failed session, the latter also when
@@ -32,5 +34,25 @@ func TestUplinkStatuses(t *testing.T) {
 	}
 	if b.LastOK == "" || b.LastError <= b.LastOK || b.Error != "connection refused" || b.Sessions24h != 1 || b.Errors24h != 1 {
 		t.Errorf("2:301/1: %+v", b)
+	}
+}
+
+// The dashboard's email card: none while the gateway is off; on, its
+// ways in and the newest mail taken.
+func TestEmailBrief(t *testing.T) {
+	srv, users, _ := newTestServer(t)
+	cfg := config.Default()
+	if srv.emailBrief(cfg) != nil {
+		t.Error("email brief while the gateway is off")
+	}
+	u, _ := users.Register("alice", "password123", user.SLNewUser)
+	if _, err := srv.Netmail.ReceiveEmail("Joe", "joe@other.example", u.ID, "alice", "Hi", "body", time.Now(), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Email = config.EmailConfig{Enabled: true, Domain: "example.ch", IMAP: config.MailServer{Host: "imap.example.ch"},
+		Receive: config.MailReceive{Webhook: true}}
+	b := srv.emailBrief(cfg)
+	if b == nil || !b.Mailbox || !b.Webhook || b.Server != nil || b.LastIn == "" {
+		t.Fatalf("brief %+v", b)
 	}
 }

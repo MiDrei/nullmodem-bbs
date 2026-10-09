@@ -5,7 +5,6 @@
 	// for other sysops, and what's going on right now.
 	import { t, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
-	import favicon from '$lib/assets/favicon.svg';
 	import { bbsAuth } from '$lib/bbs-auth.svelte';
 	import DoorBulletins from '$lib/DoorBulletins.svelte';
 	import NewsList from '$lib/NewsList.svelte';
@@ -92,7 +91,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 	<title>{o?.name ?? 'NullModem BBS'}</title>
 	<meta name="description" content={t('web.home.meta', { BBSNAME: o?.name ?? 'BBS' })} />
 </svelte:head>

@@ -151,6 +151,11 @@ func (s *Server) handleGetEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 func applyMailServer(dst *config.MailServer, in mailServerDTO) {
+	if strings.TrimSpace(in.Host) == "" {
+		// No server: nothing of the old one's access is kept.
+		*dst = config.MailServer{}
+		return
+	}
 	dst.Host, dst.Port, dst.User, dst.Folder = strings.TrimSpace(in.Host), in.Port, strings.TrimSpace(in.User), strings.TrimSpace(in.Folder)
 	dst.Security = in.Security
 	if dst.Security == "tls" {

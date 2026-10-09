@@ -38,6 +38,7 @@
 		if (!auth.token) return;
 		try {
 			e = await getEmailSettings(auth.token);
+			imapOn = !!e.imap.host;
 			loadError = null;
 		} catch (err) {
 			loadError = err instanceof ApiError ? err.message : t('admin.email.could_not_load');
@@ -137,6 +138,24 @@
 	});
 	const words = (s: string) => s.split(/[\s,;]+/).map((w) => w.trim()).filter(Boolean);
 	let webhookURL = $derived(e?.receive.webhook_secret ? `${location.origin}/api/email/inbound?key=${e.receive.webhook_secret}` : '');
+	// Fetching from the IMAP mailbox; turned off, its access is deleted.
+	let imapOn = $state(false);
+	async function toggleImap(ev: Event) {
+		const box = ev.currentTarget as HTMLInputElement;
+		if (box.checked || !e) {
+			imapOn = box.checked;
+			return;
+		}
+		const saved = !!(e.imap.host || e.imap.user || e.imap.has_password);
+		if (saved && !confirm(t('admin.email.imap_off_confirm'))) {
+			box.checked = true;
+			return;
+		}
+		imapOn = false;
+		e.imap = { host: '', port: 0, security: 'tls', user: '', password: '', has_password: false, folder: '' };
+		e.delete_fetched = false;
+		if (saved) await save();
+	}
 	let direct = $derived(!!e && (e.receive.smtp || e.receive.webhook));
 	let mxPort = $derived(e?.receive.listen?.split(':').pop() || '2525');
 
@@ -151,50 +170,57 @@
 
 {#snippet server(kind: 'imap' | 'smtp', s: MailServer)}
 	<div class="rounded-lg border border-line p-3">
-		<div class="mb-2.5 text-sm font-medium text-ink-strong">
-			{kind === 'imap' ? t('admin.email.imap_title') : t('admin.email.smtp_title')}
-		</div>
+		{#if kind === 'imap'}
+			<label class="mb-2.5 flex items-center gap-2 text-sm font-medium text-ink-strong">
+				<input type="checkbox" class="check" checked={imapOn} onchange={toggleImap} disabled={busy !== null} />
+				{t('admin.email.imap_title')}
+			</label>
+		{:else}
+			<div class="mb-2.5 text-sm font-medium text-ink-strong">{t('admin.email.smtp_title')}</div>
+		{/if}
 		<p class="mb-2.5 text-[11px] leading-relaxed text-faint">
-			{kind === 'imap' ? t('admin.email.imap_hint') : t('admin.email.smtp_hint')}
+			{kind === 'imap' ? (imapOn ? t('admin.email.imap_hint') : t('admin.email.imap_off')) : t('admin.email.smtp_hint')}
 		</p>
-		<div class="grid gap-2.5 sm:grid-cols-2">
-			<label class="flex flex-col gap-1 text-xs text-muted sm:col-span-2">
-				{t('admin.email.host')}
-				<input class="field field-sm font-mono" bind:value={s.host} placeholder={kind === 'imap' ? 'imap.example.com' : 'smtp.example.com'} />
-			</label>
-			<label class="flex flex-col gap-1 text-xs text-muted">
-				{t('admin.common.security')}
-				<select class="field field-sm" bind:value={s.security}>
-					<option value="tls">{t('admin.email.security_tls')}</option>
-					<option value="starttls">STARTTLS</option>
-					<option value="none">{t('admin.email.security_none')}</option>
-				</select>
-			</label>
-			<label class="flex flex-col gap-1 text-xs text-muted">
-				{t('admin.common.port')}
-				<input type="number" min="0" class="field field-sm" bind:value={s.port} placeholder={String(defaultPort(kind, s.security))} />
-			</label>
-			<label class="flex flex-col gap-1 text-xs text-muted">
-				{t('admin.common.user')}
-				<input class="field field-sm font-mono" bind:value={s.user} autocomplete="off" />
-			</label>
-			<label class="flex flex-col gap-1 text-xs text-muted">
-				{t('web.common.password')}
-				<input
-					type="password"
-					class="field field-sm font-mono"
-					bind:value={s.password}
-					autocomplete="new-password"
-					placeholder={s.has_password ? t('admin.common.saved') : ''}
-				/>
-			</label>
-			{#if kind === 'imap'}
-				<label class="flex flex-col gap-1 text-xs text-muted">
-					{t('admin.email.folder')}
-					<input class="field field-sm font-mono" bind:value={s.folder} placeholder="INBOX" />
+		{#if kind === 'smtp' || imapOn}
+			<div class="grid gap-2.5 sm:grid-cols-2">
+				<label class="flex flex-col gap-1 text-xs text-muted sm:col-span-2">
+					{t('admin.email.host')}
+					<input class="field field-sm font-mono" bind:value={s.host} placeholder={kind === 'imap' ? 'imap.example.com' : 'smtp.example.com'} />
 				</label>
-			{/if}
-		</div>
+				<label class="flex flex-col gap-1 text-xs text-muted">
+					{t('admin.common.security')}
+					<select class="field field-sm" bind:value={s.security}>
+						<option value="tls">{t('admin.email.security_tls')}</option>
+						<option value="starttls">STARTTLS</option>
+						<option value="none">{t('admin.email.security_none')}</option>
+					</select>
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-muted">
+					{t('admin.common.port')}
+					<input type="number" min="0" class="field field-sm" bind:value={s.port} placeholder={String(defaultPort(kind, s.security))} />
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-muted">
+					{t('admin.common.user')}
+					<input class="field field-sm font-mono" bind:value={s.user} autocomplete="off" />
+				</label>
+				<label class="flex flex-col gap-1 text-xs text-muted">
+					{t('web.common.password')}
+					<input
+						type="password"
+						class="field field-sm font-mono"
+						bind:value={s.password}
+						autocomplete="new-password"
+						placeholder={s.has_password ? t('admin.common.saved') : ''}
+					/>
+				</label>
+				{#if kind === 'imap'}
+					<label class="flex flex-col gap-1 text-xs text-muted">
+						{t('admin.email.folder')}
+						<input class="field field-sm font-mono" bind:value={s.folder} placeholder="INBOX" />
+					</label>
+				{/if}
+			</div>
+		{/if}
 	</div>
 {/snippet}
 
@@ -213,10 +239,12 @@
 			<section class="card">
 				<h2 class="card-label mb-3">{t('admin.email.status')}</h2>
 				<div class="grid gap-2 text-sm sm:grid-cols-2">
-					<div>
-						<span class="text-muted">{t('admin.email.last_fetch')}</span>
-						<span class="text-ink">{e.status.last_fetch && !e.status.last_fetch.startsWith('0001') ? relativeTime(e.status.last_fetch) : t('admin.email.never')}</span>
-					</div>
+					{#if imapOn}
+						<div>
+							<span class="text-muted">{t('admin.email.last_fetch')}</span>
+							<span class="text-ink">{e.status.last_fetch && !e.status.last_fetch.startsWith('0001') ? relativeTime(e.status.last_fetch) : t('admin.email.never')}</span>
+						</div>
+					{/if}
 					<div>
 						<span class="text-muted">{t('admin.email.last_send')}</span>
 						<span class="text-ink">{e.status.last_send && !e.status.last_send.startsWith('0001') ? relativeTime(e.status.last_send) : t('admin.email.never')}</span>
@@ -240,17 +268,19 @@
 						{/if}
 					</p>
 				{/if}
-				{#if e.status.last_fetch_error}
+				{#if imapOn && e.status.last_fetch_error}
 					<p class="mt-2 text-xs text-amber-300">{t('admin.email.fetch_error', { ERROR: e.status.last_fetch_error })}</p>
 				{/if}
 				{#if e.status.last_send_error}
 					<p class="mt-2 text-xs text-amber-300">{t('admin.email.send_error', { ERROR: e.status.last_send_error })}</p>
 				{/if}
-				<div class="mt-3 flex justify-end">
-					<button type="button" class="btn-secondary btn-sm" disabled={busy !== null} onclick={fetchNow}>
-						{t('admin.email.fetch_now')}
-					</button>
-				</div>
+				{#if imapOn}
+					<div class="mt-3 flex justify-end">
+						<button type="button" class="btn-secondary btn-sm" disabled={busy !== null} onclick={fetchNow}>
+							{t('admin.email.fetch_now')}
+						</button>
+					</div>
+				{/if}
 			</section>
 		{/if}
 
@@ -278,11 +308,11 @@
 					<span class="text-[11px] text-faint">{t('admin.email.daily_limit_hint')}</span>
 				</label>
 			</div>
-			<div class="grid gap-3 lg:grid-cols-2">
+			<div class="grid gap-3 lg:grid-cols-2 lg:items-start">
 				{@render server('imap', e.imap)}
 				{@render server('smtp', e.smtp)}
 			</div>
-			{#if direct}
+			{#if direct && imapOn}
 				<p class="-mt-2 text-[11px] text-faint">{t('admin.email.imap_optional')}</p>
 			{/if}
 
@@ -341,10 +371,12 @@
 				</div>
 			</fieldset>
 
-			<label class="flex items-center gap-2 text-sm">
-				<input type="checkbox" class="check" bind:checked={e.delete_fetched} />
-				<span class="text-muted">{t('admin.email.delete_fetched')}</span>
-			</label>
+			{#if imapOn}
+				<label class="flex items-center gap-2 text-sm">
+					<input type="checkbox" class="check" bind:checked={e.delete_fetched} />
+					<span class="text-muted">{t('admin.email.delete_fetched')}</span>
+				</label>
+			{/if}
 			<label class="flex items-center gap-2 text-sm">
 				<input type="checkbox" class="check" bind:checked={e.deliver_spam} />
 				<span class="text-muted">{t('admin.email.deliver_spam')}</span>

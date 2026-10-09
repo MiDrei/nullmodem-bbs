@@ -154,6 +154,25 @@ export interface SystemStatus {
 	services: { name: string; version: string; started_at: string; running: boolean }[];
 	/** The latest warnings and errors of the last week, newest first. */
 	warnings: { at: string; level: string; source: string; message: string }[];
+	/** The email gateway's ways in and out; null while it's off. */
+	email: DashboardEmail | null;
+}
+
+export interface DashboardEmail {
+	/** The own mail server, if turned on. */
+	server: EmailSettings['receive']['server'] | null;
+	webhook: boolean;
+	/** Fetched from an IMAP mailbox. */
+	mailbox: boolean;
+	last_fetch: string;
+	fetch_error: string;
+	/** The newest mail taken in, by any way. */
+	last_in: string;
+	last_out: string;
+	send_error: string;
+	waiting: number;
+	/** Not delivered in the last day. */
+	failed: number;
 }
 
 export interface BBSUser {

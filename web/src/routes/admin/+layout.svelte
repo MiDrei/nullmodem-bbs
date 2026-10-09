@@ -5,7 +5,6 @@
 	// (Areas, Screens, FTN, Users, System), the operator and "Log out"
 	// on the right.
 	import { onMount, onDestroy } from 'svelte';
-	import favicon from '$lib/assets/favicon.svg';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { auth } from '$lib/auth.svelte';
@@ -157,7 +156,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 	<title>{t('admin.nav.name_admin', { NAME: site.info.name })}</title>
 </svelte:head>
 

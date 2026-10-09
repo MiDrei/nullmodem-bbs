@@ -295,7 +295,7 @@
 	{@const sys = dashboard.system}
 	<section class="mb-8 rounded-xl border border-line p-4">
 		<h2 class="mb-4 card-label">{t('admin.dashboard.system')}</h2>
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="grid gap-4 sm:grid-cols-2 {sys.email ? 'lg:grid-cols-3 xl:grid-cols-5' : 'lg:grid-cols-4'}">
 			<a href="/admin/backups" class="rounded-xl border border-line p-3 hover:border-cyan-700">
 				<div class="card-label mb-1">{t('admin.dashboard.backup')}</div>
 				{#if !sys.backup_enabled}
@@ -341,6 +341,46 @@
 					</div>
 				{/each}
 			</a>
+			{#if sys.email}
+				{@const em = sys.email}
+				<a href="/admin/email" class="rounded-xl border border-line p-3 hover:border-cyan-700">
+					<div class="card-label mb-1">{t('admin.dashboard.email')}</div>
+					{#if em.server}
+						<div class="flex items-center gap-2 text-sm" title={em.server.error}>
+							<span class="inline-block h-2 w-2 rounded-full {em.server.listening ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+							<span class="whitespace-nowrap text-ink-strong">{t('admin.dashboard.mail_server')}</span>
+							{#if !em.server.listening}
+								<span class="ml-auto text-xs whitespace-nowrap text-faint">{t('admin.dashboard.service_down')}</span>
+							{/if}
+						</div>
+						{#if em.server.listening}
+							<div class="pl-4 text-xs text-faint">{t('admin.dashboard.mail_counts', { TAKEN: em.server.taken, REFUSED: em.server.refused })}</div>
+						{/if}
+					{/if}
+					{#if em.webhook}
+						<div class="flex items-center gap-2 text-sm">
+							<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+							<span class="text-ink-strong">{t('admin.dashboard.webhook')}</span>
+						</div>
+					{/if}
+					{#if em.mailbox}
+						<div class="flex items-center gap-2 text-sm" title={em.fetch_error}>
+							<span class="inline-block h-2 w-2 rounded-full {em.fetch_error ? 'bg-red-500' : 'bg-emerald-500'}"></span>
+							<span class="whitespace-nowrap text-ink-strong">{t('admin.dashboard.mailbox')}</span>
+							<span class="ml-auto text-xs whitespace-nowrap text-faint">{ago(em.last_fetch) || t('admin.email.never')}</span>
+						</div>
+					{/if}
+					<div class="mt-1 text-xs text-faint">
+						{t('admin.dashboard.mail_last', { IN: ago(em.last_in) || t('admin.email.never'), OUT: ago(em.last_out) || t('admin.email.never') })}
+					</div>
+					{#if em.waiting || em.failed}
+						<div class="text-xs {em.failed ? 'text-red-400' : 'text-amber-400'}">{t('admin.email.queue', { WAITING: em.waiting, FAILED: em.failed })}</div>
+					{/if}
+					{#if em.send_error}
+						<div class="truncate text-xs text-red-500/80" title={em.send_error}>{em.send_error}</div>
+					{/if}
+				</a>
+			{/if}
 		</div>
 		{#if sys.warnings.length}
 			<div class="mt-4">

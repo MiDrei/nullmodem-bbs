@@ -38,6 +38,17 @@ func TestEmailSettingsKeepPasswords(t *testing.T) {
 		!c.Email.Receive.Greylisting() || !c.Email.Receive.CheckSPF() {
 		t.Fatalf("config %+v", c.Email)
 	}
+	// The mailbox turned off (no host): its access is gone, with the mail
+	// coming in directly instead.
+	settings["imap"] = map[string]any{"host": "", "user": "all@example.ch"}
+	settings["receive"] = map[string]any{"smtp": true, "greylist": true, "spf": true}
+	if rec := doJSON(t, h, http.MethodPut, "/api/email", settings, token); rec.Code != http.StatusOK {
+		t.Fatalf("mailbox off: %d %s", rec.Code, rec.Body)
+	}
+	c, _ = config.Load(configPath)
+	if c.Email.IMAP != (config.MailServer{}) || c.Email.SMTP.Password != "smtp-secret" {
+		t.Errorf("mailbox off: %+v", c.Email.IMAP)
+	}
 	// On without servers: refused.
 	if rec := doJSON(t, h, http.MethodPut, "/api/email", map[string]any{"enabled": true, "domain": "example.ch", "daily_limit": 5}, token); rec.Code != http.StatusBadRequest {
 		t.Errorf("on without servers: %d", rec.Code)

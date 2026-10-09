@@ -4,7 +4,6 @@
 	import { t, tn, i18n } from '$lib/i18n.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import favicon from '$lib/assets/favicon.svg';
 	import AnsiArt from '$lib/AnsiArt.svelte';
 	import { getPublicFile, getBBSInfo, type PublicFile, type BBSInfo } from '$lib/api';
 
@@ -25,7 +24,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 	<title>{f ? `${f.filename} · ${info?.name ?? ''}` : (info?.name ?? 'NullModem BBS')}</title>
 </svelte:head>
 
