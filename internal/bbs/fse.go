@@ -206,12 +206,15 @@ func (s *Server) runFullScreenEditor(term *Terminal, header []string, initial []
 		if status != "" {
 			text = status
 		}
-		pad := width - len(text) - len(right)
-		if pad < 1 {
-			pad = 1
+		// Exactly width columns: the bar is on the last row, and a
+		// terminal that wraps at once (SyncTERM, like ANSI.SYS) scrolls
+		// the whole screen up when its last column is written.
+		if max := width - len(right) - 1; len(text) > max {
+			text = text[:max]
 		}
-		return fmt.Sprintf("\x1b[%d;1H%s%s%s%s%s\x1b[K", top0+rows+1, ansi.Reset, ansi.FG(ansi.Black, false)+"\x1b[46m",
-			text+strings.Repeat(" ", pad)+right+" ", ansi.Reset, "")
+		pad := width - len(text) - len(right)
+		return fmt.Sprintf("\x1b[%d;1H%s%s%s%s\x1b[K", top0+rows+1, ansi.Reset, ansi.FG(ansi.Black, false)+"\x1b[46m",
+			text+strings.Repeat(" ", pad)+right, ansi.Reset)
 	}
 	cursor := func() string { return fmt.Sprintf("\x1b[%d;%dH", top0+1+b.row-top, b.col+1) }
 	full := func() error {

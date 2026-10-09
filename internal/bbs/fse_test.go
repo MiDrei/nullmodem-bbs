@@ -1,6 +1,8 @@
 package bbs
 
 import (
+	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -146,5 +148,37 @@ func TestReadKeyRecognizesEditingKeys(t *testing.T) {
 		if err != nil || k.Type != w {
 			t.Fatalf("key %d: %v %v, want %v", i, k, err, w)
 		}
+	}
+}
+
+// Nothing is written into the last row's last column: a terminal that
+// wraps at once there (SyncTERM) would scroll the whole editor up on
+// every key.
+func TestFullScreenEditorKeepsOffTheLastColumn(t *testing.T) {
+	s := testServer(t)
+	s.FullScreenEditor = true
+	u, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	general, _ := s.Messages.AreaByTag("general")
+	conn := newFakeConn("Subj\r\n" + "Hello there" + "\x1a")
+	term := NewTerminal(conn)
+	if err := s.postMessage(term, u, general); err != nil {
+		t.Fatal(err)
+	}
+	last := fmt.Sprintf("\x1b[%d;1H", term.Height())
+	out := conn.out.String()
+	n := 0
+	for i := strings.Index(out, last); i >= 0; i = strings.Index(out, last) {
+		out = out[i+len(last):]
+		seg := out
+		if j := regexp.MustCompile(`\x1b\[\d+;\d+H`).FindStringIndex(seg); j != nil {
+			seg = seg[:j[0]]
+		}
+		if w := visibleWidth(strings.ReplaceAll(seg, "\x1b[K", "")); w > term.Width() {
+			t.Fatalf("last row written %d columns wide (max %d): %q", w, term.Width(), seg)
+		}
+		n++
+	}
+	if n == 0 {
+		t.Fatal("no status bar on the last row")
 	}
 }
