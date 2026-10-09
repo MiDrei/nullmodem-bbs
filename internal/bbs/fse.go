@@ -184,7 +184,7 @@ func (b *editBuffer) deleteWord() {
 // aborted.
 func (s *Server) runFullScreenEditor(term *Terminal, header []string, initial []string) (lines []string, saved bool, err error) {
 	width := term.Width()
-	top0 := len(header) + 2 // header, separator; text from the next row
+	top0 := len(header) + 1 // header, separator; text from the next row (top0 is 0-based)
 	rows := term.Height() - top0 - 1
 	if rows < 3 {
 		rows = 3

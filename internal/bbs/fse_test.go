@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/midrei/nullmodem-bbs/internal/user"
+	"github.com/midrei/nullmodem-kit/ansi"
 )
 
 func typeText(b *editBuffer, s string) {
@@ -180,5 +181,22 @@ func TestFullScreenEditorKeepsOffTheLastColumn(t *testing.T) {
 	}
 	if n == 0 {
 		t.Fatal("no status bar on the last row")
+	}
+}
+
+// Writing starts on the row right under the separator.
+func TestFullScreenEditorStartsUnderTheRule(t *testing.T) {
+	s := testServer(t)
+	s.FullScreenEditor = true
+	u, _ := s.Users.Register("alice", "password123", user.SLNewUser)
+	general, _ := s.Messages.AreaByTag("general")
+	conn := newFakeConn("Subj\r\n" + "Hi" + "\x1a")
+	if err := s.postMessage(NewTerminal(conn), u, general); err != nil {
+		t.Fatal(err)
+	}
+	out := conn.out.String()
+	// Head on rows 1-2, the rule on 3: the text on 4, the cursor there.
+	if !strings.Contains(out, "\x1b[3;1H"+ansi.FG(ansi.Blue, false)+"\xc4") || !strings.Contains(out, "\x1b[4;1H"+ansi.Reset+"Hi") || !strings.Contains(out, "\x1b[4;3H") {
+		t.Errorf("text not right under the rule: %q", out)
 	}
 }
