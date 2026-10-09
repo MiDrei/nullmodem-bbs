@@ -295,7 +295,8 @@
 	{@const sys = dashboard.system}
 	<section class="mb-8 rounded-xl border border-line p-4">
 		<h2 class="mb-4 card-label">{t('admin.dashboard.system')}</h2>
-		<div class="grid gap-4 sm:grid-cols-2 {sys.email ? 'lg:grid-cols-3 xl:grid-cols-5' : 'lg:grid-cols-4'}">
+		<div class="card-label mb-2 text-faint">{t('admin.dashboard.group_data')}</div>
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			<a href="/admin/backups" class="rounded-xl border border-line p-3 hover:border-cyan-700">
 				<div class="card-label mb-1">{t('admin.dashboard.backup')}</div>
 				{#if !sys.backup_enabled}
@@ -331,6 +332,9 @@
 				<div class="text-sm text-ink-strong">{t('admin.dashboard.db_size', { SIZE: bytes(sys.db_bytes) })}</div>
 				<div class="text-xs {sys.free_bytes < 2 * 1024 ** 3 ? 'text-amber-400' : 'text-faint'}">{t('admin.dashboard.free_space', { SIZE: bytes(sys.free_bytes) })}</div>
 			</div>
+		</div>
+		<div class="card-label mt-4 mb-2 text-faint">{t('admin.dashboard.group_services')}</div>
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			<a href="/admin/services" class="rounded-xl border border-line p-3 hover:border-cyan-700">
 				<div class="card-label mb-1">{t('admin.dashboard.services')}</div>
 				{#each sys.services as sv (sv.name)}
