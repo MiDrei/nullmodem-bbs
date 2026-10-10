@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/midrei/nullmodem-bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/lastcallers"
 	"github.com/midrei/nullmodem-bbs/internal/message"
 	"github.com/midrei/nullmodem-bbs/internal/user"
 )
@@ -31,6 +32,10 @@ func TestReport(t *testing.T) {
 
 	area, _ := msgs.CreateArea("FSX_GEN", "fsxNet General", "", "fsxNet", 0, 0)
 	msgs.PostMessage(area.ID, alice.ID, "All", "Hi", "x")
+	// The board's own last-callers records, under bob's (the sysop's)
+	// account: nobody's writing.
+	msgs.PostMessageAs(area.ID, bob.ID, lastcallers.From, "All", lastcallers.Subject, "rec")
+	msgs.PostMessageAs(area.ID, bob.ID, lastcallers.From, "All", lastcallers.Subject, "rec")
 	msgs.ReceiveEcho(area.ID, "Remote", "Re: Hi", "y", "21:1/1 1", time.Now())
 	msgs.ReceiveEcho(area.ID, "Remote", "Old", "z", "21:1/1 2", time.Now().AddDate(0, 0, -40))
 
@@ -47,10 +52,11 @@ func TestReport(t *testing.T) {
 	if r.Posts != 1 || len(r.TopPosters) != 1 || r.TopPosters[0].Name != "alice" {
 		t.Errorf("posts %d %+v", r.Posts, r.TopPosters)
 	}
-	if len(r.TopAreas) != 1 || r.TopAreas[0].Count != 2 {
+	if len(r.TopAreas) != 1 || r.TopAreas[0].Count != 4 { // the records are area traffic
 		t.Errorf("areas %+v", r.TopAreas)
 	}
-	if len(r.Networks) != 1 || r.Networks[0].In != 2 || r.Networks[0].Out != 1 || len(r.Networks[0].Weeks) != weeks {
+	if len(r.Networks) != 1 || r.Networks[0].In != 2 || r.Networks[0].Out != 3 || // and go out
+		len(r.Networks[0].Weeks) != weeks {
 		t.Errorf("networks %+v", r.Networks)
 	}
 	if len(r.TopDoors) != 1 || r.TopDoors[0].Count != 2 || r.TopDoors[0].Minutes != 15 {

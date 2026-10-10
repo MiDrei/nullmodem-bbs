@@ -14,7 +14,13 @@ import (
 	"github.com/midrei/nullmodem-kit/ansi"
 
 	"github.com/midrei/nullmodem-bbs/internal/db"
+	"github.com/midrei/nullmodem-bbs/internal/lastcallers"
 )
+
+// automatedSender is the name the board posts its InterBBS last-callers
+// records under through the sysop's account: nobody's writing, so not
+// counted as posts written here (they still count as echomail out).
+var automatedSender = strings.ToLower(lastcallers.From)
 
 // Store records into and reports from the shared database. A nil
 // *Store records nothing (tests, tools).
@@ -170,11 +176,11 @@ func (s *Store) Report(days int, full bool) (*Report, error) {
 	}
 
 	// Posts written here, and the areas with the most mail (shown ones).
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM messages WHERE from_user_id IS NOT NULL AND posted_at >= datetime('now', ?)`, since).Scan(&r.Posts); err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM messages WHERE from_user_id IS NOT NULL AND LOWER(from_name) != ? AND posted_at >= datetime('now', ?)`, automatedSender, since).Scan(&r.Posts); err != nil {
 		return nil, fmt.Errorf("stats: %w", err)
 	}
 	if err := q(ranked(&r.TopPosters), `SELECT COALESCE(NULLIF(m.from_name, ''), u.username), COUNT(*), NULL FROM messages m JOIN users u ON u.id = m.from_user_id
-		WHERE m.posted_at >= datetime('now', ?) GROUP BY m.from_user_id ORDER BY COUNT(*) DESC LIMIT 5`, since); err != nil {
+		WHERE LOWER(m.from_name) != ? AND m.posted_at >= datetime('now', ?) GROUP BY m.from_user_id ORDER BY COUNT(*) DESC LIMIT 5`, automatedSender, since); err != nil {
 		return nil, err
 	}
 	if err := q(ranked(&r.TopAreas), `SELECT a.name, COUNT(*), a.network FROM messages m JOIN message_areas a ON a.id = m.area_id
