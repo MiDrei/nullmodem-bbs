@@ -31,6 +31,11 @@ services:
     ports:
       - "2323:2323" # telnet
       - "2222:2222" # ssh
+      # Ports for a reverse proxy such as frp (PROXY protocol, see
+      # docs/docker.md "Behind a reverse proxy"): publish them to the
+      # proxy only, e.g. on 127.0.0.1 for an frpc on this host.
+      # - "127.0.0.1:2324:2324" # telnet via proxy (telnet.proxy_addr)
+      # - "127.0.0.1:2223:2223" # ssh via proxy (ssh.proxy_addr)
     volumes:
       - ./configs/bbs.yaml:/app/configs/bbs.yaml
       - ./configs/menus:/app/configs/menus
@@ -46,6 +51,7 @@ services:
       TZ: ${TZ:-UTC} # e.g. Europe/Zurich: logs, backup names, nightly runs
     ports:
       - "24554:24554" # inbound BinkP (see configs/bbs.yaml's binkp.listen_enabled)
+      # - "127.0.0.1:24555:24555" # BinkP via proxy (binkp.proxy_listen_addr)
     volumes:
       - ./configs/bbs.yaml:/app/configs/bbs.yaml
       - ./data:/app/data

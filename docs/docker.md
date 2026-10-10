@@ -84,6 +84,65 @@ If `./data` already has content owned by root from an earlier run
 without PUID/PGID set (or from a migration off a named volume), fix
 ownership once with `sudo chown -R $(id -u):$(id -g) data`.
 
+## Behind a reverse proxy (frp, HAProxy)
+
+To reach the board through another machine -- a VPS with
+[frp](https://github.com/fatedier/frp)'s `frps`, say -- without the board
+seeing the proxy's address for every caller, Telnet, SSH and BinkP each
+take a second port for the proxy. Every connection there must open with
+a PROXY protocol header (v1 or v2) naming the real caller; one without
+it is dropped, so nobody can claim an address there. The callers' real
+addresses then show in the logs, "Who's online" and the lockouts.
+
+In `configs/bbs.yaml` (Telnet and SSH also under Settings in the admin):
+
+```yaml
+telnet:
+    proxy_addr: ":2324"
+ssh:
+    proxy_addr: ":2223"
+binkp:
+    proxy_listen_addr: ":24555"
+```
+
+Publish these ports to the proxy only -- the commented lines in
+`docker-compose.yml` bind them to `127.0.0.1` for an `frpc` on the same
+host -- and restart the services. `frpc.toml`:
+
+```toml
+serverAddr = "vps.example.com"
+serverPort = 7000
+
+[[proxies]]
+name = "telnet"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 2324
+remotePort = 23
+transport.proxyProtocolVersion = "v2"
+
+[[proxies]]
+name = "ssh"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 2223
+remotePort = 22
+transport.proxyProtocolVersion = "v2"
+
+[[proxies]]
+name = "binkp"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 24555
+remotePort = 24554
+transport.proxyProtocolVersion = "v2"
+```
+
+The web (portal, admin, reader) needs no extra port: put Caddy (or
+another web server) in front of port 8090, as for the board's own
+domain -- it passes the caller in `X-Forwarded-For`, which the web
+believes from private addresses.
+
 ## Restarting from the web admin
 
 **Admin → System → Services** lists the three daemons (bbs, mailer,

@@ -203,11 +203,15 @@ func main() {
 
 	if cfg.Telnet.Enabled {
 		telnetSrv := &telnet.Server{
-			Addr:    cfg.Telnet.Addr,
-			Handler: func(s *telnet.Session) { srv.Handle(s) },
+			Addr:      cfg.Telnet.Addr,
+			ProxyAddr: cfg.Telnet.ProxyAddr,
+			Handler:   func(s *telnet.Session) { srv.Handle(s) },
 		}
 		go func() {
 			logger.Info("telnet server listening on %s", cfg.Telnet.Addr)
+			if cfg.Telnet.ProxyAddr != "" {
+				logger.Info("telnet server listening for a proxy (PROXY protocol) on %s", cfg.Telnet.ProxyAddr)
+			}
 			errCh <- telnetSrv.ListenAndServe()
 		}()
 	}
@@ -218,12 +222,16 @@ func main() {
 			logger.Fatal("ssh host key: %v", err)
 		}
 		sshSrv := &ssh.Server{
-			Addr:    cfg.SSH.Addr,
-			HostKey: signer,
-			Handler: func(s *ssh.Session) { srv.Handle(s) },
+			Addr:      cfg.SSH.Addr,
+			ProxyAddr: cfg.SSH.ProxyAddr,
+			HostKey:   signer,
+			Handler:   func(s *ssh.Session) { srv.Handle(s) },
 		}
 		go func() {
 			logger.Info("ssh server listening on %s", cfg.SSH.Addr)
+			if cfg.SSH.ProxyAddr != "" {
+				logger.Info("ssh server listening for a proxy (PROXY protocol) on %s", cfg.SSH.ProxyAddr)
+			}
 			errCh <- sshSrv.ListenAndServe()
 		}()
 	}

@@ -16,6 +16,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/midrei/nullmodem-kit v0.3.0
 	github.com/minio/minio-go/v7 v7.3.0
+	github.com/pires/go-proxyproto v0.15.0
 	github.com/pkg/sftp v1.13.11
 	github.com/pquerna/otp v1.5.0
 	golang.org/x/crypto v0.57.0

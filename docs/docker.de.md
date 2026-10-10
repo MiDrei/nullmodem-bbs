@@ -84,6 +84,66 @@ Gehört in `./data` schon etwas root, weil es früher ohne PUID/PGID lief
 (oder von einem benannten Volume übernommen wurde), einmal die Besitzer
 korrigieren: `sudo chown -R $(id -u):$(id -g) data`.
 
+## Hinter einem Reverse-Proxy (frp, HAProxy)
+
+Um die BBS über einen anderen Rechner erreichbar zu machen -- etwa einen
+VPS mit dem `frps` von [frp](https://github.com/fatedier/frp) --, ohne
+dass sie bei jedem Anrufer die Adresse des Proxys sieht, haben Telnet,
+SSH und BinkP je einen zweiten Port für den Proxy. Jede Verbindung dort
+muss mit einem PROXY-Header (v1 oder v2) beginnen, der den echten
+Anrufer nennt; ohne ihn wird sie getrennt, niemand kann dort eine
+Adresse vortäuschen. Die echten Adressen erscheinen dann in den Logs,
+bei «Wer ist online» und in den Sperren.
+
+In `configs/bbs.yaml` (Telnet und SSH auch im Admin unter Einstellungen):
+
+```yaml
+telnet:
+    proxy_addr: ":2324"
+ssh:
+    proxy_addr: ":2223"
+binkp:
+    proxy_listen_addr: ":24555"
+```
+
+Diese Ports nur für den Proxy freigeben -- die auskommentierten Zeilen in
+`docker-compose.yml` binden sie an `127.0.0.1` für ein `frpc` auf
+demselben Rechner -- und die Dienste neu starten. `frpc.toml`:
+
+```toml
+serverAddr = "vps.example.com"
+serverPort = 7000
+
+[[proxies]]
+name = "telnet"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 2324
+remotePort = 23
+transport.proxyProtocolVersion = "v2"
+
+[[proxies]]
+name = "ssh"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 2223
+remotePort = 22
+transport.proxyProtocolVersion = "v2"
+
+[[proxies]]
+name = "binkp"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 24555
+remotePort = 24554
+transport.proxyProtocolVersion = "v2"
+```
+
+Das Web (Portal, Admin, Reader) braucht keinen eigenen Port: Caddy (oder
+einen anderen Webserver) vor Port 8090 stellen, wie für die eigene Domain
+der BBS -- er gibt den Anrufer in `X-Forwarded-For` mit, und das Web
+glaubt ihn von privaten Adressen.
+
 ## Neustart aus dem Web-Admin
 
 **Admin → System → Services** zeigt die drei Dienste (bbs, mailer, web)

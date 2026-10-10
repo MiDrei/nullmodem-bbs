@@ -43,6 +43,7 @@ import (
 	"github.com/midrei/nullmodem-bbs/internal/file"
 	"github.com/midrei/nullmodem-bbs/internal/message"
 	"github.com/midrei/nullmodem-bbs/internal/netmail"
+	"github.com/midrei/nullmodem-bbs/internal/proxied"
 	"github.com/midrei/nullmodem-bbs/internal/services"
 	"github.com/midrei/nullmodem-bbs/internal/tosser"
 	"github.com/midrei/nullmodem-bbs/internal/user"
@@ -204,29 +205,43 @@ func startInboundListener(ctx context.Context, cfg *config.Config, netmailStore 
 		return err
 	}
 	logger.Info("inbound BinkP listener on %s", cfg.Binkp.ListenAddr)
+	listeners := []net.Listener{ln}
+	if cfg.Binkp.ProxyListenAddr != "" {
+		pln, err := proxied.Listen(cfg.Binkp.ProxyListenAddr)
+		if err != nil {
+			ln.Close()
+			return fmt.Errorf("proxy port %s: %w", cfg.Binkp.ProxyListenAddr, err)
+		}
+		logger.Info("inbound BinkP listener for a proxy (PROXY protocol) on %s", cfg.Binkp.ProxyListenAddr)
+		listeners = append(listeners, pln)
+	}
 
 	go func() {
 		<-ctx.Done()
-		ln.Close()
-	}()
-
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				if ctx.Err() != nil {
-					return // listener closed for shutdown -- not an error
-				}
-				logger.Warn("inbound BinkP listener: accept: %v", err)
-				continue
-			}
-			activeInbound.Add(1)
-			go func() {
-				defer activeInbound.Add(-1)
-				handleInboundConn(ctx, conn, cfg, netmailStore, messages, users, robot, ticCfg, sessionLog, logger)
-			}()
+		for _, l := range listeners {
+			l.Close()
 		}
 	}()
+
+	for _, ln := range listeners {
+		go func() {
+			for {
+				conn, err := ln.Accept()
+				if err != nil {
+					if ctx.Err() != nil {
+						return // listener closed for shutdown -- not an error
+					}
+					logger.Warn("inbound BinkP listener: accept: %v", err)
+					continue
+				}
+				activeInbound.Add(1)
+				go func() {
+					defer activeInbound.Add(-1)
+					handleInboundConn(ctx, conn, cfg, netmailStore, messages, users, robot, ticCfg, sessionLog, logger)
+				}()
+			}
+		}()
+	}
 
 	return nil
 }

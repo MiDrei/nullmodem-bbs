@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	"github.com/midrei/nullmodem-bbs/internal/proxied"
 )
 
 // Session represents one connected SSH client's interactive shell
@@ -86,9 +88,12 @@ type ptyRequestPayload struct {
 // is accepted; real credential checks happen once the session reaches
 // the BBS login menu, matching how the telnet listener behaves.
 type Server struct {
-	Addr    string
-	HostKey ssh.Signer
-	Handler func(*Session)
+	Addr string
+	// ProxyAddr, if set, is a second port for a reverse proxy (see
+	// internal/proxied).
+	ProxyAddr string
+	HostKey   ssh.Signer
+	Handler   func(*Session)
 }
 
 // ListenAndServe binds Addr and serves connections until the listener
@@ -104,28 +109,28 @@ func (srv *Server) ListenAndServe() error {
 	}
 	config.AddHostKey(srv.HostKey)
 
-	ln, err := net.Listen("tcp", srv.Addr)
-	if err != nil {
-		return fmt.Errorf("ssh: listen %s: %w", srv.Addr, err)
-	}
-	defer ln.Close()
+	err := proxied.Serve(srv.Addr, srv.ProxyAddr, func(ln net.Listener) error {
+		for {
+			nConn, err := ln.Accept()
+			if err != nil {
+				return fmt.Errorf("accept: %w", err)
+			}
+			srv.accepted(nConn, config)
+		}
+	})
+	return fmt.Errorf("ssh: %w", err)
+}
 
-	for {
-		nConn, err := ln.Accept()
-		if err != nil {
-			return fmt.Errorf("ssh: accept: %w", err)
-		}
-		if tc, ok := nConn.(*net.TCPConn); ok {
-			// See internal/telnet's identical call for why: every reply
-			// riding on this connection (including internal/zmodem's
-			// download traffic) is a short, latency-sensitive message,
-			// not a bulk stream Nagle's algorithm's coalescing would
-			// help -- confirmed to matter live on a higher-latency
-			// (VPN) link.
-			_ = tc.SetNoDelay(true)
-		}
-		go srv.handleConn(nConn, config)
+func (srv *Server) accepted(nConn net.Conn, config *ssh.ServerConfig) {
+	if tc, ok := proxied.TCP(nConn); ok {
+		// See internal/telnet's identical call for why: every reply
+		// riding on this connection (including internal/zmodem's
+		// download traffic) is a short, latency-sensitive message, not
+		// a bulk stream Nagle's algorithm's coalescing would help --
+		// confirmed to matter live on a higher-latency (VPN) link.
+		_ = tc.SetNoDelay(true)
 	}
+	go srv.handleConn(nConn, config)
 }
 
 func (srv *Server) handleConn(nConn net.Conn, config *ssh.ServerConfig) {

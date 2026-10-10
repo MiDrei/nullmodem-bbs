@@ -123,6 +123,11 @@
 					placeholder=":2323"
 				/>
 			</label>
+			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">{t('admin.settings.proxy_address')}</span>
+				<input class="field font-mono" bind:value={config.telnet_proxy_addr} placeholder={t('admin.settings.proxy_off')} />
+				<span class="text-xs text-slate-500">{t('admin.settings.proxy_hint')}</span>
+			</label>
 		</section>
 
 		<section class="flex flex-col gap-4 rounded-xl border border-line p-4">
@@ -138,6 +143,11 @@
 					bind:value={config.ssh_addr}
 					placeholder=":2222"
 				/>
+			</label>
+			<label class="flex flex-col gap-1 text-sm">
+				<span class="text-slate-400">{t('admin.settings.proxy_address')}</span>
+				<input class="field font-mono" bind:value={config.ssh_proxy_addr} placeholder={t('admin.settings.proxy_off')} />
+				<span class="text-xs text-slate-500">{t('admin.settings.proxy_hint')}</span>
 			</label>
 		</section>
 

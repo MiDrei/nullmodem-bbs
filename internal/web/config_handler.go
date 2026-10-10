@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -82,8 +83,10 @@ type configDTO struct {
 	Networks                        []networkDTO     `json:"networks"`
 	TelnetEnabled                   bool             `json:"telnet_enabled"`
 	TelnetAddr                      string           `json:"telnet_addr"`
+	TelnetProxyAddr                 string           `json:"telnet_proxy_addr"`
 	SSHEnabled                      bool             `json:"ssh_enabled"`
 	SSHAddr                         string           `json:"ssh_addr"`
+	SSHProxyAddr                    string           `json:"ssh_proxy_addr"`
 	BinkpUplinks                    []binkpUplinkDTO `json:"binkp_uplinks"`
 	BinkpDefaultPollIntervalSeconds int              `json:"binkp_default_poll_interval_seconds"`
 	LastCallers                     lastCallersDTO   `json:"last_callers"`
@@ -141,8 +144,10 @@ func toDTO(c *config.Config) configDTO {
 		FTNAddresses:                    addrs,
 		TelnetEnabled:                   c.Telnet.Enabled,
 		TelnetAddr:                      c.Telnet.Addr,
+		TelnetProxyAddr:                 c.Telnet.ProxyAddr,
 		SSHEnabled:                      c.SSH.Enabled,
 		SSHAddr:                         c.SSH.Addr,
+		SSHProxyAddr:                    c.SSH.ProxyAddr,
 		BinkpUplinks:                    uplinks,
 		BinkpDefaultPollIntervalSeconds: c.Binkp.PollIntervalSeconds,
 		LastCallers: lastCallersDTO{
@@ -213,8 +218,10 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	c.Telnet.Enabled = dto.TelnetEnabled
 	c.Telnet.Addr = dto.TelnetAddr
+	c.Telnet.ProxyAddr = strings.TrimSpace(dto.TelnetProxyAddr)
 	c.SSH.Enabled = dto.SSHEnabled
 	c.SSH.Addr = dto.SSHAddr
+	c.SSH.ProxyAddr = strings.TrimSpace(dto.SSHProxyAddr)
 	c.Binkp.Uplinks = make([]config.BinkpUplink, len(dto.BinkpUplinks))
 	for i, u := range dto.BinkpUplinks {
 		c.Binkp.Uplinks[i] = config.BinkpUplink{
@@ -429,6 +436,14 @@ func validateConfigDTO(dto configDTO) string {
 	if !dto.TelnetEnabled && !dto.SSHEnabled {
 		return "at least one of telnet or ssh must be enabled"
 	}
+	for _, a := range []string{dto.TelnetProxyAddr, dto.SSHProxyAddr} {
+		if a = strings.TrimSpace(a); a == "" {
+			continue
+		}
+		if _, port, err := net.SplitHostPort(a); err != nil || port == "" {
+			return "a proxy port is host:port, e.g. :2324"
+		}
+	}
 	for i, addr := range dto.FTNAddresses {
 		if strings.TrimSpace(addr) == "" {
 			return fmt.Sprintf("ftn address %d: must not be empty", i+1)
@@ -508,8 +523,8 @@ func (s *Server) markConfigRestarts(before, after configDTO) {
 	if before.NewUserSL != after.NewUserSL {
 		s.markRestartNeeded(i18n.Ref("restart.new_user_sl"), services.BBS)
 	}
-	if before.TelnetEnabled != after.TelnetEnabled || before.TelnetAddr != after.TelnetAddr ||
-		before.SSHEnabled != after.SSHEnabled || before.SSHAddr != after.SSHAddr {
+	if before.TelnetEnabled != after.TelnetEnabled || before.TelnetAddr != after.TelnetAddr || before.TelnetProxyAddr != after.TelnetProxyAddr ||
+		before.SSHEnabled != after.SSHEnabled || before.SSHAddr != after.SSHAddr || before.SSHProxyAddr != after.SSHProxyAddr {
 		s.markRestartNeeded(i18n.Ref("restart.telnet_ssh"), services.BBS)
 	}
 	if !same(before.FTNAddresses, after.FTNAddresses) {

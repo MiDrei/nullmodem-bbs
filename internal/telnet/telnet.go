@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/midrei/nullmodem-bbs/internal/proxied"
 )
 
 // A note on RFC 856 TRANSMIT-BINARY, real clients simply not
@@ -450,25 +452,30 @@ func (s *Session) negotiateInitial() error {
 // Server accepts telnet connections and hands each one to Handler in
 // its own goroutine.
 type Server struct {
-	Addr    string
-	Handler func(*Session)
+	Addr string
+	// ProxyAddr, if set, is a second port for a reverse proxy (frp):
+	// connections there open with a PROXY protocol header naming the
+	// caller (see internal/proxied).
+	ProxyAddr string
+	Handler   func(*Session)
 }
 
 // ListenAndServe binds Addr and serves connections until the listener
 // errors (e.g. on Close from another goroutine).
 func (srv *Server) ListenAndServe() error {
-	ln, err := net.Listen("tcp", srv.Addr)
-	if err != nil {
-		return fmt.Errorf("telnet: listen %s: %w", srv.Addr, err)
+	if err := proxied.Serve(srv.Addr, srv.ProxyAddr, srv.serve); err != nil {
+		return fmt.Errorf("telnet: %w", err)
 	}
-	defer ln.Close()
+	return nil
+}
 
+func (srv *Server) serve(ln net.Listener) error {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			return fmt.Errorf("telnet: accept: %w", err)
+			return fmt.Errorf("accept: %w", err)
 		}
-		if tc, ok := conn.(*net.TCPConn); ok {
+		if tc, ok := proxied.TCP(conn); ok {
 			// Every reply this package (and internal/zmodem, riding on
 			// top of it during a download) sends is a short, latency-
 			// sensitive protocol message -- a telnet negotiation

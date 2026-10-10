@@ -45,8 +45,11 @@ export interface BBSConfig {
 	networks: FTNNetwork[];
 	telnet_enabled: boolean;
 	telnet_addr: string;
+	/** A port for a reverse proxy (frp): PROXY protocol required there; "" for none. */
+	telnet_proxy_addr: string;
 	ssh_enabled: boolean;
 	ssh_addr: string;
+	ssh_proxy_addr: string;
 	binkp_uplinks: BinkpUplink[];
 	/** Default poll interval (seconds) for an uplink that doesn't set its own poll_interval_seconds. */
 	binkp_default_poll_interval_seconds: number;

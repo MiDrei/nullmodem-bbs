@@ -79,14 +79,20 @@ type Config struct {
 		Path string `yaml:"path"`
 	} `yaml:"database"`
 
+	// ProxyAddr (Telnet, SSH; Binkp.ProxyListenAddr) is a second port
+	// for a reverse proxy such as frp: every connection there must open
+	// with a PROXY protocol header (v1 or v2) naming the real caller
+	// (see internal/proxied). "" for none.
 	Telnet struct {
-		Enabled bool   `yaml:"enabled"`
-		Addr    string `yaml:"addr"`
+		Enabled   bool   `yaml:"enabled"`
+		Addr      string `yaml:"addr"`
+		ProxyAddr string `yaml:"proxy_addr,omitempty"`
 	} `yaml:"telnet"`
 
 	SSH struct {
 		Enabled     bool   `yaml:"enabled"`
 		Addr        string `yaml:"addr"`
+		ProxyAddr   string `yaml:"proxy_addr,omitempty"`
 		HostKeyPath string `yaml:"host_key_path"`
 	} `yaml:"ssh"`
 
@@ -110,6 +116,9 @@ type Config struct {
 		// uplinks can push mail to us; nothing else is accepted.
 		ListenEnabled bool   `yaml:"listen_enabled"`
 		ListenAddr    string `yaml:"listen_addr"`
+		// ProxyListenAddr: the listener's port for a reverse proxy
+		// (PROXY protocol, see Telnet.ProxyAddr).
+		ProxyListenAddr string `yaml:"proxy_listen_addr,omitempty"`
 	} `yaml:"binkp"`
 	// Maintenance is the nightly cleanup (see internal/maintenance).
 	Maintenance MaintenanceConfig `yaml:"maintenance"`
