@@ -78,19 +78,40 @@ sw.addEventListener('fetch', (event) => {
 		return;
 	}
 	if (build.includes(url.pathname) || files.includes(url.pathname)) {
-		event.respondWith(caches.match(req).then((r) => r ?? fetch(req)));
+		event.respondWith(
+			caches
+				.match(req)
+				.then((r) => r ?? fetch(req))
+				.catch(() => fetch(req))
+		);
 	}
 });
 
+// A navigation is never answered with an error or nothing: a home-screen
+// app on iOS (WebKit) shows a blank white page for that, and stays on it.
 async function navigate(req: Request): Promise<Response> {
 	try {
-		const res = await fetch(req);
-		if (res.ok) (await caches.open(SHELL)).put('/reader/', res.clone());
-		return res;
+		// A plain GET of the page, not the navigation request itself:
+		// WebKit mishandles answering a navigation with a fetch of that
+		// very request (its redirect mode, a redirected answer).
+		const res = await fetch(req.url, { credentials: 'same-origin', cache: 'no-store' });
+		if (res.ok) {
+			const page = new Response(await res.blob(), { status: res.status, statusText: res.statusText, headers: res.headers });
+			(await caches.open(SHELL)).put('/reader/', page.clone());
+			return page;
+		}
 	} catch {
-		// Every reader page is the same app page.
-		return (await caches.match('/reader/')) ?? Response.error();
+		// Offline: the kept page.
 	}
+	// Every reader page is the same app page.
+	const kept = (await caches.match('/reader/', { ignoreSearch: true })) ?? (await caches.match(req, { ignoreSearch: true }));
+	if (kept) return kept;
+	return new Response(
+		'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+			'<body style="background:#000;color:#ccc;font:16px system-ui;padding:2em">' +
+			'<p>The reader could not be loaded.</p><p><a href="/reader/" style="color:#6af">Try again</a></p>',
+		{ status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+	);
 }
 
 async function apiGet(req: Request, url: URL): Promise<Response> {
