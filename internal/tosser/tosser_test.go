@@ -1500,10 +1500,12 @@ func TestAnswerDeliversOwnPendingMailToCaller(t *testing.T) {
 	}
 }
 
-// TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink locks in the
-// reject path: a caller whose M_ADR matches none of our configured
-// uplinks must be refused, not silently accepted as an open node.
-func TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink(t *testing.T) {
+// TestAnswerGivesAnUnlistedCallerAnUnsecuredSession: a caller whose
+// M_ADR matches none of our uplinks (nodelist.fidonet.cc checking the
+// node, say) gets an unsecured session -- the handshake completes,
+// nothing is offered or taken -- rather than an error; one that sends
+// a file anyway is cut off, keeping it.
+func TestAnswerGivesAnUnlistedCallerAnUnsecuredSession(t *testing.T) {
 	netmailStore, messages, users := newTestStores(t)
 
 	knownUplink := config.BinkpUplink{
@@ -1512,41 +1514,50 @@ func TestAnswerRejectsCallerNotMatchingAnyConfiguredUplink(t *testing.T) {
 		Password: "sess3cret",
 	}
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("net.Listen: %v", err)
-	}
-	defer ln.Close()
-
-	type answerOutcome struct {
-		res *Result
-		err error
-	}
-	answerCh := make(chan answerOutcome, 1)
-	go func() {
-		conn, err := ln.Accept()
+	call := func(offer []binkp.OutboundFile) (*binkp.Result, error, *Result, error) {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
-			answerCh <- answerOutcome{err: err}
-			return
+			t.Fatalf("net.Listen: %v", err)
 		}
-		defer conn.Close()
-		res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{knownUplink}, netmailStore, messages, users, nil, nil, nil)
-		answerCh <- answerOutcome{res: res, err: err}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, dialErr := binkp.Dial(ctx, ln.Addr().String(), binkp.Config{
-		OurAddresses: []string{"9:9/999"},
-		Password:     "doesnt-matter",
-	})
-	if dialErr == nil {
-		t.Fatal("caller-side Dial: expected an error for a rejected, unrecognized caller")
+		defer ln.Close()
+		type answerOutcome struct {
+			res *Result
+			err error
+		}
+		answerCh := make(chan answerOutcome, 1)
+		go func() {
+			conn, err := ln.Accept()
+			if err != nil {
+				answerCh <- answerOutcome{err: err}
+				return
+			}
+			defer conn.Close()
+			res, err := Answer(context.Background(), conn, []string{"21:3/194"}, "Test BBS", []config.BinkpUplink{knownUplink}, netmailStore, messages, users, nil, nil, nil)
+			answerCh <- answerOutcome{res: res, err: err}
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		dialRes, dialErr := binkp.Dial(ctx, ln.Addr().String(), binkp.Config{
+			OurAddresses:  []string{"2:5001/100.5001"},
+			SysName:       "nodelist.example",
+			OutboundFiles: offer,
+		})
+		out := <-answerCh
+		return dialRes, dialErr, out.res, out.err
 	}
 
-	out := <-answerCh
-	if out.err == nil {
-		t.Fatal("Answer: expected an error for an unrecognized caller")
+	dialRes, dialErr, res, err := call(nil)
+	if dialErr != nil || err != nil {
+		t.Fatalf("unsecured session: dial %v, answer %v", dialErr, err)
+	}
+	if !res.Unsecured || res.PeerSystem != "nodelist.example" || len(dialRes.FilesReceived) != 0 || res.Received != 0 {
+		t.Fatalf("unsecured session: %+v, caller got %v", res, dialRes.FilesReceived)
+	}
+
+	// A file from an unlisted caller: refused, the session ends.
+	_, _, res, err = call([]binkp.OutboundFile{{Name: "0000ffff.pkt", Size: 4, Data: strings.NewReader("data")}})
+	if err == nil {
+		t.Fatalf("a file from an unlisted caller was taken: %+v", res)
 	}
 }
 

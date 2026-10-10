@@ -79,6 +79,14 @@ type Config struct {
 	// the rest of this session. Meaningless (never called) unless
 	// PasswordForAddresses is also set.
 	OutboundFilesForAddresses func(peerAddrs []string) []OutboundFile
+	// AcceptUnknown, on the answerer side with PasswordForAddresses,
+	// gives a caller it doesn't recognize an unsecured session instead
+	// of rejecting it, as binkd and Mystic do: no password, nothing
+	// offered, and a file it sends ends the session (it keeps the file)
+	// -- enough for a nodelist checker (nodelist.fidonet.cc calls every
+	// listed node daily) to see the node answer. Result.Unsecured says
+	// it happened.
+	AcceptUnknown bool
 	// SysName, Sysop, and Location are sent as informational M_NUL
 	// lines (SYS/ZYZ/LOC); all optional.
 	SysName, Sysop, Location string
@@ -127,6 +135,11 @@ type Result struct {
 	// FilesReceived are the names of files the peer sent us that were
 	// fully received (and accepted by ReceiveFile without error).
 	FilesReceived []string
+	// Unsecured: an unrecognized caller got an unsecured session (see
+	// Config.AcceptUnknown); nothing was exchanged.
+	Unsecured bool
+	// PeerSystem is the system name the peer sent (M_NUL SYS), if any.
+	PeerSystem string
 }
 
 type role int
@@ -283,6 +296,18 @@ type session struct {
 // for every other M_NUL line (SYS/ZYZ/LOC/OPT).
 func (s *session) noteVersionLine(arg string) {
 	fields := strings.Fields(arg)
+	if len(fields) >= 2 && strings.EqualFold(fields[0], "SYS") && s.result.PeerSystem == "" {
+		sys := strings.Join(fields[1:], " ")
+		if len(sys) > 80 {
+			sys = sys[:80]
+		}
+		s.result.PeerSystem = strings.Map(func(r rune) rune {
+			if r < 0x20 || r == 0x7f {
+				return -1
+			}
+			return r
+		}, sys)
+	}
 	if len(fields) < 2 || !strings.EqualFold(fields[0], "VER") {
 		return
 	}
@@ -556,12 +581,17 @@ func (s *session) answererHandshake() error {
 	passwordRequired := s.cfg.Password != ""
 	if s.cfg.PasswordForAddresses != nil {
 		pw, ok := s.cfg.PasswordForAddresses(s.result.RemoteAddresses)
-		if !ok {
+		switch {
+		case ok:
+			expectedPassword = pw
+			passwordRequired = pw != ""
+		case s.cfg.AcceptUnknown:
+			s.result.Unsecured = true
+			expectedPassword, passwordRequired = "", false
+		default:
 			_ = s.send(MERR, "unrecognized caller")
 			return fmt.Errorf("peer address not recognized: %v", s.result.RemoteAddresses)
 		}
-		expectedPassword = pw
-		passwordRequired = pw != ""
 	}
 
 	// Whether the caller sends M_PWD at all is its own decision (it
@@ -594,6 +624,9 @@ func (s *session) answererHandshake() error {
 		// Open node and the caller sent no password -- whatever this
 		// frame is belongs to the transfer phase.
 		s.pushback(isData, payload)
+		if s.result.Unsecured {
+			return s.authenticated()
+		}
 		return nil
 	}
 
@@ -614,6 +647,17 @@ func (s *session) answererHandshake() error {
 	if !authOK {
 		_ = s.send(MERR, "authentication failed")
 		return fmt.Errorf("peer authentication failed")
+	}
+	return s.authenticated()
+}
+
+// authenticated ends the answerer's handshake: the caller's outbound
+// files, then M_OK -- "non-secure" and nothing offered for a caller
+// let in unsecured.
+func (s *session) authenticated() error {
+	if s.result.Unsecured {
+		s.cfg.OutboundFiles = nil
+		return s.send(MOK, "non-secure")
 	}
 	if s.cfg.OutboundFilesForAddresses != nil {
 		s.cfg.OutboundFiles = s.cfg.OutboundFilesForAddresses(s.result.RemoteAddresses)
@@ -864,6 +908,11 @@ func (s *session) receiveOneFile(arg string) (aborted bool, err error) {
 	// this package exposes to a caller.
 	wireName := fields[0]
 	name := dequoteFileName(wireName)
+	if s.result.Unsecured {
+		// Not from an unlisted system: it keeps the file.
+		_ = s.send(MERR, "files are not accepted from unlisted systems")
+		return false, fmt.Errorf("unsecured session: refused file %q", name)
+	}
 	size, err := strconv.ParseInt(fields[1], 10, 64)
 	if err != nil {
 		return false, fmt.Errorf("malformed M_FILE size in %q: %w", arg, err)

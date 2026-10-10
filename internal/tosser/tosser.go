@@ -93,6 +93,11 @@ type Result struct {
 	// RemoteAddresses are the FTN addresses the uplink identified
 	// itself as, straight from binkp.Result.
 	RemoteAddresses []string
+	// Unsecured: an unlisted system called (a nodelist checker, say)
+	// and got an unsecured session -- nothing exchanged; PeerSystem is
+	// the name it gave (see binkp.Config.AcceptUnknown).
+	Unsecured  bool
+	PeerSystem string
 	// SkippedFiles are inbound files the uplink sent that weren't FTS-
 	// 0001 mail packets and couldn't be tossed as a TIC/file-echo
 	// pair either -- a genuinely unsupported file, a malformed .tic
@@ -439,6 +444,8 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 		Sysop:        robotSysop(robot),
 		Location:     robotLocation(robot),
 		Recorder:     binkpRecorder,
+		// An unlisted caller gets an unsecured session, nothing more.
+		AcceptUnknown: true,
 		PasswordForAddresses: func(peerAddrs []string) (string, bool) {
 			u, ok := matchUplink(peerAddrs, uplinks)
 			if !ok {
@@ -491,6 +498,7 @@ func Answer(ctx context.Context, conn net.Conn, ourAddresses []string, bbsName s
 		return res, bundleErr
 	}
 	res.RemoteAddresses = sessionResult.RemoteAddresses
+	res.Unsecured, res.PeerSystem = sessionResult.Unsecured, sessionResult.PeerSystem
 	if ticSess != nil {
 		ticSess.flushUnmatched(res)
 	}

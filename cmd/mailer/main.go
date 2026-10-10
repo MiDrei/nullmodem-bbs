@@ -260,6 +260,11 @@ func handleInboundConn(ctx context.Context, conn net.Conn, cfg *config.Config, n
 		logger.Warn("inbound BinkP session from %s: %v", remote, err)
 		return
 	}
+	if res.Unsecured {
+		// A nodelist checker and the like: nothing exchanged.
+		logger.Info("inbound BinkP check from %s (%v, %q): unlisted, answered without exchanging mail", remote, res.RemoteAddresses, res.PeerSystem)
+		return
+	}
 	logger.Info("inbound BinkP session from %s (%v): sent %d netmail, %d echomail, forwarded %d echomail, %d file(s), received %d netmail, %d echomail, %d file(s)%s", remote, res.RemoteAddresses, res.Sent, res.SentEcho, res.ForwardedEcho, res.ForwardedFiles, res.Received, res.ReceivedEcho, res.ReceivedFiles, skippedFilesSuffix(res.SkippedFiles)+replacedSuffix(res.ReplacedFiles))
 }
 
