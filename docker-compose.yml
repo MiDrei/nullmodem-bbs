@@ -31,11 +31,6 @@ services:
     ports:
       - "2323:2323" # telnet
       - "2222:2222" # ssh
-      # Ports for a reverse proxy such as frp (PROXY protocol, see
-      # docs/docker.md "Behind a reverse proxy"): publish them to the
-      # proxy only, e.g. on 127.0.0.1 for an frpc on this host.
-      # - "127.0.0.1:2324:2324" # telnet via proxy (telnet.proxy_addr)
-      # - "127.0.0.1:2223:2223" # ssh via proxy (ssh.proxy_addr)
     volumes:
       - ./configs/bbs.yaml:/app/configs/bbs.yaml
       - ./configs/menus:/app/configs/menus
@@ -51,7 +46,6 @@ services:
       TZ: ${TZ:-UTC} # e.g. Europe/Zurich: logs, backup names, nightly runs
     ports:
       - "24554:24554" # inbound BinkP (see configs/bbs.yaml's binkp.listen_enabled)
-      # - "127.0.0.1:24555:24555" # BinkP via proxy (binkp.proxy_listen_addr)
     volumes:
       - ./configs/bbs.yaml:/app/configs/bbs.yaml
       - ./data:/app/data
@@ -74,6 +68,21 @@ services:
       - ./configs/menus:/app/configs/menus
       - ./configs/screens:/app/configs/screens
       - ./data:/app/data
+    restart: unless-stopped
+
+  # frpc hands the services on to an frps on another machine (a VPS),
+  # through their PROXY protocol ports (telnet.proxy_addr and the like)
+  # -- reached over this compose network, so those ports aren't
+  # published here. Off until configured (docs/docker.md "Behind a
+  # reverse proxy"): copy configs/frpc.toml.example to configs/frpc.toml,
+  # fill it in, then: docker compose --profile frp up -d
+  frpc:
+    image: ghcr.io/fatedier/frpc:v0.71.0
+    profiles: ["frp"]
+    command: ["-c", "/etc/frp/frpc.toml"]
+    volumes:
+      - ./configs/frpc.toml:/etc/frp/frpc.toml:ro
+    depends_on: [bbs, mailer, web]
     restart: unless-stopped
 
 # data/ is a bind mount, not a named volume, so a sysop can manage its

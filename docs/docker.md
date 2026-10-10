@@ -84,17 +84,20 @@ If `./data` already has content owned by root from an earlier run
 without PUID/PGID set (or from a migration off a named volume), fix
 ownership once with `sudo chown -R $(id -u):$(id -g) data`.
 
-## Behind a reverse proxy (frp, HAProxy)
+## Behind a reverse proxy (frp, Caddy)
 
-To reach the board through another machine -- a VPS with
-[frp](https://github.com/fatedier/frp)'s `frps`, say -- without the board
-seeing the proxy's address for every caller, Telnet, SSH and BinkP each
-take a second port for the proxy. Every connection there must open with
-a PROXY protocol header (v1 or v2) naming the real caller; one without
-it is dropped, so nobody can claim an address there. The callers' real
-addresses then show in the logs, "Who's online" and the lockouts.
+To reach the board through another machine -- a VPS running
+[frp](https://github.com/fatedier/frp)'s `frps`, with Caddy for the web
+-- nothing needs to be open at home, and nothing installed beside
+Docker: `frpc` runs as a container next to the board and connects out
+to the VPS.
 
-In `configs/bbs.yaml` (Telnet and SSH also under Settings in the admin):
+**The board.** Telnet, SSH and BinkP each take a second port for the
+proxy, where every connection must open with a PROXY protocol header
+(v1 or v2) naming the real caller -- one without it is dropped, so
+nobody can claim an address there. The callers' addresses then show in
+the logs, "Who's online" and the lockouts. In `configs/bbs.yaml`
+(Telnet and SSH also under Settings in the admin), then restart:
 
 ```yaml
 telnet:
@@ -105,43 +108,46 @@ binkp:
     proxy_listen_addr: ":24555"
 ```
 
-Publish these ports to the proxy only -- the commented lines in
-`docker-compose.yml` bind them to `127.0.0.1` for an `frpc` on the same
-host -- and restart the services. `frpc.toml`:
+These ports aren't published: frpc reaches them over the compose
+network.
 
-```toml
-serverAddr = "vps.example.com"
-serverPort = 7000
+**frpc.** Copy `configs/frpc.toml.example` to `configs/frpc.toml`
+(not in git -- it holds the token), set `serverAddr`, `auth.token` and,
+if you like, the ports on the VPS (`remotePort`), then start it:
 
-[[proxies]]
-name = "telnet"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 2324
-remotePort = 23
-transport.proxyProtocolVersion = "v2"
-
-[[proxies]]
-name = "ssh"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 2223
-remotePort = 22
-transport.proxyProtocolVersion = "v2"
-
-[[proxies]]
-name = "binkp"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 24555
-remotePort = 24554
-transport.proxyProtocolVersion = "v2"
+```sh
+docker compose --profile frp up -d frpc
+docker compose logs frpc   # "start proxy success" for each
 ```
 
-The web (portal, admin, reader) needs no extra port: put Caddy (or
-another web server) in front of port 8090, as for the board's own
-domain -- it passes the caller in `X-Forwarded-For`, which the web
-believes from private addresses.
+It stays off without `--profile frp`; a plain `docker compose up -d`
+leaves it as it is.
+
+**frps on the VPS** (`frps.toml`, e.g. with the `ghcr.io/fatedier/frps`
+image):
+
+```toml
+bindPort = 7000
+auth.token = "a long random secret"
+allowPorts = [{ start = 2222, end = 2323 }, { start = 18000, end = 18999 }, { single = 24554 }]
+```
+
+**Caddy on the VPS** for the web, to the `web` proxy's port:
+
+```
+bbs.example.com {
+    reverse_proxy 127.0.0.1:18090
+}
+```
+
+Close that port (18090) to the internet in the VPS's firewall: Caddy
+names the caller in `X-Forwarded-For`, which the web believes from the
+proxy -- reached directly, a caller could name any address.
+
+**Several boards or projects on one frps.** Each runs its own frpc with
+the same `auth.token` and its own `user` (the proxies are then named
+`user.telnet` and so on, so names don't collide); each needs its own
+`remotePort`s on the VPS, and its own Caddy site.
 
 ## Restarting from the web admin
 

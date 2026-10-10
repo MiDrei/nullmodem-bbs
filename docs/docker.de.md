@@ -84,18 +84,21 @@ Gehört in `./data` schon etwas root, weil es früher ohne PUID/PGID lief
 (oder von einem benannten Volume übernommen wurde), einmal die Besitzer
 korrigieren: `sudo chown -R $(id -u):$(id -g) data`.
 
-## Hinter einem Reverse-Proxy (frp, HAProxy)
+## Hinter einem Reverse-Proxy (frp, Caddy)
 
-Um die BBS über einen anderen Rechner erreichbar zu machen -- etwa einen
-VPS mit dem `frps` von [frp](https://github.com/fatedier/frp) --, ohne
-dass sie bei jedem Anrufer die Adresse des Proxys sieht, haben Telnet,
-SSH und BinkP je einen zweiten Port für den Proxy. Jede Verbindung dort
-muss mit einem PROXY-Header (v1 oder v2) beginnen, der den echten
-Anrufer nennt; ohne ihn wird sie getrennt, niemand kann dort eine
-Adresse vortäuschen. Die echten Adressen erscheinen dann in den Logs,
-bei «Wer ist online» und in den Sperren.
+Um die BBS über einen anderen Rechner erreichbar zu machen -- einen VPS
+mit dem `frps` von [frp](https://github.com/fatedier/frp) und Caddy fürs
+Web --, muss zu Hause nichts offen sein und neben Docker nichts
+installiert werden: `frpc` läuft als Container neben der BBS und
+verbindet sich nach aussen zum VPS.
 
-In `configs/bbs.yaml` (Telnet und SSH auch im Admin unter Einstellungen):
+**Die BBS.** Telnet, SSH und BinkP haben je einen zweiten Port für den
+Proxy, auf dem jede Verbindung mit einem PROXY-Header (v1 oder v2)
+beginnen muss, der den echten Anrufer nennt -- ohne ihn wird sie
+getrennt, niemand kann dort eine Adresse vortäuschen. Die echten
+Adressen erscheinen dann in den Logs, bei «Wer ist online» und in den
+Sperren. In `configs/bbs.yaml` (Telnet und SSH auch im Admin unter
+Einstellungen), dann neu starten:
 
 ```yaml
 telnet:
@@ -106,43 +109,46 @@ binkp:
     proxy_listen_addr: ":24555"
 ```
 
-Diese Ports nur für den Proxy freigeben -- die auskommentierten Zeilen in
-`docker-compose.yml` binden sie an `127.0.0.1` für ein `frpc` auf
-demselben Rechner -- und die Dienste neu starten. `frpc.toml`:
+Diese Ports werden nicht freigegeben: frpc erreicht sie über das
+Compose-Netz.
 
-```toml
-serverAddr = "vps.example.com"
-serverPort = 7000
+**frpc.** `configs/frpc.toml.example` nach `configs/frpc.toml` kopieren
+(nicht im Git -- sie enthält das Token), `serverAddr`, `auth.token` und
+nach Wunsch die Ports auf dem VPS (`remotePort`) setzen, dann starten:
 
-[[proxies]]
-name = "telnet"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 2324
-remotePort = 23
-transport.proxyProtocolVersion = "v2"
-
-[[proxies]]
-name = "ssh"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 2223
-remotePort = 22
-transport.proxyProtocolVersion = "v2"
-
-[[proxies]]
-name = "binkp"
-type = "tcp"
-localIP = "127.0.0.1"
-localPort = 24555
-remotePort = 24554
-transport.proxyProtocolVersion = "v2"
+```sh
+docker compose --profile frp up -d frpc
+docker compose logs frpc   # „start proxy success" für jeden
 ```
 
-Das Web (Portal, Admin, Reader) braucht keinen eigenen Port: Caddy (oder
-einen anderen Webserver) vor Port 8090 stellen, wie für die eigene Domain
-der BBS -- er gibt den Anrufer in `X-Forwarded-For` mit, und das Web
-glaubt ihn von privaten Adressen.
+Ohne `--profile frp` bleibt er aus; ein einfaches `docker compose up -d`
+lässt ihn, wie er ist.
+
+**frps auf dem VPS** (`frps.toml`, z.B. mit dem Image
+`ghcr.io/fatedier/frps`):
+
+```toml
+bindPort = 7000
+auth.token = "ein langes zufälliges Geheimnis"
+allowPorts = [{ start = 2222, end = 2323 }, { start = 18000, end = 18999 }, { single = 24554 }]
+```
+
+**Caddy auf dem VPS** fürs Web, auf den Port des Proxys `web`:
+
+```
+bbs.example.com {
+    reverse_proxy 127.0.0.1:18090
+}
+```
+
+Diesen Port (18090) in der Firewall des VPS fürs Internet schliessen:
+Caddy nennt den Anrufer in `X-Forwarded-For`, und das Web glaubt das
+vom Proxy -- direkt erreicht, könnte ein Anrufer jede Adresse angeben.
+
+**Mehrere BBS oder Projekte an einem frps.** Jedes betreibt sein eigenes
+frpc mit demselben `auth.token` und einem eigenen `user` (die Proxys
+heissen dann `user.telnet` usw., die Namen kollidieren nicht); jedes
+braucht eigene `remotePort`s auf dem VPS und eine eigene Caddy-Site.
 
 ## Neustart aus dem Web-Admin
 

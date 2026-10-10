@@ -11,6 +11,8 @@
 # BinkP uplink password into this file. See configs/bbs.yaml.example
 # for the template new checkouts should copy.
 /configs/bbs.yaml
+# frpc's real config holds the frps token (template: frpc.toml.example).
+/configs/frpc.toml
 
 # Host-specific docker compose overrides (PUID/PGID)
 /.env

@@ -1,0 +1,47 @@
+# frpc: hands NullModem BBS's services on to an frps on another machine
+# (a VPS) -- see docs/docker.md "Behind a reverse proxy". Copy to
+# configs/frpc.toml and fill in the server and token.
+
+serverAddr = "vps.example.com"
+serverPort = 7000
+auth.token = "the frps auth.token"
+# Names this board's proxies on the frps (as "nullmodem.telnet"), so
+# other boards and projects can share the same frps.
+user = "nullmodem"
+
+# Telnet, SSH and BinkP through their PROXY protocol ports (bbs.yaml:
+# telnet.proxy_addr, ssh.proxy_addr, binkp.proxy_listen_addr): frpc
+# opens each connection with a header naming the real caller.
+[[proxies]]
+name = "telnet"
+type = "tcp"
+localIP = "bbs"
+localPort = 2324
+remotePort = 2323
+transport.proxyProtocolVersion = "v2"
+
+[[proxies]]
+name = "ssh"
+type = "tcp"
+localIP = "bbs"
+localPort = 2223
+remotePort = 2222
+transport.proxyProtocolVersion = "v2"
+
+[[proxies]]
+name = "binkp"
+type = "tcp"
+localIP = "mailer"
+localPort = 24555
+remotePort = 24554
+transport.proxyProtocolVersion = "v2"
+
+# The web (portal, admin, reader), for a Caddy on the VPS: plain HTTP
+# -- Caddy names the caller in X-Forwarded-For. Keep remotePort closed
+# to the internet on the VPS (Caddy reaches it on 127.0.0.1).
+[[proxies]]
+name = "web"
+type = "tcp"
+localIP = "web"
+localPort = 8090
+remotePort = 18090
