@@ -16,5 +16,6 @@
 		{id}
 		onOpen={(next) => goto(`/reader/netmail/${next}`, { replaceState: true })}
 		onBack={() => goto('/reader/netmail', { replaceState: true })}
+		onDeleted={(next) => goto(next ? `/reader/netmail/${next}` : '/reader/netmail', { replaceState: true })}
 	/>
 {/if}

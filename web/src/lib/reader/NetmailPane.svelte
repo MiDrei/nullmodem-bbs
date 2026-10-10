@@ -2,7 +2,7 @@
 	// One netmail; a reply goes back to its sender.
 	import { t } from '$lib/i18n.svelte';
 	import { toast } from '$lib/toast.svelte';
-	import { getBBSNetmail, type BBSNetmail } from '$lib/api';
+	import { getBBSNetmail, deleteBBSNetmail, type BBSNetmail } from '$lib/api';
 	import { sendOrQueue } from '$lib/reader/offline.svelte';
 	import { readerToken, readerAuthFailed, errorText } from '$lib/reader/session';
 	import ReadView from '$lib/reader/ReadView.svelte';
@@ -13,12 +13,15 @@
 		id,
 		onOpen,
 		onBack,
-		onRead
+		onRead,
+		onDeleted
 	}: {
 		id: number;
 		onOpen: (id: number) => void;
 		onBack?: () => void;
 		onRead?: () => void;
+		/** After a delete: the netmail to show next, null for none. */
+		onDeleted?: (next: number | null) => void;
 	} = $props();
 
 	let mail = $state<BBSNetmail | null>(null);
@@ -55,6 +58,22 @@
 		subject = mail.subject.startsWith('Re: ') ? mail.subject : `Re: ${mail.subject}`;
 		body = quoteText(mail.body, mail.from_name, mail.to_name) + '\n\n';
 		replying = true;
+	}
+
+	async function remove() {
+		const token = await readerToken();
+		if (!token || !mail) return;
+		// One copy for both sides: a local recipient loses it too.
+		const question = !mail.is_recipient && mail.to_address === '' ? t('web.netmail.delete_both') : t('web.netmail.delete');
+		if (!confirm(question)) return;
+		try {
+			await deleteBBSNetmail(token, mail.id);
+			toast.push(t('web.common.message_deleted'), 'success');
+			onDeleted?.(mail.next_id ?? mail.prev_id ?? null);
+		} catch (err) {
+			if (await readerAuthFailed(err)) return;
+			toast.push(errorText(err, t('web.common.could_not_delete_message')), 'error');
+		}
 	}
 
 	async function send() {
@@ -97,6 +116,7 @@
 		onPrev={mail.prev_id ? () => mail?.prev_id && onOpen(mail.prev_id) : undefined}
 		onNext={mail.next_id ? () => mail?.next_id && onOpen(mail.next_id) : undefined}
 		onReply={mail.is_recipient ? startReply : undefined}
+		onDelete={remove}
 	/>
 {/if}
 

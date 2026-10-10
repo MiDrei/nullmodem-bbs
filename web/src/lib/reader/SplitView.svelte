@@ -128,7 +128,15 @@
 
 	<section class="pane min-w-0 flex-1">
 		{#if messageId != null && netmail}
-			<NetmailPane id={messageId} onOpen={(id) => (messageId = id)} onRead={() => reloadKey++} />
+			<NetmailPane
+				id={messageId}
+				onOpen={(id) => (messageId = id)}
+				onRead={() => reloadKey++}
+				onDeleted={(next) => {
+					messageId = next;
+					reloadKey++;
+				}}
+			/>
 		{:else if messageId != null}
 			<MessagePane
 				id={messageId}

@@ -11,7 +11,7 @@ import (
 
 // Version is shown on the BBS welcome screen, the [V]ersion menu
 // command, and the web admin dashboard.
-const Version = "NullModem BBS v0.95.4"
+const Version = "NullModem BBS v0.95.5"
 
 // Commit (short hash) and BuildDate (RFC 3339) are set when building
 // the image: go build -ldflags "-X .../version.Commit=... -X

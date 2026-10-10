@@ -20,6 +20,7 @@
 		onPrev,
 		onNext,
 		onReply,
+		onDelete,
 		position = '',
 		after
 	}: {
@@ -36,6 +37,8 @@
 		onPrev?: () => void;
 		onNext?: () => void;
 		onReply?: () => void;
+		/** Shows a delete button in the bar. */
+		onDelete?: () => void;
 		position?: string;
 		/** Below the text: the thread, in the reader. */
 		after?: Snippet;
@@ -156,6 +159,13 @@
 		{/if}
 		<span class="r-title text-sm font-normal text-muted">{title}</span>
 		{#if position}<span class="text-xs text-faint">{position}</span>{/if}
+		{#if onDelete}
+			<button class="r-btn ml-auto text-muted hover:text-red-400" onclick={onDelete} aria-label={t('web.common.delete')} title={t('web.common.delete')}>
+				<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+				</svg>
+			</button>
+		{/if}
 	</header>
 
 	<article
