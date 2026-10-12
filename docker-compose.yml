@@ -78,6 +78,7 @@ services:
   # fill it in, then: docker compose --profile frp up -d
   frpc:
     image: ghcr.io/fatedier/frpc:v0.71.0
+    hostname: nullmodem # how the frps dashboard lists this client
     profiles: ["frp"]
     command: ["-c", "/etc/frp/frpc.toml"]
     volumes:

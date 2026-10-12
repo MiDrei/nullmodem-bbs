@@ -8,6 +8,9 @@ auth.token = "the frps auth.token"
 # Names this board's proxies on the frps (as "nullmodem.telnet"), so
 # other boards and projects can share the same frps.
 user = "nullmodem"
+# A fixed name for this frpc on the frps dashboard ("nullmodem.myboard");
+# without it the dashboard shows a random run id, new on every start.
+clientID = "myboard"
 
 # Telnet, SSH and BinkP through their PROXY protocol ports (bbs.yaml:
 # telnet.proxy_addr, ssh.proxy_addr, binkp.proxy_listen_addr): frpc
