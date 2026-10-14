@@ -186,7 +186,7 @@ go build -o bin/ ./cmd/...           # bbs, mailer, web
 go test ./...
 ```
 
-- Go 1.26+, Node 24 for the interface; everything without cgo, SQLite too
+- Go 1.27.2+, Node 24 for the interface; everything without cgo, SQLite too
   (`modernc.org/sqlite`).
 - Zmodem needs `sexyz` in the `PATH` — so do the Zmodem tests, which are
   skipped otherwise: [docs/building-sexyz.md](docs/building-sexyz.md).

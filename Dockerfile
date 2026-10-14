@@ -15,7 +15,7 @@ RUN npm run build
 # CGO_ENABLED=0 throughout: every dependency here, sqlite included
 # (modernc.org/sqlite), is pure Go by design (see CLAUDE.md) so cross-
 # compiling for both target arches needs no C toolchain at all.
-FROM --platform=$BUILDPLATFORM golang:1.27-bookworm AS go-build
+FROM --platform=$BUILDPLATFORM golang:1.27.2-bookworm AS go-build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

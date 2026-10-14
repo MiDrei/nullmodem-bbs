@@ -1,6 +1,6 @@
 module github.com/midrei/nullmodem-bbs
 
-go 1.26.0
+go 1.27.2
 
 require (
 	blitiri.com.ar/go/spf v1.6.0
