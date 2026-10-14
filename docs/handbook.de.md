@@ -186,6 +186,10 @@ erscheinen unter System → Services.
   zeigt sie beim Setzen eines Levels. Ohne eigene Namen erscheinen die Levels
   der BBS (wartet auf Freischaltung, neuer Benutzer, Sysop).
 - **Passwort vergessen:** Users → „Password…“ setzt ein neues.
+- **Konto löschen:** Users → „Löschen“. Beiträge, gesendete Netmail und
+  hochgeladene Dateien bleiben unter seinem Namen erhalten; Postfach,
+  Einstellungen, Lesestand und Ähnliches werden gelöscht. Nicht das eigene
+  Konto, keines, das gerade online ist, und nie den letzten Sysop.
 - **Zweiter Faktor verloren:** Ein anderer Sysop setzt ihn mit „Reset 2FA“
   zurück; sonst siehe [security.md](security.de.md).
 - **Gesperrte Adressen** und Fehl-Logins: Users → Security.

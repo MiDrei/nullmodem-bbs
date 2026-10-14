@@ -197,7 +197,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/account/totp/disable", s.requireAuth(http.HandlerFunc(s.handleDisableTOTP)))
 	mux.Handle("POST /api/account/totp/recovery", s.requireAuth(http.HandlerFunc(s.handleNewRecoveryCodes)))
 	mux.Handle("POST /api/users/{id}/approve", s.requireAuth(http.HandlerFunc(s.handleApproveUser)))
-	mux.Handle("DELETE /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleDeletePendingUser)))
+	mux.Handle("DELETE /api/users/{id}", s.requireAuth(http.HandlerFunc(s.handleDeleteUser)))
 	mux.Handle("GET /api/chat/rooms", s.requireAuth(http.HandlerFunc(s.handleListChatRooms)))
 	mux.Handle("GET /api/chat/rooms/{room}", s.requireAuth(http.HandlerFunc(s.handleGetChatRoom)))
 	mux.Handle("POST /api/chat/rooms/{room}", s.requireAuth(http.HandlerFunc(s.handleChatAction)))

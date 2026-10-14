@@ -59,8 +59,8 @@ var (
 // a known IANA zone.
 var ErrInvalidTimezone = errors.New("user: unknown time zone")
 
-// ErrLastSysop is returned by SetSecurityLevel when lowering an
-// account below SLSysop would leave no account at sysop level at all,
+// ErrLastSysop is returned by SetSecurityLevel (and Delete) when lowering
+// (or deleting) an account would leave no account at sysop level at all,
 // locking everyone out of every sysop-only feature (web admin login,
 // telnet sysop menu) with no built-in way back in.
 var ErrLastSysop = errors.New("user: cannot demote the last sysop-level account")
@@ -323,6 +323,58 @@ func (s *Store) DeletePending(id int64) error {
 		`UPDATE netmail_messages SET from_user_id = NULL WHERE from_user_id = ?`,
 		`UPDATE messages SET from_user_id = NULL WHERE from_user_id = ?`,
 		`UPDATE files SET uploaded_by = NULL WHERE uploaded_by = ?`,
+		`DELETE FROM users WHERE id = ?`,
+	} {
+		if _, err := tx.Exec(q, id); err != nil {
+			return fmt.Errorf("user: delete %d: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+// Delete deletes an account for good. What it wrote stays, under its
+// name: its posts, the netmail it sent and the files it uploaded keep
+// the name and lose the link to the account. Everything else of the
+// account goes with it -- its mailbox (netmail to it), read marks,
+// area choices, votes, forwarding and the like (ON DELETE CASCADE).
+// Calls and door times stay in the statistics, nameless.
+func (s *Store) Delete(id int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("user: delete %d: %w", id, err)
+	}
+	defer tx.Rollback()
+	var name string
+	var level int
+	if err := tx.QueryRow(`SELECT username, security_level FROM users WHERE id = ?`, id).Scan(&name, &level); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("user: delete %d: %w", id, err)
+	}
+	if level >= SLSysop {
+		var others int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM users WHERE security_level >= ? AND id != ?`, SLSysop, id).Scan(&others); err != nil {
+			return fmt.Errorf("user: delete %d: %w", id, err)
+		}
+		if others == 0 {
+			return ErrLastSysop
+		}
+	}
+	for _, q := range []string{
+		// A local post or netmail stores no sender name (it's joined
+		// from the account): keep it before the link goes.
+		`UPDATE messages SET from_name = CASE WHEN from_name = '' THEN ? ELSE from_name END, from_user_id = NULL WHERE from_user_id = ?`,
+		`UPDATE netmail_messages SET from_name = CASE WHEN from_name = '' THEN ? ELSE from_name END, from_user_id = NULL WHERE from_user_id = ?`,
+		`UPDATE files SET uploaded_by_name = CASE WHEN uploaded_by_name = '' THEN ? ELSE uploaded_by_name END, uploaded_by = NULL WHERE uploaded_by = ?`,
+	} {
+		if _, err := tx.Exec(q, name, id); err != nil {
+			return fmt.Errorf("user: delete %d: %w", id, err)
+		}
+	}
+	for _, q := range []string{
+		// Tables that name the account without a foreign key.
+		`DELETE FROM netmail_forwarded WHERE user_id = ?`,
 		`DELETE FROM users WHERE id = ?`,
 	} {
 		if _, err := tx.Exec(q, id); err != nil {

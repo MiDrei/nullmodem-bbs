@@ -183,6 +183,10 @@ show under System → Services.
   caller's level. Without names of your own the board's levels show (waiting
   for approval, new user, sysop).
 - **Forgotten password:** Users → "Password…" sets a new one.
+- **Deleting an account:** Users → "Delete". Its posts, the netmail it
+  sent and its uploads stay, under its name; its mailbox, settings, read
+  marks and the like go. Not your own account, not one that's online
+  right now, never the last sysop.
 - **Second factor lost:** another sysop resets it with "Reset 2FA"; otherwise
   see [security.md](security.md).
 - **Locked addresses** and failed logins: Users → Security.

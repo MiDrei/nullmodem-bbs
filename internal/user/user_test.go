@@ -348,3 +348,62 @@ func TestValidateRealName(t *testing.T) {
 		t.Fatalf("valid: %v", err)
 	}
 }
+
+// Deleting an approved account keeps what it wrote, under its name, and
+// takes the rest; the last sysop can't go.
+func TestDeleteKeepsWhatTheAccountWrote(t *testing.T) {
+	s := newTestStore(t)
+	sysop, _ := s.Register("sysop", "password123", SLSysop)
+	alice, _ := s.Register("alice", "password123", 50)
+	bob, _ := s.Register("bob", "password123", 50)
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := s.db.Exec(q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec(`INSERT INTO message_areas (tag, name) VALUES ('gen', 'General')`)
+	exec(`INSERT INTO messages (area_id, from_user_id, to_name, subject, body) VALUES (1, ?, 'All', 'Hi', 'x')`, alice.ID)
+	exec(`INSERT INTO netmail_messages (from_user_id, to_user_id, to_name, subject, body) VALUES (?, ?, 'bob', 'To bob', 'x')`, alice.ID, bob.ID)
+	exec(`INSERT INTO netmail_messages (from_user_id, to_user_id, to_name, subject, body) VALUES (?, ?, 'alice', 'To alice', 'x')`, bob.ID, alice.ID)
+	exec(`INSERT INTO file_areas (tag, name) VALUES ('up', 'Uploads')`)
+	exec(`INSERT INTO files (area_id, filename, size_bytes, storage_path, uploaded_by) VALUES (1, 'a.zip', 1, 'a.zip', ?)`, alice.ID)
+	exec(`INSERT INTO netmail_forward (user_id, address, verified) VALUES (?, 'a@x.example', 1)`, alice.ID)
+
+	if err := s.Delete(alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ByID(alice.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("account still there: %v", err)
+	}
+	var name string
+	var uid any
+	s.db.QueryRow(`SELECT from_name, from_user_id FROM messages WHERE subject = 'Hi'`).Scan(&name, &uid)
+	if name != "alice" || uid != nil {
+		t.Errorf("post: from %q, user %v", name, uid)
+	}
+	s.db.QueryRow(`SELECT from_name FROM netmail_messages WHERE subject = 'To bob'`).Scan(&name)
+	if name != "alice" {
+		t.Errorf("sent netmail from %q", name)
+	}
+	var n int
+	s.db.QueryRow(`SELECT COUNT(*) FROM netmail_messages WHERE subject = 'To alice'`).Scan(&n)
+	if n != 0 {
+		t.Error("her mailbox kept")
+	}
+	s.db.QueryRow(`SELECT uploaded_by_name FROM files WHERE filename = 'a.zip'`).Scan(&name)
+	if name != "alice" {
+		t.Errorf("upload by %q", name)
+	}
+	s.db.QueryRow(`SELECT COUNT(*) FROM netmail_forward`).Scan(&n)
+	if n != 0 {
+		t.Error("forwarding kept")
+	}
+
+	if err := s.Delete(sysop.ID); !errors.Is(err, ErrLastSysop) {
+		t.Errorf("deleting the last sysop: %v", err)
+	}
+	if err := s.Delete(alice.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("deleting again: %v", err)
+	}
+}

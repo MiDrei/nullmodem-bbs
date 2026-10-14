@@ -130,6 +130,21 @@
 		}
 	}
 
+	// An approved account, for good: what it wrote stays under its name.
+	async function remove(row: Row) {
+		if (!auth.token || !confirm(t('admin.users.delete_confirm', { USERNAME: row.user.username }))) return;
+		row.saving = true;
+		try {
+			await deletePendingUser(auth.token, row.user.id);
+			rows = rows.filter((r) => r.user.id !== row.user.id);
+			toast.push(t('admin.users.username_deleted', { USERNAME: row.user.username }), 'success');
+		} catch (err) {
+			toast.push(err instanceof ApiError ? err.message : t('admin.users.could_not_delete'), 'error');
+		} finally {
+			row.saving = false;
+		}
+	}
+
 	function formatDate(iso: string | null): string {
 		if (!iso) return 'never';
 		return new Date(iso).toLocaleString(i18n.locale);
@@ -232,6 +247,11 @@
 							>
 								{row.saving ? t('web.common.saving') : t('web.common.save')}
 							</button>
+							{#if row.user.validated && row.user.username !== auth.username}
+								<button class="btn-secondary btn-sm hover:text-red-400" disabled={row.saving} onclick={() => remove(row)}>
+									{t('admin.users.delete')}
+								</button>
+							{/if}
 						</td>
 					</tr>
 				{/each}

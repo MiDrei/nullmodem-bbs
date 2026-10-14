@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/midrei/nullmodem-bbs/internal/user"
@@ -147,9 +148,9 @@ func (s *Server) handleApproveUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toUserDTO(*u))
 }
 
-// handleDeletePendingUser: DELETE /api/users/{id} -- only an account
-// still waiting for approval (one turned down).
-func (s *Server) handleDeletePendingUser(w http.ResponseWriter, r *http.Request) {
+// handleDeleteUser: DELETE /api/users/{id} -- an account turned down
+// before approval, or an approved one for good (see user.Store.Delete).
+func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid user id")
@@ -160,16 +161,40 @@ func (s *Server) handleDeletePendingUser(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotFound, "no such user")
 		return
 	}
-	switch err := s.Users.DeletePending(id); {
-	case errors.Is(err, user.ErrNotPending):
-		writeError(w, http.StatusConflict, "only an account waiting for approval can be deleted")
+	claims, _ := claimsFromContext(r.Context())
+	if !u.Validated {
+		if err := s.Users.DeletePending(id); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not delete the user")
+			return
+		}
+		s.logInfo("%s turned down and deleted the new account %s", claims.Subject, u.Username)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	// An approved account: not one's own, not while it's on the board,
+	// never the last sysop. What it wrote stays (see user.Store.Delete).
+	if strings.EqualFold(u.Username, claims.Subject) {
+		writeError(w, http.StatusConflict, "you can't delete your own account")
+		return
+	}
+	if s.Nodes != nil {
+		if nodes, err := s.Nodes.List(); err == nil {
+			for _, n := range nodes {
+				if strings.EqualFold(n.Username, u.Username) {
+					writeError(w, http.StatusConflict, "the user is online right now")
+					return
+				}
+			}
+		}
+	}
+	switch err := s.Users.Delete(id); {
+	case errors.Is(err, user.ErrLastSysop):
+		writeError(w, http.StatusConflict, "the last sysop can't be deleted")
 		return
 	case err != nil:
 		writeError(w, http.StatusInternalServerError, "could not delete the user")
 		return
 	}
-	if claims, ok := claimsFromContext(r.Context()); ok {
-		s.logInfo("%s turned down and deleted the new account %s", claims.Subject, u.Username)
-	}
+	s.logInfo("%s deleted the account %s", claims.Subject, u.Username)
 	w.WriteHeader(http.StatusNoContent)
 }
