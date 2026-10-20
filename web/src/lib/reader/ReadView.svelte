@@ -50,6 +50,12 @@
 	const SLIDE_MS = 180;
 	let startX = 0;
 	let startY = 0;
+	// Where the message was when the finger came: mid-glide, it goes on
+	// from there rather than jumping.
+	let base = 0;
+	// How far the finger went: that, not where the message is, says
+	// which way.
+	let moved = 0;
 	let tracking = false;
 	let horizontal: boolean | null = null;
 	let dx = $state(0);
@@ -60,9 +66,15 @@
 	// Out of sight, the next one still loading (a slow connection).
 	let waiting = $state(false);
 	let waitTimer: ReturnType<typeof setTimeout> | undefined;
+	// Counts slides, so a late timer of an earlier one leaves a later
+	// one alone (swiping quickly).
+	let slides = 0;
 
 	function touchStart(e: TouchEvent) {
 		if (e.touches.length !== 1) return;
+		// Still on the way to the next one: a swipe now would pull the
+		// half-gone message back under the finger.
+		if (entering) return;
 		const target = e.target as HTMLElement;
 		if (target.closest('.no-swipe')) return;
 		// Text wider than the screen scrolls sideways itself; don't turn
@@ -71,6 +83,10 @@
 		if (wide && wide.scrollWidth > wide.clientWidth + 1) return;
 		startX = e.touches[0].clientX;
 		startY = e.touches[0].clientY;
+		const article = root?.querySelector('article');
+		base = article ? new DOMMatrix(getComputedStyle(article).transform).m41 : 0;
+		dx = base;
+		moved = 0;
 		tracking = true;
 		horizontal = null;
 		animate = false;
@@ -84,15 +100,23 @@
 		if (!horizontal) return;
 		// Nothing that way: it gives, but reluctantly.
 		const blocked = (mx < 0 && !onNext) || (mx > 0 && !onPrev);
-		dx = blocked ? mx * 0.25 : mx;
+		moved = mx;
+		dx = base + (blocked ? mx * 0.25 : mx);
 	}
 
 	function touchEnd() {
 		if (!tracking) return;
 		tracking = false;
-		if (!horizontal) return;
-		if (dx <= -70 && onNext) slide(-1);
-		else if (dx >= 70 && onPrev) slide(1);
+		if (!horizontal) {
+			// Held mid-glide and then scrolled: on into place.
+			if (dx) {
+				animate = true;
+				dx = 0;
+			}
+			return;
+		}
+		if (moved <= -70 && onNext) slide(-1);
+		else if (moved >= 70 && onPrev) slide(1);
 		else {
 			animate = true;
 			dx = 0;
@@ -103,20 +127,21 @@
 	// then show the other one, which comes in from the opposite side.
 	function slide(dir: -1 | 1) {
 		const go = dir < 0 ? onNext : onPrev;
-		if (!go) return;
+		if (!go || entering) return;
 		animate = true;
 		dx = dir * (width || 400);
 		entering = dir;
+		const n = ++slides;
 		setTimeout(() => go(), SLIDE_MS);
 		clearTimeout(waitTimer);
 		waitTimer = setTimeout(() => {
-			if (entering) waiting = true;
+			if (entering && n === slides) waiting = true;
 		}, SLIDE_MS + 400);
 		// It didn't load after all: back into view rather than gone.
 		// Not too soon -- a slow connection still gets there (the service
 		// worker waits 6 s for the network before taking a kept copy).
 		setTimeout(() => {
-			if (entering) {
+			if (entering && n === slides) {
 				entering = 0;
 				waiting = false;
 				animate = true;
