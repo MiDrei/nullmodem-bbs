@@ -57,11 +57,18 @@
 	let width = $state(0);
 	// Which way the next message comes in from, once it has loaded.
 	let entering: -1 | 1 | 0 = 0;
+	// Out of sight, the next one still loading (a slow connection).
+	let waiting = $state(false);
+	let waitTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function touchStart(e: TouchEvent) {
 		if (e.touches.length !== 1) return;
-		// ANSI art scrolls sideways itself; don't turn that into a page.
-		if ((e.target as HTMLElement).closest('.no-swipe')) return;
+		const target = e.target as HTMLElement;
+		if (target.closest('.no-swipe')) return;
+		// Text wider than the screen scrolls sideways itself; don't turn
+		// that into a page. (ANSI art is scaled to fit: it swipes.)
+		const wide = target.closest<HTMLElement>('.x-scroll');
+		if (wide && wide.scrollWidth > wide.clientWidth + 1) return;
 		startX = e.touches[0].clientX;
 		startY = e.touches[0].clientY;
 		tracking = true;
@@ -101,14 +108,21 @@
 		dx = dir * (width || 400);
 		entering = dir;
 		setTimeout(() => go(), SLIDE_MS);
+		clearTimeout(waitTimer);
+		waitTimer = setTimeout(() => {
+			if (entering) waiting = true;
+		}, SLIDE_MS + 400);
 		// It didn't load after all: back into view rather than gone.
+		// Not too soon -- a slow connection still gets there (the service
+		// worker waits 6 s for the network before taking a kept copy).
 		setTimeout(() => {
 			if (entering) {
 				entering = 0;
+				waiting = false;
 				animate = true;
 				dx = 0;
 			}
-		}, 2500);
+		}, 8000);
 	}
 
 	let root = $state<HTMLDivElement | undefined>();
@@ -127,6 +141,8 @@
 		const pane = root?.closest('.pane');
 		if (pane) pane.scrollTop = 0;
 		else window.scrollTo(0, 0);
+		clearTimeout(waitTimer);
+		waiting = false;
 		if (!entering) return;
 		const from = -entering * (width || 400);
 		entering = 0;
@@ -180,11 +196,11 @@
 			<span class="text-ink-soft">{from}</span> → {to} · {formatDateTime(postedAt)}
 		</div>
 		{#if preformatted && grid}
-			<div class="no-swipe -mx-4 bg-[var(--color-ansi)] py-3">
+			<div class="-mx-4 bg-[var(--color-ansi)] py-3">
 				<AnsiArt {grid} fit maxZoom={1.2} />
 			</div>
 		{:else if preformatted}
-			<div class="no-swipe -mx-4 overflow-x-auto bg-[var(--color-ansi)] p-4">
+			<div class="x-scroll -mx-4 overflow-x-auto bg-[var(--color-ansi)] p-4">
 				<div class="inline-block font-mono text-[13px] leading-tight whitespace-pre">{@html bodyHtml}</div>
 			</div>
 		{:else}
@@ -194,6 +210,12 @@
 		{/if}
 		{@render after?.()}
 	</article>
+
+	{#if waiting}
+		<p class="pointer-events-none fixed inset-x-0 top-1/2 text-center text-sm text-muted" aria-live="polite">
+			{t('web.common.loading')}
+		</p>
+	{/if}
 
 	<nav
 		class="sticky bottom-0 flex items-center justify-between border-t border-line bg-black/95 px-3 pt-2 backdrop-blur"

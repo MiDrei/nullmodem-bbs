@@ -87,7 +87,7 @@ func Test(ctx context.Context, cfg config.EmailConfig) error {
 			return fmt.Errorf("IMAP: opening %s: %w", folder(cfg.IMAP), err)
 		}
 	}
-	s, err := dialSMTP(cfg.SMTP)
+	s, err := dialSMTP(cfg)
 	if err != nil {
 		return fmt.Errorf("SMTP: %w", err)
 	}

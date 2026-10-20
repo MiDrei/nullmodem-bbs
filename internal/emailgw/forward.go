@@ -185,7 +185,7 @@ func (f *Forwards) Remove(userID int64) error {
 
 // sendMail sends one mail over its own SMTP connection.
 func sendMail(cfg config.EmailConfig, from, to string, raw []byte) error {
-	c, err := dialSMTP(cfg.SMTP)
+	c, err := dialSMTP(cfg)
 	if err != nil {
 		return err
 	}
@@ -280,7 +280,7 @@ func (g *Gateway) ForwardPending(ctx context.Context, cfg config.EmailConfig, no
 			continue
 		}
 		if c == nil {
-			if c, err = dialSMTP(cfg.SMTP); err != nil {
+			if c, err = dialSMTP(cfg); err != nil {
 				g.update(func(st *Status) { st.LastSendError = err.Error() })
 				for _, j := range jobs {
 					g.forwardRetry(j, err, now)

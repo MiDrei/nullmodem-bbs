@@ -74,7 +74,7 @@ sw.addEventListener('fetch', (event) => {
 	if (req.method !== 'GET') return;
 	// Live things (push setup, chat) always go to the network.
 	if (url.pathname.startsWith('/api/bbs/') && !url.pathname.startsWith('/api/bbs/push/') && !url.pathname.startsWith('/api/bbs/chat/')) {
-		event.respondWith(apiGet(req, url));
+		event.respondWith(apiGet(event, req, url));
 		return;
 	}
 	if (build.includes(url.pathname) || files.includes(url.pathname)) {
@@ -114,17 +114,25 @@ async function navigate(req: Request): Promise<Response> {
 	);
 }
 
-async function apiGet(req: Request, url: URL): Promise<Response> {
-	const cache = await caches.open(API);
+async function apiGet(event: FetchEvent, req: Request, url: URL): Promise<Response> {
 	const key = apiKey(url);
-	const network = fetch(req).then(async (res) => {
+	const network = fetch(req).then((res) => {
 		if (res.ok) {
-			await cache.put(key, res.clone());
-			// Online again: mark what was read meanwhile.
-			replayPendingReads();
+			// Kept in the background: with a lot fetched ahead, WebKit
+			// takes its time storing it, and the page would wait for that.
+			const copy = res.clone();
+			event.waitUntil(
+				caches
+					.open(API)
+					.then((c) => c.put(key, copy))
+					.catch(() => {})
+					// Online again: mark what was read meanwhile.
+					.then(() => replayPendingReads())
+			);
 		}
 		return res;
 	});
+	const cache = await caches.open(API);
 	try {
 		// A bad connection (a train) answers late or never: after a
 		// while the kept answer is taken, if there is one.

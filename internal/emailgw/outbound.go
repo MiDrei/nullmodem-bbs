@@ -8,9 +8,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"mime/quotedprintable"
 	"net"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -49,7 +51,7 @@ func (g *Gateway) SendPending(ctx context.Context, cfg config.EmailConfig, now t
 	if len(due) == 0 {
 		return
 	}
-	c, err := dialSMTP(cfg.SMTP)
+	c, err := dialSMTP(cfg)
 	if err != nil {
 		g.update(func(st *Status) { st.LastSendError = err.Error() })
 		g.logWarn("email gateway: SMTP: %v", err)
@@ -209,8 +211,81 @@ func serverAddr(s config.MailServer, def int) string {
 	return net.JoinHostPort(s.Host, strconv.Itoa(port))
 }
 
+// heloName is the name the gateway greets an SMTP server with: the
+// receiving server's hostname, else the mail domain. go-smtp would
+// say "localhost", which some servers hold against the sender.
+func heloName(cfg config.EmailConfig) string {
+	if h := strings.TrimSpace(cfg.Receive.Hostname); h != "" {
+		return h
+	}
+	if d := strings.TrimSpace(cfg.Domain); d != "" {
+		return d
+	}
+	return "localhost"
+}
+
+// dialStartTLS is smtp.DialStartTLS greeting with name: go-smtp's own
+// says "localhost" before the STARTTLS and can't be told otherwise.
+// The plain part is done here, go-smtp gets the TLS connection (and
+// the greeting it waits for, which a server doesn't repeat).
+func dialStartTLS(addr, name string, tc *tls.Config) (*smtp.Client, error) {
+	conn, err := net.DialTimeout("tcp", addr, 30*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	conn.SetDeadline(time.Now().Add(time.Minute))
+	tp := textproto.NewConn(conn)
+	cmd := func(expect int, format string, args ...any) (string, error) {
+		id, err := tp.Cmd(format, args...)
+		if err != nil {
+			return "", err
+		}
+		tp.StartResponse(id)
+		defer tp.EndResponse(id)
+		_, msg, err := tp.ReadResponse(expect)
+		return msg, err
+	}
+	fail := func(err error) (*smtp.Client, error) {
+		conn.Close()
+		return nil, err
+	}
+	if _, _, err := tp.ReadResponse(220); err != nil {
+		return fail(err)
+	}
+	ext, err := cmd(250, "EHLO %s", name)
+	if err != nil {
+		return fail(err)
+	}
+	if !strings.Contains(strings.ToUpper(ext), "STARTTLS") {
+		return fail(errors.New("smtp: server doesn't support STARTTLS"))
+	}
+	if _, err := cmd(220, "STARTTLS"); err != nil {
+		return fail(err)
+	}
+	t := tls.Client(conn, tc)
+	if err := t.Handshake(); err != nil {
+		return fail(err)
+	}
+	conn.SetDeadline(time.Time{})
+	c := smtp.NewClient(greeted{t, io.MultiReader(strings.NewReader("220 TLS\r\n"), t)})
+	if err := c.Hello(name); err != nil {
+		c.Close()
+		return nil, err
+	}
+	return c, nil
+}
+
+// greeted is a connection whose first line read is a made-up greeting.
+type greeted struct {
+	net.Conn
+	r io.Reader
+}
+
+func (g greeted) Read(p []byte) (int, error) { return g.r.Read(p) }
+
 // dialSMTP connects and logs in to the SMTP server.
-func dialSMTP(s config.MailServer) (*smtp.Client, error) {
+func dialSMTP(cfg config.EmailConfig) (*smtp.Client, error) {
+	s := cfg.SMTP
 	if s.Host == "" {
 		return nil, errors.New("no SMTP server set")
 	}
@@ -219,11 +294,19 @@ func dialSMTP(s config.MailServer) (*smtp.Client, error) {
 	tc := &tls.Config{ServerName: s.Host}
 	switch s.Security {
 	case "starttls":
-		c, err = smtp.DialStartTLS(serverAddr(s, 587), tc)
+		c, err = dialStartTLS(serverAddr(s, 587), heloName(cfg), tc)
 	case "none":
-		c, err = smtp.Dial(serverAddr(s, 25))
+		if c, err = smtp.Dial(serverAddr(s, 25)); err == nil {
+			if err = c.Hello(heloName(cfg)); err != nil {
+				c.Close()
+			}
+		}
 	default:
-		c, err = smtp.DialTLS(serverAddr(s, 465), tc)
+		if c, err = smtp.DialTLS(serverAddr(s, 465), tc); err == nil {
+			if err = c.Hello(heloName(cfg)); err != nil {
+				c.Close()
+			}
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("connecting to %s: %w", s.Host, err)

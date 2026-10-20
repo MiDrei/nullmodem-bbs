@@ -3,9 +3,11 @@ package emailgw
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"io"
 	"net"
+	"net/http/httptest"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -80,14 +82,17 @@ type fakeSMTP struct {
 }
 
 type sentMail struct {
+	helo string // what the client greeted with
+	tls  bool
 	from string
 	to   []string
 	data string
 }
 
 type smtpSession struct {
-	f   *fakeSMTP
-	cur sentMail
+	f    *fakeSMTP
+	conn *smtp.Conn
+	cur  sentMail
 }
 
 func (s *smtpSession) Reset()        { s.cur = sentMail{} }
@@ -97,6 +102,8 @@ func (s *smtpSession) Mail(from string, _ *smtp.MailOptions) error {
 		return &smtp.SMTPError{Code: s.f.failMail, Message: "Domain is pending admin approval for outbound SMTP access"}
 	}
 	s.cur.from = from
+	s.cur.helo = s.conn.Hostname()
+	_, s.cur.tls = s.conn.TLSConnectionState()
 	return nil
 }
 func (s *smtpSession) Rcpt(to string, _ *smtp.RcptOptions) error {
@@ -117,7 +124,7 @@ func (s *smtpSession) Data(r io.Reader) error {
 
 func startSMTP(t *testing.T, f *fakeSMTP) int {
 	t.Helper()
-	srv := smtp.NewServer(smtp.BackendFunc(func(*smtp.Conn) (smtp.Session, error) { return &smtpSession{f: f}, nil }))
+	srv := smtp.NewServer(smtp.BackendFunc(func(c *smtp.Conn) (smtp.Session, error) { return &smtpSession{f: f, conn: c}, nil }))
 	srv.Domain = "localhost"
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -383,5 +390,48 @@ func TestCheckSend(t *testing.T) {
 	e.cfg.Enabled = false
 	if err := CheckSend(e.cfg, e.nm, e.maik, time.Now()); err != ErrOff {
 		t.Errorf("off: %v", err)
+	}
+}
+
+// The gateway greets with the mail domain (or the receiving server's
+// name), not go-smtp's "localhost" -- over STARTTLS too.
+func TestSMTPGreetsWithTheDomain(t *testing.T) {
+	e := setup(t)
+	c, err := dialSMTP(e.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SendMail("a@example.ch", []string{"b@home.example"}, strings.NewReader("Subject: x\r\n\r\nx\r\n")); err != nil {
+		t.Fatal(err)
+	}
+	c.Quit()
+	if got := e.smtp.lastMail(t).helo; got != "Example.CH" {
+		t.Errorf("plain: EHLO %q", got)
+	}
+
+	ts := httptest.NewUnstartedServer(nil)
+	ts.StartTLS()
+	cert := ts.TLS.Certificates
+	ts.Close()
+	f := &fakeSMTP{}
+	srv := smtp.NewServer(smtp.BackendFunc(func(c *smtp.Conn) (smtp.Session, error) { return &smtpSession{f: f, conn: c}, nil }))
+	srv.Domain = "localhost"
+	srv.TLSConfig = &tls.Config{Certificates: cert}
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go srv.Serve(l)
+	t.Cleanup(func() { srv.Close() })
+	c, err = dialStartTLS(l.Addr().String(), "bbs.example.ch", &tls.Config{InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SendMail("a@example.ch", []string{"b@home.example"}, strings.NewReader("Subject: x\r\n\r\nx\r\n")); err != nil {
+		t.Fatal(err)
+	}
+	c.Quit()
+	if got := f.lastMail(t); got.helo != "bbs.example.ch" || !got.tls {
+		t.Errorf("STARTTLS: EHLO %q, TLS %v", got.helo, got.tls)
 	}
 }
