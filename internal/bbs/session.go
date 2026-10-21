@@ -245,6 +245,15 @@ func (s *Server) Handle(conn Conn) {
 		conn.Close()
 	})
 
+	// UTF-8 or CP437: asked of the terminal before the first screen.
+	if isUTF8, ok := term.detectUTF8(charsetWait); ok {
+		term.detectedUTF8 = isUTF8
+		term.SetUTF8(isUTF8)
+		if isUTF8 {
+			s.logInfo("[%s] node %d: terminal speaks UTF-8", protocol, node)
+		}
+	}
+
 	if err := s.welcome(term, node); err != nil {
 		return
 	}
@@ -260,6 +269,7 @@ func (s *Server) Handle(conn Conn) {
 	s.Nodes.SetUsername(node, u.Username)
 	term.SetLocation(u.Location())
 	term.Lang = s.userLang(u)
+	term.UseCharset(u.Charset)
 	s.logInfo("[%s] node %d: %s logged in", protocol, node, u.Username)
 	if err := s.Stats.RecordCall(u.ID, protocol); err != nil {
 		s.logWarn("%v", err)

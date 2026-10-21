@@ -226,6 +226,15 @@ antworten, über die ganze Area hinweg.
 
 Nach dem Login: InterBBS Last Callers, One-Liner, Übersicht über Neues.
 
+**Zeichensatz:** BBS-Programme (SyncTERM, NetRunner, das Web-Terminal)
+erhalten wie bisher CP437; jedes andere Terminal — macOS Terminal, Windows
+Terminal, PuTTY, ein `ssh` in einem UTF-8-Terminal — erhält UTF-8, damit
+Rahmen, Blöcke, Umlaute und ANSI-Bilder auch dort stimmen. Die BBS fragt das
+Terminal beim Verbinden (Cursor-Positionsabfrage, vor dem Begrüssungsbild);
+antwortet es nicht, gilt nach 1,5 s CP437. Im Profil lässt es sich festlegen
+(Telnet `Y`, dann `C`: automatisch, CP437 oder UTF-8). Doors und RLogin
+folgen; Dateiübertragungen (Zmodem) bleiben binär.
+
 **Sprachen:** Die BBS spricht Englisch, Deutsch (Sie) und Deutsch (Du) — auf
 Telnet/SSH wie im Portal, in der Reader-App, auf der Startseite und im Admin
 (Sprachwahl oben rechts, das Kürzel neben dem Mond).

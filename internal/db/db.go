@@ -77,6 +77,12 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	// The character set the user's terminal is sent: 'cp437', 'utf8',
+	// or '' for what it answers when asked (internal/bbs's charset.go).
+	if err := ensureColumn(sqlDB, "users", "charset", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	// The language the user reads the board in (internal/i18n code),
 	// '' for the board's own.
 	if err := ensureColumn(sqlDB, "users", "language", "TEXT NOT NULL DEFAULT ''"); err != nil {

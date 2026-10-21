@@ -174,7 +174,14 @@ func (s *Server) playDoor(term *Terminal, u *user.User, door doors.Door) error {
 	}
 	sess.DropLineEnd = term.TakeLineEnd()
 	done := term.Busy() // the door keeps its own time
-	if err := doors.Run(term.Raw(), door, sess); err != nil {
+	// CP437 as it is, telnet's raw mode and all; a UTF-8 terminal gets
+	// the door turned into UTF-8 too (its telnet layer then stays on,
+	// as over SSH).
+	conn := term.Binary()
+	if term.UTF8() {
+		conn = term.Raw()
+	}
+	if err := doors.Run(conn, door, sess); err != nil {
 		s.logWarn("door %s ended abnormally for %s: %v", door.Name, u.Username, err)
 	}
 	done()

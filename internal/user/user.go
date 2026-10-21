@@ -103,6 +103,9 @@ type User struct {
 	// Language is the language the user reads the board in (an
 	// internal/i18n code), "" for the board's own.
 	Language string
+	// Charset is what the user's terminal is sent: "cp437", "utf8", or
+	// "" for what it answers when asked (internal/bbs's charset.go).
+	Charset string
 }
 
 // Location returns the zone to show this user's times in: their
@@ -160,14 +163,14 @@ var ErrRealNameInvalid = errors.New("user: real name has control characters or i
 
 // userColumns is the column list every single-/multi-row user query
 // selects, in scanUser's order.
-const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated, line_editor, totp_secret <> '', language`
+const userColumns = `id, username, real_name, security_level, created_at, last_login_at, total_calls, timezone, qwk_routing, location, validated, line_editor, totp_secret <> '', language, charset`
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
 func scanUser(row rowScanner, u *User) error {
-	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated, &u.LineEditor, &u.TwoFactor, &u.Language)
+	return row.Scan(&u.ID, &u.Username, &u.RealName, &u.SecurityLevel, &u.CreatedAt, &u.LastLoginAt, &u.TotalCalls, &u.Timezone, &u.QWKRouting, &u.Place, &u.Validated, &u.LineEditor, &u.TwoFactor, &u.Language, &u.Charset)
 }
 
 // Store persists User accounts in the shared SQLite database.
@@ -481,6 +484,15 @@ func (s *Store) SetLanguage(id int64, lang string) error {
 func (s *Store) SetLineEditor(id int64, on bool) error {
 	if _, err := s.db.Exec(`UPDATE users SET line_editor = ? WHERE id = ?`, on, id); err != nil {
 		return fmt.Errorf("user: set line editor for id %d: %w", id, err)
+	}
+	return nil
+}
+
+// SetCharset sets the character set the user's terminal is sent ("",
+// "cp437" or "utf8").
+func (s *Store) SetCharset(id int64, charset string) error {
+	if _, err := s.db.Exec(`UPDATE users SET charset = ? WHERE id = ?`, charset, id); err != nil {
+		return fmt.Errorf("user: set charset for id %d: %w", id, err)
 	}
 	return nil
 }

@@ -36,6 +36,8 @@ Die Web-Seite:
 ## Was sie kann
 
 **Telnet/SSH**
+- CP437 für BBS-Programme, UTF-8 für jedes andere Terminal (beim Verbinden
+  erfragt, bei Bedarf im Profil festgelegt)
 - ANSI-Bildschirme mit Platzhaltern (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
   Menüs aus YAML, Lightbar-Listen, Security Levels 0–255
 - Nachrichtenbereiche (lokal und Echomail), Netmail, Dateibereiche — mit

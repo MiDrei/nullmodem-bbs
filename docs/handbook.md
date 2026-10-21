@@ -223,6 +223,15 @@ the whole area.
 
 After login: InterBBS Last Callers, one-liners, an overview of what's new.
 
+**Character set:** BBS programs (SyncTERM, NetRunner, the web terminal) get
+CP437 as always; any other terminal — macOS Terminal, Windows Terminal,
+PuTTY, an `ssh` in a UTF-8 terminal — gets UTF-8, so frames, blocks, umlauts
+and ANSI art come out right there too. The BBS asks the terminal at connect
+(a cursor position report, before the welcome screen); one that doesn't
+answer gets CP437 after 1.5 s. A caller can fix it in the profile
+(Telnet `Y`, then `C`: automatic, CP437 or UTF-8). Doors and RLogin follow;
+file transfers (Zmodem) stay binary.
+
 **Languages:** the BBS speaks English, German formal (Sie) and German informal
 (Du) — on Telnet/SSH as in the portal, the reader app, the front page and the
 admin (language choice at the top right, the code next to the moon).

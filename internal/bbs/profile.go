@@ -107,6 +107,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 		}
 		b.WriteString("  " + profileField(term, "common.time_zone", timezoneLabel(term, u)) + ansi.Reset + "\r\n")
 		b.WriteString("  " + profileField(term, "common.location", placeLabel(term, u)) + ansi.Reset + "\r\n")
+		b.WriteString("  " + profileField(term, "profile.charset", charsetLabel(term, u)) + ansi.Reset + "\r\n")
 		if s.mayEmail(u) {
 			b.WriteString("  " + profileField(term, "common.email", emailgw.Address(s.emailConfig(), u.Username)) + ansi.Reset + "\r\n")
 		}
@@ -123,6 +124,7 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			{"K", term.T("common.qwk_area_selection")},
 			{"S", term.T("profile.opt_seenby")},
 			{"E", term.T("profile.opt_editor")},
+			{"C", term.T("profile.opt_charset")},
 		}
 		if s.mayForward(u) {
 			options = append(options, [2]string{"M", term.T("profile.opt_forward")})
@@ -173,6 +175,8 @@ func (s *Server) showProfile(term *Terminal, u *user.User) error {
 			err = s.toggleQWKRouting(term, u)
 		case "E":
 			err = s.toggleLineEditor(term, u)
+		case "C":
+			err = s.changeCharset(term, u)
 		case "M":
 			if s.mayForward(u) {
 				err = s.netmailForward(term, u)
@@ -248,6 +252,61 @@ func (s *Server) toggleLineEditor(term *Terminal, u *user.User) error {
 	u.LineEditor = !u.LineEditor
 	s.logInfo("%s now writes %s", u.Username, editorLabel(u))
 	return term.Println(ansi.Reset + ansi.FG(ansi.Green, true) + term.T("profile.editor_now", "EDITOR", editorText(term, u)))
+}
+
+// charsetName is how a character set is called on screen.
+func charsetName(utf8 bool) string {
+	if utf8 {
+		return "UTF-8"
+	}
+	return "CP437"
+}
+
+// charsetLabel is the overview's line for u's character set.
+func charsetLabel(term *Terminal, u *user.User) string {
+	switch u.Charset {
+	case CharsetCP437, CharsetUTF8:
+		return charsetName(u.Charset == CharsetUTF8)
+	}
+	return term.T("profile.charset_auto", "CHARSET", charsetName(term.detectedUTF8))
+}
+
+// changeCharset sets what the caller's terminal is sent: CP437, UTF-8
+// or what it answered at connect (see charset.go). It's switched at
+// once, so the answer already comes the new way.
+func (s *Server) changeCharset(term *Terminal, u *user.User) error {
+	var b strings.Builder
+	b.WriteString("\r\n  " + profileOption("A", term.T("profile.charset_opt_auto", "CHARSET", charsetName(term.detectedUTF8))) + ansi.Reset + "\r\n")
+	b.WriteString("  " + profileOption("C", term.T("profile.charset_opt_cp437")) + ansi.Reset + "\r\n")
+	b.WriteString("  " + profileOption("U", term.T("profile.charset_opt_utf8")) + ansi.Reset + "\r\n")
+	if err := term.Print(b.String()); err != nil {
+		return err
+	}
+	choice, err := prompt(term, "\r\n"+fgDim(ansi.White)+term.T("common.choice")+" ")
+	if err != nil {
+		return err
+	}
+	charset := ""
+	switch strings.ToUpper(choice) {
+	case "A":
+		charset = CharsetAuto
+	case "C":
+		charset = CharsetCP437
+	case "U":
+		charset = CharsetUTF8
+	case "":
+		return nil
+	default:
+		return term.Println(ansi.FG(ansi.Red, true) + term.T("common.unknown_choice") + ansi.Reset)
+	}
+	if err := s.Users.SetCharset(u.ID, charset); err != nil {
+		return err
+	}
+	u.Charset = charset
+	term.UseCharset(charset)
+	s.logInfo("%s's terminal is now sent %s", u.Username, charsetName(term.UTF8()))
+	return term.Println(ansi.FG(ansi.Green, true) + term.T("profile.charset_now", "CHARSET", charsetName(term.UTF8())) + ansi.Reset + "\r\n" +
+		fgDim(ansi.White) + term.T("profile.charset_hint") + ansi.Reset)
 }
 
 func profileOption(key, label string) string {

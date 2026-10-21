@@ -36,6 +36,8 @@ The web side:
 ## What it does
 
 **Telnet/SSH**
+- CP437 for BBS programs, UTF-8 for every other terminal (asked at connect,
+  fixed in the profile if need be)
 - ANSI screens with placeholders (`{BBSNAME}`, `{USERNAME}`, `{FILL:x}` …),
   menus from YAML, lightbar lists, security levels 0–255
 - Message areas (local and echomail), netmail, file areas — with message

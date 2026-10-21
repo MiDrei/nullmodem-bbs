@@ -72,7 +72,7 @@ func (s *Server) downloadQWK(term *Terminal, u *user.User) error {
 	}
 
 	done := term.Busy()
-	leftover, sendErr := zmodem.Send(term.Raw(), packetPath)
+	leftover, sendErr := zmodem.Send(term.Binary(), packetPath)
 	done()
 	if len(leftover) > 0 {
 		term.PushBack(leftover)
@@ -111,7 +111,7 @@ func (s *Server) uploadQWKReply(term *Terminal, u *user.User) error {
 	}
 
 	done := term.Busy()
-	names, leftover, recvErr := zmodem.Receive(term.Raw(), tmpDir)
+	names, leftover, recvErr := zmodem.Receive(term.Binary(), tmpDir)
 	done()
 	if len(leftover) > 0 {
 		term.PushBack(leftover)

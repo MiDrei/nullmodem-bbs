@@ -234,3 +234,6 @@ admin.email.subtitle: "Anrufer schreiben E-Mail aus der Netmail und bekommen Mai
 admin.email.own_server_hint: "Setz den MX-Eintrag von {DOMAIN} (und der weiteren Domains) auf diesen Rechner und leite Port 25 auf den Port des Mail-Servers weiter ({PORT} im Container). Viele Privatanschlüsse sperren eingehenden Port 25."
 profile.forward_address_prompt: "Deine E-Mail-Adresse (Enter: abbrechen): "
 profile.forward_on: "Weiterleitung ist eingeschaltet: Deine Netmail geht auch an {ADDRESS}."
+profile.charset_opt_auto: "Automatisch: wie dein Terminal antwortet (jetzt {CHARSET})"
+profile.charset_now: "Dein Terminal erhält jetzt {CHARSET}."
+profile.charset_hint: "Sehen Rahmen und Umlaute falsch aus, nimm den anderen."

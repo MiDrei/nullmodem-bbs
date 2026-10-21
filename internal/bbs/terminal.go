@@ -23,6 +23,12 @@ const (
 // suppressed.
 type Terminal struct {
 	conn Conn
+	// cs is conn, the board's CP437 turned into UTF-8 and back for a
+	// terminal that speaks that (see charset.go).
+	cs *charsetConn
+	// detectedUTF8 is what the terminal answered when asked at connect
+	// (detectUTF8); the caller's profile may say otherwise.
+	detectedUTF8 bool
 	// Node is the node number this caller is connected on (0 until
 	// the session assigns one), for things that need it outside the
 	// menu loop -- e.g. a door's drop file.
@@ -88,7 +94,29 @@ func (t *Terminal) Time(tm time.Time) time.Time {
 }
 
 // NewTerminal wraps conn for line-based interaction.
-func NewTerminal(conn Conn) *Terminal { return &Terminal{conn: conn} }
+func NewTerminal(conn Conn) *Terminal {
+	cs := &charsetConn{Conn: conn}
+	return &Terminal{conn: cs, cs: cs}
+}
+
+// UTF8 reports whether the caller's terminal is sent UTF-8 (else CP437).
+func (t *Terminal) UTF8() bool { return t.cs.utf8 }
+
+// SetUTF8 switches the wire between UTF-8 and CP437.
+func (t *Terminal) SetUTF8(on bool) { t.cs.utf8 = on }
+
+// UseCharset applies a profile's choice (user.User.Charset): CP437,
+// UTF-8, or what the terminal answered at connect.
+func (t *Terminal) UseCharset(charset string) {
+	switch charset {
+	case CharsetCP437:
+		t.SetUTF8(false)
+	case CharsetUTF8:
+		t.SetUTF8(true)
+	default:
+		t.SetUTF8(t.detectedUTF8)
+	}
+}
 
 // maxWidth caps the NAWS width Width() will trust: classic 80-column
 // BBS art, which every terminal genuinely handles. Going higher isn't
@@ -172,12 +200,16 @@ func (t *Terminal) Println(s string) error {
 	return t.Print(s + "\n")
 }
 
-// Raw returns the underlying connection for a caller that needs to
-// take over the byte stream directly -- internal/zmodem's file
-// transfers, which are an 8-bit binary protocol with nothing to do
-// with this Terminal's own line-oriented/ANSI-cooked interaction, so
-// bypassing it (rather than teaching Terminal to speak Zmodem itself)
-// is the right layering. Safe to call between key reads (a menu
+// Raw returns the connection for a caller that takes over the byte
+// stream directly -- a door, RLogin -- still in the caller's character
+// set (CP437 in, UTF-8 out where the terminal speaks that).
+func (t *Terminal) Raw() Conn { return t.conn }
+
+// Binary returns the connection itself, every byte as it is, for
+// internal/zmodem's file transfers, which are an 8-bit binary protocol
+// with nothing to do with this Terminal's own line-oriented/ANSI-cooked
+// interaction, so bypassing it (rather than teaching Terminal to speak
+// Zmodem itself) is the right layering. Safe to call between key reads (a menu
 // hotkey dispatch, e.g. "download this file"): t.pending can only hold
 // a byte pushed back by ReadKey's own escape-sequence lookahead, and
 // t.expectLFOrNUL only ever causes a byte already sitting on the wire
@@ -185,7 +217,7 @@ func (t *Terminal) Println(s string) error {
 // nothing already consumed left to lose. See PushBack for handing
 // bytes the raw caller itself consumed but couldn't use back to this
 // Terminal once it's done.
-func (t *Terminal) Raw() Conn { return t.conn }
+func (t *Terminal) Binary() Conn { return t.cs.Conn }
 
 // TakeLineEnd reports whether the second half of a CR LF / CR NUL is
 // still to come and, if so, leaves it to the caller to drop (a raw
@@ -297,7 +329,7 @@ func (t *Terminal) ReadKey() (Key, error) {
 		// Nothing more waiting: the Escape key alone (a cursor key's
 		// sequence arrives in one piece). A connection that can't tell
 		// waits for the next byte.
-		if b, ok := t.conn.(interface{ Buffered() int }); ok && len(t.pending) == 0 && b.Buffered() == 0 {
+		if n, ok := t.cs.buffered(); ok && len(t.pending) == 0 && n == 0 {
 			return Key{Type: KeyEscape}, nil
 		}
 		next, err := t.readByte()

@@ -66,7 +66,7 @@ func TestProfileTimezoneFromListOtherAndUnset(t *testing.T) {
 	if err := s.showProfile(term, u); err != nil {
 		t.Fatalf("showProfile: %v", err)
 	}
-	out := term.conn.(*fakeConn).out.String()
+	out := term.cs.Conn.(*fakeConn).out.String()
 	if !strings.Contains(out, "Time zone saved: Europe/Zurich") || !strings.Contains(out, "Unknown time zone: Mars/Olympus") {
 		t.Fatalf("unexpected output:\n%s", out)
 	}
