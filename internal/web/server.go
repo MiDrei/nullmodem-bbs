@@ -97,6 +97,9 @@ type Server struct {
 	// TerminalAddr is the bbs daemon's Telnet port for the web
 	// terminal (terminal_handler.go); empty turns it off.
 	TerminalAddr string
+	// MetricsToken is the bearer token GET /metrics wants (see
+	// metrics.go); empty turns the endpoint off.
+	MetricsToken string
 }
 
 // logInfo/logWarn are nil-safe wrappers around Server.Logger, which is
@@ -132,6 +135,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/terminal", s.handleTerminal)
 	mux.HandleFunc("GET /api/bbs/welcome-screen", s.handleWelcomeScreen)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
+	// For a monitoring server: its own bearer token, not a login.
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 	mux.HandleFunc("POST /api/email/inbound", s.handleEmailInbound)
 	// Mailgun posts the raw mail only to a URL ending in "mime".
 	mux.HandleFunc("POST /api/email/inbound/mime", s.handleEmailInbound)

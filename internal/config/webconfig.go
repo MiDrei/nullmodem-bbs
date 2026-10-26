@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -18,6 +19,23 @@ type WebConfig struct {
 	// connects to ("bbs:2323" in Docker); empty: this machine, at the
 	// port in bbs.yaml.
 	TerminalAddr string `yaml:"terminal_addr,omitempty"`
+	// MetricsToken is the bearer token a monitoring server sends for
+	// GET /metrics; empty (the default) turns the endpoint off. The
+	// environment variable NULLMODEM_METRICS_TOKEN, when set, wins.
+	MetricsToken string `yaml:"metrics_token,omitempty"`
+}
+
+// MetricsTokenEnv names the environment variable that sets the
+// metrics token instead of web.yaml.
+const MetricsTokenEnv = "NULLMODEM_METRICS_TOKEN"
+
+// Metrics returns the token for GET /metrics: the environment
+// variable's, else web.yaml's; "" leaves the endpoint off.
+func (c *WebConfig) Metrics() string {
+	if v := strings.TrimSpace(os.Getenv(MetricsTokenEnv)); v != "" {
+		return v
+	}
+	return strings.TrimSpace(c.MetricsToken)
 }
 
 // DefaultWeb returns the built-in web daemon configuration.

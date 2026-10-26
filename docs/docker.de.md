@@ -170,6 +170,51 @@ alle drei), und ein Banner im Admin bietet den Neustart an. Alles andere
 Ohne Docker (Programme von Hand gestartet) muss man einen so beendeten
 Dienst selbst wieder starten.
 
+## Überwachung (/metrics)
+
+Der Dienst `web` beantwortet `GET /metrics` mit dem, was das Dashboard
+zeigt -- Probleme der Überwachung, Dienste, Anrufer, Netmail, Uplinks,
+Backups, Speicherplatz --, im Textformat von Prometheus, für einen
+Überwachungs-Server (Prometheus oder alles, was dieses Format liest),
+der es alle 30 bis 60 Sekunden abholt. Ohne Token ist es aus; mit Token
+verlangt es `Authorization: Bearer <token>`, ohne oder mit falschem
+Token lautet die Antwort 401. Es liegt nicht hinter dem Admin-Login:
+Ein Sysop-Login öffnet es nicht, nur das Token.
+
+Das Token in `configs/web.yaml` setzen oder in der Umgebung als
+`NULLMODEM_METRICS_TOKEN` (z.B. in der `.env` neben
+`docker-compose.yml`), das Vorrang vor der Datei hat; dann `web` neu
+starten:
+
+```yaml
+metrics_token: "ein langes zufälliges Geheimnis"   # openssl rand -hex 32
+```
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8090/metrics
+```
+
+Alle Namen beginnen mit `nullmodem_`: `nullmodem_problems` und je ein
+`nullmodem_problem{key,title}` pro Problem, das die Überwachung sieht
+(alle 5 Minuten geprüft; Titel auf Englisch),
+`nullmodem_service_up{service}` und
+`nullmodem_service_last_seen_timestamp_seconds{service}` für die
+Dienste und die Hintergrundprogramme der Doors,
+`nullmodem_nodes_active`, `nullmodem_users`, `nullmodem_users_pending`,
+`nullmodem_lockouts`, `nullmodem_calls_total{via}`,
+`nullmodem_netmail_pending_outbound`, `nullmodem_netmail_unresolved`,
+pro Verbindung `nullmodem_uplink_last_success_timestamp_seconds{uplink}`
+und `nullmodem_uplink_failing{uplink}`, pro Backup-Ziel (`local`,
+`offsite`) `nullmodem_backup_last_success_timestamp_seconds{target}`
+und `nullmodem_backup_success{target}`, `nullmodem_disk_free_bytes`,
+`nullmodem_db_size_bytes` und einige mehr -- jede mit einer
+`# HELP`-Zeile. Zeiten sind Unix-Sekunden, 0 wenn unbekannt.
+
+Über das lokale Netz oder einen Tunnel (WireGuard) abholen. Ist das Web
+hinter einem Reverse-Proxy öffentlich, schützt das Token `/metrics`
+auch dort; um es ganz vom Internet fernzuhalten, lässt man Caddy es
+ablehnen: `respond /metrics 404` im Site-Block.
+
 ## Image-Grösse und DOS-Doors
 
 Das Laufzeit-Image ist `debian:trixie-slim`, nicht Alpine --

@@ -6,3 +6,7 @@ static_dir: "web/build"
 # The web terminal (/terminal) connects to the BBS's Telnet port; in
 # Docker the bbs service is another container:
 # terminal_addr: "bbs:2323"
+# GET /metrics in the Prometheus text format, for a monitoring server:
+# it sends "Authorization: Bearer <token>". Off while empty; the
+# environment variable NULLMODEM_METRICS_TOKEN, when set, wins.
+# metrics_token: "a long random secret"   # e.g. openssl rand -hex 32

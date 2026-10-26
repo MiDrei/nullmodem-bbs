@@ -168,6 +168,50 @@ screens -- applies right away.
 Without Docker (running the binaries by hand), a daemon stopped this
 way has to be started again yourself.
 
+## Monitoring (/metrics)
+
+The `web` service answers `GET /metrics` with what the dashboard shows
+-- health problems, daemons, callers, netmail, uplinks, backups, disk
+space -- in the Prometheus text format, for a monitoring server
+(Prometheus, or anything that reads that format) to fetch every 30 to
+60 seconds. It's off until a token is set, then wants
+`Authorization: Bearer <token>`; without it, or with a wrong one, the
+answer is 401. It's not behind the admin login: a sysop's login does
+not open it, only the token.
+
+Set the token in `configs/web.yaml`, or in the environment as
+`NULLMODEM_METRICS_TOKEN` (e.g. in the `.env` next to
+`docker-compose.yml`), which wins over the file; then restart `web`:
+
+```yaml
+metrics_token: "a long random secret"   # openssl rand -hex 32
+```
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8090/metrics
+```
+
+Every name starts with `nullmodem_`: `nullmodem_problems` and one
+`nullmodem_problem{key,title}` per problem the health monitor sees
+(checked every 5 minutes; titles in English),
+`nullmodem_service_up{service}` and
+`nullmodem_service_last_seen_timestamp_seconds{service}` for the
+daemons and doors' background programs, `nullmodem_nodes_active`,
+`nullmodem_users`, `nullmodem_users_pending`, `nullmodem_lockouts`,
+`nullmodem_calls_total{via}`, `nullmodem_netmail_pending_outbound`,
+`nullmodem_netmail_unresolved`, per link
+`nullmodem_uplink_last_success_timestamp_seconds{uplink}` and
+`nullmodem_uplink_failing{uplink}`, per backup target (`local`,
+`offsite`) `nullmodem_backup_last_success_timestamp_seconds{target}`
+and `nullmodem_backup_success{target}`, `nullmodem_disk_free_bytes`,
+`nullmodem_db_size_bytes` and a few more -- each with a `# HELP` line.
+Times are Unix seconds, 0 when unknown.
+
+Fetch it over the local network or a tunnel (WireGuard). The web is
+public behind a reverse proxy, the token protects `/metrics` there too;
+to keep it off the internet altogether, have Caddy refuse it:
+`respond /metrics 404` in the site block.
+
 ## Image size and DOS door support
 
 The runtime image is `debian:trixie-slim`, not alpine -- classic DOS

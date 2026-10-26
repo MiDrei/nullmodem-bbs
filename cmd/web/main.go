@@ -137,6 +137,10 @@ func main() {
 		Community:     community.NewStore(sqlDB),
 		Stats:         stats.NewStore(sqlDB),
 		TerminalAddr:  terminalAddr(cfg, bbsCfg),
+		MetricsToken:  cfg.Metrics(),
+	}
+	if srv.MetricsToken != "" {
+		logger.Info("metrics on at GET /metrics (bearer token)")
 	}
 
 	// Login protection, shared with the bbs daemon through the database;

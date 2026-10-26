@@ -94,3 +94,15 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatalf("writing test config: %v", err)
 	}
 }
+
+func TestWebMetricsToken(t *testing.T) {
+	c := &WebConfig{MetricsToken: " fromyaml "}
+	t.Setenv(MetricsTokenEnv, "")
+	if got := c.Metrics(); got != "fromyaml" {
+		t.Fatalf("from web.yaml: %q", got)
+	}
+	t.Setenv(MetricsTokenEnv, "fromenv")
+	if got := c.Metrics(); got != "fromenv" {
+		t.Fatalf("environment: %q", got)
+	}
+}

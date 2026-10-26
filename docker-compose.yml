@@ -57,6 +57,9 @@ services:
     user: "${PUID:-1000}:${PGID:-1000}"
     environment:
       TZ: ${TZ:-UTC} # e.g. Europe/Zurich: logs, backup names, nightly runs
+      # Bearer token for GET /metrics (docs/docker.md "Monitoring");
+      # empty: web.yaml's metrics_token, or the endpoint stays off.
+      NULLMODEM_METRICS_TOKEN: ${NULLMODEM_METRICS_TOKEN:-}
     ports:
       - "8090:8090" # admin UI + REST API
       # The email gateway's own mail server (Admin -> Email gateway ->
