@@ -1076,7 +1076,7 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsNam
 			OrigAddr: echoOrigAddr,
 			DestAddr: uplinkAddr,
 			Written:  m.PostedAt,
-			ToName:   "All",
+			ToName:   echoTo(m.ToName),
 			FromName: m.FromName,
 			Subject:  m.Subject,
 			Body:     body,
@@ -1110,7 +1110,7 @@ func buildPacket(ourAddr, uplinkAddr mail.Address, packetPassword string, bbsNam
 			OrigAddr: echoOrigAddr,
 			DestAddr: uplinkAddr,
 			Written:  m.PostedAt,
-			ToName:   "All",
+			ToName:   echoTo(m.ToName),
 			FromName: m.FromName,
 			Subject:  m.Subject,
 			Body:     wrapped,
@@ -1331,7 +1331,7 @@ func tossEcho(tag string, msg *mail.Message, messages *message.Store) (created b
 	if fromName == "" {
 		fromName = msg.OrigAddr.String()
 	}
-	m, created, err := messages.ReceiveEcho(area.ID, fromName, msg.Subject, stripLeadingKludges(msg.Body), echoMsgID(msg.Body), msg.Written)
+	m, created, err := messages.ReceiveEchoTo(area.ID, fromName, msg.ToName, msg.Subject, stripLeadingKludges(msg.Body), echoMsgID(msg.Body), msg.Written)
 	if err != nil {
 		return false, fmt.Errorf("storing message in area %q: %w", tag, err)
 	}
@@ -1365,4 +1365,13 @@ func robotLocation(robot *RobotConfig) string {
 		return ""
 	}
 	return robot.Location
+}
+
+// echoTo is an echomail's To field: whom it's addressed to, "All" if
+// no one in particular.
+func echoTo(name string) string {
+	if strings.TrimSpace(name) == "" {
+		return "All"
+	}
+	return name
 }

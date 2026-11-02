@@ -15,11 +15,8 @@ import (
 // area). Remote mail says so in its REPLY kludge (matched against the
 // MSGIDs here, including the ones our own posts went out under); a
 // reply written here links directly; anything else whose subject
-// starts with "Re:" joins the first message with the same subject in
-// the last guessWindow (ReplyGuess) -- older mail lost its kludges.
-
-// guessWindow bounds how far back a "Re:" subject looks for its thread.
-const guessWindow = 120 * 24 * time.Hour
+// starts with "Re:" joins the latest earlier message with that subject
+// (ReplyGuess, see db.GuessParent) -- older mail lost its kludges.
 
 // Thread links a newly stored message into its thread: by replyMsgID
 // (a REPLY kludge, "" if none), else by subject; and adopts replies
@@ -60,40 +57,10 @@ func (s *Store) Thread(m *Message, replyMsgID string) error {
 	return nil
 }
 
-// guessParent: the thread root for a "Re:" subject, or 0.
+// guessParent: what a "Re:" subject most likely answers, or 0 (see
+// db.GuessParent).
 func (s *Store) guessParent(m *Message) (int64, error) {
-	base, re := db.BaseSubject(m.Subject)
-	if !re || base == "" {
-		return 0, nil
-	}
-	// Narrowed in SQL by the subject's last word, matched exactly in Go.
-	words := strings.Fields(base)
-	tail := words[len(words)-1]
-	rows, err := s.db.Query(`SELECT id, subject, reply_to FROM messages
-		WHERE area_id = ?1 AND INSTR(LOWER(subject), ?3) > 0
-			AND (posted_at, id) < (SELECT posted_at, id FROM messages WHERE id = ?2)
-			AND posted_at >= datetime((SELECT substr(posted_at, 1, 19) FROM messages WHERE id = ?2), ?4)
-		ORDER BY posted_at, id LIMIT 200`,
-		m.AreaID, m.ID, tail, fmt.Sprintf("-%d days", int(guessWindow.Hours()/24)))
-	if err != nil {
-		return 0, fmt.Errorf("message: thread %d: %w", m.ID, err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id int64
-		var subject string
-		var replyTo sql.NullInt64
-		if err := rows.Scan(&id, &subject, &replyTo); err != nil {
-			return 0, fmt.Errorf("message: thread %d: %w", m.ID, err)
-		}
-		if b, _ := db.BaseSubject(subject); b == base {
-			if replyTo.Valid {
-				return replyTo.Int64, nil
-			}
-			return id, nil
-		}
-	}
-	return 0, rows.Err()
+	return db.GuessParent(s.db, m.AreaID, m.ID, m.Subject, m.ToName)
 }
 
 // SetReplyTo links id as a reply written here to parentID.

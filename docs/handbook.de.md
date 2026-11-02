@@ -286,8 +286,9 @@ selbst). Areas mit höherem SL (Sysop, lokal Privates) bleiben draussen.
 
 **Threads:** Jede Antwort weiss, worauf sie antwortet — aus dem REPLY-Kludge
 der Echomail, bei Antworten hier direkt (Telnet, Portal, Reader-App, QWK).
-Ältere Nachrichten ohne diese Angabe werden über den Betreff („Re: …“)
-zugeordnet. Im Portal zeigt jede Area „All messages“ oder „Threads“, jede
+Nachrichten ohne diese Angabe werden über den Betreff („Re: …“) zugeordnet:
+der letzten früheren Nachricht mit diesem Betreff, wenn möglich von dem, an
+den die Antwort gerichtet ist (mit gestrichelter Linie angezeigt). Im Portal zeigt jede Area „All messages“ oder „Threads“, jede
 Nachricht ihren Thread als Baum; ausgehende Antworten tragen ein REPLY, damit
 andere Systeme sie ebenfalls einordnen.
 

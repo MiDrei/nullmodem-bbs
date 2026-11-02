@@ -171,7 +171,7 @@ func TestPollSendsPendingOutboundEchoAndMarksSent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateArea: %v", err)
 	}
-	posted, err := messages.PostMessage(area.ID, alice.ID, "All", "Hi fsxNet", "hello from alice")
+	posted, err := messages.PostMessage(area.ID, alice.ID, "Geri Atricks", "Hi fsxNet", "hello from alice")
 	if err != nil {
 		t.Fatalf("PostMessage: %v", err)
 	}
@@ -230,8 +230,8 @@ func TestPollSendsPendingOutboundEchoAndMarksSent(t *testing.T) {
 		t.Fatalf("sent packet has %d messages, want 1", len(p.Messages))
 	}
 	msg := p.Messages[0]
-	if msg.ToName != "All" {
-		t.Fatalf("sent echo message ToName = %q, want %q", msg.ToName, "All")
+	if msg.ToName != "Geri Atricks" {
+		t.Fatalf("sent echo message ToName = %q, want %q", msg.ToName, "Geri Atricks")
 	}
 	if msg.FromName != "alice" {
 		t.Fatalf("sent echo message FromName = %q, want %q", msg.FromName, "alice")
@@ -845,7 +845,7 @@ func TestPollTossesEchomailIntoAutoCreatedPendingArea(t *testing.T) {
 		t.Fatalf("NewWriter: %v", err)
 	}
 	if err := w.WriteMessage(mail.Message{
-		ToName:   "All",
+		ToName:   "Mike Dreier",
 		FromName: "Geri Atricks",
 		Subject:  "Re: Immortal Barons",
 		Body:     "AREA:FSXNET_GENERAL\r\x01MSGID: 21:3/235 abcdef01\rhello area\r",
@@ -917,7 +917,7 @@ func TestPollTossesEchomailIntoAutoCreatedPendingArea(t *testing.T) {
 		t.Fatalf("ListMessages = %+v, want 1 message", msgs)
 	}
 	got := msgs[0]
-	if got.FromName != "Geri Atricks" || got.Subject != "Re: Immortal Barons" {
+	if got.FromName != "Geri Atricks" || got.ToName != "Mike Dreier" || got.Subject != "Re: Immortal Barons" {
 		t.Fatalf("tossed message = %+v, want From %q Subject %q", got, "Geri Atricks", "Re: Immortal Barons")
 	}
 	if !got.IsFromRemote() {

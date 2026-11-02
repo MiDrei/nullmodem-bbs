@@ -281,7 +281,9 @@ a higher SL (sysop, local private ones) stay out.
 
 **Threads:** every reply knows what it answers — from the echomail's REPLY
 kludge, for replies written here directly (Telnet, portal, reader app, QWK).
-Older messages without it are matched by subject ("Re: …"). In the portal
+Messages without it are matched by subject ("Re: …"): to the latest earlier
+message with that subject, by whoever the reply is addressed to if possible
+(shown with a dotted line). In the portal
 every area shows "All messages" or "Threads", every message its thread as a
 tree; outgoing replies carry a REPLY so other systems can place them too.
 

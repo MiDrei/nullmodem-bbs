@@ -216,6 +216,10 @@ func Open(path string) (*sql.DB, error) {
 		sqlDB.Close()
 		return nil, err
 	}
+	if err := reguessThreads(sqlDB); err != nil {
+		sqlDB.Close()
+		return nil, err
+	}
 	if err := backfillCalls(sqlDB); err != nil {
 		sqlDB.Close()
 		return nil, err

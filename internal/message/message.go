@@ -534,12 +534,21 @@ func (s *Store) MarkSent(messageID int64) error {
 // omit it, and dropping mail from one of those over a missing kludge
 // would be worse than the rare accidental duplicate.
 func (s *Store) ReceiveEcho(areaID int64, fromName, subject, body, msgID string, postedAt time.Time) (msg *Message, created bool, err error) {
-	fromName, subject = textclean.Line(fromName), textclean.Line(subject)
+	return s.ReceiveEchoTo(areaID, fromName, "All", subject, body, msgID, postedAt)
+}
+
+// ReceiveEchoTo is ReceiveEcho for a message addressed to toName (the
+// packet's To field; "" is "All").
+func (s *Store) ReceiveEchoTo(areaID int64, fromName, toName, subject, body, msgID string, postedAt time.Time) (msg *Message, created bool, err error) {
+	fromName, toName, subject = textclean.Line(fromName), textclean.Line(toName), textclean.Line(subject)
+	if toName == "" {
+		toName = "All"
+	}
 	res, err := s.db.Exec(
-		`INSERT OR IGNORE INTO messages (area_id, from_user_id, from_name, to_name, subject, body, msgid, posted_at) VALUES (?, NULL, ?, 'All', ?, ?, ?, ?)`,
+		`INSERT OR IGNORE INTO messages (area_id, from_user_id, from_name, to_name, subject, body, msgid, posted_at) VALUES (?, NULL, ?, ?, ?, ?, ?, ?)`,
 		// UTC, like CURRENT_TIMESTAMP: posted_at is compared and sorted
 		// as text, and a local time would be off by its offset.
-		areaID, fromName, subject, body, msgID, postedAt.UTC(),
+		areaID, fromName, toName, subject, body, msgID, postedAt.UTC(),
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("message: receive echo to area %d: %w", areaID, err)

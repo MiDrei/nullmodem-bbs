@@ -52,7 +52,8 @@ func TestThreadsLinkByReplyKludgeSubjectAndLateParent(t *testing.T) {
 	if m := get(late.ID); m.ReplyTo.Int64 != parent.ID || m.ReplyGuess {
 		t.Errorf("late parent not adopted: %+v guess=%v", m.ReplyTo, m.ReplyGuess)
 	}
-	if m := get(guessed.ID); m.ReplyTo.Int64 != root.ID || !m.ReplyGuess {
+	// The latest message with that subject, not the thread's first.
+	if m := get(guessed.ID); m.ReplyTo.Int64 != a.ID || !m.ReplyGuess {
 		t.Errorf("subject guess: %+v", m.ReplyTo)
 	}
 
@@ -76,8 +77,8 @@ func TestThreadsLinkByReplyKludgeSubjectAndLateParent(t *testing.T) {
 	for _, e := range th {
 		got, depth = append(got, e.ID), append(depth, e.Depth)
 	}
-	// root > a > local > answer, then guessed (root's later reply).
-	want := []int64{root.ID, a.ID, local.ID, answer.ID, guessed.ID}
+	// root > a > guessed, then a's later reply local > answer.
+	want := []int64{root.ID, a.ID, guessed.ID, local.ID, answer.ID}
 	if len(got) != len(want) {
 		t.Fatalf("thread = %v (depths %v), want %v", got, depth, want)
 	}
@@ -86,7 +87,7 @@ func TestThreadsLinkByReplyKludgeSubjectAndLateParent(t *testing.T) {
 			t.Fatalf("thread = %v, want %v", got, want)
 		}
 	}
-	if depth[3] != 3 || depth[4] != 1 {
+	if depth[2] != 2 || depth[3] != 2 || depth[4] != 3 {
 		t.Errorf("depths = %v", depth)
 	}
 
