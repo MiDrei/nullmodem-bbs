@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# ANSI-Screens und Nodelisten brauchen CRLF: Die Screens gehen roh ans Terminal
+# (siehe scripts/screens/space.py und internal/bbs/frame.go), und der Nodelist-Test
+# prüft das Einlesen einer echten Datei mit CRLF. Git darf sie nicht umschreiben.
+*.ans -text
+*.268 -text
