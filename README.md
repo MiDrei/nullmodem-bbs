@@ -1,5 +1,7 @@
 # NullModem BBS
 
+> **This repository has moved to [https://git.maik.ch/nullmodem/bbs](https://git.maik.ch/nullmodem/bbs).** It is archived here and no longer updated. Issues, pull requests, releases and images (`git.maik.ch/nullmodem/bbs`) are on git.maik.ch now.
+
 **English** · [Deutsch](README.de.md)
 
 [![CI](https://github.com/midrei/nullmodem-bbs/actions/workflows/ci.yml/badge.svg)](https://github.com/midrei/nullmodem-bbs/actions/workflows/ci.yml)
